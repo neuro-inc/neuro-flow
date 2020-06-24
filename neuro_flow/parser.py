@@ -1,3 +1,14 @@
+# YAML parser
+#
+# The parser converts YAML entities into ast data classes.
+#
+# During parsing some trivial missing values (names, titles, etc.) are calculated and
+# substituted, but other things like env, volume, tags, and image are processed as is.
+#
+# Using the most nested of overlapped life-spans and joining job tags is the duty of the
+# runner.
+
+
 from functools import partial
 from pathlib import Path, PurePosixPath
 from types import MappingProxyType
