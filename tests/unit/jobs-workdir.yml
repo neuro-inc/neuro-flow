@@ -1,0 +1,7 @@
+kind: job
+workdir: /main/dir
+jobs:
+  test:
+    cmd: echo abc
+    image: ubuntu
+    workdir: /real/folder
