@@ -100,9 +100,10 @@ JOB = EXEC_UNIT.merge(
 )
 
 
-def parse_job(data: Dict[str, Any]) -> ast.Job:
+def parse_job(id: str, data: Dict[str, Any]) -> ast.Job:
     return ast.Job(
-        title=data.get("title"),
+        id=id,
+        title=data.get("title") or id,
         detach=data["detach"],
         browse=data["browse"],
         **parse_exec_unit(data),
@@ -134,13 +135,13 @@ def parse_base_flow(data: Dict[str, Any], path: Path) -> Dict[str, Any]:
     )
 
 
-INTERACTIVE_FLOW = BASE_FLOW.merge(t.Dict({t.Key("jobs"): t.List(JOB)}))
+INTERACTIVE_FLOW = BASE_FLOW.merge(t.Dict({t.Key("jobs"): t.Mapping(t.String, JOB)}))
 
 
 def parse_interactive(data: Dict[str, Any], path: Path) -> ast.InteractiveFlow:
     data = INTERACTIVE_FLOW(data)
     assert data["kind"] == ast.Kind.JOB.value
-    jobs = [parse_job(job) for job in data["jobs"]]
+    jobs = {id: parse_job(id, job) for id, job in data["jobs"].items()}
     return ast.InteractiveFlow(jobs=jobs, **parse_base_flow(data, path))
 
 

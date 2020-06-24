@@ -14,8 +14,9 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
         tags=set(),
         env={},
         workdir=None,
-        jobs=[
-            ast.Job(
+        jobs={
+            "test": ast.Job(
+                id="test",
                 name=None,
                 image="ubuntu",
                 preset=None,
@@ -27,9 +28,9 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
                 volumes=[],
                 tags=set(),
                 life_span=None,
-                title=None,
+                title="test",
                 detach=False,
                 browse=False,
             )
-        ],
+        },
     )

@@ -52,7 +52,8 @@ class ExecUnit:
 @dataclass(frozen=True)
 class Job(ExecUnit):
     # Interactive job used by Kind.Live flow
-    title: str
+    id: str
+    title: str  # Autocalculated if not passed explicitly
 
     detach: bool
     browse: bool
@@ -62,7 +63,7 @@ class Job(ExecUnit):
 class Step(ExecUnit):
     # A step of a batch
     id: str
-    title: str
+    title: str  # Autocalculated if not passed explicitly
 
     image: str  # ImageRef
     preset: Optional[str]
@@ -87,7 +88,8 @@ class Batch:
     # A set of steps, used in non-interactive mode
     # All steps share the same implicit persistent disk volume
 
-    title: str
+    id: str
+    title: str  # Autocalculated if not passed explicitly
     needs: List[str]  # BatchRef
     steps: List[Step]
 
@@ -131,10 +133,10 @@ class BaseFlow:
 @dataclass(frozen=True)
 class InteractiveFlow(BaseFlow):
     # self.kind == Kind.Job
-    jobs: Sequence[Job]
+    jobs: Mapping[str, Job]
 
 
 @dataclass(frozen=True)
 class BatchFlow(BaseFlow):
     # self.kind == Kind.Batch
-    batches: Sequence[Batch]
+    batches: Mapping[str, Batch]
