@@ -2,11 +2,7 @@
 #
 # The parser converts YAML entities into ast data classes.
 #
-# During parsing some trivial missing values (names, titles, etc.) are calculated and
-# substituted, but other things like env, volume, tags, and image are processed as is.
-#
-# Using the most nested of overlapped life-spans and joining job tags is the duty of the
-# runner.
+# Defaults are evaluated by the separate processing step.
 
 
 from functools import partial
@@ -114,7 +110,7 @@ JOB = EXEC_UNIT.merge(
 def parse_job(id: str, data: Dict[str, Any]) -> ast.Job:
     return ast.Job(
         id=id,
-        title=data.get("title") or id,
+        title=data.get("title"),
         detach=data["detach"],
         browse=data["browse"],
         **parse_exec_unit(data),
@@ -134,10 +130,10 @@ BASE_FLOW = t.Dict(
 )
 
 
-def parse_base_flow(data: Dict[str, Any], path: Path) -> Dict[str, Any]:
+def parse_base_flow(data: Dict[str, Any]) -> Dict[str, Any]:
     return dict(
         kind=ast.Kind(data["kind"]),
-        title=data.get("title") or _beautify(path.stem),
+        title=data.get("title"),
         images=data["images"],
         volumes=data["volumes"],
         tags=frozenset(data["tags"]),
@@ -149,11 +145,11 @@ def parse_base_flow(data: Dict[str, Any], path: Path) -> Dict[str, Any]:
 INTERACTIVE_FLOW = BASE_FLOW.merge(t.Dict({t.Key("jobs"): t.Mapping(t.String, JOB)}))
 
 
-def parse_interactive(data: Dict[str, Any], path: Path) -> ast.InteractiveFlow:
+def parse_interactive(data: Dict[str, Any]) -> ast.InteractiveFlow:
     data = INTERACTIVE_FLOW(data)
     assert data["kind"] == ast.Kind.JOB.value
     jobs = {id: parse_job(id, job) for id, job in data["jobs"].items()}
-    return ast.InteractiveFlow(jobs=jobs, **parse_base_flow(data, path))
+    return ast.InteractiveFlow(jobs=jobs, **parse_base_flow(data))
 
 
 def parse(path: Path) -> ast.BaseFlow:
@@ -163,7 +159,7 @@ def parse(path: Path) -> ast.BaseFlow:
     if kind is None:
         raise RuntimeError("Missing field 'kind'")
     elif kind == ast.Kind.JOB.value:
-        return parse_interactive(data, path)
+        return parse_interactive(data)
     else:
         raise RuntimeError(
             f"Unknown 'kind': {kind}, supported values are 'job' and 'batch'"
