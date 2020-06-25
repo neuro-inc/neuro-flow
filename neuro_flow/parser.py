@@ -5,6 +5,8 @@
 # Defaults are evaluated by the separate processing step.
 
 
+import datetime
+import re
 from functools import partial
 from pathlib import Path, PurePosixPath
 from types import MappingProxyType
@@ -12,6 +14,7 @@ from typing import Any, Dict
 
 import trafaret as t
 import yaml
+from neuromation.api import HTTPPort
 from yarl import URL
 
 from . import ast
@@ -35,30 +38,60 @@ Id = t.WithRepr(
     "<ID>",
 )
 OptKey = partial(t.Key, optional=True)
-YarlURI = t.String() & URL
-LocalPath = t.String() & Path
-RemotePath = t.String() & PurePosixPath
+URI = t.WithRepr(t.String() & URL, "<URI>")
+LocalPath = t.WithRepr(t.String() & Path, "<LocalPath>")
+RemotePath = t.WithRepr(t.String() & PurePosixPath, "<RemotePath>")
+
+
+def make_lifespan(match: "re.Match[str]") -> float:
+    td = datetime.timedelta(
+        days=int(match.group("d") or 0),
+        hours=int(match.group("h") or 0),
+        minutes=int(match.group("m") or 0),
+        seconds=int(match.group("s") or 0),
+    )
+    return td.total_seconds()
+
+
+RegexLifeSpan = (
+    t.OnError(
+        t.RegexpRaw(
+            re.compile(r"^((?P<d>\d+)d)?((?P<h>\d+)h)?((?P<m>\d+)m)?((?P<s>\d+)s)?$")
+        ),
+        "value is not a lifespan, e.g. 1d2h3m4s",
+    )
+    & make_lifespan
+)
+LIFE_SPAN = t.WithRepr(t.Float | RegexLifeSpan, "<LifeSpan>")
 
 
 VOLUME = t.Dict(
-    {
-        t.Key("id"): Id,
-        t.Key("uri"): URL,
-        t.Key("mount"): URL,
-        t.Key("ro", default=False): t.Bool,
-    }
+    {t.Key("uri"): URI, t.Key("mount"): RemotePath, t.Key("ro", default=False): t.Bool}
 )
+
+
+def parse_volume(id: str, data: Dict[str, Any]) -> ast.Volume:
+    return ast.Volume(id=id, uri=data["uri"], mount=data["mount"], ro=data["ro"],)
 
 
 IMAGE = t.Dict(
     {
-        t.Key("id"): Id,
-        t.Key("uri"): URL,
+        t.Key("uri"): URI,
         t.Key("context"): LocalPath,
         t.Key("dockerfile"): LocalPath,
         t.Key("build-args"): t.Mapping(t.String(), t.String()),
     }
 )
+
+
+def parse_image(id: str, data: Dict[str, Any]) -> ast.Image:
+    return ast.Image(
+        id=id,
+        uri=data["uri"],
+        context=data["context"],
+        dockerfile=data["dockerfile"],
+        build_args=MappingProxyType(data["build-args"]),
+    )
 
 
 EXEC_UNIT = t.Dict(
@@ -67,7 +100,7 @@ EXEC_UNIT = t.Dict(
         t.Key("image"): t.String,
         OptKey("preset"): t.String,
         OptKey("http"): t.Dict(
-            {t.Key("port"): t.Int, t.Key("require-auth", default=True): t.Bool}
+            {t.Key("port"): t.Int, t.Key("requires-auth", default=True): t.Bool}
         ),
         OptKey("entrypoint"): t.String,
         t.Key("cmd"): t.String,
@@ -75,22 +108,25 @@ EXEC_UNIT = t.Dict(
         t.Key("env", default=dict): t.Mapping(t.String, t.String),
         t.Key("volumes", default=list): t.List(t.String),
         t.Key("tags", default=list): t.List(t.String),
-        OptKey("life-span"): t.Int,
+        OptKey("life-span"): LIFE_SPAN,
     }
 )
 
 
 def parse_exec_unit(data: Dict[str, Any]) -> Dict[str, Any]:
+    http = data.get("http")
+    if http is not None:
+        http = HTTPPort(http["port"], http["requires-auth"])
     return dict(
         name=data.get("name"),
         image=data["image"],
         preset=data.get("preset"),
-        http=data.get("http"),
+        http=http,
         entrypoint=data.get("entrypoint"),
         cmd=data["cmd"],
         workdir=data.get("workdir"),
         env=data["env"],
-        volumes=data["volumes"],
+        volumes=tuple(data["volumes"]),
         tags=frozenset(data["tags"]),
         life_span=data.get("life-span"),
     )
@@ -121,11 +157,12 @@ BASE_FLOW = t.Dict(
     {
         t.Key("kind"): t.String,
         OptKey("title"): t.String,
-        t.Key("images", default=list): t.List(IMAGE),
-        t.Key("volumes", default=list): t.List(VOLUME),
+        t.Key("images", default=dict): t.Mapping(t.String, IMAGE),
+        t.Key("volumes", default=dict): t.Mapping(t.String, VOLUME),
         t.Key("tags", default=list): t.List(t.String),
         t.Key("env", default=dict): t.Mapping(t.String, t.String),
         OptKey("workdir"): RemotePath,
+        OptKey("life-span"): LIFE_SPAN,
     }
 )
 
@@ -134,11 +171,16 @@ def parse_base_flow(data: Dict[str, Any]) -> Dict[str, Any]:
     return dict(
         kind=ast.Kind(data["kind"]),
         title=data.get("title"),
-        images=data["images"],
-        volumes=data["volumes"],
+        images=MappingProxyType(
+            {id: parse_image(id, image) for id, image in data["images"].items()}
+        ),
+        volumes=MappingProxyType(
+            {id: parse_volume(id, volume) for id, volume in data["volumes"].items()}
+        ),
         tags=frozenset(data["tags"]),
         env=MappingProxyType(data["env"]),
         workdir=data.get("workdir"),
+        life_span=data.get("life-span"),
     )
 
 

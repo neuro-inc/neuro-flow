@@ -46,14 +46,14 @@ class ExecUnit:
     env: Mapping[str, str]
     volumes: Sequence[str]  # Sequence[VolumeRef]
     tags: AbstractSet[str]
-    life_span: Optional[int]
+    life_span: Optional[float]
 
 
 @dataclass(frozen=True)
 class Job(ExecUnit):
     # Interactive job used by Kind.Live flow
     id: str
-    title: str  # Autocalculated if not passed explicitly
+    title: Optional[str]  # Autocalculated if not passed explicitly
 
     detach: bool
     browse: bool
@@ -63,7 +63,7 @@ class Job(ExecUnit):
 class Step(ExecUnit):
     # A step of a batch
     id: str
-    title: str  # Autocalculated if not passed explicitly
+    title: Optional[str]  # Autocalculated if not passed explicitly
 
     image: str  # ImageRef
     preset: Optional[str]
@@ -78,7 +78,7 @@ class Step(ExecUnit):
     env: Mapping[str, str]
     working_directory: Optional[str]
 
-    life_span: Optional[int]
+    life_span: Optional[float]
     continue_on_error: bool
     # if: str -- skip conditionally
 
@@ -89,7 +89,7 @@ class Batch:
     # All steps share the same implicit persistent disk volume
 
     id: str
-    title: str  # Autocalculated if not passed explicitly
+    title: Optional[str]  # Autocalculated if not passed explicitly
     needs: List[str]  # BatchRef
     steps: List[Step]
 
@@ -109,7 +109,7 @@ class Batch:
     env: Mapping[str, str]
     workdir: Optional[PurePosixPath]
 
-    life_span: Optional[int]
+    life_span: Optional[float]
     continue_on_error: bool
     # if: str -- skip conditionally
 
@@ -117,7 +117,7 @@ class Batch:
 @dataclass(frozen=True)
 class BaseFlow:
     kind: Kind
-    title: str  # explicitly set or defived from config file name.
+    title: Optional[str]  # explicitly set or defived from config file name.
 
     # cluster: str  # really need it?
 
@@ -128,6 +128,8 @@ class BaseFlow:
 
     env: Mapping[str, str]
     workdir: Optional[str]
+
+    life_span: Optional[float]
 
 
 @dataclass(frozen=True)

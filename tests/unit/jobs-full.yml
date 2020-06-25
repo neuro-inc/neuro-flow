@@ -1,0 +1,43 @@
+kind: job
+title: Global title
+images:
+  image_a:
+    uri: image:banana
+    context: dir/context
+    dockerfile: dir/Dockerfile
+    build-args:
+      arg1: val1
+      arg2: val2
+volumes:
+  volume_a:
+    uri: storage:dir
+    mount: /var/dir
+    ro: true
+tags: [tag-a, tag-b]
+env:
+  global_a: val-a
+  global_b: val-b
+workdir: /global/dir
+life-span: 1d4h
+jobs:
+  test:
+    name: job-name
+    image: ${{ images.image_a.ref }}
+    preset: cpu-small
+    http:
+      port: 8080
+      requires-auth: false
+    entrypoint: bash
+    cmd: echo abc
+    workdir: /local/dir
+    env:
+      local_a: val-1
+      local_b: val-2
+    volumes:
+      - ${{ volumes.volume_a.ref }}
+      - storage:dir:/var/dir:ro
+    tags: [tag-1, tag-2]
+    life-span: 2h55m
+    title: Job title
+    detach: true
+    browse: true

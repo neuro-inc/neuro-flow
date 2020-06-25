@@ -1,7 +1,0 @@
-kind: job
-title: Global title
-jobs:
-  test:
-    title: Job title
-    cmd: echo abc
-    image: ubuntu
