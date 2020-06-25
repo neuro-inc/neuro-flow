@@ -25,6 +25,10 @@ from dataclasses import dataclass
 # needs -- Enables access to the outputs of all jobs that are defined as a dependency of
 # the current job.
 
+# image -- Enables access to image specifications.
+
+# volume -- Enables access to volume specifications.
+
 
 @dataclass(frozen=True)
 class Neuro:
