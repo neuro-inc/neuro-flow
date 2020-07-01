@@ -1,13 +1,21 @@
 # expression parser/evaluator
 
 # ${{ <expression> }}
-
+import abc
 import dataclasses
 from ast import literal_eval
-from typing import Any, List, Sequence, Tuple
+from pathlib import Path, PurePosixPath
+from typing import Any, Generic, List, Optional, Sequence, Tuple, TypeVar, cast
 
 from funcparserlib.lexer import Token, make_tokenizer
 from funcparserlib.parser import Parser, a, finished, many, maybe, oneplus, skip, some
+from yarl import URL
+
+from .context import Contexts
+
+
+_T = TypeVar("_T")
+_E = TypeVar("_E")
 
 
 TOKENS = [
@@ -32,7 +40,7 @@ tokenize = make_tokenizer(TOKENS)
 
 
 def tokval(tok: Token) -> str:
-    return tok.value
+    return cast(str, tok.value)
 
 
 def literal(toktype: str) -> Parser:
@@ -42,14 +50,26 @@ def literal(toktype: str) -> Parser:
     return some(lambda tok: tok.type == toktype) >> f
 
 
+class Item(abc.ABC):
+    @abc.abstractmethod
+    def eval(self, contexts: Contexts) -> str:
+        pass
+
+
 @dataclasses.dataclass(frozen=True)
-class Lookup:
+class Lookup(Item):
     names: Sequence[str]
 
+    def eval(self, contexts: Contexts) -> str:
+        return ".".join(self.names)
+
 
 @dataclasses.dataclass(frozen=True)
-class Text:
+class Text(Item):
     arg: str
+
+    def eval(self, contexts: Contexts) -> str:
+        return self.arg
 
 
 def make_lookup(arg: Tuple[str, List[str]]) -> Lookup:
@@ -84,7 +104,7 @@ STR = literal("STR")
 
 NONE = literal("NONE")
 
-LITERAL = REAL | EXP | INT | HEX | OCT | BIN | BOOL | STR | NONE
+LITERAL = NONE | BOOL | REAL | EXP | INT | HEX | OCT | BIN | STR
 
 NAME = some(lambda tok: tok.type == "NAME") >> tokval
 
@@ -99,10 +119,135 @@ TEXT = oneplus(NOT_TMPL) >> (lambda arg: Text("".join(arg)))
 PARSER = oneplus(TMPL | TEXT) + skip(finished)
 
 
-class Expr:
-    def __init__(self, pattern: str) -> None:
-        tokens = list(tokenize(pattern))
-        self._pattern = tuple(PARSER.parse(tokens))
+class Expr(Generic[_T]):
+    allow_none = True
 
-    # def eval(self, contexts) -> str:
-    #     pass
+    @classmethod
+    def convert(cls, arg: str) -> _T:
+        # implementation for StrExpr and OptStrExpr
+        return cast(_T, arg)
+
+    def __init__(self, pattern: Optional[str]) -> None:
+        self._pattern = pattern
+        # precalculated value for constant string, allows raising errors earlier
+        self._ret: Optional[_T] = None
+        if pattern is not None:
+            tokens = list(tokenize(pattern))
+            self._parsed: Optional[Tuple[Item, ...]] = tuple(PARSER.parse(tokens))
+            if len(self._parsed) == 1 and type(self._parsed[0]) == Text:
+                self._ret = self.convert(cast(Text, self._parsed[0]).arg)
+        elif self.allow_none:
+            self._parsed = None
+        else:
+            raise TypeError("None is not allowed")
+
+    @property
+    def pattern(self) -> Optional[str]:
+        return self._pattern
+
+    def eval(self, contexts: Contexts) -> Optional[_T]:
+        if self._ret is not None:
+            return self._ret
+        if self._parsed is not None:
+            ret: List[str] = []
+            for part in self._parsed:
+                ret.append(part.eval(contexts))
+            return self.convert("".join(ret))
+        else:
+            if not self.allow_none:
+                # Dead code, a error for None is raised by __init__()
+                # The check is present for better readability.
+                raise ValueError("Expression is calculated to None")
+            return None
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__qualname__}({self._pattern})"
+
+    def __eq__(self, other: Any) -> bool:
+        if type(self) != type(other):
+            return False
+        assert isinstance(other, self.__class__)
+        return self._pattern == other._pattern
+
+    def __hash__(self) -> int:
+        return hash((self.__class__.__name__, self._pattern))
+
+
+class StrictExpr(Expr[Optional[_T]]):
+    allow_none = False
+
+    def eval(self, contexts: Contexts) -> _T:
+        ret = super().eval(contexts)
+        assert ret is not None
+        return ret
+
+
+# These comprehensive specializations exist mainly for static type checker
+
+
+class StrExpr(StrictExpr[str]):
+    pass
+
+
+class OptStrExpr(Expr[str]):
+    pass
+
+
+class URIExpr(StrictExpr[URL]):
+    @classmethod
+    def convert(cls, arg: str) -> URL:
+        return URL(arg)
+
+
+class OptURIExpr(Expr[URL]):
+    @classmethod
+    def convert(cls, arg: str) -> URL:
+        return URL(arg)
+
+
+class BoolExpr(StrictExpr[bool]):
+    @classmethod
+    def convert(cls, arg: str) -> bool:
+        return bool(literal_eval(arg))
+
+
+class IntExpr(StrictExpr[int]):
+    @classmethod
+    def convert(cls, arg: str) -> int:
+        return int(literal_eval(arg))
+
+
+class FloatExpr(StrictExpr[float]):
+    @classmethod
+    def convert(cls, arg: str) -> float:
+        return float(literal_eval(arg))
+
+
+class OptFloatExpr(Expr[float]):
+    @classmethod
+    def convert(cls, arg: str) -> float:
+        return float(literal_eval(arg))
+
+
+class LocalPathExpr(StrictExpr[Path]):
+    @classmethod
+    def convert(cls, arg: str) -> Path:
+        return Path(arg)
+
+
+class OptLocalPathExpr(Expr[Path]):
+    @classmethod
+    def convert(cls, arg: str) -> Path:
+        return Path(arg)
+
+
+class RemotePathExpr(StrictExpr[PurePosixPath]):
+    @classmethod
+    def convert(cls, arg: str) -> PurePosixPath:
+        return PurePosixPath(arg)
+
+
+class OptRemotePathExpr(Expr[PurePosixPath]):
+    @classmethod
+    def convert(cls, arg: str) -> PurePosixPath:
+        return PurePosixPath(arg)

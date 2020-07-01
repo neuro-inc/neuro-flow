@@ -33,3 +33,8 @@ from dataclasses import dataclass
 @dataclass(frozen=True)
 class Neuro:
     pass
+
+
+@dataclass(frozen=True)
+class Contexts:
+    pass

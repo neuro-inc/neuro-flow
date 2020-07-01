@@ -12,7 +12,7 @@ COLOR ?= auto
 lint:
 	isort -c -rc ${ISORT_DIRS}
 	black --check $(BLACK_DIRS)
-	mypy $(MYPY_DIRS)
+	mypy --strict $(MYPY_DIRS)
 	flake8 $(FLAKE8_DIRS)
 
 .PHONY: publish-lint

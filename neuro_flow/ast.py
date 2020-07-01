@@ -1,11 +1,20 @@
 # Dataclasses
 import enum
 from dataclasses import dataclass
-from pathlib import Path, PurePosixPath
 from typing import AbstractSet, List, Mapping, Optional, Sequence
 
 from neuromation.api import HTTPPort
-from yarl import URL
+
+from .expr import (
+    BoolExpr,
+    LocalPathExpr,
+    OptFloatExpr,
+    OptRemotePathExpr,
+    OptStrExpr,
+    RemotePathExpr,
+    StrExpr,
+    URIExpr,
+)
 
 
 # There are 'batch' for pipelined mode and 'job' for interactive one
@@ -20,66 +29,66 @@ class Kind(enum.Enum):
 @dataclass(frozen=True)
 class Volume:
     id: str  # explicitly set or defived from url/path pair.
-    uri: URL  # storage URI
-    mount: PurePosixPath  # mount path inside container
-    ro: bool  # True if mounted in read-only mode, False for read-write
+    uri: URIExpr  # storage URI
+    mount: RemotePathExpr  # mount path inside container
+    ro: BoolExpr  # True if mounted in read-only mode, False for read-write
 
 
 @dataclass(frozen=True)
 class Image:
     id: str
-    uri: URL
-    context: Path
-    dockerfile: Path
-    build_args: Mapping[str, str]
+    uri: URIExpr
+    context: LocalPathExpr
+    dockerfile: LocalPathExpr
+    build_args: Mapping[str, StrExpr]
 
 
 @dataclass(frozen=True)
 class ExecUnit:
-    name: str
-    image: str  # ImageRef
-    preset: Optional[str]
+    name: StrExpr
+    image: StrExpr
+    preset: OptStrExpr
     http: Optional[HTTPPort]
-    entrypoint: Optional[str]
-    cmd: str
-    workdir: Optional[PurePosixPath]
-    env: Mapping[str, str]
-    volumes: Sequence[str]  # Sequence[VolumeRef]
-    tags: AbstractSet[str]
-    life_span: Optional[float]
+    entrypoint: OptStrExpr
+    cmd: StrExpr
+    workdir: OptRemotePathExpr
+    env: Mapping[str, StrExpr]
+    volumes: Sequence[StrExpr]  # Sequence[VolumeRef]
+    tags: AbstractSet[StrExpr]
+    life_span: OptFloatExpr
 
 
 @dataclass(frozen=True)
 class Job(ExecUnit):
     # Interactive job used by Kind.Live flow
     id: str
-    title: Optional[str]  # Autocalculated if not passed explicitly
+    title: OptStrExpr  # Autocalculated if not passed explicitly
 
-    detach: bool
-    browse: bool
+    detach: BoolExpr
+    browse: BoolExpr
 
 
 @dataclass(frozen=True)
 class Step(ExecUnit):
     # A step of a batch
     id: str
-    title: Optional[str]  # Autocalculated if not passed explicitly
+    title: OptStrExpr  # Autocalculated if not passed explicitly
 
-    image: str  # ImageRef
-    preset: Optional[str]
+    image: StrExpr  # ImageRef
+    preset: OptStrExpr
     http: Optional[HTTPPort]
 
-    entrypoint: Optional[str]
-    cmd: str
+    entrypoint: OptStrExpr
+    cmd: StrExpr
 
-    volumes: Sequence[str]  # Sequence[VolumeRef]
-    tags: AbstractSet[str]
+    volumes: Sequence[StrExpr]  # Sequence[VolumeRef]
+    tags: AbstractSet[StrExpr]
 
-    env: Mapping[str, str]
-    working_directory: Optional[str]
+    env: Mapping[str, StrExpr]
+    working_directory: OptStrExpr
 
-    life_span: Optional[float]
-    continue_on_error: bool
+    life_span: OptFloatExpr
+    # continue_on_error: bool
     # if: str -- skip conditionally
 
 
@@ -89,8 +98,8 @@ class Batch:
     # All steps share the same implicit persistent disk volume
 
     id: str
-    title: Optional[str]  # Autocalculated if not passed explicitly
-    needs: List[str]  # BatchRef
+    title: OptStrExpr  # Autocalculated if not passed explicitly
+    needs: List[StrExpr]  # BatchRef
     steps: List[Step]
 
     # matrix? Do we need a build matrix? Yes probably.
@@ -99,37 +108,37 @@ class Batch:
     # will be added later
 
     # defaults for steps
-    name: str
-    image: Optional[str]  # ImageRef
-    preset: Optional[str]
+    name: StrExpr
+    image: OptStrExpr  # ImageRef
+    preset: OptStrExpr
 
-    volumes: Sequence[str]  # Sequence[VolumeRef]
-    tags: AbstractSet[str]
+    volumes: Sequence[StrExpr]  # Sequence[VolumeRef]
+    tags: AbstractSet[StrExpr]
 
-    env: Mapping[str, str]
-    workdir: Optional[PurePosixPath]
+    env: Mapping[str, StrExpr]
+    workdir: OptRemotePathExpr
 
-    life_span: Optional[float]
-    continue_on_error: bool
+    life_span: OptFloatExpr
+    # continue_on_error: bool
     # if: str -- skip conditionally
 
 
 @dataclass(frozen=True)
 class BaseFlow:
     kind: Kind
-    title: Optional[str]  # explicitly set or defived from config file name.
+    title: OptStrExpr  # explicitly set or defived from config file name.
 
     # cluster: str  # really need it?
 
     images: Sequence[Image]
     volumes: Sequence[Volume]
 
-    tags: AbstractSet[str]
+    tags: AbstractSet[StrExpr]
 
-    env: Mapping[str, str]
-    workdir: Optional[str]
+    env: Mapping[str, StrExpr]
+    workdir: OptRemotePathExpr
 
-    life_span: Optional[float]
+    life_span: OptFloatExpr
 
 
 @dataclass(frozen=True)

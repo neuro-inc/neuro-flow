@@ -18,6 +18,16 @@ from neuromation.api import HTTPPort
 from yarl import URL
 
 from . import ast
+from .expr import (
+    BoolExpr,
+    LocalPathExpr,
+    OptFloatExpr,
+    OptRemotePathExpr,
+    OptStrExpr,
+    RemotePathExpr,
+    StrExpr,
+    URIExpr,
+)
 
 
 def _is_identifier(value: str) -> str:
@@ -37,10 +47,14 @@ Id = t.WithRepr(
     ),
     "<ID>",
 )
+EXPR_RE = re.compile(r"\$\{\{.+\}\}")
 OptKey = partial(t.Key, optional=True)
-URI = t.WithRepr(t.String() & URL, "<URI>")
-LocalPath = t.WithRepr(t.String() & Path, "<LocalPath>")
-RemotePath = t.WithRepr(t.String() & PurePosixPath, "<RemotePath>")
+Expr = t.WithRepr(t.Regexp(EXPR_RE), "<Expr>")
+URI = t.WithRepr(t.String & URL & str | Expr, "<URI>")
+
+
+LocalPath = t.WithRepr((t.String() & Path & str) | Expr, "<LocalPath>")
+RemotePath = t.WithRepr((t.String() & PurePosixPath & str) | Expr, "<RemotePath>")
 
 
 def make_lifespan(match: "re.Match[str]") -> float:
@@ -62,16 +76,25 @@ RegexLifeSpan = (
     )
     & make_lifespan
 )
-LIFE_SPAN = t.WithRepr(t.Float | RegexLifeSpan, "<LifeSpan>")
+LIFE_SPAN = t.WithRepr(t.Float & str | RegexLifeSpan & str, "<LifeSpan>")
 
 
 VOLUME = t.Dict(
-    {t.Key("uri"): URI, t.Key("mount"): RemotePath, t.Key("ro", default=False): t.Bool}
+    {
+        t.Key("uri"): URI,
+        t.Key("mount"): RemotePath,
+        t.Key("ro", default=False): (t.Bool & str | Expr),
+    }
 )
 
 
 def parse_volume(id: str, data: Dict[str, Any]) -> ast.Volume:
-    return ast.Volume(id=id, uri=data["uri"], mount=data["mount"], ro=data["ro"],)
+    return ast.Volume(
+        id=id,
+        uri=URIExpr(data["uri"]),
+        mount=RemotePathExpr(data["mount"]),
+        ro=BoolExpr(data["ro"]),
+    )
 
 
 IMAGE = t.Dict(
@@ -87,15 +110,18 @@ IMAGE = t.Dict(
 def parse_image(id: str, data: Dict[str, Any]) -> ast.Image:
     return ast.Image(
         id=id,
-        uri=data["uri"],
-        context=data["context"],
-        dockerfile=data["dockerfile"],
-        build_args=MappingProxyType(data["build-args"]),
+        uri=URIExpr(data["uri"]),
+        context=LocalPathExpr(data["context"]),
+        dockerfile=LocalPathExpr(data["dockerfile"]),
+        build_args=MappingProxyType(
+            {k: StrExpr(v) for k, v in data["build-args"].items()}
+        ),
     )
 
 
 EXEC_UNIT = t.Dict(
     {
+        OptKey("title"): t.String,
         OptKey("name"): t.String,
         t.Key("image"): t.String,
         OptKey("preset"): t.String,
@@ -118,26 +144,26 @@ def parse_exec_unit(data: Dict[str, Any]) -> Dict[str, Any]:
     if http is not None:
         http = HTTPPort(http["port"], http["requires-auth"])
     return dict(
-        name=data.get("name"),
-        image=data["image"],
-        preset=data.get("preset"),
+        title=OptStrExpr(data.get("title")),
+        name=OptStrExpr(data.get("name")),
+        image=StrExpr(data["image"]),
+        preset=OptStrExpr(data.get("preset")),
         http=http,
-        entrypoint=data.get("entrypoint"),
-        cmd=data["cmd"],
-        workdir=data.get("workdir"),
-        env=data["env"],
-        volumes=tuple(data["volumes"]),
-        tags=frozenset(data["tags"]),
-        life_span=data.get("life-span"),
+        entrypoint=OptStrExpr(data.get("entrypoint")),
+        cmd=StrExpr(data["cmd"]),
+        workdir=OptRemotePathExpr(data.get("workdir")),
+        env=MappingProxyType({k: StrExpr(v) for k, v in data["env"].items()}),
+        volumes=tuple([StrExpr(v) for v in data["volumes"]]),
+        tags=frozenset({StrExpr(t) for t in data["tags"]}),
+        life_span=OptFloatExpr(data.get("life-span")),
     )
 
 
 JOB = EXEC_UNIT.merge(
     t.Dict(
         {
-            OptKey("title"): t.String,
-            t.Key("detach", default=False): t.Bool,
-            t.Key("browse", default=False): t.Bool,
+            t.Key("detach", default=False): t.Bool & str,
+            t.Key("browse", default=False): t.Bool & str,
         }
     )
 )
@@ -146,9 +172,8 @@ JOB = EXEC_UNIT.merge(
 def parse_job(id: str, data: Dict[str, Any]) -> ast.Job:
     return ast.Job(
         id=id,
-        title=data.get("title"),
-        detach=data["detach"],
-        browse=data["browse"],
+        detach=BoolExpr(data["detach"]),
+        browse=BoolExpr(data["browse"]),
         **parse_exec_unit(data),
     )
 
@@ -170,17 +195,17 @@ BASE_FLOW = t.Dict(
 def parse_base_flow(data: Dict[str, Any]) -> Dict[str, Any]:
     return dict(
         kind=ast.Kind(data["kind"]),
-        title=data.get("title"),
+        title=OptStrExpr(data.get("title")),
         images=MappingProxyType(
             {id: parse_image(id, image) for id, image in data["images"].items()}
         ),
         volumes=MappingProxyType(
             {id: parse_volume(id, volume) for id, volume in data["volumes"].items()}
         ),
-        tags=frozenset(data["tags"]),
-        env=MappingProxyType(data["env"]),
-        workdir=data.get("workdir"),
-        life_span=data.get("life-span"),
+        tags=frozenset({StrExpr(t) for t in data["tags"]}),
+        env=MappingProxyType({k: StrExpr(v) for k, v in data["env"].items()}),
+        workdir=OptRemotePathExpr(data.get("workdir")),
+        life_span=OptFloatExpr(data.get("life-span")),
     )
 
 
