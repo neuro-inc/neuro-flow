@@ -1,7 +1,6 @@
 import pathlib
 
 from neuromation.api import HTTPPort
-from yarl import URL
 
 from neuro_flow import ast
 from neuro_flow.expr import (
