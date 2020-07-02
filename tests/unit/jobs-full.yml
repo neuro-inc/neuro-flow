@@ -13,12 +13,13 @@ volumes:
     uri: storage:dir
     mount: /var/dir
     ro: true
-tags: [tag-a, tag-b]
-env:
-  global_a: val-a
-  global_b: val-b
-workdir: /global/dir
-life-span: 1d4h
+defaults:
+  tags: [tag-a, tag-b]
+  env:
+    global_a: val-a
+    global_b: val-b
+  workdir: /global/dir
+  life-span: 1d4h
 jobs:
   test:
     name: job-name

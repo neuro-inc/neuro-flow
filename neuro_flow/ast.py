@@ -1,6 +1,6 @@
 # Dataclasses
 import enum
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import AbstractSet, List, Mapping, Optional, Sequence
 
 from .expr import (
@@ -14,6 +14,7 @@ from .expr import (
     StrExpr,
     URIExpr,
 )
+from .types import RemotePath
 
 
 # There are 'batch' for pipelined mode and 'job' for interactive one
@@ -50,6 +51,7 @@ class HTTPPort:
 
 @dataclass(frozen=True)
 class ExecUnit:
+    title: OptStrExpr  # Autocalculated if not passed explicitly
     name: StrExpr
     image: StrExpr
     preset: OptStrExpr
@@ -67,7 +69,6 @@ class ExecUnit:
 class Job(ExecUnit):
     # Interactive job used by Kind.Live flow
     id: str
-    title: OptStrExpr  # Autocalculated if not passed explicitly
 
     detach: BoolExpr
     browse: BoolExpr
@@ -77,7 +78,6 @@ class Job(ExecUnit):
 class Step(ExecUnit):
     # A step of a batch
     id: str
-    title: OptStrExpr  # Autocalculated if not passed explicitly
 
     image: StrExpr  # ImageRef
     preset: OptStrExpr
@@ -129,6 +129,16 @@ class Batch:
 
 
 @dataclass(frozen=True)
+class FlowDefaults:
+    tags: AbstractSet[str] = field(default_factory=set)
+
+    env: Mapping[str, str] = field(default_factory=dict)
+    workdir: Optional[RemotePath] = None
+
+    life_span: Optional[float] = None
+
+
+@dataclass(frozen=True)
 class BaseFlow:
     kind: Kind
     title: OptStrExpr  # explicitly set or defived from config file name.
@@ -137,13 +147,7 @@ class BaseFlow:
 
     images: Sequence[Image]
     volumes: Sequence[Volume]
-
-    tags: AbstractSet[StrExpr]
-
-    env: Mapping[str, StrExpr]
-    workdir: OptRemotePathExpr
-
-    life_span: OptFloatExpr
+    defaults: FlowDefaults
 
 
 @dataclass(frozen=True)

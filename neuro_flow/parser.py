@@ -9,8 +9,7 @@ import datetime
 import re
 from functools import partial
 from pathlib import Path, PurePosixPath
-from types import MappingProxyType
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import trafaret as t
 import yaml
@@ -28,6 +27,7 @@ from .expr import (
     StrExpr,
     URIExpr,
 )
+from .types import RemotePath as RemotePathType
 
 
 def _is_identifier(value: str) -> str:
@@ -113,9 +113,7 @@ def parse_image(id: str, data: Dict[str, Any]) -> ast.Image:
         uri=URIExpr(data["uri"]),
         context=LocalPathExpr(data["context"]),
         dockerfile=LocalPathExpr(data["dockerfile"]),
-        build_args=MappingProxyType(
-            {k: StrExpr(v) for k, v in data["build-args"].items()}
-        ),
+        build_args={k: StrExpr(v) for k, v in data["build-args"].items()},
     )
 
 
@@ -134,18 +132,19 @@ EXEC_UNIT = t.Dict(
         t.Key("env", default=dict): t.Mapping(t.String, t.String),
         t.Key("volumes", default=list): t.List(t.String),
         t.Key("tags", default=list): t.List(t.String),
-        OptKey("life-span"): LIFE_SPAN,
+        OptKey("life-span"): LIFE_SPAN | Expr,
     }
 )
 
 
-def parse_exec_unit(data: Dict[str, Any]) -> Dict[str, Any]:
+def parse_exec_unit(id: str, data: Dict[str, Any]) -> Dict[str, Any]:
     http = data.get("http")
     if http is not None:
         http = ast.HTTPPort(
             IntExpr(str(http["port"])), BoolExpr(str(http["requires-auth"]))
         )
     return dict(
+        id=id,
         title=OptStrExpr(data.get("title")),
         name=OptStrExpr(data.get("name")),
         image=StrExpr(data["image"]),
@@ -154,9 +153,9 @@ def parse_exec_unit(data: Dict[str, Any]) -> Dict[str, Any]:
         entrypoint=OptStrExpr(data.get("entrypoint")),
         cmd=StrExpr(data["cmd"]),
         workdir=OptRemotePathExpr(data.get("workdir")),
-        env=MappingProxyType({k: StrExpr(v) for k, v in data["env"].items()}),
-        volumes=tuple([StrExpr(v) for v in data["volumes"]]),
-        tags=frozenset({StrExpr(t) for t in data["tags"]}),
+        env={k: StrExpr(v) for k, v in data["env"].items()},
+        volumes=[StrExpr(v) for v in data["volumes"]],
+        tags={StrExpr(t) for t in data["tags"]},
         life_span=OptFloatExpr(data.get("life-span")),
     )
 
@@ -173,19 +172,14 @@ JOB = EXEC_UNIT.merge(
 
 def parse_job(id: str, data: Dict[str, Any]) -> ast.Job:
     return ast.Job(
-        id=id,
         detach=BoolExpr(data["detach"]),
         browse=BoolExpr(data["browse"]),
-        **parse_exec_unit(data),
+        **parse_exec_unit(id, data),
     )
 
 
-BASE_FLOW = t.Dict(
+FLOW_DEFAULTS = t.Dict(
     {
-        t.Key("kind"): t.String,
-        OptKey("title"): t.String,
-        t.Key("images", default=dict): t.Mapping(t.String, IMAGE),
-        t.Key("volumes", default=dict): t.Mapping(t.String, VOLUME),
         t.Key("tags", default=list): t.List(t.String),
         t.Key("env", default=dict): t.Mapping(t.String, t.String),
         OptKey("workdir"): RemotePath,
@@ -194,20 +188,39 @@ BASE_FLOW = t.Dict(
 )
 
 
+BASE_FLOW = t.Dict(
+    {
+        t.Key("kind"): t.String,
+        OptKey("title"): t.String,
+        t.Key("images", default=dict): t.Mapping(t.String, IMAGE),
+        t.Key("volumes", default=dict): t.Mapping(t.String, VOLUME),
+        OptKey("defaults"): FLOW_DEFAULTS,
+    }
+)
+
+
+def parse_flow_defaults(data: Optional[Dict[str, Any]]) -> ast.FlowDefaults:
+    if data is None:
+        return ast.FlowDefaults()
+    workdir = data.get("workdir")
+    life_span = data.get("life-span")
+    return ast.FlowDefaults(
+        tags={str(t) for t in data["tags"]},
+        env={str(k): str(v) for k, v in data["env"].items()},
+        workdir=RemotePathType(workdir) if workdir is not None else None,
+        life_span=float(life_span) if life_span is not None else None,
+    )
+
+
 def parse_base_flow(data: Dict[str, Any]) -> Dict[str, Any]:
     return dict(
         kind=ast.Kind(data["kind"]),
         title=OptStrExpr(data.get("title")),
-        images=MappingProxyType(
-            {id: parse_image(id, image) for id, image in data["images"].items()}
-        ),
-        volumes=MappingProxyType(
-            {id: parse_volume(id, volume) for id, volume in data["volumes"].items()}
-        ),
-        tags=frozenset({StrExpr(t) for t in data["tags"]}),
-        env=MappingProxyType({k: StrExpr(v) for k, v in data["env"].items()}),
-        workdir=OptRemotePathExpr(data.get("workdir")),
-        life_span=OptFloatExpr(data.get("life-span")),
+        images={id: parse_image(id, image) for id, image in data["images"].items()},
+        volumes={
+            id: parse_volume(id, volume) for id, volume in data["volumes"].items()
+        },
+        defaults=parse_flow_defaults(data.get("defaults")),
     )
 
 

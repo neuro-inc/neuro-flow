@@ -13,6 +13,7 @@ from neuro_flow.expr import (
     URIExpr,
 )
 from neuro_flow.parser import parse
+from neuro_flow.types import RemotePath
 
 
 def test_parse_minimal(assets: pathlib.Path) -> None:
@@ -22,10 +23,7 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
         title=OptStrExpr(None),
         images={},
         volumes={},
-        tags=set(),
-        env={},
-        workdir=OptRemotePathExpr(None),
-        life_span=OptFloatExpr(None),
+        defaults=ast.FlowDefaults(tags=set(), env={}, workdir=None, life_span=None),
         jobs={
             "test": ast.Job(
                 id="test",
@@ -37,7 +35,7 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
                 cmd=StrExpr("echo abc"),
                 workdir=OptRemotePathExpr(None),
                 env={},
-                volumes=(),
+                volumes=[],
                 tags=set(),
                 life_span=OptFloatExpr(None),
                 title=OptStrExpr(None),
@@ -70,10 +68,12 @@ def test_parse_full(assets: pathlib.Path) -> None:
                 ro=BoolExpr("True"),
             )
         },
-        tags={StrExpr("tag-a"), StrExpr("tag-b")},
-        env={"global_a": StrExpr("val-a"), "global_b": StrExpr("val-b")},
-        workdir=OptRemotePathExpr("/global/dir"),
-        life_span=OptFloatExpr("100800.0"),
+        defaults=ast.FlowDefaults(
+            tags={"tag-a", "tag-b"},
+            env={"global_a": "val-a", "global_b": "val-b"},
+            workdir=RemotePath("/global/dir"),
+            life_span=100800.0,
+        ),
         jobs={
             "test": ast.Job(
                 id="test",
@@ -87,10 +87,10 @@ def test_parse_full(assets: pathlib.Path) -> None:
                 cmd=StrExpr("echo abc"),
                 workdir=OptRemotePathExpr("/local/dir"),
                 env={"local_a": StrExpr("val-1"), "local_b": StrExpr("val-2")},
-                volumes=(
+                volumes=[
                     StrExpr("${{ volumes.volume_a.ref }}"),
                     StrExpr("storage:dir:/var/dir:ro"),
-                ),
+                ],
                 tags={StrExpr("tag-2"), StrExpr("tag-1")},
                 life_span=OptFloatExpr("10500.0"),
                 title=OptStrExpr("Job title"),

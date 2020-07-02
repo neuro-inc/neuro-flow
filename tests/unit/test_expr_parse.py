@@ -9,17 +9,17 @@ def finish(p: Parser) -> Parser:
 
 
 def test_tmpl_ok1() -> None:
-    assert Lookup(names=("name",)) == finish(TMPL).parse(list(tokenize("${{ name }}")))
+    assert Lookup(names=["name"]) == finish(TMPL).parse(list(tokenize("${{ name }}")))
 
 
 def test_tmpl_ok2() -> None:
-    assert Lookup(names=("name", "sub", "param")) == finish(TMPL).parse(
+    assert Lookup(names=["name", "sub", "param"]) == finish(TMPL).parse(
         list(tokenize("${{ name.sub.param }}"))
     )
 
 
 def test_tmpl_ok3() -> None:
-    assert Lookup(names=("name",)) == finish(TMPL).parse(list(tokenize("${{name}}")))
+    assert Lookup(names=["name"]) == finish(TMPL).parse(list(tokenize("${{name}}")))
 
 
 def test_tmpl_false1() -> None:
@@ -136,6 +136,6 @@ def test_text_false4() -> None:
 
 
 def test_parser1() -> None:
-    assert [Text("some "), Lookup(("var", "arg")), Text(" text")] == PARSER.parse(
+    assert [Text("some "), Lookup(["var", "arg"]), Text(" text")] == PARSER.parse(
         list(tokenize("some ${{ var.arg }} text"))
     )

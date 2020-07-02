@@ -5,17 +5,24 @@ import abc
 import dataclasses
 from ast import literal_eval
 from pathlib import Path, PurePosixPath
-from typing import Any, Generic, List, Optional, Sequence, Tuple, TypeVar, cast
+from typing import Any, Generic, List, Optional, Sequence, Tuple, TypeVar, Union, cast
 
 from funcparserlib.lexer import Token, make_tokenizer
 from funcparserlib.parser import Parser, a, finished, many, maybe, oneplus, skip, some
 from yarl import URL
 
-from .context import Contexts
-
 
 _T = TypeVar("_T")
 _E = TypeVar("_E")
+
+
+Literal = Union[None, bool, int, float, str]
+
+
+class LookupABC(abc.ABC):
+    @abc.abstractmethod
+    def lookup(self, names: Sequence[str]) -> Literal:
+        pass
 
 
 TOKENS = [
@@ -52,7 +59,7 @@ def literal(toktype: str) -> Parser:
 
 class Item(abc.ABC):
     @abc.abstractmethod
-    def eval(self, contexts: Contexts) -> str:
+    def eval(self, lookuper: LookupABC) -> str:
         pass
 
 
@@ -60,7 +67,7 @@ class Item(abc.ABC):
 class Lookup(Item):
     names: Sequence[str]
 
-    def eval(self, contexts: Contexts) -> str:
+    def eval(self, lookuper: LookupABC) -> str:
         return ".".join(self.names)
 
 
@@ -68,12 +75,12 @@ class Lookup(Item):
 class Text(Item):
     arg: str
 
-    def eval(self, contexts: Contexts) -> str:
+    def eval(self, lookuper: LookupABC) -> str:
         return self.arg
 
 
 def make_lookup(arg: Tuple[str, List[str]]) -> Lookup:
-    return Lookup(tuple([arg[0]] + arg[1]))
+    return Lookup([arg[0]] + arg[1])
 
 
 SPACE = some(lambda tok: tok.type == "SPACE")
@@ -133,7 +140,8 @@ class Expr(Generic[_T]):
         self._ret: Optional[_T] = None
         if pattern is not None:
             tokens = list(tokenize(pattern))
-            self._parsed: Optional[Tuple[Item, ...]] = tuple(PARSER.parse(tokens))
+            self._parsed: Optional[Sequence[Item]] = PARSER.parse(tokens)
+            assert self._parsed is not None
             if len(self._parsed) == 1 and type(self._parsed[0]) == Text:
                 self._ret = self.convert(cast(Text, self._parsed[0]).arg)
         elif self.allow_none:
@@ -145,13 +153,13 @@ class Expr(Generic[_T]):
     def pattern(self) -> Optional[str]:
         return self._pattern
 
-    def eval(self, contexts: Contexts) -> Optional[_T]:
+    def eval(self, lookuper: LookupABC) -> Optional[_T]:
         if self._ret is not None:
             return self._ret
         if self._parsed is not None:
             ret: List[str] = []
             for part in self._parsed:
-                ret.append(part.eval(contexts))
+                ret.append(part.eval(lookuper))
             return self.convert("".join(ret))
         else:
             if not self.allow_none:
@@ -176,8 +184,8 @@ class Expr(Generic[_T]):
 class StrictExpr(Expr[Optional[_T]]):
     allow_none = False
 
-    def eval(self, contexts: Contexts) -> _T:
-        ret = super().eval(contexts)
+    def eval(self, lookuper: LookupABC) -> _T:
+        ret = super().eval(lookuper)
         assert ret is not None
         return ret
 
