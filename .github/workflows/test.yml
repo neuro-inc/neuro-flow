@@ -13,8 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     name: Name
     steps:
-      - env:
-          VAR: val
+      - name: Job status
         run: |
             echo ${{ toJson(env) }} ${{ job.status }}
       - name: Dump GitHub context
