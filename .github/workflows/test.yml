@@ -10,8 +10,8 @@ on:
 
 jobs:
   explore:
-    name: ${{ job.status }}
+    name: Name
     steps:
     - env:
       run: |
-        echo ${{ job.name }}
+        echo ${{ job.name }} ${{ job.status }}
