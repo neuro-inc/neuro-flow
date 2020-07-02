@@ -38,7 +38,7 @@ from .types import RemotePath
 # volumes -- Enables access to volume specifications.
 
 
-class InavailableContext(LookupError):
+class NotAvailable(LookupError):
     def __init__(self, ctx_name: str) -> None:
         super().__init__(f"Context {ctx_name} is not available")
 
@@ -110,7 +110,7 @@ class Context(LookupABC):
 
         for name in names:
             if name.startswith("_"):
-                raise InavailableContext(".".join(stack))
+                raise NotAvailable(".".join(stack))
 
             if is_dataclass(current):
                 stack.append(name)
@@ -118,7 +118,7 @@ class Context(LookupABC):
                     if fld.name == name:
                         break
                 else:
-                    raise InavailableContext(".".join(stack))
+                    raise NotAvailable(".".join(stack))
             elif isinstance(current, dict):
                 pass
             else:
@@ -129,7 +129,7 @@ class Context(LookupABC):
             try:
                 current = getattr(current, name)
             except AttributeError:
-                raise InavailableContext(".".join(stack))
+                raise NotAvailable(".".join(stack))
 
         if is_dataclass(current):
             # TODO: recursively replace with dict of plain values
@@ -145,7 +145,7 @@ class Context(LookupABC):
     @property
     def job(self) -> JobCtx:
         if self._job is None:
-            raise InavailableContext("job")
+            raise NotAvailable("job")
         return self._job
 
     def with_job(self, job_id: str) -> "Context":
@@ -202,5 +202,5 @@ class Context(LookupABC):
     @property
     def batch(self) -> BatchCtx:
         if self._batch is None:
-            raise InavailableContext("batch")
+            raise NotAvailable("batch")
         return self._batch
