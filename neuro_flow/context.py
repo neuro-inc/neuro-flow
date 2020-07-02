@@ -1,6 +1,6 @@
 # Contexts
-from dataclasses import dataclass, field, fields, is_dataclass, replace
-from typing import AbstractSet, Any, Dict, List, Mapping, Optional, Sequence, Set, cast
+from dataclasses import dataclass, fields, is_dataclass, replace
+from typing import AbstractSet, Any, List, Mapping, Optional, Sequence, cast
 
 from . import ast
 from .expr import Literal, LookupABC
@@ -18,11 +18,15 @@ from .types import RemotePath
 # steps -- Information about the steps that have been run in this job
 
 # secrets -- Enables access to secrets.
+#
+# Do we want the explicit secrets support?  Perhaps better to have the secrets
+# substitution on the client's cluster side (even not on the platform-api).
 
 # strategy -- Enables access to the configured strategy parameters and information about
 # the current job.
-# Strategy parameters include batch-index, batch-total,
-# (and maybe fail-fast and max-parallel).
+#
+# Strategy parameters include batch-index, batch-total, (and maybe fail-fast and
+# max-parallel).
 
 # matrix -- Enables access to the matrix parameters you configured for the current job.
 
@@ -37,6 +41,10 @@ from .types import RemotePath
 class InavailableContext(LookupError):
     def __init__(self, ctx_name: str) -> None:
         super().__init__(f"Context {ctx_name} is not available")
+
+
+class UnknownJob(KeyError):
+    pass
 
 
 @dataclass(frozen=True)
@@ -74,13 +82,27 @@ class BatchCtx:
 
 @dataclass(frozen=True)
 class Context(LookupABC):
-    _job: Optional[JobCtx] = None
-    _batch: Optional[BatchCtx] = None
+    _flow: ast.BaseFlow
+    _job: Optional[JobCtx]
+    _batch: Optional[BatchCtx]
 
-    _tags: Set[str] = field(default_factory=set)
-    _env: Dict[str, str] = field(default_factory=dict)
-    _workdir: Optional[RemotePath] = None
-    _life_span: Optional[float] = None
+    _tags: AbstractSet[str]
+    _env: Mapping[str, str]
+    _workdir: Optional[RemotePath]
+    _life_span: Optional[float]
+
+    @classmethod
+    def create(cls, flow: ast.BaseFlow) -> "Context":
+        defaults = flow.defaults
+        return cls(
+            _flow=flow,
+            _tags=defaults.tags,
+            _env=defaults.env,
+            _workdir=defaults.workdir,
+            _life_span=defaults.life_span,
+            _job=None,
+            _batch=None,
+        )
 
     def lookup(self, names: Sequence[str]) -> Literal:
         stack: List[str] = []
@@ -126,7 +148,7 @@ class Context(LookupABC):
             raise InavailableContext("job")
         return self._job
 
-    def with_job(self, job: ast.Job) -> "Context":
+    def with_job(self, job_id: str) -> "Context":
         if self._job is not None:
             raise TypeError(
                 "Cannot enter into the job context, if job is already initialized"
@@ -135,9 +157,18 @@ class Context(LookupABC):
             raise TypeError(
                 "Cannot enter into the job context if batch is already initialized"
             )
+        if not isinstance(self._flow, ast.InteractiveFlow):
+            raise TypeError(
+                "Cannot enter into the job context for non-interactive flow"
+            )
+        try:
+            job = self._flow.jobs[job_id]
+        except KeyError:
+            raise UnknownJob(job_id)
+
         tags = self._tags | {v.eval(self) for v in job.tags}
 
-        env = self._env.copy()
+        env = dict(self._env)
         env.update({k: v.eval(self) for k, v in job.env.items()})
 
         workdir = job.workdir.eval(self) or self._workdir
