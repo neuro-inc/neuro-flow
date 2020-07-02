@@ -59,7 +59,7 @@ def literal(toktype: str) -> Parser:
 
 class Item(abc.ABC):
     @abc.abstractmethod
-    def eval(self, lookuper: LookupABC) -> str:
+    async def eval(self, lookuper: LookupABC) -> str:
         pass
 
 
@@ -67,7 +67,7 @@ class Item(abc.ABC):
 class Lookup(Item):
     names: Sequence[str]
 
-    def eval(self, lookuper: LookupABC) -> str:
+    async def eval(self, lookuper: LookupABC) -> str:
         return ".".join(self.names)
 
 
@@ -75,7 +75,7 @@ class Lookup(Item):
 class Text(Item):
     arg: str
 
-    def eval(self, lookuper: LookupABC) -> str:
+    async def eval(self, lookuper: LookupABC) -> str:
         return self.arg
 
 
@@ -153,13 +153,13 @@ class Expr(Generic[_T]):
     def pattern(self) -> Optional[str]:
         return self._pattern
 
-    def eval(self, lookuper: LookupABC) -> Optional[_T]:
+    async def eval(self, lookuper: LookupABC) -> Optional[_T]:
         if self._ret is not None:
             return self._ret
         if self._parsed is not None:
             ret: List[str] = []
             for part in self._parsed:
-                ret.append(part.eval(lookuper))
+                ret.append(await part.eval(lookuper))
             return self.convert("".join(ret))
         else:
             if not self.allow_none:
@@ -184,8 +184,8 @@ class Expr(Generic[_T]):
 class StrictExpr(Expr[Optional[_T]]):
     allow_none = False
 
-    def eval(self, lookuper: LookupABC) -> _T:
-        ret = super().eval(lookuper)
+    async def eval(self, lookuper: LookupABC) -> _T:
+        ret = await super().eval(lookuper)
         assert ret is not None
         return ret
 

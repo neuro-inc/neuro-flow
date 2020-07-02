@@ -52,7 +52,7 @@ class HTTPPort:
 @dataclass(frozen=True)
 class ExecUnit:
     title: OptStrExpr  # Autocalculated if not passed explicitly
-    name: StrExpr
+    name: OptStrExpr
     image: StrExpr
     preset: OptStrExpr
     http: Optional[HTTPPort]
@@ -113,7 +113,7 @@ class Batch:
     # will be added later
 
     # defaults for steps
-    name: StrExpr
+    name: OptStrExpr
     image: OptStrExpr  # ImageRef
     preset: OptStrExpr
 
@@ -145,8 +145,8 @@ class BaseFlow:
 
     # cluster: str  # really need it?
 
-    images: Sequence[Image]
-    volumes: Sequence[Volume]
+    images: Mapping[str, Image]
+    volumes: Mapping[str, Volume]
     defaults: FlowDefaults
 
 

@@ -35,7 +35,7 @@ class InteractiveRunner:
         """Return statuses for all jobs from the flow"""
         ret: Dict[str, Optional[JobDescription]] = {}
         for job_id in self._flow.jobs:
-            job_ctx = self._ctx.with_job(job_id)
+            job_ctx = await self._ctx.with_job(job_id)
             job = job_ctx.job
             name = job.name
             try:
@@ -47,7 +47,7 @@ class InteractiveRunner:
 
     async def start(self, job_id: str) -> str:
         """Start a named job, return job id"""
-        # job_ctx = self._ctx.with_job(job_id)
+        # job_ctx = await self._ctx.with_job(job_id)
         # job = job_ctx.job
         # descr = await self.client.jobs.run()
         # job = self._get_job_ast(job_id)

@@ -148,7 +148,7 @@ class Context(LookupABC):
             raise NotAvailable("job")
         return self._job
 
-    def with_job(self, job_id: str) -> "Context":
+    async def with_job(self, job_id: str) -> "Context":
         if self._job is not None:
             raise TypeError(
                 "Cannot enter into the job context, if job is already initialized"
@@ -166,27 +166,27 @@ class Context(LookupABC):
         except KeyError:
             raise UnknownJob(job_id)
 
-        tags = self._tags | {v.eval(self) for v in job.tags}
+        tags = self._tags | {await v.eval(self) for v in job.tags}
 
         env = dict(self._env)
-        env.update({k: v.eval(self) for k, v in job.env.items()})
+        env.update({k: await v.eval(self) for k, v in job.env.items()})
 
-        workdir = job.workdir.eval(self) or self._workdir
-        life_span = job.life_span.eval(self) or self._life_span
+        workdir = (await job.workdir.eval(self)) or self._workdir
+        life_span = (await job.life_span.eval(self)) or self._life_span
 
         job_ctx = JobCtx(
             id=job.id,
-            detach=job.detach.eval(self),
-            browse=job.browse.eval(self),
-            title=job.title.eval(self) or job.id,
-            name=job.name.eval(self) or job.id,
-            image=job.image.eval(self),
-            preset=job.preset.eval(self),
-            entrypoint=job.entrypoint.eval(self),
-            cmd=job.cmd.eval(self),
+            detach=await job.detach.eval(self),
+            browse=await job.browse.eval(self),
+            title=(await job.title.eval(self)) or job.id,
+            name=(await job.name.eval(self)) or job.id,
+            image=await job.image.eval(self),
+            preset=await job.preset.eval(self),
+            entrypoint=await job.entrypoint.eval(self),
+            cmd=await job.cmd.eval(self),
             workdir=workdir,
             env=env,
-            volumes=[v.eval(self) for v in job.volumes],
+            volumes=[await v.eval(self) for v in job.volumes],
             tags=tags,
             life_span=life_span,
         )

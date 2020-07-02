@@ -1,6 +1,6 @@
-ISORT_DIRS := neuro_flow tests setup.py
+ISORT_DIRS := neuro_flow tests/unit setup.py
 BLACK_DIRS := $(ISORT_DIRS)
-MYPY_DIRS :=  neuro_flow tests
+MYPY_DIRS :=  neuro_flow tests/unit
 FLAKE8_DIRS := $(ISORT_DIRS)
 PYTEST_ARGS=
 
