@@ -1,0 +1,17 @@
+name: CI
+
+on:
+  push:
+    branches: [ master ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ master ]
+
+
+jobs:
+  explore:
+    name: ${{ job.status }}
+    steps:
+    - env:
+      run: |
+        echo ${{ job.name }}
