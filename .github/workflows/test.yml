@@ -10,6 +10,7 @@ on:
 
 jobs:
   explore:
+    runs-on: ubuntu-latest
     name: Name
     steps:
     - env:
