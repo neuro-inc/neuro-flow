@@ -1,10 +1,9 @@
 import pathlib
 
-from neuromation.api import HTTPPort
-
 from neuro_flow import ast
 from neuro_flow.expr import (
     BoolExpr,
+    IntExpr,
     LocalPathExpr,
     OptFloatExpr,
     OptRemotePathExpr,
@@ -81,7 +80,9 @@ def test_parse_full(assets: pathlib.Path) -> None:
                 name=OptStrExpr("job-name"),
                 image=StrExpr("${{ images.image_a.ref }}"),
                 preset=OptStrExpr("cpu-small"),
-                http=HTTPPort(port=8080, requires_auth=False),
+                http=ast.HTTPPort(
+                    port=IntExpr("8080"), requires_auth=BoolExpr("False")
+                ),
                 entrypoint=OptStrExpr("bash"),
                 cmd=StrExpr("echo abc"),
                 workdir=OptRemotePathExpr("/local/dir"),

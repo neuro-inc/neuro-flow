@@ -193,22 +193,32 @@ class OptStrExpr(Expr[str]):
     pass
 
 
-class URIExpr(StrictExpr[URL]):
+class URIExprMixin:
     @classmethod
     def convert(cls, arg: str) -> URL:
         return URL(arg)
 
 
-class OptURIExpr(Expr[URL]):
-    @classmethod
-    def convert(cls, arg: str) -> URL:
-        return URL(arg)
+class URIExpr(URIExprMixin, StrictExpr[URL]):
+    pass
 
 
-class BoolExpr(StrictExpr[bool]):
+class OptURIExpr(URIExprMixin, Expr[URL]):
+    pass
+
+
+class BoolExprMixin:
     @classmethod
     def convert(cls, arg: str) -> bool:
         return bool(literal_eval(arg))
+
+
+class BoolExpr(BoolExprMixin, StrictExpr[bool]):
+    pass
+
+
+class OptBoolExpr(BoolExprMixin, Expr[bool]):
+    pass
 
 
 class IntExpr(StrictExpr[int]):
@@ -217,37 +227,43 @@ class IntExpr(StrictExpr[int]):
         return int(literal_eval(arg))
 
 
-class FloatExpr(StrictExpr[float]):
+class FloatExprMixin:
     @classmethod
     def convert(cls, arg: str) -> float:
         return float(literal_eval(arg))
 
 
-class OptFloatExpr(Expr[float]):
-    @classmethod
-    def convert(cls, arg: str) -> float:
-        return float(literal_eval(arg))
+class FloatExpr(FloatExprMixin, StrictExpr[float]):
+    pass
 
 
-class LocalPathExpr(StrictExpr[Path]):
-    @classmethod
-    def convert(cls, arg: str) -> Path:
-        return Path(arg)
+class OptFloatExpr(FloatExprMixin, Expr[float]):
+    pass
 
 
-class OptLocalPathExpr(Expr[Path]):
+class LocalPathMixin:
     @classmethod
     def convert(cls, arg: str) -> Path:
         return Path(arg)
 
 
-class RemotePathExpr(StrictExpr[PurePosixPath]):
+class LocalPathExpr(LocalPathMixin, StrictExpr[Path]):
+    pass
+
+
+class OptLocalPathExpr(LocalPathMixin, Expr[Path]):
+    pass
+
+
+class RemotePathMixin:
     @classmethod
     def convert(cls, arg: str) -> PurePosixPath:
         return PurePosixPath(arg)
 
 
-class OptRemotePathExpr(Expr[PurePosixPath]):
-    @classmethod
-    def convert(cls, arg: str) -> PurePosixPath:
-        return PurePosixPath(arg)
+class RemotePathExpr(RemotePathMixin, StrictExpr[PurePosixPath]):
+    pass
+
+
+class OptRemotePathExpr(RemotePathMixin, Expr[PurePosixPath]):
+    pass

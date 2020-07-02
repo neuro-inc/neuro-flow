@@ -14,12 +14,12 @@ from typing import Any, Dict
 
 import trafaret as t
 import yaml
-from neuromation.api import HTTPPort
 from yarl import URL
 
 from . import ast
 from .expr import (
     BoolExpr,
+    IntExpr,
     LocalPathExpr,
     OptFloatExpr,
     OptRemotePathExpr,
@@ -142,7 +142,9 @@ EXEC_UNIT = t.Dict(
 def parse_exec_unit(data: Dict[str, Any]) -> Dict[str, Any]:
     http = data.get("http")
     if http is not None:
-        http = HTTPPort(http["port"], http["requires-auth"])
+        http = ast.HTTPPort(
+            IntExpr(str(http["port"])), BoolExpr(str(http["requires-auth"]))
+        )
     return dict(
         title=OptStrExpr(data.get("title")),
         name=OptStrExpr(data.get("name")),

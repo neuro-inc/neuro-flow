@@ -3,10 +3,9 @@ import enum
 from dataclasses import dataclass
 from typing import AbstractSet, List, Mapping, Optional, Sequence
 
-from neuromation.api import HTTPPort
-
 from .expr import (
     BoolExpr,
+    IntExpr,
     LocalPathExpr,
     OptFloatExpr,
     OptRemotePathExpr,
@@ -41,6 +40,12 @@ class Image:
     context: LocalPathExpr
     dockerfile: LocalPathExpr
     build_args: Mapping[str, StrExpr]
+
+
+@dataclass(frozen=True)
+class HTTPPort:
+    port: IntExpr
+    requires_auth: BoolExpr
 
 
 @dataclass(frozen=True)
