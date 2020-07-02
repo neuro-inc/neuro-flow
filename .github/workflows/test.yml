@@ -14,7 +14,7 @@ jobs:
     name: Name
     steps:
       - env:
-        VAR: val
+          VAR: val
         run: |
             echo ${{ toJson(env) }} ${{ job.status }}
       - name: Dump GitHub context
