@@ -16,4 +16,4 @@ jobs:
     - env:
         VAR: val
       run: |
-        echo ${{ job.name }} ${{ job.status }}
+        echo ${{ env }} ${{ job.status }}
