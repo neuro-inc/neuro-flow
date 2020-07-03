@@ -2,21 +2,28 @@ from typing import AsyncIterator, Dict, Optional
 
 from neuromation.api import Client, Factory, JobDescription, ResourceNotFound
 
-from . import ast, context
+from . import ast
+from .context import Context
 
 
 class InteractiveRunner:
     def __init__(self, flow: ast.InteractiveFlow) -> None:
         self._flow = flow
-        self._ctx = context.Context.create(self._flow)
+        self._ctx: Optional[Context] = None
         self._client: Optional[Client] = None
 
     async def post_init(self) -> None:
+        self._ctx = await Context.create(self._flow)
         self._client = await Factory().get()
 
     async def close(self) -> None:
         if self._client is not None:
             await self._client.close()
+
+    @property
+    def ctx(self) -> Context:
+        assert self._ctx is not None
+        return self._ctx
 
     @property
     def client(self) -> Client:
@@ -35,7 +42,7 @@ class InteractiveRunner:
         """Return statuses for all jobs from the flow"""
         ret: Dict[str, Optional[JobDescription]] = {}
         for job_id in self._flow.jobs:
-            job_ctx = await self._ctx.with_job(job_id)
+            job_ctx = await self.ctx.with_job(job_id)
             job = job_ctx.job
             name = job.name
             try:
@@ -47,7 +54,7 @@ class InteractiveRunner:
 
     async def start(self, job_id: str) -> str:
         """Start a named job, return job id"""
-        # job_ctx = await self._ctx.with_job(job_id)
+        # job_ctx = await self.ctx.with_job(job_id)
         # job = job_ctx.job
         # descr = await self.client.jobs.run()
         # job = self._get_job_ast(job_id)

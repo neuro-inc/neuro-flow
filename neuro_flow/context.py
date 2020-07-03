@@ -2,9 +2,11 @@
 from dataclasses import dataclass, fields, is_dataclass, replace
 from typing import AbstractSet, Any, List, Mapping, Optional, Sequence, cast
 
+from yarl import URL
+
 from . import ast
 from .expr import Literal, LookupABC
-from .types import RemotePath
+from .types import LocalPath, RemotePath
 
 
 # neuro -- global settings (cluster, user, api entrypoint)
@@ -81,10 +83,30 @@ class BatchCtx:
 
 
 @dataclass(frozen=True)
+class VolumeCtx:
+    id: str
+    uri: URL
+    mount: RemotePath
+    ro: bool
+
+
+@dataclass(frozen=True)
+class ImageCtx:
+    id: str
+    uri: URL
+    context: LocalPath
+    dockerfile: LocalPath
+    build_args: Mapping[str, str]
+
+
+@dataclass(frozen=True)
 class Context(LookupABC):
     _flow: ast.BaseFlow
     _job: Optional[JobCtx]
     _batch: Optional[BatchCtx]
+
+    _volumes: Optional[Mapping[str, VolumeCtx]]
+    _images: Optional[Mapping[str, ImageCtx]]
 
     _tags: AbstractSet[str]
     _env: Mapping[str, str]
@@ -92,9 +114,9 @@ class Context(LookupABC):
     _life_span: Optional[float]
 
     @classmethod
-    def create(cls, flow: ast.BaseFlow) -> "Context":
+    async def create(cls, flow: ast.BaseFlow) -> "Context":
         defaults = flow.defaults
-        return cls(
+        ctx = cls(
             _flow=flow,
             _tags=defaults.tags,
             _env=defaults.env,
@@ -102,7 +124,31 @@ class Context(LookupABC):
             _life_span=defaults.life_span,
             _job=None,
             _batch=None,
+            _volumes=None,
+            _images=None,
         )
+
+        # volumes / images needs a context with defaults only for self initialization
+        volumes = {
+            v: VolumeCtx(
+                id=v.id,
+                uri=await v.uri.eval(ctx),
+                mount=await v.mount.eval(ctx),
+                ro=await v.ro.eval(ctx),
+            )
+            for v in flow.volumes.values()
+        }
+        images = {
+            i: ImageCtx(
+                id=i.id,
+                uri=await i.uri.eval(ctx),
+                context=await i.context.eval(ctx),
+                dockerfile=await i.dockerfile.eval(ctx),
+                build_args={k: await v.eval(ctx) for k, v in i.build_args.items()},
+            )
+            for i in flow.images.values()
+        }
+        return replace(ctx, volumes=volumes, images=images)
 
     def lookup(self, names: Sequence[str]) -> Literal:
         stack: List[str] = []
@@ -204,3 +250,15 @@ class Context(LookupABC):
         if self._batch is None:
             raise NotAvailable("batch")
         return self._batch
+
+    @property
+    def volumes(self) -> Mapping[str, VolumeCtx]:
+        if self._volumes is None:
+            raise NotAvailable("volumes")
+        return self._volumes
+
+    @property
+    def images(self) -> Mapping[str, ImageCtx]:
+        if self._images is None:
+            raise NotAvailable("images")
+        return self._images
