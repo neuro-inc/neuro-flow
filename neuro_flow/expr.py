@@ -1,11 +1,11 @@
 # expression parser/evaluator
+# ${{ <expression> }}
 
 import abc
 import dataclasses
-
-# ${{ <expression> }}
 import inspect
 from ast import literal_eval
+from collections.abc import Sized
 from pathlib import Path, PurePosixPath
 from typing import (
     Any,
@@ -34,6 +34,7 @@ from funcparserlib.parser import (
     skip,
     some,
 )
+from typing_extensions import Protocol
 from yarl import URL
 
 
@@ -41,12 +42,29 @@ _T = TypeVar("_T")
 _E = TypeVar("_E")
 
 
-Literal = Union[None, bool, int, float, str]
+LiteralT = Union[None, bool, int, float, str]
+
+TypeT = Union[LiteralT, "ContainerT", "MappingT", "SequenceT"]
+
+
+class ContainerT(Protocol):
+    def __getattr__(self, attr: str) -> TypeT:
+        ...
+
+
+class MappingT(Protocol):
+    def __getitem__(self, key: LiteralT) -> TypeT:
+        ...
+
+
+class SequenceT(Protocol):
+    def __getitem__(self, idx: LiteralT) -> TypeT:
+        ...
 
 
 class LookupABC(abc.ABC):
     @abc.abstractmethod
-    def lookup(self, names: Sequence[str]) -> Literal:
+    def lookup(self, names: Sequence[str]) -> LiteralT:
         pass
 
 
@@ -79,10 +97,10 @@ tokenize = make_tokenizer(TOKENS)
 class FuncDef:
     name: str
     sig: inspect.Signature
-    call: Callable[..., Awaitable[Any]]
+    call: Callable[..., Awaitable[TypeT]]
 
 
-def _build_signatures(**kwargs: Callable[..., Any]) -> Dict[str, FuncDef]:
+def _build_signatures(**kwargs: Callable[..., Awaitable[TypeT]]) -> Dict[str, FuncDef]:
     return {k: FuncDef(k, inspect.signature(v), v) for k, v in kwargs.items()}
 
 
@@ -92,12 +110,14 @@ async def nothing() -> None:
     return None
 
 
-async def alen(arg: Any) -> int:
+async def alen(arg: TypeT) -> int:
     # Async version of len(), async is required for the sake of uniformness.
+    if not isinstance(arg, Sized):
+        raise TypeError(f"len() requires a str, sequence or mapping, got {arg!r}")
     return len(arg)
 
 
-async def fmt(spec: str, *args: Any) -> str:
+async def fmt(spec: str, *args: TypeT) -> str:
     # We need a trampoline since expression syntax doesn't support classes and named
     # argumens
     return spec.format(*args)
@@ -110,24 +130,32 @@ def tokval(tok: Token) -> str:
     return cast(str, tok.value)
 
 
-def literal(toktype: str) -> Parser:
-    def f(tok: Token) -> Any:
-        return literal_eval(tokval(tok))
-
-    return some(lambda tok: tok.type == toktype) >> f
-
-
 class Item(abc.ABC):
     @abc.abstractmethod
-    async def eval(self, lookuper: LookupABC) -> str:
+    async def eval(self, lookuper: LookupABC) -> TypeT:
         pass
+
+
+@dataclasses.dataclass(frozen=True)
+class Literal(Item):
+    val: LiteralT
+
+    async def eval(self, lookuper: LookupABC) -> LiteralT:
+        return self.val
+
+
+def literal(toktype: str) -> Parser:
+    def f(tok: Token) -> Any:
+        return Literal(literal_eval(tokval(tok)))
+
+    return some(lambda tok: tok.type == toktype) >> f
 
 
 @dataclasses.dataclass(frozen=True)
 class Lookup(Item):
     names: Sequence[str]
 
-    async def eval(self, lookuper: LookupABC) -> str:
+    async def eval(self, lookuper: LookupABC) -> TypeT:
         return ".".join(self.names)
 
 
@@ -140,19 +168,20 @@ class Call(Item):
     func: FuncDef
     args: Sequence[Item]
 
-    async def eval(self, lookuper: LookupABC) -> str:
+    async def eval(self, lookuper: LookupABC) -> TypeT:
         args = [await a.eval(lookuper) for a in self.args]
-        return await self.func(*args)
+        ret = await self.func.call(*args)
+        return cast(TypeT, ret)
 
 
-def make_args(arg: Optional[Tuple[Any, List[Any]]]) -> List[Any]:
+def make_args(arg: Optional[Tuple[Item, List[Item]]]) -> List[Item]:
     if arg is None:
         return []
     first, tail = arg
     return [first] + tail[:]
 
 
-def make_call(arg: Tuple[str, List[str]]) -> Call:
+def make_call(arg: Tuple[str, List[Item]]) -> Call:
     funcname, args = arg
     try:
         spec = FUNCTIONS[funcname]
@@ -265,7 +294,11 @@ class Expr(Generic[_T]):
         if self._parsed is not None:
             ret: List[str] = []
             for part in self._parsed:
-                ret.append(await part.eval(lookuper))
+                val = await part.eval(lookuper)
+                # TODO: add str() function, raise an explicit error if
+                # an expresion evaluates non-str type
+                assert isinstance(val, str)
+                ret.append(val)
             return self.convert("".join(ret))
         else:
             if not self.allow_none:
