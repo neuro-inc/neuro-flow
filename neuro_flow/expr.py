@@ -1,14 +1,39 @@
 # expression parser/evaluator
 
-# ${{ <expression> }}
 import abc
 import dataclasses
+
+# ${{ <expression> }}
+import inspect
 from ast import literal_eval
 from pathlib import Path, PurePosixPath
-from typing import Any, Generic, List, Optional, Sequence, Tuple, TypeVar, Union, cast
+from typing import (
+    Any,
+    Awaitable,
+    Callable,
+    Dict,
+    Generic,
+    List,
+    Optional,
+    Sequence,
+    Tuple,
+    TypeVar,
+    Union,
+    cast,
+)
 
 from funcparserlib.lexer import Token, make_tokenizer
-from funcparserlib.parser import Parser, a, finished, many, maybe, oneplus, skip, some
+from funcparserlib.parser import (
+    Parser,
+    a,
+    finished,
+    forward_decl,
+    many,
+    maybe,
+    oneplus,
+    skip,
+    some,
+)
 from yarl import URL
 
 
@@ -37,13 +62,48 @@ TOKENS = [
     ("BIN", (r"0[bB][0-1_]+",)),
     ("INT", (r"-?[0-9][0-9_]*",)),
     ("STR", (r"'[^']*'",)),
+    ("STR", (r'"[^"]*"',)),
     ("NAME", (r"[A-Za-z_][A-Za-z_0-9\-]*",)),
     ("DOT", (r"\.",)),
+    ("COMMA", (r",",)),
+    ("PAR", (r"\(|\)",)),
+    ("SQB", (r"\[|\]",)),
     ("ANY", (r".",)),
 ]
 
 
 tokenize = make_tokenizer(TOKENS)
+
+
+@dataclasses.dataclass(frozen=True)
+class FuncDef:
+    name: str
+    sig: inspect.Signature
+    call: Callable[..., Awaitable[Any]]
+
+
+def _build_signatures(**kwargs: Callable[..., Any]) -> Dict[str, FuncDef]:
+    return {k: FuncDef(k, inspect.signature(v), v) for k, v in kwargs.items()}
+
+
+async def nothing() -> None:
+    # A test function that accepts none args.
+    # Later we can replace it with something really more usefuld, e.g. succeded()
+    return None
+
+
+async def alen(arg: Any) -> int:
+    # Async version of len(), async is required for the sake of uniformness.
+    return len(arg)
+
+
+async def fmt(spec: str, *args: Any) -> str:
+    # We need a trampoline since expression syntax doesn't support classes and named
+    # argumens
+    return spec.format(*args)
+
+
+FUNCTIONS = _build_signatures(len=alen, nothing=nothing, fmt=fmt)
 
 
 def tokval(tok: Token) -> str:
@@ -71,6 +131,39 @@ class Lookup(Item):
         return ".".join(self.names)
 
 
+def make_lookup(arg: Tuple[str, List[str]]) -> Lookup:
+    return Lookup([arg[0]] + arg[1])
+
+
+@dataclasses.dataclass(frozen=True)
+class Call(Item):
+    func: FuncDef
+    args: Sequence[Item]
+
+    async def eval(self, lookuper: LookupABC) -> str:
+        args = [await a.eval(lookuper) for a in self.args]
+        return await self.func(*args)
+
+
+def make_args(arg: Optional[Tuple[Any, List[Any]]]) -> List[Any]:
+    if arg is None:
+        return []
+    first, tail = arg
+    return [first] + tail[:]
+
+
+def make_call(arg: Tuple[str, List[str]]) -> Call:
+    funcname, args = arg
+    try:
+        spec = FUNCTIONS[funcname]
+    except KeyError:
+        raise LookupError(f"Unknown function {funcname}")
+    args_count = len(args)
+    dummies = [None] * args_count
+    spec.sig.bind(*dummies)
+    return Call(spec, args)
+
+
 @dataclasses.dataclass(frozen=True)
 class Text(Item):
     arg: str
@@ -79,31 +172,26 @@ class Text(Item):
         return self.arg
 
 
-def make_lookup(arg: Tuple[str, List[str]]) -> Lookup:
-    return Lookup([arg[0]] + arg[1])
-
-
 SPACE = some(lambda tok: tok.type == "SPACE")
+OPT_SPACE = skip(maybe(SPACE))
 
 DOT = skip(a(Token("DOT", ".")))
+COMMA = skip(a(Token("COMMA", ",")))
 
 OPEN_TMPL = skip(a(Token("TMPL", "${{")))
-
 CLOSE_TMPL = skip(a(Token("TMPL", "}}")))
 
 NOT_TMPL = some(lambda tok: tok.type != "TMPL") >> tokval
 
-REAL = literal("REAL")
+LPAR = skip(a(Token("PAR", "(")))
+RPAR = skip(a(Token("PAR", ")")))
 
-EXP = literal("EXP")
+LSQB = skip(a(Token("PAR", "[")))
+RSQB = skip(a(Token("PAR", "]")))
 
-INT = literal("INT")
+REAL = literal("REAL") | literal("EXP")
 
-HEX = literal("HEX")
-
-OCT = literal("OCT")
-
-BIN = literal("BIN")
+INT = literal("INT") | literal("HEX") | literal("OCT") | literal("BIN")
 
 BOOL = literal("BOOL")
 
@@ -111,15 +199,33 @@ STR = literal("STR")
 
 NONE = literal("NONE")
 
-LITERAL = NONE | BOOL | REAL | EXP | INT | HEX | OCT | BIN | STR
+LITERAL = NONE | BOOL | REAL | INT | STR
 
 NAME = some(lambda tok: tok.type == "NAME") >> tokval
 
 LOOKUP = NAME + many(DOT + NAME) >> make_lookup
 
-EXPR = LITERAL | LOOKUP
+SIMPLE_EXPR = LITERAL | LOOKUP
 
-TMPL = OPEN_TMPL + skip(maybe(SPACE)) + EXPR + skip(maybe(SPACE)) + CLOSE_TMPL
+EXPR = forward_decl()
+
+FUNC_CALL = (
+    NAME
+    + OPT_SPACE
+    + LPAR
+    + OPT_SPACE
+    + (
+        maybe(EXPR + many(OPT_SPACE + COMMA + OPT_SPACE + EXPR) + OPT_SPACE)
+        >> make_args
+    )
+    + RPAR
+) >> make_call
+
+
+EXPR.define(FUNC_CALL | SIMPLE_EXPR)
+
+
+TMPL = OPEN_TMPL + OPT_SPACE + EXPR + OPT_SPACE + CLOSE_TMPL
 
 TEXT = oneplus(NOT_TMPL) >> (lambda arg: Text("".join(arg)))
 

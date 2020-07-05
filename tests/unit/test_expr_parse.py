@@ -1,7 +1,18 @@
 import pytest
 from funcparserlib.parser import NoParseError, Parser
 
-from neuro_flow.expr import PARSER, TEXT, TMPL, Lookup, Text, finished, skip, tokenize
+from neuro_flow.expr import (
+    FUNCTIONS,
+    PARSER,
+    TEXT,
+    TMPL,
+    Call,
+    Lookup,
+    Text,
+    finished,
+    skip,
+    tokenize,
+)
 
 
 def finish(p: Parser) -> Parser:
@@ -138,4 +149,22 @@ def test_text_false4() -> None:
 def test_parser1() -> None:
     assert [Text("some "), Lookup(["var", "arg"]), Text(" text")] == PARSER.parse(
         list(tokenize("some ${{ var.arg }} text"))
+    )
+
+
+def test_func_call_empty() -> None:
+    assert [Call(FUNCTIONS["nothing"], [])] == PARSER.parse(
+        list(tokenize("${{ nothing() }}"))
+    )
+
+
+def test_func_call_single_arg() -> None:
+    assert [Call(FUNCTIONS["len"], ["abc"])] == PARSER.parse(
+        list(tokenize("${{ len('abc') }}"))
+    )
+
+
+def test_func_call_multiple_args() -> None:
+    assert [Call(FUNCTIONS["fmt"], ["{} {}", "abc", 123])] == PARSER.parse(
+        list(tokenize('${{ fmt("{} {}", "abc", 123) }}'))
     )
