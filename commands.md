@@ -51,6 +51,11 @@ Port forward
 -------------
 
   flow --config <config-file.yml> port-forward <name> [--localport xxx --remote-port yyy]
+  
+  Perhaps there is no need for seaparate port-forward command but run should configure
+  forwarded ports.
+  
+  Requires `neuro run --forward=local:remote ...` support.
 
 Upload/download data?
 ---------------------
@@ -58,3 +63,11 @@ Upload/download data?
 Is data belong to a project or not?
 
 Code sync should be performed via github probably. Code is not stored on the storage ideally.
+
+
+Pipeline
+--------
+
+Run a pipeline
+
+  flow --config <config-file.yml> pipeline

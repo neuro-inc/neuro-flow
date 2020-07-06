@@ -29,4 +29,9 @@ setup(
         "Topic :: Utilities",
         "License :: OSI Approved :: Apache Software License",
     ],
+    entry_points={
+        "console_scripts": [
+            "neuro-flow=neuro_flow.cli:main",
+        ]
+    },
 )
