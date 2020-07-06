@@ -6,6 +6,7 @@ from neuro_flow.expr import (
     PARSER,
     TEXT,
     TMPL,
+    AttrGetter,
     Call,
     Literal,
     Lookup,
@@ -21,17 +22,17 @@ def finish(p: Parser) -> Parser:
 
 
 def test_tmpl_ok1() -> None:
-    assert Lookup(names=["name"]) == finish(TMPL).parse(list(tokenize("${{ name }}")))
+    assert Lookup("name", []) == finish(TMPL).parse(list(tokenize("${{ name }}")))
 
 
 def test_tmpl_ok2() -> None:
-    assert Lookup(names=["name", "sub", "param"]) == finish(TMPL).parse(
-        list(tokenize("${{ name.sub.param }}"))
-    )
+    assert Lookup("name", [AttrGetter("sub"), AttrGetter("param")]) == finish(
+        TMPL
+    ).parse(list(tokenize("${{ name.sub.param }}")))
 
 
 def test_tmpl_ok3() -> None:
-    assert Lookup(names=["name"]) == finish(TMPL).parse(list(tokenize("${{name}}")))
+    assert Lookup("name", []) == finish(TMPL).parse(list(tokenize("${{name}}")))
 
 
 def test_tmpl_false1() -> None:
@@ -131,6 +132,10 @@ def test_text_ok() -> None:
     assert Text("some text") == finish(TEXT).parse(list(tokenize("some text")))
 
 
+def test_text_with_dot() -> None:
+    assert Text("some . text") == finish(TEXT).parse(list(tokenize("some . text")))
+
+
 def test_text_false1() -> None:
     with pytest.raises(NoParseError):
         assert [] == finish(TEXT).parse(list(tokenize("${{")))
@@ -152,9 +157,11 @@ def test_text_false4() -> None:
 
 
 def test_parser1() -> None:
-    assert [Text("some "), Lookup(["var", "arg"]), Text(" text")] == PARSER.parse(
-        list(tokenize("some ${{ var.arg }} text"))
-    )
+    assert [
+        Text("some "),
+        Lookup("var", [AttrGetter("arg")]),
+        Text(" text"),
+    ] == PARSER.parse(list(tokenize("some ${{ var.arg }} text")))
 
 
 def test_func_call_empty() -> None:
@@ -169,7 +176,22 @@ def test_func_call_single_arg() -> None:
     )
 
 
+def test_func_nested_calls() -> None:
+    assert [
+        Call(FUNCTIONS["len"], [Call(FUNCTIONS["keys"], [Lookup("abc", [])])])
+    ] == PARSER.parse(list(tokenize("${{ len(keys(abc)) }}")))
+
+
 def test_func_call_multiple_args() -> None:
     assert [
         Call(FUNCTIONS["fmt"], [Literal("{} {}"), Literal("abc"), Literal(123)])
     ] == PARSER.parse(list(tokenize('${{ fmt("{} {}", "abc", 123) }}')))
+
+
+def test_func_call_arg_lookup() -> None:
+    assert [
+        Call(
+            FUNCTIONS["len"],
+            [Lookup("images", [AttrGetter("name"), AttrGetter("build_args")])],
+        )
+    ] == PARSER.parse(list(tokenize("${{ len(images.name.build_args) }}")))

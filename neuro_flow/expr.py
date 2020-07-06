@@ -14,6 +14,7 @@ from typing import (
     Dict,
     Generic,
     List,
+    Mapping,
     Optional,
     Sequence,
     Tuple,
@@ -39,7 +40,6 @@ from yarl import URL
 
 
 _T = TypeVar("_T")
-_E = TypeVar("_E")
 
 
 LiteralT = Union[None, bool, int, float, str]
@@ -62,9 +62,9 @@ class SequenceT(Protocol):
         ...
 
 
-class LookupABC(abc.ABC):
+class RootABC(abc.ABC):
     @abc.abstractmethod
-    def lookup(self, names: Sequence[str]) -> LiteralT:
+    def lookup(self, name: str) -> TypeT:
         pass
 
 
@@ -104,26 +104,33 @@ def _build_signatures(**kwargs: Callable[..., Awaitable[TypeT]]) -> Dict[str, Fu
     return {k: FuncDef(k, inspect.signature(v), v) for k, v in kwargs.items()}
 
 
-async def nothing() -> None:
+async def nothing(root: RootABC) -> None:
     # A test function that accepts none args.
     # Later we can replace it with something really more usefuld, e.g. succeded()
     return None
 
 
-async def alen(arg: TypeT) -> int:
+async def alen(root: RootABC, arg: TypeT) -> int:
     # Async version of len(), async is required for the sake of uniformness.
     if not isinstance(arg, Sized):
         raise TypeError(f"len() requires a str, sequence or mapping, got {arg!r}")
     return len(arg)
 
 
-async def fmt(spec: str, *args: TypeT) -> str:
+async def akeys(root: RootABC, arg: TypeT) -> List[TypeT]:
+    # Async version of len(), async is required for the sake of uniformness.
+    if not isinstance(arg, Mapping):
+        raise TypeError(f"keys() requires a mapping, got {arg!r}")
+    return list(arg)
+
+
+async def fmt(root: RootABC, spec: str, *args: TypeT) -> str:
     # We need a trampoline since expression syntax doesn't support classes and named
     # argumens
     return spec.format(*args)
 
 
-FUNCTIONS = _build_signatures(len=alen, nothing=nothing, fmt=fmt)
+FUNCTIONS = _build_signatures(len=alen, nothing=nothing, fmt=fmt, keys=akeys)
 
 
 def tokval(tok: Token) -> str:
@@ -132,7 +139,7 @@ def tokval(tok: Token) -> str:
 
 class Item(abc.ABC):
     @abc.abstractmethod
-    async def eval(self, lookuper: LookupABC) -> TypeT:
+    async def eval(self, root: RootABC) -> TypeT:
         pass
 
 
@@ -140,7 +147,7 @@ class Item(abc.ABC):
 class Literal(Item):
     val: LiteralT
 
-    async def eval(self, lookuper: LookupABC) -> LiteralT:
+    async def eval(self, root: RootABC) -> LiteralT:
         return self.val
 
 
@@ -151,16 +158,54 @@ def literal(toktype: str) -> Parser:
     return some(lambda tok: tok.type == toktype) >> f
 
 
+class Getter(abc.ABC):
+    # Aux class for Lookup item
+
+    @abc.abstractmethod
+    def __call__(self, obj: TypeT) -> TypeT:
+        pass
+
+
+@dataclasses.dataclass(frozen=True)
+class AttrGetter(Getter):
+    name: str
+
+    def __call__(self, obj: TypeT) -> TypeT:
+        return getattr(obj, self.name)
+
+
+def lookup_attr(name: str) -> Any:
+    # Just in case, NAME token cannot start with _.
+    assert not name.startswith("_")
+    return AttrGetter(name)
+
+
+@dataclasses.dataclass(frozen=True)
+class ItemGetter(Getter):
+    key: str
+
+    def __call__(self, obj: TypeT) -> TypeT:
+        return obj[self.key]
+
+
+def lookup_item(key: LiteralT) -> Any:
+    return ItemGetter(key)
+
+
 @dataclasses.dataclass(frozen=True)
 class Lookup(Item):
-    names: Sequence[str]
+    lft: str
+    rgt: Sequence[Getter]
 
-    async def eval(self, lookuper: LookupABC) -> TypeT:
-        return ".".join(self.names)
+    async def eval(self, root: RootABC) -> TypeT:
+        ret = root.lookup(self.lft)
+        for op in self.rht:
+            ret = op(ret)
+        return ret
 
 
 def make_lookup(arg: Tuple[str, List[str]]) -> Lookup:
-    return Lookup([arg[0]] + arg[1])
+    return Lookup(arg[0], arg[1])
 
 
 @dataclasses.dataclass(frozen=True)
@@ -168,9 +213,9 @@ class Call(Item):
     func: FuncDef
     args: Sequence[Item]
 
-    async def eval(self, lookuper: LookupABC) -> TypeT:
-        args = [await a.eval(lookuper) for a in self.args]
-        ret = await self.func.call(*args)
+    async def eval(self, root: RootABC) -> TypeT:
+        args = [await a.eval(root) for a in self.args]
+        ret = await self.func.call(root, *args)
         return cast(TypeT, ret)
 
 
@@ -189,7 +234,7 @@ def make_call(arg: Tuple[str, List[Item]]) -> Call:
         raise LookupError(f"Unknown function {funcname}")
     args_count = len(args)
     dummies = [None] * args_count
-    spec.sig.bind(*dummies)
+    spec.sig.bind(None, *dummies)
     return Call(spec, args)
 
 
@@ -197,7 +242,7 @@ def make_call(arg: Tuple[str, List[Item]]) -> Call:
 class Text(Item):
     arg: str
 
-    async def eval(self, lookuper: LookupABC) -> str:
+    async def eval(self, root: RootABC) -> str:
         return self.arg
 
 
@@ -232,26 +277,30 @@ LITERAL = NONE | BOOL | REAL | INT | STR
 
 NAME = some(lambda tok: tok.type == "NAME") >> tokval
 
-LOOKUP = NAME + many(DOT + NAME) >> make_lookup
-
-SIMPLE_EXPR = LITERAL | LOOKUP
+ATOM = LITERAL  # | list-make | dict-maker
 
 EXPR = forward_decl()
 
-FUNC_CALL = (
-    NAME
-    + OPT_SPACE
-    + LPAR
-    + OPT_SPACE
-    + (
-        maybe(EXPR + many(OPT_SPACE + COMMA + OPT_SPACE + EXPR) + OPT_SPACE)
-        >> make_args
-    )
-    + RPAR
-) >> make_call
+ATOM_EXPR = forward_decl()
+
+LOOKUP_ATTR = DOT + NAME >> lookup_attr
+
+LOOKUP_ITEM = OPT_SPACE + LSQB + EXPR + OPT_SPACE + RSQB >> lookup_item
+
+LOOKUP = NAME + many(LOOKUP_ATTR | LOOKUP_ITEM) >> make_lookup
+
+FUNC_ARGS = (
+    maybe(EXPR + many(OPT_SPACE + COMMA + OPT_SPACE + EXPR) + OPT_SPACE) >> make_args
+)
 
 
-EXPR.define(FUNC_CALL | SIMPLE_EXPR)
+FUNC_CALL = (NAME + OPT_SPACE + LPAR + OPT_SPACE + FUNC_ARGS + RPAR) >> make_call
+
+
+ATOM_EXPR.define(ATOM | FUNC_CALL | LOOKUP)
+
+
+EXPR.define(ATOM_EXPR)
 
 
 TMPL = OPEN_TMPL + OPT_SPACE + EXPR + OPT_SPACE + CLOSE_TMPL
@@ -288,13 +337,13 @@ class Expr(Generic[_T]):
     def pattern(self) -> Optional[str]:
         return self._pattern
 
-    async def eval(self, lookuper: LookupABC) -> Optional[_T]:
+    async def eval(self, root: RootABC) -> Optional[_T]:
         if self._ret is not None:
             return self._ret
         if self._parsed is not None:
             ret: List[str] = []
             for part in self._parsed:
-                val = await part.eval(lookuper)
+                val = await part.eval(root)
                 # TODO: add str() function, raise an explicit error if
                 # an expresion evaluates non-str type
                 assert isinstance(val, str)
@@ -323,8 +372,8 @@ class Expr(Generic[_T]):
 class StrictExpr(Expr[Optional[_T]]):
     allow_none = False
 
-    async def eval(self, lookuper: LookupABC) -> _T:
-        ret = await super().eval(lookuper)
+    async def eval(self, root: RootABC) -> _T:
+        ret = await super().eval(root)
         assert ret is not None
         return ret
 

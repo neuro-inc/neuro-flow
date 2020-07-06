@@ -1,11 +1,11 @@
 # Contexts
-from dataclasses import dataclass, fields, is_dataclass, replace
-from typing import AbstractSet, Any, List, Mapping, Optional, Sequence, cast
+from dataclasses import asdict, dataclass, replace
+from typing import AbstractSet, Mapping, Optional, Sequence
 
 from yarl import URL
 
 from . import ast
-from .expr import Literal, LookupABC
+from .expr import RootABC, TypeT
 from .types import LocalPath, RemotePath
 
 
@@ -100,7 +100,7 @@ class ImageCtx:
 
 
 @dataclass(frozen=True)
-class Context(LookupABC):
+class Context(RootABC):
     _flow: ast.BaseFlow
     _job: Optional[JobCtx]
     _batch: Optional[BatchCtx]
@@ -150,39 +150,10 @@ class Context(LookupABC):
         }
         return replace(ctx, volumes=volumes, images=images)
 
-    def lookup(self, names: Sequence[str]) -> Literal:
-        stack: List[str] = []
-        current: Any = self
-
-        for name in names:
-            if name.startswith("_"):
-                raise NotAvailable(".".join(stack))
-
-            if is_dataclass(current):
-                stack.append(name)
-                for fld in fields(current):
-                    if fld.name == name:
-                        break
-                else:
-                    raise NotAvailable(".".join(stack))
-            elif isinstance(current, dict):
-                pass
-            else:
-                raise LookupError(
-                    f"{'.'.join(stack)} is a terminal, cannot get subcontext {name}"
-                )
-
-            try:
-                current = getattr(current, name)
-            except AttributeError:
-                raise NotAvailable(".".join(stack))
-
-        if is_dataclass(current):
-            # TODO: recursively replace with dict of plain values
-            # to support compound objects
-            raise LookupError(f"{'.'.join(stack)} is not a terminal")
-
-        return cast(Literal, current)
+    def lookup(self, name: str) -> TypeT:
+        if name not in ("flow", "job", "batch", "volumes", "images"):
+            raise NotAvailable(name)
+        return asdict(getattr(self, name))
 
     @property
     def env(self) -> Mapping[str, str]:
