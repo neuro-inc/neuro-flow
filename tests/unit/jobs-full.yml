@@ -25,9 +25,6 @@ jobs:
     name: job-name
     image: ${{ images.image_a.ref }}
     preset: cpu-small
-    http:
-      port: 8080
-      requires-auth: false
     entrypoint: bash
     cmd: echo abc
     workdir: /local/dir
@@ -39,6 +36,8 @@ jobs:
       - storage:dir:/var/dir:ro
     tags: [tag-1, tag-2]
     life-span: 2h55m
+    http-port: 8080
+    http-auth: false
     title: Job title
     detach: true
     browse: true

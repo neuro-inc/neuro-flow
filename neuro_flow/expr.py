@@ -117,11 +117,11 @@ async def alen(root: RootABC, arg: TypeT) -> int:
     return len(arg)
 
 
-async def akeys(root: RootABC, arg: TypeT) -> List[TypeT]:
+async def akeys(root: RootABC, arg: TypeT) -> TypeT:
     # Async version of len(), async is required for the sake of uniformness.
     if not isinstance(arg, Mapping):
         raise TypeError(f"keys() requires a mapping, got {arg!r}")
-    return list(arg)
+    return list(arg)  # type: ignore  # List[...] is implicitly converted to SequenceT
 
 
 async def fmt(root: RootABC, spec: str, *args: TypeT) -> str:
@@ -195,7 +195,7 @@ def lookup_item(key: LiteralT) -> Any:
 @dataclasses.dataclass(frozen=True)
 class Lookup(Item):
     lft: str
-    rgt: Sequence[Getter]
+    rht: Sequence[Getter]
 
     async def eval(self, root: RootABC) -> TypeT:
         ret = root.lookup(self.lft)
@@ -417,10 +417,18 @@ class OptBoolExpr(BoolExprMixin, Expr[bool]):
     pass
 
 
-class IntExpr(StrictExpr[int]):
+class IntExprMixin:
     @classmethod
     def convert(cls, arg: str) -> int:
         return int(literal_eval(arg))
+
+
+class IntExpr(IntExprMixin, StrictExpr[int]):
+    pass
+
+
+class OptIntExpr(IntExprMixin, Expr[int]):
+    pass
 
 
 class FloatExprMixin:

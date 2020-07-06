@@ -7,7 +7,9 @@ from .expr import (
     BoolExpr,
     IntExpr,
     LocalPathExpr,
+    OptBoolExpr,
     OptFloatExpr,
+    OptIntExpr,
     OptRemotePathExpr,
     OptStrExpr,
     RemotePathExpr,
@@ -44,18 +46,11 @@ class Image:
 
 
 @dataclass(frozen=True)
-class HTTPPort:
-    port: IntExpr
-    requires_auth: BoolExpr
-
-
-@dataclass(frozen=True)
 class ExecUnit:
     title: OptStrExpr  # Autocalculated if not passed explicitly
     name: OptStrExpr
     image: StrExpr
     preset: OptStrExpr
-    http: Optional[HTTPPort]
     entrypoint: OptStrExpr
     cmd: StrExpr
     workdir: OptRemotePathExpr
@@ -63,6 +58,8 @@ class ExecUnit:
     volumes: Sequence[StrExpr]  # Sequence[VolumeRef]
     tags: AbstractSet[StrExpr]
     life_span: OptFloatExpr
+    http_port: OptIntExpr
+    http_auth: OptBoolExpr
 
 
 @dataclass(frozen=True)
@@ -81,7 +78,6 @@ class Step(ExecUnit):
 
     image: StrExpr  # ImageRef
     preset: OptStrExpr
-    http: Optional[HTTPPort]
 
     entrypoint: OptStrExpr
     cmd: StrExpr

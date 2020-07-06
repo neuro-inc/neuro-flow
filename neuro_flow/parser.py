@@ -18,9 +18,10 @@ from yarl import URL
 from . import ast
 from .expr import (
     BoolExpr,
-    IntExpr,
     LocalPathExpr,
+    OptBoolExpr,
     OptFloatExpr,
+    OptIntExpr,
     OptRemotePathExpr,
     OptStrExpr,
     RemotePathExpr,
@@ -123,9 +124,6 @@ EXEC_UNIT = t.Dict(
         OptKey("name"): t.String,
         t.Key("image"): t.String,
         OptKey("preset"): t.String,
-        OptKey("http"): t.Dict(
-            {t.Key("port"): t.Int, t.Key("requires-auth", default=True): t.Bool}
-        ),
         OptKey("entrypoint"): t.String,
         t.Key("cmd"): t.String,
         OptKey("workdir"): RemotePath,
@@ -133,23 +131,19 @@ EXEC_UNIT = t.Dict(
         t.Key("volumes", default=list): t.List(t.String),
         t.Key("tags", default=list): t.List(t.String),
         OptKey("life-span"): LIFE_SPAN | Expr,
+        OptKey("http-port"): t.Int & str | Expr,
+        OptKey("http-auth"): t.Bool & str | Expr,
     }
 )
 
 
 def parse_exec_unit(id: str, data: Dict[str, Any]) -> Dict[str, Any]:
-    http = data.get("http")
-    if http is not None:
-        http = ast.HTTPPort(
-            IntExpr(str(http["port"])), BoolExpr(str(http["requires-auth"]))
-        )
     return dict(
         id=id,
         title=OptStrExpr(data.get("title")),
         name=OptStrExpr(data.get("name")),
         image=StrExpr(data["image"]),
         preset=OptStrExpr(data.get("preset")),
-        http=http,
         entrypoint=OptStrExpr(data.get("entrypoint")),
         cmd=StrExpr(data["cmd"]),
         workdir=OptRemotePathExpr(data.get("workdir")),
@@ -157,6 +151,8 @@ def parse_exec_unit(id: str, data: Dict[str, Any]) -> Dict[str, Any]:
         volumes=[StrExpr(v) for v in data["volumes"]],
         tags={StrExpr(t) for t in data["tags"]},
         life_span=OptFloatExpr(data.get("life-span")),
+        http_port=OptIntExpr(data.get("http-port")),
+        http_auth=OptBoolExpr(data.get("http-auth")),
     )
 
 

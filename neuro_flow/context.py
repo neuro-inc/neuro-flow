@@ -60,7 +60,8 @@ class ExecUnitCtx:
     name: str
     image: str
     preset: Optional[str]
-    # http: Optional[HTTPPort]
+    http_port: Optional[int]
+    http_auth: Optional[bool]
     entrypoint: Optional[str]
     cmd: str
     workdir: Optional[RemotePath]
@@ -206,6 +207,8 @@ class Context(RootABC):
             volumes=[await v.eval(self) for v in job.volumes],
             tags=tags,
             life_span=life_span,
+            http_port=await job.http_port.eval(self),
+            http_auth=await job.http_auth.eval(self),
         )
         return replace(
             self,

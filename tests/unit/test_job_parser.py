@@ -3,9 +3,10 @@ import pathlib
 from neuro_flow import ast
 from neuro_flow.expr import (
     BoolExpr,
-    IntExpr,
     LocalPathExpr,
+    OptBoolExpr,
     OptFloatExpr,
+    OptIntExpr,
     OptRemotePathExpr,
     OptStrExpr,
     RemotePathExpr,
@@ -30,7 +31,6 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
                 name=OptStrExpr(None),
                 image=StrExpr("ubuntu"),
                 preset=OptStrExpr(None),
-                http=None,
                 entrypoint=OptStrExpr(None),
                 cmd=StrExpr("echo abc"),
                 workdir=OptRemotePathExpr(None),
@@ -41,6 +41,8 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
                 title=OptStrExpr(None),
                 detach=BoolExpr("False"),
                 browse=BoolExpr("False"),
+                http_port=OptIntExpr(None),
+                http_auth=OptBoolExpr(None),
             )
         },
     )
@@ -80,9 +82,6 @@ def test_parse_full(assets: pathlib.Path) -> None:
                 name=OptStrExpr("job-name"),
                 image=StrExpr("${{ images.image_a.ref }}"),
                 preset=OptStrExpr("cpu-small"),
-                http=ast.HTTPPort(
-                    port=IntExpr("8080"), requires_auth=BoolExpr("False")
-                ),
                 entrypoint=OptStrExpr("bash"),
                 cmd=StrExpr("echo abc"),
                 workdir=OptRemotePathExpr("/local/dir"),
@@ -96,6 +95,8 @@ def test_parse_full(assets: pathlib.Path) -> None:
                 title=OptStrExpr("Job title"),
                 detach=BoolExpr("True"),
                 browse=BoolExpr("True"),
+                http_port=OptIntExpr("8080"),
+                http_auth=OptBoolExpr("False"),
             )
         },
     )

@@ -1,9 +1,25 @@
-from typing import AsyncIterator, Dict, Optional
+import asyncio
+from typing import AsyncIterator, List, Optional
 
-from neuromation.api import Client, Factory, JobDescription, ResourceNotFound
+import click
+from neuromation.api import Client, Factory, JobStatus, ResourceNotFound
+from neuromation.cli.formatters import ftable  # TODO: extract into a separate library
 
 from . import ast
 from .context import Context
+
+
+COLORS = {
+    JobStatus.PENDING: "yellow",
+    JobStatus.RUNNING: "blue",
+    JobStatus.SUCCEEDED: "green",
+    JobStatus.FAILED: "red",
+    JobStatus.UNKNOWN: "yellow",
+}
+
+
+def format_job_status(status: JobStatus) -> str:
+    return click.style(status.value, fg=COLORS.get(status, "reset"))
 
 
 class InteractiveRunner:
@@ -38,32 +54,68 @@ class InteractiveRunner:
             return job.id
         raise ResourceNotFound
 
-    async def ps(self) -> Dict[str, Optional[JobDescription]]:
+    async def ps(self) -> None:
         """Return statuses for all jobs from the flow"""
-        ret: Dict[str, Optional[JobDescription]] = {}
-        for job_id in self._flow.jobs:
+        rows: List[List[str]] = []
+        rows.append([click.style("JOB", bold=True), click.style("STATUS", bold=True)])
+        for job_id in sorted(self._flow.jobs):
             job_ctx = await self.ctx.with_job(job_id)
             job = job_ctx.job
-            name = job.name
+            assert job.name
             try:
-                raw_id = await self.resolve_job_by_name(name)
-                ret[job_id] = await self.client.jobs.status(raw_id)
+                raw_id = await self.resolve_job_by_name(job.name)
+                descr = await self.client.jobs.status(raw_id)
+                rows.append([job_id, format_job_status(descr.status)])
             except ResourceNotFound:
-                ret[job_id] = None
-        return ret
+                rows.append([job_id, format_job_status(JobStatus.UNKNOWN)])
+            for line in ftable.table(rows):
+                click.echo(line)
 
-    async def start(self, job_id: str) -> str:
-        """Start a named job, return job id"""
-        # job_ctx = await self.ctx.with_job(job_id)
-        # job = job_ctx.job
-        # descr = await self.client.jobs.run()
-        # job = self._get_job_ast(job_id)
+    async def run(self, job_id: str) -> None:
+        """Run a named job"""
+        job_ctx = await self.ctx.with_job(job_id)
+        job = job_ctx.job
+        args = []
+        if job.title:
+            args.append(f"--description={job.title}")
+        assert job.name
+        args.append(f"--name={job.name}")
+        if job.preset is not None:
+            args.append(f"--preset={job.preset}")
+        if job.http_port is not None:
+            args.append(f"--http-port={job.http_port}")
+        if job.http_auth is not None:
+            if job.http_auth:
+                args.append(f"--http-auth")
+            else:
+                args.append(f"--no-http-auth")
+        if job.entrypoint:
+            args.append(f"--entrypoint={job.entrypoint}")
+        if job.workdir is not None:
+            raise NotImplementedError("workdir is not supported")
+        for k, v in job.env.items():
+            args.append(f"--env={k}={v}")
+        for v in job.volumes:
+            args.append(f"--volume={v}")
+        for t in job.tags:
+            args.append(f"--tag={t}")
+        if job.life_span is not None:
+            args.append(f"--file-spen={job.life_span}")
+        if job.browse:
+            args.append(f"--browse")
+        if job.detach:
+            args.append(f"--detach")
 
-    async def run(self, job_id: str) -> str:
-        """Start a named job, wait for the job finish.
-
-        Return the job id.
-        """
+        proc = await asyncio.create_subprocess_exec(
+            "neuro", "run", *args, job.image, job.cmd
+        )
+        try:
+            retcode = await proc.wait()
+            if retcode:
+                raise SystemExit(retcode)
+        finally:
+            proc.kill()
+            await proc.wait()
 
     async def logs(self, job_id: str) -> AsyncIterator[str]:
         """Return job logs"""
