@@ -1,11 +1,11 @@
 # Contexts
-from dataclasses import asdict, dataclass, replace
+from dataclasses import dataclass, replace
 from typing import AbstractSet, Mapping, Optional, Sequence
 
 from yarl import URL
 
 from . import ast
-from .expr import RootABC, TypeT
+from .expr import ContainerT, RootABC, TypeT
 from .types import LocalPath, RemotePath
 
 
@@ -154,7 +154,9 @@ class Context(RootABC):
     def lookup(self, name: str) -> TypeT:
         if name not in ("flow", "job", "batch", "volumes", "images"):
             raise NotAvailable(name)
-        return asdict(getattr(self, name))
+        ret = getattr(self, name)
+        assert isinstance(ret, ContainerT)
+        return ret
 
     @property
     def env(self) -> Mapping[str, str]:

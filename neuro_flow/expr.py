@@ -35,7 +35,7 @@ from funcparserlib.parser import (
     skip,
     some,
 )
-from typing_extensions import Protocol
+from typing_extensions import Protocol, runtime_checkable
 from yarl import URL
 
 
@@ -47,16 +47,19 @@ LiteralT = Union[None, bool, int, float, str]
 TypeT = Union[LiteralT, "ContainerT", "MappingT", "SequenceT"]
 
 
+@runtime_checkable
 class ContainerT(Protocol):
     def __getattr__(self, attr: str) -> TypeT:
         ...
 
 
+@runtime_checkable
 class MappingT(Protocol):
     def __getitem__(self, key: LiteralT) -> TypeT:
         ...
 
 
+@runtime_checkable
 class SequenceT(Protocol):
     def __getitem__(self, idx: LiteralT) -> TypeT:
         ...
@@ -171,7 +174,18 @@ class AttrGetter(Getter):
     name: str
 
     def __call__(self, obj: TypeT) -> TypeT:
-        return getattr(obj, self.name)
+        if dataclasses.is_dataclass(obj):
+            for fld in dataclasses.fields(obj):
+                if fld.name == self.name:
+                    return cast(TypeT, getattr(obj, self.name))
+            else:
+                raise AttributeError(f"Unknown attribute {self.name} of {obj}")
+        elif isinstance(obj, MappingT):
+            return obj[self.name]
+        else:
+            raise TypeError(
+                f"{obj!r} is not an object with attributes accessible by a dot."
+            )
 
 
 def lookup_attr(name: str) -> Any:
@@ -182,9 +196,10 @@ def lookup_attr(name: str) -> Any:
 
 @dataclasses.dataclass(frozen=True)
 class ItemGetter(Getter):
-    key: str
+    key: LiteralT
 
     def __call__(self, obj: TypeT) -> TypeT:
+        assert isinstance(obj, (SequenceT, MappingT))
         return obj[self.key]
 
 
@@ -204,7 +219,7 @@ class Lookup(Item):
         return ret
 
 
-def make_lookup(arg: Tuple[str, List[str]]) -> Lookup:
+def make_lookup(arg: Tuple[str, List[Getter]]) -> Lookup:
     return Lookup(arg[0], arg[1])
 
 
@@ -215,7 +230,7 @@ class Call(Item):
 
     async def eval(self, root: RootABC) -> TypeT:
         args = [await a.eval(root) for a in self.args]
-        ret = await self.func.call(root, *args)
+        ret = await self.func.call(root, *args)  # type: ignore
         return cast(TypeT, ret)
 
 
