@@ -20,6 +20,7 @@ from neuro_flow.types import RemotePath
 def test_parse_minimal(assets: pathlib.Path) -> None:
     flow = parse(assets / "jobs-minimal.yml")
     assert flow == ast.InteractiveFlow(
+        id="jobs-minimal",
         kind=ast.Kind.JOB,
         title=OptStrExpr(None),
         images={},
@@ -51,6 +52,7 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
 def test_parse_full(assets: pathlib.Path) -> None:
     flow = parse(assets / "jobs-full.yml")
     assert flow == ast.InteractiveFlow(
+        id="jobs-full",
         kind=ast.Kind.JOB,
         title=OptStrExpr("Global title"),
         images={

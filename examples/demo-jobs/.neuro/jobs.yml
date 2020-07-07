@@ -1,0 +1,7 @@
+kind: job
+title: Example config
+
+jobs:
+  test:
+    image: ubuntu
+    cmd: echo test

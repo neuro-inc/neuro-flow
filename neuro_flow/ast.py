@@ -136,6 +136,13 @@ class FlowDefaults:
 @dataclass(frozen=True)
 class BaseFlow:
     kind: Kind
+    # explicitly set or defived from config file name.
+    # The name is used as default tags,
+    # e.g. it works as flow.default.tags == [flow.name] if default.tags are not defined.
+    # Note, flow.defaults is not changed actually but the calculation is applied
+    # at contexts.Context creation level
+    id: str
+
     title: OptStrExpr  # explicitly set or defived from config file name.
 
     # cluster: str  # really need it?

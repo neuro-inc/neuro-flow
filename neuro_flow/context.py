@@ -114,12 +114,15 @@ class Context(RootABC):
     _workdir: Optional[RemotePath]
     _life_span: Optional[float]
 
+    # Add a context with global flow info, e.g. ctx.flow.id maybe?
+
     @classmethod
     async def create(cls, flow: ast.BaseFlow) -> "Context":
         defaults = flow.defaults
+        tags = defaults.tags if defaults.tags else {flow.id}
         ctx = cls(
             _flow=flow,
-            _tags=defaults.tags,
+            _tags=tags,
             _env=defaults.env,
             _workdir=defaults.workdir,
             _life_span=defaults.life_span,
@@ -149,7 +152,7 @@ class Context(RootABC):
             )
             for i in flow.images.values()
         }
-        return replace(ctx, volumes=volumes, images=images)
+        return replace(ctx, _volumes=volumes, _images=images)
 
     def lookup(self, name: str) -> TypeT:
         if name not in ("flow", "job", "batch", "volumes", "images"):

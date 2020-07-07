@@ -1,9 +1,11 @@
 import asyncio
-from typing import AsyncIterator, List, Optional
+from types import TracebackType
+from typing import AbstractSet, AsyncIterator, List, Optional, Type
 
 import click
 from neuromation.api import Client, Factory, JobStatus, ResourceNotFound
 from neuromation.cli.formatters import ftable  # TODO: extract into a separate library
+from typing_extensions import AsyncContextManager
 
 from . import ast
 from .context import Context
@@ -22,19 +24,33 @@ def format_job_status(status: JobStatus) -> str:
     return click.style(status.value, fg=COLORS.get(status, "reset"))
 
 
-class InteractiveRunner:
+class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
     def __init__(self, flow: ast.InteractiveFlow) -> None:
         self._flow = flow
         self._ctx: Optional[Context] = None
         self._client: Optional[Client] = None
 
     async def post_init(self) -> None:
+        if self._ctx is not None:
+            return
         self._ctx = await Context.create(self._flow)
         self._client = await Factory().get()
 
     async def close(self) -> None:
         if self._client is not None:
             await self._client.close()
+
+    async def __aenter__(self) -> "InteractiveRunner":
+        await self.post_init()
+        return self
+
+    async def __aexit__(
+        self,
+        exc_typ: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -> None:
+        await self.close()
 
     @property
     def ctx(self) -> Context:
@@ -46,10 +62,10 @@ class InteractiveRunner:
         assert self._client is not None
         return self._client
 
-    async def resolve_job_by_name(self, name: str) -> str:
+    async def resolve_job_by_name(self, name: str, tags: AbstractSet[str]) -> str:
         owner = self.client.username
         async for job in self.client.jobs.list(
-            name=name, owners={owner}, reverse=True, limit=1
+            name=name, tags=tags, owners={owner}, reverse=True, limit=1
         ):
             return job.id
         raise ResourceNotFound
@@ -63,7 +79,7 @@ class InteractiveRunner:
             job = job_ctx.job
             assert job.name
             try:
-                raw_id = await self.resolve_job_by_name(job.name)
+                raw_id = await self.resolve_job_by_name(job.name, job.tags)
                 descr = await self.client.jobs.status(raw_id)
                 rows.append([job_id, format_job_status(descr.status)])
             except ResourceNotFound:
@@ -114,11 +130,33 @@ class InteractiveRunner:
             if retcode:
                 raise SystemExit(retcode)
         finally:
-            proc.kill()
-            await proc.wait()
+            if proc.returncode is None:
+                # Kill neuro process if not finished
+                # (e.g. if KeyboardInterrupt or cancellation was received)
+                proc.kill()
+                await proc.wait()
 
     async def logs(self, job_id: str) -> AsyncIterator[str]:
         """Return job logs"""
 
     async def kill(self, job_id: str) -> None:
         """Kill named job"""
+        job_ctx = await self.ctx.with_job(job_id)
+        job = job_ctx.job
+
+        assert job.name
+        try:
+            raw_id = await self.resolve_job_by_name(job.name, job.tags)
+            descr = await self.client.jobs.status(raw_id)
+            if descr.status in (JobStatus.PENDING, JobStatus.RUNNING):
+                await self.client.jobs.kill(raw_id)
+                click.echo(f"Killed job {click.style(job_id, bold=True)}")
+            else:
+                click.echo(f"Job {click.style(job_id, bold=True)} is not running")
+        except ResourceNotFound:
+            pass
+
+    async def kill_all(self) -> None:
+        """Kill all jobs"""
+        for job_id in sorted(self._flow.jobs):
+            await self.kill(job_id)
