@@ -1,4 +1,5 @@
 import asyncio
+import dataclasses
 from types import TracebackType
 from typing import AbstractSet, AsyncIterator, List, Optional, Type
 
@@ -22,6 +23,14 @@ COLORS = {
 
 def format_job_status(status: JobStatus) -> str:
     return click.style(status.value, fg=COLORS.get(status, "reset"))
+
+
+@dataclasses.dataclass(frozen=True)
+class JobInfo:
+    id: str
+    status: JobStatus
+    raw_id: Optional[str]  # low-level job id, None for never runned jobs
+    tags: AbstractSet[str]
 
 
 class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
@@ -62,30 +71,59 @@ class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
         assert self._client is not None
         return self._client
 
-    async def resolve_job_by_name(self, name: str, tags: AbstractSet[str]) -> str:
-        owner = self.client.username
+    async def resolve_job_by_name(
+        self, name: Optional[str], tags: AbstractSet[str]
+    ) -> str:
         async for job in self.client.jobs.list(
-            name=name, tags=tags, owners={owner}, reverse=True, limit=1
+            name=name or "",
+            tags=tags,
+            reverse=True,
+            limit=10,  # fixme: limit should be 1 but it doesn't work
+            # statuses={JobStatus.PENDING, JobStatus.RUNNING, JobStatus.FAILED},
         ):
             return job.id
         raise ResourceNotFound
 
+    async def status(self, job_id: str) -> JobInfo:
+        job_ctx = await self.ctx.with_job(job_id)
+        job = job_ctx.job
+        try:
+            raw_id = await self.resolve_job_by_name(job.name, job.tags)
+            descr = await self.client.jobs.status(raw_id)
+            return JobInfo(job_id, descr.status, raw_id, job.tags)
+        except ResourceNotFound:
+            return JobInfo(job_id, JobStatus.UNKNOWN, None, job.tags)
+
     async def ps(self) -> None:
         """Return statuses for all jobs from the flow"""
+
+        # TODO: make concurent queries for job statuses
+        loop = asyncio.get_event_loop()
         rows: List[List[str]] = []
-        rows.append([click.style("JOB", bold=True), click.style("STATUS", bold=True)])
+        rows.append(
+            [
+                click.style("JOB", bold=True),
+                click.style("STATUS", bold=True),
+                click.style("RAW ID", bold=True),
+                click.style("TAGS", bold=True),
+            ]
+        )
+        tasks = []
         for job_id in sorted(self._flow.jobs):
-            job_ctx = await self.ctx.with_job(job_id)
-            job = job_ctx.job
-            assert job.name
-            try:
-                raw_id = await self.resolve_job_by_name(job.name, job.tags)
-                descr = await self.client.jobs.status(raw_id)
-                rows.append([job_id, format_job_status(descr.status)])
-            except ResourceNotFound:
-                rows.append([job_id, format_job_status(JobStatus.UNKNOWN)])
-            for line in ftable.table(rows):
-                click.echo(line)
+            tasks.append(loop.create_task(self.status(job_id)))
+
+        for info in await asyncio.gather(*tasks):
+            rows.append(
+                [
+                    info.id,
+                    format_job_status(info.status),
+                    info.raw_id or "N/A",
+                    ",".join(sorted(info.tags)),
+                ]
+            )
+
+        for line in ftable.table(rows):
+            click.echo(line)
 
     async def run(self, job_id: str) -> None:
         """Run a named job"""
@@ -94,8 +132,8 @@ class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
         args = []
         if job.title:
             args.append(f"--description={job.title}")
-        assert job.name
-        args.append(f"--name={job.name}")
+        if job.name:
+            args.append(f"--name={job.name}")
         if job.preset is not None:
             args.append(f"--preset={job.preset}")
         if job.http_port is not None:
@@ -109,7 +147,7 @@ class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
             args.append(f"--entrypoint={job.entrypoint}")
         if job.workdir is not None:
             raise NotImplementedError("workdir is not supported")
-        for k, v in job.env.items():
+        for k, v in job_ctx.env.items():
             args.append(f"--env={k}={v}")
         for v in job.volumes:
             args.append(f"--volume={v}")
@@ -122,9 +160,11 @@ class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
         if job.detach:
             args.append(f"--detach")
 
-        proc = await asyncio.create_subprocess_exec(
-            "neuro", "run", *args, job.image, job.cmd
-        )
+        args.append(job.image)
+        if job.cmd:
+            args.append(job.cmd)
+
+        proc = await asyncio.create_subprocess_exec("neuro", "run", *args,)
         try:
             retcode = await proc.wait()
             if retcode:

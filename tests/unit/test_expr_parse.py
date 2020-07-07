@@ -1,3 +1,5 @@
+from textwrap import dedent
+
 import pytest
 from funcparserlib.parser import NoParseError, Parser
 
@@ -195,3 +197,34 @@ def test_func_call_arg_lookup() -> None:
             [Lookup("images", [AttrGetter("name"), AttrGetter("build_args")])],
         )
     ] == PARSER.parse(list(tokenize("${{ len(images.name.build_args) }}")))
+
+
+def test_corner_case1() -> None:
+    s = dedent(
+        """\
+            jupyter notebook
+              --no-browser
+              --ip=0.0.0.0
+              --allow-root
+              --NotebookApp.token=
+              --notebook-dir=${{ volumes.notebooks.mount }}
+        """
+    )
+    assert (
+        [
+            Text(
+                dedent(
+                    """\
+                        jupyter notebook
+                          --no-browser
+                          --ip=0.0.0.0
+                          --allow-root
+                          --NotebookApp.token=
+                          --notebook-dir="""
+                )
+            ),
+            Lookup("volumes", [AttrGetter(name="notebooks"), AttrGetter(name="mount")]),
+            Text("\n"),
+        ]
+        == PARSER.parse(list(tokenize(s)))
+    )

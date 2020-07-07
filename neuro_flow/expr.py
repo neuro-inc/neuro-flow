@@ -90,6 +90,7 @@ TOKENS = [
     ("PAR", (r"\(|\)",)),
     ("SQB", (r"\[|\]",)),
     ("ANY", (r".",)),
+    ("NEWLINE", (r"\n",)),
 ]
 
 
@@ -165,7 +166,7 @@ class Getter(abc.ABC):
     # Aux class for Lookup item
 
     @abc.abstractmethod
-    def __call__(self, obj: TypeT) -> TypeT:
+    def __call__(self, obj: TypeT, prefix: str) -> Tuple[TypeT, str]:
         pass
 
 
@@ -173,24 +174,27 @@ class Getter(abc.ABC):
 class AttrGetter(Getter):
     name: str
 
-    def __call__(self, obj: TypeT) -> TypeT:
+    def __call__(self, obj: TypeT, prefix: str) -> Tuple[TypeT, str]:
         if dataclasses.is_dataclass(obj):
-            for fld in dataclasses.fields(obj):
-                if fld.name == self.name:
-                    return cast(TypeT, getattr(obj, self.name))
-            else:
-                raise AttributeError(f"Unknown attribute {self.name} of {obj}")
+            name = self.name.replace("-", "_")
+            try:
+                return cast(TypeT, getattr(obj, name)), prefix + "." + self.name
+            except AttributeError:
+                raise AttributeError(f"{prefix} has no attribute {self.name}")
         elif isinstance(obj, MappingT):
-            return obj[self.name]
+            try:
+                return obj[self.name], prefix + "." + self.name
+            except KeyError:
+                raise AttributeError(f"{prefix} has no attribute {self.name}")
         else:
             raise TypeError(
-                f"{obj!r} is not an object with attributes accessible by a dot."
+                f"{prefix} is not an object with attributes accessible by a dot."
             )
 
 
 def lookup_attr(name: str) -> Any:
     # Just in case, NAME token cannot start with _.
-    assert not name.startswith("_")
+    assert not name.startswith(("_", "-"))
     return AttrGetter(name)
 
 
@@ -198,9 +202,9 @@ def lookup_attr(name: str) -> Any:
 class ItemGetter(Getter):
     key: LiteralT
 
-    def __call__(self, obj: TypeT) -> TypeT:
+    def __call__(self, obj: TypeT, prefix: str) -> Tuple[TypeT, str]:
         assert isinstance(obj, (SequenceT, MappingT))
-        return obj[self.key]
+        return obj[self.key], prefix + "[" + self.key + "]"
 
 
 def lookup_item(key: LiteralT) -> Any:
@@ -214,8 +218,9 @@ class Lookup(Item):
 
     async def eval(self, root: RootABC) -> TypeT:
         ret = root.lookup(self.lft)
+        prefix = self.lft
         for op in self.rht:
-            ret = op(ret)
+            ret, prefix = op(ret, prefix)
         return ret
 
 
@@ -361,8 +366,8 @@ class Expr(Generic[_T]):
                 val = await part.eval(root)
                 # TODO: add str() function, raise an explicit error if
                 # an expresion evaluates non-str type
-                assert isinstance(val, str)
-                ret.append(val)
+                # assert isinstance(val, str), repr(val)
+                ret.append(str(val))
             return self.convert("".join(ret))
         else:
             if not self.allow_none:

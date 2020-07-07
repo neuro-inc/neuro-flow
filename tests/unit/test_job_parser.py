@@ -7,6 +7,7 @@ from neuro_flow.expr import (
     OptBoolExpr,
     OptFloatExpr,
     OptIntExpr,
+    OptLocalPathExpr,
     OptRemotePathExpr,
     OptStrExpr,
     RemotePathExpr,
@@ -14,7 +15,6 @@ from neuro_flow.expr import (
     URIExpr,
 )
 from neuro_flow.parser import parse
-from neuro_flow.types import RemotePath
 
 
 def test_parse_minimal(assets: pathlib.Path) -> None:
@@ -25,7 +25,13 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
         title=OptStrExpr(None),
         images={},
         volumes={},
-        defaults=ast.FlowDefaults(tags=set(), env={}, workdir=None, life_span=None),
+        defaults=ast.FlowDefaults(
+            tags=set(),
+            env={},
+            workdir=OptRemotePathExpr(None),
+            life_span=OptFloatExpr(None),
+            preset=OptStrExpr(None),
+        ),
         jobs={
             "test": ast.Job(
                 id="test",
@@ -33,7 +39,7 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
                 image=StrExpr("ubuntu"),
                 preset=OptStrExpr(None),
                 entrypoint=OptStrExpr(None),
-                cmd=StrExpr("echo abc"),
+                cmd=OptStrExpr("echo abc"),
                 workdir=OptRemotePathExpr(None),
                 env={},
                 volumes=[],
@@ -69,23 +75,25 @@ def test_parse_full(assets: pathlib.Path) -> None:
                 id="volume_a",
                 uri=URIExpr("storage:dir"),
                 mount=RemotePathExpr("/var/dir"),
-                ro=BoolExpr("True"),
+                read_only=BoolExpr("True"),
+                local=OptLocalPathExpr("dir"),
             )
         },
         defaults=ast.FlowDefaults(
-            tags={"tag-a", "tag-b"},
-            env={"global_a": "val-a", "global_b": "val-b"},
-            workdir=RemotePath("/global/dir"),
-            life_span=100800.0,
+            tags={StrExpr("tag-a"), StrExpr("tag-b")},
+            env={"global_a": StrExpr("val-a"), "global_b": StrExpr("val-b")},
+            workdir=OptRemotePathExpr("/global/dir"),
+            life_span=OptFloatExpr("100800.0"),
+            preset=OptStrExpr("cpu-large"),
         ),
         jobs={
-            "test": ast.Job(
-                id="test",
+            "test-a": ast.Job(
+                id="test-a",
                 name=OptStrExpr("job-name"),
                 image=StrExpr("${{ images.image_a.ref }}"),
                 preset=OptStrExpr("cpu-small"),
                 entrypoint=OptStrExpr("bash"),
-                cmd=StrExpr("echo abc"),
+                cmd=OptStrExpr("echo abc"),
                 workdir=OptRemotePathExpr("/local/dir"),
                 env={"local_a": StrExpr("val-1"), "local_b": StrExpr("val-2")},
                 volumes=[

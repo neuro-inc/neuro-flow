@@ -1,7 +1,7 @@
 # Dataclasses
 import enum
-from dataclasses import dataclass, field
-from typing import AbstractSet, List, Mapping, Optional, Sequence
+from dataclasses import dataclass
+from typing import AbstractSet, List, Mapping, Sequence
 
 from .expr import (
     BoolExpr,
@@ -9,13 +9,13 @@ from .expr import (
     OptBoolExpr,
     OptFloatExpr,
     OptIntExpr,
+    OptLocalPathExpr,
     OptRemotePathExpr,
     OptStrExpr,
     RemotePathExpr,
     StrExpr,
     URIExpr,
 )
-from .types import RemotePath
 
 
 # There are 'batch' for pipelined mode and 'job' for interactive one
@@ -32,7 +32,8 @@ class Volume:
     id: str  # explicitly set or defived from url/path pair.
     uri: URIExpr  # storage URI
     mount: RemotePathExpr  # mount path inside container
-    ro: BoolExpr  # True if mounted in read-only mode, False for read-write
+    read_only: BoolExpr  # True if mounted in read-only mode, False for read-write
+    local: OptLocalPathExpr
 
 
 @dataclass(frozen=True)
@@ -51,7 +52,7 @@ class ExecUnit:
     image: StrExpr
     preset: OptStrExpr
     entrypoint: OptStrExpr
-    cmd: StrExpr
+    cmd: OptStrExpr
     workdir: OptRemotePathExpr
     env: Mapping[str, StrExpr]
     volumes: Sequence[StrExpr]  # Sequence[VolumeRef]
@@ -79,7 +80,7 @@ class Step(ExecUnit):
     preset: OptStrExpr
 
     entrypoint: OptStrExpr
-    cmd: StrExpr
+    cmd: OptStrExpr
 
     volumes: Sequence[StrExpr]  # Sequence[VolumeRef]
     tags: AbstractSet[StrExpr]
@@ -125,12 +126,14 @@ class Batch:
 
 @dataclass(frozen=True)
 class FlowDefaults:
-    tags: AbstractSet[str] = field(default_factory=set)
+    tags: AbstractSet[StrExpr]
 
-    env: Mapping[str, str] = field(default_factory=dict)
-    workdir: Optional[RemotePath] = None
+    env: Mapping[str, StrExpr]
+    workdir: OptRemotePathExpr
 
-    life_span: Optional[float] = None
+    life_span: OptFloatExpr
+
+    preset: OptStrExpr
 
 
 @dataclass(frozen=True)

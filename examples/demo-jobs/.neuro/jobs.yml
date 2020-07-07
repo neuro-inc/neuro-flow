@@ -1,7 +1,105 @@
 kind: job
 title: Example config
 
+defaults:
+  preset: gpu-small
+
+volumes:
+  data:
+    uri: storage:${{ flow.id }}/data
+    mount: /data
+    local: data
+    read-only: True
+  code:
+    uri: storage:${{ flow.id }}/code
+    mount: /code
+    local: code
+  config:
+    uri: storage:${{ flow.id }}/config
+    mount: /config
+    local: config
+  notebooks:
+    uri: storage:${{ flow.id }}/notebooks
+    mount: /notebooks
+    local: notebooks
+  results:
+    uri: storage:${{ flow.id }}/results
+    mount: /results
+    local: results
+  project:
+    uri: storage:${{ flow.id }}
+    mount: /project
+    read-only: True
+
 jobs:
+
   test:
     image: ubuntu
     cmd: echo test
+
+  bash:
+    image: ubuntu
+
+  develop:
+    image: ubuntu
+    cmd: bash
+    env:
+      EXPOSE_SSH: "yes"
+      PYTHONPATH: ${{ volumes.code.mount }}
+
+  train:
+    image: ubuntu
+    detach: True
+    life-span: 10d
+    volumes:
+      - ${{ volumes.data.ro-volume }}
+      - ${{ volumes.code.rw-volume }}
+      - ${{ volumes.config.ro-volume }}
+      - ${{ volumes.results.rw-volume }}
+    env:
+      EXPOSE_SSH: "yes"
+      PYTHONPATH: ${{ volumes.code.mount }}
+    cmd: |
+        bash -c 'cd ${{ volumes.project.mount}} &&
+          python -u ${{ volumes.code.mount }}/train.py
+            --data ${{ volumes.data.mount }}'
+  jupyter:
+    http-port: 8888
+    browse: True
+    detach: True
+    life-span: 10d
+    volumes:
+      - ${{ volumes.data.ro-volume }}
+      - ${{ volumes.code.rw-volume }}
+      - ${{ volumes.config.ro-volume }}
+      - ${{ volumes.notebooks.rw-volume }}
+      - ${{ volumes.results.rw-volume }}
+    env:
+      PYTHONPATH: ${{ volumes.code.mount }}
+    image: jupiter
+    cmd: |
+      jupyter notebook
+        --no-browser
+        --ip=0.0.0.0
+        --allow-root
+        --NotebookApp.token=
+        --notebook-dir=${{ volumes.notebooks.mount }}
+
+  tensorboard:
+    preset: cpu-small
+    http-port: 6006
+    browse: True
+    volumes:
+      - ${{ volumes.results.ro-volume }}
+    image: tensorflow/tensorflow:latest
+    cmd: tensorboard --host=0.0.0.0 --logdir=${{ volumes.results.mount }}
+
+  filebrowser:
+    preset: cpu-small
+    http-port: 80
+    browse: True
+    volumes:
+      - ${{ volumes.project.uri }}:/srv:rw
+    image: filebrowser/filebrowser:latest
+    cmd: --noauth
+

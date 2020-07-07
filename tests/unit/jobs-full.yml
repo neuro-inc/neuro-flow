@@ -12,7 +12,8 @@ volumes:
   volume_a:
     uri: storage:dir
     mount: /var/dir
-    ro: true
+    read-only: true
+    local: dir
 defaults:
   tags: [tag-a, tag-b]
   env:
@@ -20,8 +21,9 @@ defaults:
     global_b: val-b
   workdir: /global/dir
   life-span: 1d4h
+  preset: cpu-large
 jobs:
-  test:
+  test-a:
     name: job-name
     image: ${{ images.image_a.ref }}
     preset: cpu-small

@@ -22,17 +22,17 @@ from .expr import (
     OptBoolExpr,
     OptFloatExpr,
     OptIntExpr,
+    OptLocalPathExpr,
     OptRemotePathExpr,
     OptStrExpr,
     RemotePathExpr,
     StrExpr,
     URIExpr,
 )
-from .types import RemotePath as RemotePathType
 
 
 def _is_identifier(value: str) -> str:
-    value.isidentifier()
+    value.replace("-", "_").isidentifier()
     return value
 
 
@@ -42,7 +42,7 @@ def _beautify(filename: str) -> str:
 
 Id = t.WithRepr(
     t.OnError(
-        t.String & str.isidentifier,
+        t.String & _is_identifier,
         "value is not an identifier",
         code="is_not_identifier",
     ),
@@ -84,7 +84,8 @@ VOLUME = t.Dict(
     {
         t.Key("uri"): URI,
         t.Key("mount"): RemotePath,
-        t.Key("ro", default=False): (t.Bool & str | Expr),
+        t.Key("read-only", default=False): (t.Bool & str | Expr),
+        OptKey("local"): LocalPath,
     }
 )
 
@@ -94,7 +95,8 @@ def parse_volume(id: str, data: Dict[str, Any]) -> ast.Volume:
         id=id,
         uri=URIExpr(data["uri"]),
         mount=RemotePathExpr(data["mount"]),
-        ro=BoolExpr(data["ro"]),
+        read_only=BoolExpr(data["read-only"]),
+        local=OptLocalPathExpr(data.get("local")),
     )
 
 
@@ -125,7 +127,7 @@ EXEC_UNIT = t.Dict(
         t.Key("image"): t.String,
         OptKey("preset"): t.String,
         OptKey("entrypoint"): t.String,
-        t.Key("cmd"): t.String,
+        OptKey("cmd"): t.String,
         OptKey("workdir"): RemotePath,
         t.Key("env", default=dict): t.Mapping(t.String, t.String),
         t.Key("volumes", default=list): t.List(t.String),
@@ -145,7 +147,7 @@ def parse_exec_unit(id: str, data: Dict[str, Any]) -> Dict[str, Any]:
         image=StrExpr(data["image"]),
         preset=OptStrExpr(data.get("preset")),
         entrypoint=OptStrExpr(data.get("entrypoint")),
-        cmd=StrExpr(data["cmd"]),
+        cmd=OptStrExpr(data.get("cmd")),
         workdir=OptRemotePathExpr(data.get("workdir")),
         env={str(k): StrExpr(v) for k, v in data["env"].items()},
         volumes=[StrExpr(v) for v in data["volumes"]],
@@ -180,8 +182,27 @@ FLOW_DEFAULTS = t.Dict(
         t.Key("env", default=dict): t.Mapping(t.String, t.String),
         OptKey("workdir"): RemotePath,
         OptKey("life-span"): LIFE_SPAN,
+        OptKey("preset"): t.String,
     }
 )
+
+
+def parse_flow_defaults(data: Optional[Dict[str, Any]]) -> ast.FlowDefaults:
+    if data is None:
+        return ast.FlowDefaults(
+            tags=set(),
+            env={},
+            workdir=OptRemotePathExpr(None),
+            life_span=OptFloatExpr(None),
+            preset=OptStrExpr(None),
+        )
+    return ast.FlowDefaults(
+        tags={StrExpr(t) for t in data["tags"]},
+        env={str(k): StrExpr(v) for k, v in data["env"].items()},
+        workdir=OptRemotePathExpr(data.get("workdir")),
+        life_span=OptFloatExpr(data.get("life-span")),
+        preset=OptStrExpr(data.get("preset")),
+    )
 
 
 BASE_FLOW = t.Dict(
@@ -194,19 +215,6 @@ BASE_FLOW = t.Dict(
         OptKey("defaults"): FLOW_DEFAULTS,
     }
 )
-
-
-def parse_flow_defaults(data: Optional[Dict[str, Any]]) -> ast.FlowDefaults:
-    if data is None:
-        return ast.FlowDefaults()
-    workdir = data.get("workdir")
-    life_span = data.get("life-span")
-    return ast.FlowDefaults(
-        tags={str(t) for t in data["tags"]},
-        env={str(k): str(v) for k, v in data["env"].items()},
-        workdir=RemotePathType(workdir) if workdir is not None else None,
-        life_span=float(life_span) if life_span is not None else None,
-    )
 
 
 def parse_base_flow(default_id: str, data: Dict[str, Any]) -> Dict[str, Any]:

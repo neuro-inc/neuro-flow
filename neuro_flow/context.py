@@ -5,11 +5,27 @@ from typing import AbstractSet, Mapping, Optional, Sequence
 from yarl import URL
 
 from . import ast
-from .expr import ContainerT, RootABC, TypeT
+from .expr import ContainerT, MappingT, RootABC, SequenceT, TypeT
 from .types import LocalPath, RemotePath
 
 
+# Neuro-flow contexts (variables available during expressions calculation).
+
+# The basic design idea is: we should avoid nested contexts if possible.
+#
+# That's why there is `env` context but defaults.env and job.env are absent.
+#
+# During the calculation the `env` context is updated to reflect global envs and job's
+# env accordingly. This design principle makes expressions shorter in yaml file.  Short
+# expressions are super important since the expression syntax has no user-defined
+# variables.
+
+
 # neuro -- global settings (cluster, user, api entrypoint)
+
+# flow -- global flow settings, e.g. id
+
+# defaults -- global flow defaults: env, preset, tags, workdir, life_span
 
 # env -- Contains environment variables set in a workflow, job, or step
 
@@ -57,15 +73,14 @@ class Neuro:
 @dataclass(frozen=True)
 class ExecUnitCtx:
     title: Optional[str]
-    name: str
+    name: Optional[str]
     image: str
     preset: Optional[str]
     http_port: Optional[int]
     http_auth: Optional[bool]
     entrypoint: Optional[str]
-    cmd: str
+    cmd: Optional[str]
     workdir: Optional[RemotePath]
-    env: Mapping[str, str]
     volumes: Sequence[str]  # Sequence[VolumeRef]
     tags: AbstractSet[str]
     life_span: Optional[float]
@@ -88,7 +103,21 @@ class VolumeCtx:
     id: str
     uri: URL
     mount: RemotePath
-    ro: bool
+    read_only: bool
+    local: Optional[LocalPath]
+
+    @property
+    def ro_volume(self) -> str:
+        return f"{self.uri}:{self.mount}:ro"
+
+    @property
+    def rw_volume(self) -> str:
+        return f"{self.uri}:{self.mount}:rw"
+
+    @property
+    def volume(self) -> str:
+        ro = "ro" if self.read_only else "rw"
+        return f"{self.uri}:{self.mount}:{ro}"
 
 
 @dataclass(frozen=True)
@@ -101,69 +130,103 @@ class ImageCtx:
 
 
 @dataclass(frozen=True)
+class DefaultsCtx:
+    tags: AbstractSet[str]
+    workdir: Optional[RemotePath]
+    life_span: Optional[float]
+    preset: Optional[str]
+
+
+@dataclass(frozen=True)
+class FlowCtx:
+    id: str
+
+
+@dataclass(frozen=True)
 class Context(RootABC):
-    _flow: ast.BaseFlow
+    _flow_ast: ast.BaseFlow
+    flow: FlowCtx
+    _defaults: Optional[DefaultsCtx]
+    _env: Optional[Mapping[str, str]]
+
+    _images: Optional[Mapping[str, ImageCtx]]
+    _volumes: Optional[Mapping[str, VolumeCtx]]
+
     _job: Optional[JobCtx]
     _batch: Optional[BatchCtx]
-
-    _volumes: Optional[Mapping[str, VolumeCtx]]
-    _images: Optional[Mapping[str, ImageCtx]]
-
-    _tags: AbstractSet[str]
-    _env: Mapping[str, str]
-    _workdir: Optional[RemotePath]
-    _life_span: Optional[float]
 
     # Add a context with global flow info, e.g. ctx.flow.id maybe?
 
     @classmethod
-    async def create(cls, flow: ast.BaseFlow) -> "Context":
-        defaults = flow.defaults
-        tags = defaults.tags if defaults.tags else {flow.id}
+    async def create(cls, flow_ast: ast.BaseFlow) -> "Context":
+        flow = FlowCtx(id=flow_ast.id)
+
         ctx = cls(
-            _flow=flow,
-            _tags=tags,
-            _env=defaults.env,
-            _workdir=defaults.workdir,
-            _life_span=defaults.life_span,
+            _flow_ast=flow_ast,
+            flow=flow,
+            _env=None,
+            _defaults=None,
+            _images=None,
+            _volumes=None,
             _job=None,
             _batch=None,
-            _volumes=None,
-            _images=None,
         )
+
+        env = {k: await v.eval(ctx) for k, v in flow_ast.defaults.env.items()}
+
+        tags = {await t.eval(ctx) for t in flow_ast.defaults.tags}
+        if not tags:
+            tags = {f"flow:{flow.id}"}
+
+        defaults = DefaultsCtx(
+            tags=tags,
+            workdir=await flow_ast.defaults.workdir.eval(ctx),
+            life_span=await flow_ast.defaults.life_span.eval(ctx),
+            preset=await flow_ast.defaults.preset.eval(ctx),
+        )
+        ctx = replace(ctx, _defaults=defaults, _env=env)
 
         # volumes / images needs a context with defaults only for self initialization
         volumes = {
-            v: VolumeCtx(
+            v.id: VolumeCtx(
                 id=v.id,
                 uri=await v.uri.eval(ctx),
                 mount=await v.mount.eval(ctx),
-                ro=await v.ro.eval(ctx),
+                read_only=await v.read_only.eval(ctx),
+                local=await v.local.eval(ctx),
             )
-            for v in flow.volumes.values()
+            for v in flow_ast.volumes.values()
         }
         images = {
-            i: ImageCtx(
+            i.id: ImageCtx(
                 id=i.id,
                 uri=await i.uri.eval(ctx),
                 context=await i.context.eval(ctx),
                 dockerfile=await i.dockerfile.eval(ctx),
                 build_args={k: await v.eval(ctx) for k, v in i.build_args.items()},
             )
-            for i in flow.images.values()
+            for i in flow_ast.images.values()
         }
         return replace(ctx, _volumes=volumes, _images=images)
 
     def lookup(self, name: str) -> TypeT:
-        if name not in ("flow", "job", "batch", "volumes", "images"):
+        if name not in ("flow", "defaults", "volumes", "images", "env", "job", "batch"):
             raise NotAvailable(name)
         ret = getattr(self, name)
-        assert isinstance(ret, ContainerT)
+        assert isinstance(ret, (ContainerT, SequenceT, MappingT))
         return ret
 
     @property
     def env(self) -> Mapping[str, str]:
+        if self._env is None:
+            raise NotAvailable("env")
         return self._env
+
+    @property
+    def defaults(self) -> DefaultsCtx:
+        if self._defaults is None:
+            raise NotAvailable("defaults")
+        return self._defaults
 
     @property
     def job(self) -> JobCtx:
@@ -180,49 +243,45 @@ class Context(RootABC):
             raise TypeError(
                 "Cannot enter into the job context if batch is already initialized"
             )
-        if not isinstance(self._flow, ast.InteractiveFlow):
+        if not isinstance(self._flow_ast, ast.InteractiveFlow):
             raise TypeError(
                 "Cannot enter into the job context for non-interactive flow"
             )
         try:
-            job = self._flow.jobs[job_id]
+            job = self._flow_ast.jobs[job_id]
         except KeyError:
             raise UnknownJob(job_id)
 
-        tags = self._tags | {await v.eval(self) for v in job.tags}
+        tags = {await v.eval(self) for v in job.tags}
+        if not tags:
+            tags = {f"job:{job.id}"}
 
-        env = dict(self._env)
+        env = dict(self.env)
         env.update({k: await v.eval(self) for k, v in job.env.items()})
 
-        workdir = (await job.workdir.eval(self)) or self._workdir
-        life_span = (await job.life_span.eval(self)) or self._life_span
+        workdir = (await job.workdir.eval(self)) or self.defaults.workdir
+        life_span = (await job.life_span.eval(self)) or self.defaults.life_span
+
+        preset = (await job.preset.eval(self)) or self.defaults.preset
 
         job_ctx = JobCtx(
             id=job.id,
             detach=await job.detach.eval(self),
             browse=await job.browse.eval(self),
-            title=(await job.title.eval(self)) or job.id,
-            name=(await job.name.eval(self)) or job.id,
+            title=(await job.title.eval(self)) or f"{self.flow.id}.{job.id}",
+            name=(await job.name.eval(self)),
             image=await job.image.eval(self),
-            preset=await job.preset.eval(self),
+            preset=preset,
             entrypoint=await job.entrypoint.eval(self),
             cmd=await job.cmd.eval(self),
             workdir=workdir,
-            env=env,
             volumes=[await v.eval(self) for v in job.volumes],
-            tags=tags,
+            tags=self.defaults.tags | tags,
             life_span=life_span,
             http_port=await job.http_port.eval(self),
             http_auth=await job.http_auth.eval(self),
         )
-        return replace(
-            self,
-            _job=job_ctx,
-            _tags=tags,
-            _env=env,
-            _workdir=workdir,
-            _life_span=life_span,
-        )
+        return replace(self, _job=job_ctx, _env=env,)
 
     @property
     def batch(self) -> BatchCtx:
