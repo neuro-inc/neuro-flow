@@ -48,14 +48,14 @@ Id = t.WithRepr(
     ),
     "<ID>",
 )
-EXPR_RE = re.compile(r"\$\{\{.+\}\}")
+EXPR_RE = re.compile(r".*\$\{\{.+\}\}.*")
 OptKey = partial(t.Key, optional=True)
-Expr = t.WithRepr(t.Regexp(EXPR_RE), "<Expr>")
-URI = t.WithRepr(t.String & URL & str | Expr, "<URI>")
+Expr = t.WithRepr(t.String & t.Regexp(EXPR_RE), "<Expr>")
+URI = t.WithRepr(Expr | (t.String & URL & str), "<URI>")
 
 
-LocalPath = t.WithRepr((t.String() & Path & str) | Expr, "<LocalPath>")
-RemotePath = t.WithRepr((t.String() & PurePosixPath & str) | Expr, "<RemotePath>")
+LocalPath = t.WithRepr(Expr | (t.String() & Path & str), "<LocalPath>")
+RemotePath = t.WithRepr(Expr | (t.String() & PurePosixPath & str), "<RemotePath>")
 
 
 def make_lifespan(match: "re.Match[str]") -> float:
@@ -70,21 +70,21 @@ def make_lifespan(match: "re.Match[str]") -> float:
 
 RegexLifeSpan = (
     t.OnError(
-        t.RegexpRaw(
+        t.String & t.RegexpRaw(
             re.compile(r"^((?P<d>\d+)d)?((?P<h>\d+)h)?((?P<m>\d+)m)?((?P<s>\d+)s)?$")
         ),
         "value is not a lifespan, e.g. 1d2h3m4s",
     )
     & make_lifespan
 )
-LIFE_SPAN = t.WithRepr(t.Float & str | RegexLifeSpan & str, "<LifeSpan>")
+LIFE_SPAN = t.WithRepr(Expr | t.Float & str | RegexLifeSpan & str, "<LifeSpan>")
 
 
 VOLUME = t.Dict(
     {
         t.Key("uri"): URI,
         t.Key("mount"): RemotePath,
-        t.Key("read-only", default=False): (t.Bool & str | Expr),
+        t.Key("read-only", default=False): Expr | (t.Bool & str),
         OptKey("local"): LocalPath,
     }
 )
@@ -132,9 +132,9 @@ EXEC_UNIT = t.Dict(
         t.Key("env", default=dict): t.Mapping(t.String, t.String),
         t.Key("volumes", default=list): t.List(t.String),
         t.Key("tags", default=list): t.List(t.String),
-        OptKey("life-span"): LIFE_SPAN | Expr,
-        OptKey("http-port"): t.Int & str | Expr,
-        OptKey("http-auth"): t.Bool & str | Expr,
+        OptKey("life-span"): Expr | LIFE_SPAN,
+        OptKey("http-port"): Expr | t.Int & str,
+        OptKey("http-auth"): Expr | t.Bool & str,
     }
 )
 

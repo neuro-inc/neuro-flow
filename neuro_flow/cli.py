@@ -42,6 +42,9 @@ def main(ctx: click.Context, config: Optional[str]) -> None:
     ctx.obj = flow
 
 
+# #### job commands ####
+
+
 @main.command()
 @wrap_async
 async def ps(flow: ast.InteractiveFlow) -> None:
@@ -103,3 +106,71 @@ async def kill_all(flow: ast.InteractiveFlow) -> None:
     """Kill all jobs."""
     async with InteractiveRunner(flow) as runner:
         await runner.kill_all()
+
+
+# #### storage commands ####
+
+
+@main.command()
+@click.argument("volume")
+@wrap_async
+async def upload(flow: ast.InteractiveFlow, volume: str) -> None:
+    """Upload volume.
+
+    Upload local files to remote for VOLUME"""
+    async with InteractiveRunner(flow) as runner:
+        await runner.upload(volume)
+
+
+@main.command()
+@click.argument("volume")
+@wrap_async
+async def download(flow: ast.InteractiveFlow, volume: str) -> None:
+    """Download volume.
+
+    Download remote files to local for VOLUME"""
+    async with InteractiveRunner(flow) as runner:
+        await runner.download(volume)
+
+
+@main.command()
+@click.argument("volume")
+@wrap_async
+async def clean(flow: ast.InteractiveFlow, volume: str) -> None:
+    """Clean volume.
+
+    Clean remote files on VOLUME"""
+    async with InteractiveRunner(flow) as runner:
+        await runner.clean(volume)
+
+
+@main.command()
+@wrap_async
+async def upload_all(flow: ast.InteractiveFlow) -> None:
+    """Upload all volumes."""
+    async with InteractiveRunner(flow) as runner:
+        await runner.upload_all()
+
+
+@main.command()
+@wrap_async
+async def download_all(flow: ast.InteractiveFlow) -> None:
+    """Download all volumes."""
+    async with InteractiveRunner(flow) as runner:
+        await runner.download_all()
+
+
+@main.command()
+@wrap_async
+async def clean_all(flow: ast.InteractiveFlow) -> None:
+    """Clean all volumes."""
+    async with InteractiveRunner(flow) as runner:
+        await runner.clean_all()
+
+
+@main.command()
+@wrap_async
+async def mkvolumes(flow: ast.InteractiveFlow) -> None:
+    """Create all remote folders for volumes."""
+    async with InteractiveRunner(flow) as runner:
+        await runner.mkvolumes()

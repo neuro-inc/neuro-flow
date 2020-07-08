@@ -213,7 +213,7 @@ class Context(RootABC):
         if name not in ("flow", "defaults", "volumes", "images", "env", "job", "batch"):
             raise NotAvailable(name)
         ret = getattr(self, name)
-        assert isinstance(ret, (ContainerT, SequenceT, MappingT))
+        # assert isinstance(ret, (ContainerT, SequenceT, MappingT)), ret
         return ret
 
     @property

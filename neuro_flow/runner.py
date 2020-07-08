@@ -10,7 +10,7 @@ from neuromation.cli.formatters import ftable  # TODO: extract into a separate l
 from typing_extensions import AsyncContextManager
 
 from . import ast
-from .context import Context
+from .context import Context, VolumeCtx
 
 
 COLORS = {
@@ -242,3 +242,65 @@ class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
                 click.echo(f"Killed job {click.style(job_id, bold=True)}")
             else:
                 click.echo(f"Job {click.style(job_id, bold=True)} is not running")
+
+    async def find_volume(self, volume: str) -> VolumeCtx:
+        volume_ctx = self.ctx.volumes.get(volume)
+        if volume_ctx is None:
+            click.echo(f"Unknown volume {click.style(volume, bold=True)}")
+            sys.exit(1)
+        if volume_ctx.local is None:
+            click.echo(f"Volume's {click.style('local', bold=True)} part is not set")
+            sys.exit(2)
+        return volume_ctx
+
+    async def upload(self, volume: str) -> None:
+        volume_ctx = await self.find_volume(volume)
+        await self.run_neuro(
+            "cp",
+            "--recursive",
+            "--update",
+            "--no-target-directory",
+            str(volume_ctx.local),
+            str(volume_ctx.uri),
+        )
+
+    async def download(self, volume: str) -> None:
+        volume_ctx = await self.find_volume(volume)
+        await self.run_neuro(
+            "cp",
+            "--recursive",
+            "--update",
+            "--no-target-directory",
+            str(volume_ctx.uri),
+            str(volume_ctx.local),
+        )
+
+    async def clean(self, volume: str) -> None:
+        volume_ctx = await self.find_volume(volume)
+        await self.run_neuro("rm", "--recursive", str(volume_ctx.uri))
+
+    async def upload_all(self) -> None:
+        for volume in self.ctx.volumes.values():
+            if volume.local is not None:
+                await self.upload(volume.id)
+
+    async def download_all(self) -> None:
+        for volume in self.ctx.volumes.values():
+            if volume.local is not None:
+                await self.download(volume.id)
+
+    async def clean_all(self) -> None:
+        for volume in self.ctx.volumes.values():
+            if volume.local is not None:
+                await self.clean(volume.id)
+
+    async def mkvolumes(self) -> None:
+        for volume in self.ctx.volumes.values():
+            if volume.local is not None:
+                volume_ctx = await self.find_volume(volume.id)
+                click.echo(f"Create volume {click.style(volume.id, bold=True)}")
+                await self.run_neuro(
+                    "mkdir",
+                    "--parents",
+                    str(volume_ctx.uri),
+                )
