@@ -92,6 +92,7 @@ jobs:
     preset: cpu-small
     http-port: 6006
     browse: True
+    detach: True
     volumes:
       - ${{ volumes.results.ro-volume }}
     image: tensorflow/tensorflow:latest
@@ -101,6 +102,7 @@ jobs:
     preset: cpu-small
     http-port: 80
     browse: True
+    detach: True
     volumes:
       - ${{ volumes.project.uri }}:/srv:rw
     image: filebrowser/filebrowser:latest

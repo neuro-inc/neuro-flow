@@ -80,7 +80,7 @@ class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
             name=name or "",
             tags=tags,
             reverse=True,
-            limit=10,  # fixme: limit should be 1 but it doesn't work
+            limit=len(self._flow.jobs),  # fixme: limit should be 1 but it doesn't work
             # statuses={JobStatus.PENDING, JobStatus.RUNNING, JobStatus.FAILED},
         ):
             return job
