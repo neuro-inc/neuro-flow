@@ -45,6 +45,7 @@ def main(ctx: click.Context, config: Optional[str]) -> None:
 @main.command()
 @wrap_async
 async def ps(flow: ast.InteractiveFlow) -> None:
+    """List all jobs"""
     async with InteractiveRunner(flow) as runner:
         await runner.ps()
 
@@ -53,6 +54,10 @@ async def ps(flow: ast.InteractiveFlow) -> None:
 @click.argument("job-id")
 @wrap_async
 async def run(flow: ast.InteractiveFlow, job_id: str) -> None:
+    """Run a job.
+
+    RUN job JOB-ID or ATTACH to it if the job is already running
+    """
     async with InteractiveRunner(flow) as runner:
         await runner.run(job_id)
 
@@ -61,6 +66,10 @@ async def run(flow: ast.InteractiveFlow, job_id: str) -> None:
 @click.argument("job-id")
 @wrap_async
 async def logs(flow: ast.InteractiveFlow, job_id: str) -> None:
+    """Print logs.
+
+    Displys logs for JOB-ID
+    """
     async with InteractiveRunner(flow) as runner:
         await runner.logs(job_id)
 
@@ -68,7 +77,22 @@ async def logs(flow: ast.InteractiveFlow, job_id: str) -> None:
 @main.command()
 @click.argument("job-id")
 @wrap_async
+async def status(flow: ast.InteractiveFlow, job_id: str) -> None:
+    """Show job status.
+
+    Print status for JOB-ID
+    """
+    async with InteractiveRunner(flow) as runner:
+        await runner.status(job_id)
+
+
+@main.command()
+@click.argument("job-id")
+@wrap_async
 async def kill(flow: ast.InteractiveFlow, job_id: str) -> None:
+    """Kill a job.
+
+    Kill JOB-ID"""
     async with InteractiveRunner(flow) as runner:
         await runner.kill(job_id)
 
@@ -76,5 +100,6 @@ async def kill(flow: ast.InteractiveFlow, job_id: str) -> None:
 @main.command()
 @wrap_async
 async def kill_all(flow: ast.InteractiveFlow) -> None:
+    """Kill all jobs."""
     async with InteractiveRunner(flow) as runner:
         await runner.kill_all()

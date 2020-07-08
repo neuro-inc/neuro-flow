@@ -1,3 +1,4 @@
+import sys
 import asyncio
 import dataclasses
 from types import TracebackType
@@ -84,7 +85,7 @@ class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
             return job.id
         raise ResourceNotFound
 
-    async def status(self, job_id: str) -> JobInfo:
+    async def job_status(self, job_id: str) -> JobInfo:
         job_ctx = await self.ctx.with_job(job_id)
         job = job_ctx.job
         try:
@@ -110,7 +111,7 @@ class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
         )
         tasks = []
         for job_id in sorted(self._flow.jobs):
-            tasks.append(loop.create_task(self.status(job_id)))
+            tasks.append(loop.create_task(self.job_status(job_id)))
 
         for info in await asyncio.gather(*tasks):
             rows.append(
@@ -124,6 +125,16 @@ class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
 
         for line in ftable.table(rows):
             click.echo(line)
+
+    async def status(self, job_id: str) -> None:
+        job_ctx = await self.ctx.with_job(job_id)
+        job = job_ctx.job
+        try:
+            raw_id = await self.resolve_job_by_name(job.name, job.tags)
+            await self.run_neuro("status", raw_id)
+        except ResourceNotFound:
+            click.echo(f"Job {click.style(job_id, bold=True)} is not running")
+            sys.exit(1)
 
     async def run(self, job_id: str) -> None:
         """Run a named job"""
