@@ -1,8 +1,8 @@
-import sys
 import asyncio
 import dataclasses
+import sys
 from types import TracebackType
-from typing import AbstractSet, AsyncIterator, List, Optional, Tuple, Type
+from typing import AbstractSet, List, Optional, Tuple, Type
 
 import click
 from neuromation.api import Client, Factory, JobStatus, ResourceNotFound
@@ -189,7 +189,7 @@ class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
                 proc.kill()
                 await proc.wait()
 
-    async def logs(self, job_id: str) -> AsyncIterator[str]:
+    async def logs(self, job_id: str) -> None:
         """Return job logs"""
         job_ctx = await self.ctx.with_job(job_id)
         job = job_ctx.job
@@ -235,7 +235,7 @@ class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
             return job_id, await self.kill_job(job_id)
 
         for job_id in sorted(self._flow.jobs):
-            tasks.append(kill(job_id))
+            tasks.append(loop.create_task(kill(job_id)))
 
         for job_id, ret in await asyncio.gather(*tasks):
             if ret:

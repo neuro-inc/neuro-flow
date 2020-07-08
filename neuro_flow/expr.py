@@ -204,7 +204,7 @@ class ItemGetter(Getter):
 
     def __call__(self, obj: TypeT, prefix: str) -> Tuple[TypeT, str]:
         assert isinstance(obj, (SequenceT, MappingT))
-        return obj[self.key], prefix + "[" + self.key + "]"
+        return obj[self.key], prefix + "[" + str(self.key) + "]"
 
 
 def lookup_item(key: LiteralT) -> Any:
