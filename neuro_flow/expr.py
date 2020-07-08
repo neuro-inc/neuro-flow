@@ -5,6 +5,7 @@ import abc
 import dataclasses
 import inspect
 import re
+import shlex
 from ast import literal_eval
 from collections.abc import Sized
 from pathlib import Path, PurePosixPath
@@ -549,3 +550,17 @@ class RemotePathExpr(RemotePathMixin, StrictExpr[PurePosixPath]):
 
 class OptRemotePathExpr(RemotePathMixin, Expr[PurePosixPath]):
     pass
+
+
+class OptBashExpr(Expr[str]):
+    @classmethod
+    def convert(cls, arg: str) -> PurePosixPath:
+        ret = " ".join(["bash", "-euxo", "pipefail", "-c", shlex.quote(arg)])
+        return ret
+
+
+class OptPythonExpr(Expr[str]):
+    @classmethod
+    def convert(cls, arg: str) -> PurePosixPath:
+        ret = " ".join(["python3", "-c", shlex.quote(arg)])
+        return ret

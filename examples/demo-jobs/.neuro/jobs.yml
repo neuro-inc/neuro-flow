@@ -45,6 +45,13 @@ jobs:
   bash:
     image: ubuntu
 
+  py:
+    image: python:latest
+    python: |
+        import sys
+        print("Hello!!!")
+        sys.exit(1)
+
   develop:
     image: ${{ images.img.uri }}
     # note, since the base image v1.6 redirects the output via '2>&1 | tee'
@@ -66,8 +73,10 @@ jobs:
     env:
       EXPOSE_SSH: "yes"
       PYTHONPATH: ${{ volumes.code.mount }}
-    cmd: >-
-        bash -c 'cd ${{ volumes.project.mount }} && python -u ${{ volumes.code.mount }}/train.py --data ${{ volumes.data.mount }}'
+    bash: |
+        cd ${{ volumes.project.mount }}
+        python ${{ volumes.code.mount }}/train.py --data ${{ volumes.data.mount }}
+
   jupyter:
     http-port: 8888
     browse: True

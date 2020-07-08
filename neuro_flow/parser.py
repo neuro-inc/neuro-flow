@@ -18,10 +18,12 @@ from yarl import URL
 from . import ast
 from .expr import (
     BoolExpr,
+    OptBashExpr,
     OptBoolExpr,
     OptFloatExpr,
     OptIntExpr,
     OptLocalPathExpr,
+    OptPythonExpr,
     OptRemotePathExpr,
     OptStrExpr,
     RemotePathExpr,
@@ -31,12 +33,9 @@ from .expr import (
 
 
 def _is_identifier(value: str) -> str:
-    value.replace("-", "_").isidentifier()
+    if not value.replace("-", "_").isidentifier():
+        raise t.DataError
     return value
-
-
-def _beautify(filename: str) -> str:
-    return filename.replace("_", " ").replace("-", " ").capitalize()
 
 
 Id = t.WithRepr(
@@ -128,6 +127,8 @@ EXEC_UNIT = t.Dict(
         OptKey("preset"): t.String,
         OptKey("entrypoint"): t.String,
         OptKey("cmd"): t.String,
+        OptKey("bash"): t.String,
+        OptKey("python"): t.String,
         OptKey("workdir"): RemotePath,
         t.Key("env", default=dict): t.Mapping(t.String, t.String),
         t.Key("volumes", default=list): t.List(t.String),
@@ -139,7 +140,22 @@ EXEC_UNIT = t.Dict(
 )
 
 
+def check_exec_unit(dct: Dict[str, Any]) -> Dict[str, Any]:
+    found = sum(1 for k in dct if k in ("cmd", "bash", "python"))
+    if found > 1:
+        raise t.DataError
+    return dct
+
+
 def parse_exec_unit(id: str, data: Dict[str, Any]) -> Dict[str, Any]:
+    cmd_expr = None
+    cmd_expr = OptStrExpr(data.get("cmd"))
+    bash = data.get("bash")
+    if bash is not None:
+        cmd_expr = OptBashExpr(bash)
+    python = data.get("python")
+    if python is not None:
+        cmd_expr = OptPythonExpr(python)
     return dict(
         id=id,
         title=OptStrExpr(data.get("title")),
@@ -147,7 +163,7 @@ def parse_exec_unit(id: str, data: Dict[str, Any]) -> Dict[str, Any]:
         image=StrExpr(data["image"]),
         preset=OptStrExpr(data.get("preset")),
         entrypoint=OptStrExpr(data.get("entrypoint")),
-        cmd=OptStrExpr(data.get("cmd")),
+        cmd=cmd_expr,
         workdir=OptRemotePathExpr(data.get("workdir")),
         env={str(k): StrExpr(v) for k, v in data["env"].items()},
         volumes=[StrExpr(v) for v in data["volumes"]],
@@ -158,13 +174,21 @@ def parse_exec_unit(id: str, data: Dict[str, Any]) -> Dict[str, Any]:
     )
 
 
-JOB = EXEC_UNIT.merge(
-    t.Dict(
-        {
-            t.Key("detach", default=False): t.Bool & str,
-            t.Key("browse", default=False): t.Bool & str,
-        }
-    )
+JOB = t.WithRepr(
+    t.OnError(
+        EXEC_UNIT.merge(
+            t.Dict(
+                {
+                    t.Key("detach", default=False): t.Bool & str,
+                    t.Key("browse", default=False): t.Bool & str,
+                }
+            )
+        )
+        & check_exec_unit,
+        "keys 'cmd', 'bash' and 'python' are mutually exclusive",
+        code="mutually_exclusive_keys",
+    ),
+    "<JOB>",
 )
 
 
