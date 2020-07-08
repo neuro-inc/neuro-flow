@@ -4,6 +4,7 @@
 import abc
 import dataclasses
 import inspect
+import json
 import re
 import shlex
 from ast import literal_eval
@@ -196,7 +197,17 @@ async def fmt(root: RootABC, spec: str, *args: TypeT) -> str:
     return spec.format(*args)
 
 
-FUNCTIONS = _build_signatures(len=alen, nothing=nothing, fmt=fmt, keys=akeys)
+async def to_json(root: RootABC, arg: TypeT) -> str:
+    return json.dumps(arg)
+
+
+async def from_json(root: RootABC, arg: str) -> TypeT:
+    return cast(TypeT, json.loads(arg))
+
+
+FUNCTIONS = _build_signatures(
+    len=alen, nothing=nothing, fmt=fmt, keys=akeys, to_json=to_json, from_json=from_json
+)
 
 
 def tokval(tok: Token) -> str:
@@ -262,14 +273,14 @@ def lookup_attr(name: str) -> Any:
 
 @dataclasses.dataclass(frozen=True)
 class ItemGetter(Getter):
-    key: LiteralT
+    key: Literal
 
     def __call__(self, obj: TypeT, prefix: str) -> Tuple[TypeT, str]:
         assert isinstance(obj, (SequenceT, MappingT))
-        return obj[self.key], prefix + "[" + str(self.key) + "]"
+        return obj[self.key.val], prefix + "[" + str(self.key.val) + "]"
 
 
-def lookup_item(key: LiteralT) -> Any:
+def lookup_item(key: Literal) -> Any:
     return ItemGetter(key)
 
 
@@ -294,11 +305,16 @@ def make_lookup(arg: Tuple[str, List[Getter]]) -> Lookup:
 class Call(Item):
     func: FuncDef
     args: Sequence[Item]
+    trailer: Sequence[Getter]
 
     async def eval(self, root: RootABC) -> TypeT:
         args = [await a.eval(root) for a in self.args]
-        ret = await self.func.call(root, *args)  # type: ignore
-        return cast(TypeT, ret)
+        tmp = await self.func.call(root, *args)  # type: ignore
+        ret = cast(TypeT, tmp)
+        prefix = f"{self.func.name}(...)"
+        for op in self.trailer:
+            ret, prefix = op(ret, prefix)
+        return ret
 
 
 def make_args(arg: Optional[Tuple[Item, List[Item]]]) -> List[Item]:
@@ -308,8 +324,8 @@ def make_args(arg: Optional[Tuple[Item, List[Item]]]) -> List[Item]:
     return [first] + tail[:]
 
 
-def make_call(arg: Tuple[str, List[Item]]) -> Call:
-    funcname, args = arg
+def make_call(arg: Tuple[str, List[Item], Sequence[Getter]]) -> Call:
+    funcname, args, trailer = arg
     try:
         spec = FUNCTIONS[funcname]
     except KeyError:
@@ -317,7 +333,7 @@ def make_call(arg: Tuple[str, List[Item]]) -> Call:
     args_count = len(args)
     dummies = [None] * args_count
     spec.sig.bind(None, *dummies)
-    return Call(spec, args)
+    return Call(spec, args, trailer)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -368,12 +384,13 @@ LOOKUP_ATTR = DOT + NAME >> lookup_attr
 
 LOOKUP_ITEM = LSQB + EXPR + RSQB >> lookup_item
 
-LOOKUP = NAME + many(LOOKUP_ATTR | LOOKUP_ITEM) >> make_lookup
+TRAILER = many(LOOKUP_ATTR | LOOKUP_ITEM)
+
+LOOKUP = NAME + TRAILER >> make_lookup
 
 FUNC_ARGS = maybe(EXPR + many(COMMA + EXPR)) >> make_args
 
-
-FUNC_CALL = (NAME + LPAR + FUNC_ARGS + RPAR) >> make_call
+FUNC_CALL = (NAME + LPAR + FUNC_ARGS + RPAR + TRAILER) >> make_call
 
 
 ATOM_EXPR.define(ATOM | FUNC_CALL | LOOKUP)

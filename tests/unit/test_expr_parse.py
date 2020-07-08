@@ -9,6 +9,7 @@ from neuro_flow.expr import (
     PARSER,
     AttrGetter,
     Call,
+    ItemGetter,
     Literal,
     Lookup,
     Text,
@@ -136,26 +137,26 @@ def test_parser1() -> None:
 
 
 def test_func_call_empty() -> None:
-    assert [Call(FUNCTIONS["nothing"], [])] == PARSER.parse(
+    assert [Call(FUNCTIONS["nothing"], [], [])] == PARSER.parse(
         list(tokenize("${{ nothing() }}"))
     )
 
 
 def test_func_call_single_arg() -> None:
-    assert [Call(FUNCTIONS["len"], [Literal("abc")])] == PARSER.parse(
+    assert [Call(FUNCTIONS["len"], [Literal("abc")], [])] == PARSER.parse(
         list(tokenize("${{ len('abc') }}"))
     )
 
 
 def test_func_nested_calls() -> None:
     assert [
-        Call(FUNCTIONS["len"], [Call(FUNCTIONS["keys"], [Lookup("abc", [])])])
+        Call(FUNCTIONS["len"], [Call(FUNCTIONS["keys"], [Lookup("abc", [])], [])], [])
     ] == PARSER.parse(list(tokenize("${{ len(keys(abc)) }}")))
 
 
 def test_func_call_multiple_args() -> None:
     assert [
-        Call(FUNCTIONS["fmt"], [Literal("{} {}"), Literal("abc"), Literal(123)])
+        Call(FUNCTIONS["fmt"], [Literal("{} {}"), Literal("abc"), Literal(123)], [])
     ] == PARSER.parse(list(tokenize('${{ fmt("{} {}", "abc", 123) }}')))
 
 
@@ -164,8 +165,31 @@ def test_func_call_arg_lookup() -> None:
         Call(
             FUNCTIONS["len"],
             [Lookup("images", [AttrGetter("name"), AttrGetter("build_args")])],
+            [],
         )
     ] == PARSER.parse(list(tokenize("${{ len(images.name.build_args) }}")))
+
+
+def test_func_call_with_trailer_attr() -> None:
+    assert [
+        Call(
+            FUNCTIONS["from_json"],
+            [Literal('{"a": 1, "b": "val"}')],
+            [AttrGetter("a")],
+        )
+    ] == PARSER.parse(list(tokenize("""${{ from_json('{"a": 1, "b": "val"}').a }}""")))
+
+
+def test_func_call_with_trailer_item() -> None:
+    assert [
+        Call(
+            FUNCTIONS["from_json"],
+            [Literal('{"a": 1, "b": "val"}')],
+            [ItemGetter(Literal("a"))],
+        )
+    ] == PARSER.parse(
+        list(tokenize("""${{ from_json('{"a": 1, "b": "val"}')['a'] }}"""))
+    )
 
 
 def test_corner_case1() -> None:
