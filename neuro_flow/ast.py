@@ -5,7 +5,6 @@ from typing import AbstractSet, List, Mapping, Sequence
 
 from .expr import (
     BoolExpr,
-    LocalPathExpr,
     OptBoolExpr,
     OptFloatExpr,
     OptIntExpr,

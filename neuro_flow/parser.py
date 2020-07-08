@@ -18,7 +18,6 @@ from yarl import URL
 from . import ast
 from .expr import (
     BoolExpr,
-    LocalPathExpr,
     OptBoolExpr,
     OptFloatExpr,
     OptIntExpr,

@@ -3,7 +3,6 @@ import pathlib
 from neuro_flow import ast
 from neuro_flow.expr import (
     BoolExpr,
-    LocalPathExpr,
     OptBoolExpr,
     OptFloatExpr,
     OptIntExpr,
@@ -65,8 +64,8 @@ def test_parse_full(assets: pathlib.Path) -> None:
             "image_a": ast.Image(
                 id="image_a",
                 uri=URIExpr("image:banana"),
-                context=LocalPathExpr("dir/context"),
-                dockerfile=LocalPathExpr("dir/Dockerfile"),
+                context=OptLocalPathExpr("dir/context"),
+                dockerfile=OptLocalPathExpr("dir/Dockerfile"),
                 build_args={"arg1": StrExpr("val1"), "arg2": StrExpr("val2")},
             )
         },

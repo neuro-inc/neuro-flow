@@ -1,11 +1,11 @@
 # Contexts
 from dataclasses import dataclass, replace
-from typing import AbstractSet, Mapping, Optional, Sequence
+from typing import AbstractSet, Mapping, Optional, Sequence, cast
 
 from yarl import URL
 
 from . import ast
-from .expr import ContainerT, MappingT, RootABC, SequenceT, TypeT
+from .expr import RootABC, TypeT
 from .types import LocalPath, RemotePath
 
 
@@ -214,7 +214,7 @@ class Context(RootABC):
             raise NotAvailable(name)
         ret = getattr(self, name)
         # assert isinstance(ret, (ContainerT, SequenceT, MappingT)), ret
-        return ret
+        return cast(TypeT, ret)
 
     @property
     def env(self) -> Mapping[str, str]:

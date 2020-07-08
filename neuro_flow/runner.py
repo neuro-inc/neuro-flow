@@ -229,11 +229,11 @@ class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
         try:
             descr = await self.resolve_job_by_name(job.name, job.tags)
             if descr.status in (JobStatus.PENDING, JobStatus.RUNNING):
-                await self.client.jobs.kill(raw_id)
-                descr = await self.client.jobs.status(raw_id)
+                await self.client.jobs.kill(descr.id)
+                descr = await self.client.jobs.status(descr.id)
                 while descr.status not in (JobStatus.SUCCEEDED, JobStatus.FAILED):
                     await asyncio.sleep(0.2)
-                    descr = await self.client.jobs.status(raw_id)
+                    descr = await self.client.jobs.status(descr.id)
                 return True
         except ResourceNotFound:
             pass
