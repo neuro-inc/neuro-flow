@@ -105,7 +105,7 @@ IMAGE = t.Dict(
         t.Key("uri"): URI,
         OptKey("context"): LocalPath,
         OptKey("dockerfile"): LocalPath,
-        OptKey("build-args"): t.Mapping(t.String(), t.String()),
+        OptKey("build-args"): t.List(t.String()),
     }
 )
 
@@ -116,7 +116,7 @@ def parse_image(id: str, data: Dict[str, Any]) -> ast.Image:
         uri=URIExpr(data["uri"]),
         context=OptLocalPathExpr(data.get("context")),
         dockerfile=OptLocalPathExpr(data.get("dockerfile")),
-        build_args={str(k): StrExpr(v) for k, v in data.get("build-args", {}).items()},
+        build_args=[StrExpr(v) for v in data.get("build-args", [])],
     )
 
 

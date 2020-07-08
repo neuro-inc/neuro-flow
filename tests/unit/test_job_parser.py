@@ -66,7 +66,7 @@ def test_parse_full(assets: pathlib.Path) -> None:
                 uri=URIExpr("image:banana"),
                 context=OptLocalPathExpr("dir/context"),
                 dockerfile=OptLocalPathExpr("dir/Dockerfile"),
-                build_args={"arg1": StrExpr("val1"), "arg2": StrExpr("val2")},
+                build_args=[StrExpr("--arg1"), StrExpr("val1"), StrExpr("--arg2=val2")],
             )
         },
         volumes={

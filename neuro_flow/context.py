@@ -126,7 +126,7 @@ class ImageCtx:
     uri: URL
     context: Optional[LocalPath]
     dockerfile: Optional[LocalPath]
-    build_args: Mapping[str, str]
+    build_args: Sequence[str]
 
 
 @dataclass(frozen=True)
@@ -203,7 +203,7 @@ class Context(RootABC):
                 uri=await i.uri.eval(ctx),
                 context=await i.context.eval(ctx),
                 dockerfile=await i.dockerfile.eval(ctx),
-                build_args={k: await v.eval(ctx) for k, v in i.build_args.items()},
+                build_args=[await v.eval(ctx) for v in i.build_args],
             )
             for i in flow_ast.images.values()
         }

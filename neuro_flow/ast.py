@@ -41,7 +41,7 @@ class Image:
     uri: URIExpr
     context: OptLocalPathExpr
     dockerfile: OptLocalPathExpr
-    build_args: Mapping[str, StrExpr]
+    build_args: Sequence[StrExpr]
 
 
 @dataclass(frozen=True)

@@ -6,8 +6,9 @@ images:
     context: dir/context
     dockerfile: dir/Dockerfile
     build-args:
-      arg1: val1
-      arg2: val2
+    - --arg1
+    - val1
+    - --arg2=val2
 volumes:
   volume_a:
     uri: storage:dir
