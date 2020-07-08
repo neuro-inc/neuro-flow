@@ -70,7 +70,8 @@ def make_lifespan(match: "re.Match[str]") -> float:
 
 RegexLifeSpan = (
     t.OnError(
-        t.String & t.RegexpRaw(
+        t.String
+        & t.RegexpRaw(
             re.compile(r"^((?P<d>\d+)d)?((?P<h>\d+)h)?((?P<m>\d+)m)?((?P<s>\d+)s)?$")
         ),
         "value is not a lifespan, e.g. 1d2h3m4s",
@@ -103,9 +104,9 @@ def parse_volume(id: str, data: Dict[str, Any]) -> ast.Volume:
 IMAGE = t.Dict(
     {
         t.Key("uri"): URI,
-        t.Key("context"): LocalPath,
-        t.Key("dockerfile"): LocalPath,
-        t.Key("build-args"): t.Mapping(t.String(), t.String()),
+        OptKey("context"): LocalPath,
+        OptKey("dockerfile"): LocalPath,
+        OptKey("build-args"): t.Mapping(t.String(), t.String()),
     }
 )
 
@@ -114,9 +115,9 @@ def parse_image(id: str, data: Dict[str, Any]) -> ast.Image:
     return ast.Image(
         id=id,
         uri=URIExpr(data["uri"]),
-        context=LocalPathExpr(data["context"]),
-        dockerfile=LocalPathExpr(data["dockerfile"]),
-        build_args={str(k): StrExpr(v) for k, v in data["build-args"].items()},
+        context=OptLocalPathExpr(data.get("context")),
+        dockerfile=OptLocalPathExpr(data.get("dockerfile")),
+        build_args={str(k): StrExpr(v) for k, v in data.get("build-args", {}).items()},
     )
 
 

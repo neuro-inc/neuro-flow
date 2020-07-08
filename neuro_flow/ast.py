@@ -40,8 +40,8 @@ class Volume:
 class Image:
     id: str
     uri: URIExpr
-    context: LocalPathExpr
-    dockerfile: LocalPathExpr
+    context: OptLocalPathExpr
+    dockerfile: OptLocalPathExpr
     build_args: Mapping[str, StrExpr]
 
 

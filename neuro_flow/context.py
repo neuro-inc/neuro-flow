@@ -124,8 +124,8 @@ class VolumeCtx:
 class ImageCtx:
     id: str
     uri: URL
-    context: LocalPath
-    dockerfile: LocalPath
+    context: Optional[LocalPath]
+    dockerfile: Optional[LocalPath]
     build_args: Mapping[str, str]
 
 

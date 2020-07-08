@@ -5,7 +5,7 @@ from types import TracebackType
 from typing import AbstractSet, List, Optional, Tuple, Type
 
 import click
-from neuromation.api import Client, Factory, JobStatus, ResourceNotFound
+from neuromation.api import Client, Factory, JobDescription, JobStatus, ResourceNotFound
 from neuromation.cli.formatters import ftable  # TODO: extract into a separate library
 from typing_extensions import AsyncContextManager
 
@@ -74,7 +74,7 @@ class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
 
     async def resolve_job_by_name(
         self, name: Optional[str], tags: AbstractSet[str]
-    ) -> str:
+    ) -> JobDescription:
         async for job in self.client.jobs.list(
             name=name or "",
             tags=tags,
@@ -82,16 +82,15 @@ class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
             limit=10,  # fixme: limit should be 1 but it doesn't work
             # statuses={JobStatus.PENDING, JobStatus.RUNNING, JobStatus.FAILED},
         ):
-            return job.id
+            return job
         raise ResourceNotFound
 
     async def job_status(self, job_id: str) -> JobInfo:
         job_ctx = await self.ctx.with_job(job_id)
         job = job_ctx.job
         try:
-            raw_id = await self.resolve_job_by_name(job.name, job.tags)
-            descr = await self.client.jobs.status(raw_id)
-            return JobInfo(job_id, descr.status, raw_id, job.tags)
+            descr = await self.resolve_job_by_name(job.name, job.tags)
+            return JobInfo(job_id, descr.status, descr.id, job.tags)
         except ResourceNotFound:
             return JobInfo(job_id, JobStatus.UNKNOWN, None, job.tags)
 
@@ -130,8 +129,8 @@ class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
         job_ctx = await self.ctx.with_job(job_id)
         job = job_ctx.job
         try:
-            raw_id = await self.resolve_job_by_name(job.name, job.tags)
-            await self.run_neuro("status", raw_id)
+            descr = await self.resolve_job_by_name(job.name, job.tags)
+            await self.run_neuro("status", descr.id)
         except ResourceNotFound:
             click.echo(f"Job {click.style(job_id, bold=True)} is not running")
             sys.exit(1)
@@ -140,6 +139,28 @@ class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
         """Run a named job"""
         job_ctx = await self.ctx.with_job(job_id)
         job = job_ctx.job
+
+        try:
+            descr = await self.resolve_job_by_name(job.name, job.tags)
+            if descr.status == JobStatus.PENDING:
+                click.echo(
+                    f"Job {click.style(job_id, bold=True)} is pending, try again later"
+                )
+                sys.exit(2)
+            if descr.status == JobStatus.RUNNING:
+                click.echo(
+                    f"Job {click.style(job_id, bold=True)} is running, connecting..."
+                )
+                # attach to job if needed, browse first
+                if job.browse:
+                    await self.run_neuro("job", "browse", descr.id)
+                if not job.detach:
+                    await self.run_neuro("attach", descr.id)
+                return
+            # Here the status is SUCCEDED or FAILED, restart
+        except ResourceNotFound:
+            # Job does not exist, run it
+            pass
         args = ["run"]
         if job.title:
             args.append(f"--description={job.title}")
@@ -148,7 +169,7 @@ class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
         if job.preset is not None:
             args.append(f"--preset={job.preset}")
         if job.http_port is not None:
-            args.append(f"--http-port={job.http_port}")
+            args.append(f"--http={job.http_port}")
         if job.http_auth is not None:
             if job.http_auth:
                 args.append(f"--http-auth")
@@ -165,7 +186,7 @@ class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
         for t in job.tags:
             args.append(f"--tag={t}")
         if job.life_span is not None:
-            args.append(f"--file-spen={job.life_span}")
+            args.append(f"--life-span={int(job.life_span)}s")
         if job.browse:
             args.append(f"--browse")
         if job.detach:
@@ -194,8 +215,8 @@ class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
         job_ctx = await self.ctx.with_job(job_id)
         job = job_ctx.job
         try:
-            raw_id = await self.resolve_job_by_name(job.name, job.tags)
-            await self.run_neuro("logs", raw_id)
+            descr = await self.resolve_job_by_name(job.name, job.tags)
+            await self.run_neuro("logs", descr.id)
         except ResourceNotFound:
             click.echo(f"Job {click.style(job_id, bold=True)} is not running")
             sys.exit(1)
@@ -206,8 +227,7 @@ class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
         job = job_ctx.job
 
         try:
-            raw_id = await self.resolve_job_by_name(job.name, job.tags)
-            descr = await self.client.jobs.status(raw_id)
+            descr = await self.resolve_job_by_name(job.name, job.tags)
             if descr.status in (JobStatus.PENDING, JobStatus.RUNNING):
                 await self.client.jobs.kill(raw_id)
                 descr = await self.client.jobs.status(raw_id)
@@ -300,7 +320,5 @@ class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
                 volume_ctx = await self.find_volume(volume.id)
                 click.echo(f"Create volume {click.style(volume.id, bold=True)}")
                 await self.run_neuro(
-                    "mkdir",
-                    "--parents",
-                    str(volume_ctx.uri),
+                    "mkdir", "--parents", str(volume_ctx.uri),
                 )

@@ -32,6 +32,10 @@ volumes:
     mount: /project
     read-only: True
 
+images:
+  img:
+    uri: neuromation/base:v1.6
+
 jobs:
 
   test:
@@ -42,14 +46,14 @@ jobs:
     image: ubuntu
 
   develop:
-    image: ubuntu
+    image: ${{ images.img.uri }}
     cmd: bash
     env:
       EXPOSE_SSH: "yes"
       PYTHONPATH: ${{ volumes.code.mount }}
 
   train:
-    image: ubuntu
+    image: ${{ images.img.uri }}
     detach: True
     life-span: 10d
     volumes:
@@ -77,7 +81,7 @@ jobs:
       - ${{ volumes.results.rw-volume }}
     env:
       PYTHONPATH: ${{ volumes.code.mount }}
-    image: jupiter
+    image: ${{ images.img.uri }}
     cmd: |
       jupyter notebook
         --no-browser
