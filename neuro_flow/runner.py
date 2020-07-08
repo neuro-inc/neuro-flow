@@ -191,6 +191,14 @@ class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
 
     async def logs(self, job_id: str) -> AsyncIterator[str]:
         """Return job logs"""
+        job_ctx = await self.ctx.with_job(job_id)
+        job = job_ctx.job
+        try:
+            raw_id = await self.resolve_job_by_name(job.name, job.tags)
+            await self.run_neuro("logs", raw_id)
+        except ResourceNotFound:
+            click.echo(f"Job {click.style(job_id, bold=True)} is not running")
+            sys.exit(1)
 
     async def kill_job(self, job_id: str) -> bool:
         """Kill named job"""
