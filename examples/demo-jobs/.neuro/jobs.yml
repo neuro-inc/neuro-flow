@@ -47,6 +47,8 @@ jobs:
 
   develop:
     image: ${{ images.img.uri }}
+    # note, since the base image v1.6 redirects the output via '2>&1 | tee'
+    # the image cannot run bash in interactive mode.
     cmd: bash
     env:
       EXPOSE_SSH: "yes"

@@ -81,7 +81,6 @@ class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
             tags=tags,
             reverse=True,
             limit=len(self._flow.jobs),  # fixme: limit should be 1 but it doesn't work
-            # statuses={JobStatus.PENDING, JobStatus.RUNNING, JobStatus.FAILED},
         ):
             return job
         raise ResourceNotFound
