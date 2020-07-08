@@ -1,7 +1,7 @@
 import asyncio
 import dataclasses
 from types import TracebackType
-from typing import AbstractSet, AsyncIterator, List, Optional, Type
+from typing import AbstractSet, AsyncIterator, List, Optional, Tuple, Type
 
 import click
 from neuromation.api import Client, Factory, JobStatus, ResourceNotFound
@@ -129,7 +129,7 @@ class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
         """Run a named job"""
         job_ctx = await self.ctx.with_job(job_id)
         job = job_ctx.job
-        args = []
+        args = ["run"]
         if job.title:
             args.append(f"--description={job.title}")
         if job.name:
@@ -163,8 +163,10 @@ class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
         args.append(job.image)
         if job.cmd:
             args.append(job.cmd)
+        await self.run_neuro(*args)
 
-        proc = await asyncio.create_subprocess_exec("neuro", "run", *args,)
+    async def run_neuro(self, *args: str) -> None:
+        proc = await asyncio.create_subprocess_exec("neuro", *args)
         try:
             retcode = await proc.wait()
             if retcode:
@@ -179,24 +181,45 @@ class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
     async def logs(self, job_id: str) -> AsyncIterator[str]:
         """Return job logs"""
 
-    async def kill(self, job_id: str) -> None:
+    async def kill_job(self, job_id: str) -> bool:
         """Kill named job"""
         job_ctx = await self.ctx.with_job(job_id)
         job = job_ctx.job
 
-        assert job.name
         try:
             raw_id = await self.resolve_job_by_name(job.name, job.tags)
             descr = await self.client.jobs.status(raw_id)
             if descr.status in (JobStatus.PENDING, JobStatus.RUNNING):
                 await self.client.jobs.kill(raw_id)
-                click.echo(f"Killed job {click.style(job_id, bold=True)}")
-            else:
-                click.echo(f"Job {click.style(job_id, bold=True)} is not running")
+                descr = await self.client.jobs.status(raw_id)
+                while descr.status not in (JobStatus.SUCCEEDED, JobStatus.FAILED):
+                    await asyncio.sleep(0.2)
+                    descr = await self.client.jobs.status(raw_id)
+                return True
         except ResourceNotFound:
             pass
+        return False
+
+    async def kill(self, job_id: str) -> None:
+        """Kill named job"""
+        if await self.kill_job(job_id):
+            click.echo(f"Killed job {click.style(job_id, bold=True)}")
+        else:
+            click.echo(f"Job {click.style(job_id, bold=True)} is not running")
 
     async def kill_all(self) -> None:
         """Kill all jobs"""
+        tasks = []
+        loop = asyncio.get_event_loop()
+
+        async def kill(job_id: str) -> Tuple[str, bool]:
+            return job_id, await self.kill_job(job_id)
+
         for job_id in sorted(self._flow.jobs):
-            await self.kill(job_id)
+            tasks.append(kill(job_id))
+
+        for job_id, ret in await asyncio.gather(*tasks):
+            if ret:
+                click.echo(f"Killed job {click.style(job_id, bold=True)}")
+            else:
+                click.echo(f"Job {click.style(job_id, bold=True)} is not running")

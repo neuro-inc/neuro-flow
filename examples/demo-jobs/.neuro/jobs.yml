@@ -2,7 +2,8 @@ kind: job
 title: Example config
 
 defaults:
-  preset: gpu-small
+  # preset: gpu-small
+  preset: cpu-small
 
 volumes:
   data:
