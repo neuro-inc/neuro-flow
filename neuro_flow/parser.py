@@ -148,7 +148,6 @@ def check_exec_unit(dct: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def parse_exec_unit(id: str, data: Dict[str, Any]) -> Dict[str, Any]:
-    cmd_expr = None
     cmd_expr = OptStrExpr(data.get("cmd"))
     bash = data.get("bash")
     if bash is not None:

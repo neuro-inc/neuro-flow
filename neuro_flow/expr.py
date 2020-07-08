@@ -552,15 +552,15 @@ class OptRemotePathExpr(RemotePathMixin, Expr[PurePosixPath]):
     pass
 
 
-class OptBashExpr(Expr[str]):
+class OptBashExpr(OptStrExpr):
     @classmethod
-    def convert(cls, arg: str) -> PurePosixPath:
+    def convert(cls, arg: str) -> str:
         ret = " ".join(["bash", "-euxo", "pipefail", "-c", shlex.quote(arg)])
         return ret
 
 
-class OptPythonExpr(Expr[str]):
+class OptPythonExpr(OptStrExpr):
     @classmethod
-    def convert(cls, arg: str) -> PurePosixPath:
+    def convert(cls, arg: str) -> str:
         ret = " ".join(["python3", "-c", shlex.quote(arg)])
         return ret
