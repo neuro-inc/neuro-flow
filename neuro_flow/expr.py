@@ -4,6 +4,7 @@
 import abc
 import dataclasses
 import inspect
+import re
 from ast import literal_eval
 from collections.abc import Sized
 from pathlib import Path, PurePosixPath
@@ -13,6 +14,7 @@ from typing import (
     Callable,
     Dict,
     Generic,
+    Iterator,
     List,
     Mapping,
     Optional,
@@ -23,7 +25,7 @@ from typing import (
     cast,
 )
 
-from funcparserlib.lexer import Token, make_tokenizer
+from funcparserlib.lexer import LexerError, Token
 from funcparserlib.parser import (
     Parser,
     a,
@@ -71,30 +73,89 @@ class RootABC(abc.ABC):
         pass
 
 
-TOKENS = [
-    ("TMPL", (r"\$\{\{|\}\}",)),
-    ("SPACE", (r"[ \t]+",)),
-    ("NONE", (r"None",)),
-    ("BOOL", (r"True|False",)),
-    ("REAL", (r"-?[0-9]+\.[0-9]*([Ee][+\-]?[0-9]+)*",)),
-    ("EXP", (r"-?[0-9]+\.[0-9]*([Ee][+\-]?[0-9]+)*[+\-]?e[0-9]+",)),
-    ("HEX", (r"0[xX][0-9a-fA-F_]+",)),
-    ("OCT", (r"0[oO][0-7_]+",)),
-    ("BIN", (r"0[bB][0-1_]+",)),
-    ("INT", (r"-?[0-9][0-9_]*",)),
-    ("STR", (r"'[^']*'",)),
-    ("STR", (r'"[^"]*"',)),
-    ("NAME", (r"[A-Za-z_][A-Za-z_0-9\-]*",)),
-    ("DOT", (r"\.",)),
-    ("COMMA", (r",",)),
-    ("PAR", (r"\(|\)",)),
-    ("SQB", (r"\[|\]",)),
-    ("ANY", (r".",)),
-    ("NEWLINE", (r"\n",)),
-]
+def make_tokenizer() -> Callable[[str], Iterator[Token]]:
+
+    TOKENS = [
+        ("LTMPL", re.compile(r"\$\{\{")),
+        ("RTMPL", re.compile(r"\}\}")),
+        ("SPACE", re.compile(r"[ \t]+")),
+        ("NONE", re.compile(r"None")),
+        ("BOOL", re.compile(r"True|False")),
+        ("REAL", re.compile(r"-?[0-9]+\.[0-9]*([Ee][+\-]?[0-9]+)*")),
+        ("EXP", re.compile(r"-?[0-9]+\.[0-9]*([Ee][+\-]?[0-9]+)*[+\-]?e[0-9]+")),
+        ("HEX", re.compile(r"0[xX][0-9a-fA-F_]+")),
+        ("OCT", re.compile(r"0[oO][0-7_]+")),
+        ("BIN", re.compile(r"0[bB][0-1_]+")),
+        ("INT", re.compile(r"-?[0-9][0-9_]*")),
+        ("STR", re.compile(r"'[^']*'")),
+        ("STR", re.compile(r'"[^"]*"')),
+        ("NAME", re.compile(r"[A-Za-z_][A-Za-z_0-9\-]*")),
+        ("DOT", re.compile(r"\.")),
+        ("COMMA", re.compile(r",")),
+        ("LPAR", re.compile(r"\(")),
+        ("RPAR", re.compile(r"\)")),
+        ("LSQB", re.compile(r"\[")),
+        ("RSQB", re.compile(r"\]")),
+    ]
+
+    def make_token(typ: str, value: str, line: int, pos: int) -> Token:
+        nls = value.count("\n")
+        n_line = line + nls
+        if nls == 0:
+            n_pos = pos + len(value)
+        else:
+            n_pos = len(value) - value.rfind("\n") - 1
+        return Token(typ, value, (line, pos + 1), (n_line, n_pos))
+
+    def match_specs(s: str, i: int, position: Tuple[int, int]) -> Token:
+        line, pos = position
+        for typ, regexp in TOKENS:
+            m = regexp.match(s, i)
+            if m is not None:
+                return make_token(typ, m.group(), line, pos)
+        else:
+            errline = s.splitlines()[line - 1]
+            raise LexerError((line, pos + 1), errline)
+
+    def match_text(s: str, i: int, position: Tuple[int, int]) -> Token:
+        ltmpl = s.find("${{", i)
+        if ltmpl == i:
+            return None
+        if ltmpl == -1:
+            # LTMPL not found, use the whole string
+            substr = s[i:]
+        else:
+            substr = s[i:ltmpl]
+        line, pos = position
+        if "}}" in substr:
+            errline = s.splitlines()[line - 1]
+            raise LexerError((line, pos + 1), errline)
+        return make_token("TEXT", substr, line, pos)
+
+    def f(s: str) -> Iterator[Token]:
+        in_expr = False
+        length = len(s)
+        line, pos = 1, 0
+        i = 0
+        while i < length:
+            if in_expr:
+                t = match_specs(s, i, (line, pos))
+                if t.type == "RTMPL":
+                    in_expr = False
+            else:
+                t = match_text(s, i, (line, pos))
+                if not t:
+                    in_expr = True
+                    t = match_specs(s, i, (line, pos))
+            if t.type != "SPACE":
+                yield t
+            line, pos = t.end
+            i += len(t.value)
+
+    return f
 
 
-tokenize = make_tokenizer(TOKENS)
+tokenize = make_tokenizer()
 
 
 @dataclasses.dataclass(frozen=True)
@@ -213,13 +274,13 @@ def lookup_item(key: LiteralT) -> Any:
 
 @dataclasses.dataclass(frozen=True)
 class Lookup(Item):
-    lft: str
-    rht: Sequence[Getter]
+    root: str
+    trailer: Sequence[Getter]
 
     async def eval(self, root: RootABC) -> TypeT:
-        ret = root.lookup(self.lft)
-        prefix = self.lft
-        for op in self.rht:
+        ret = root.lookup(self.root)
+        prefix = self.root
+        for op in self.trailer:
             ret, prefix = op(ret, prefix)
         return ret
 
@@ -266,22 +327,21 @@ class Text(Item):
         return self.arg
 
 
-SPACE = some(lambda tok: tok.type == "SPACE")
-OPT_SPACE = skip(maybe(SPACE))
+def make_text(arg: Token) -> Text:
+    return Text(tokval(arg))
+
 
 DOT = skip(a(Token("DOT", ".")))
 COMMA = skip(a(Token("COMMA", ",")))
 
-OPEN_TMPL = skip(a(Token("TMPL", "${{")))
-CLOSE_TMPL = skip(a(Token("TMPL", "}}")))
+OPEN_TMPL = skip(a(Token("LTMPL", "${{")))
+CLOSE_TMPL = skip(a(Token("RTMPL", "}}")))
 
-NOT_TMPL = some(lambda tok: tok.type != "TMPL") >> tokval
+LPAR = skip(a(Token("LPAR", "(")))
+RPAR = skip(a(Token("RPAR", ")")))
 
-LPAR = skip(a(Token("PAR", "(")))
-RPAR = skip(a(Token("PAR", ")")))
-
-LSQB = skip(a(Token("PAR", "[")))
-RSQB = skip(a(Token("PAR", "]")))
+LSQB = skip(a(Token("LSQB", "[")))
+RSQB = skip(a(Token("RSQB", "]")))
 
 REAL = literal("REAL") | literal("EXP")
 
@@ -305,16 +365,14 @@ ATOM_EXPR = forward_decl()
 
 LOOKUP_ATTR = DOT + NAME >> lookup_attr
 
-LOOKUP_ITEM = OPT_SPACE + LSQB + EXPR + OPT_SPACE + RSQB >> lookup_item
+LOOKUP_ITEM = LSQB + EXPR + RSQB >> lookup_item
 
 LOOKUP = NAME + many(LOOKUP_ATTR | LOOKUP_ITEM) >> make_lookup
 
-FUNC_ARGS = (
-    maybe(EXPR + many(OPT_SPACE + COMMA + OPT_SPACE + EXPR) + OPT_SPACE) >> make_args
-)
+FUNC_ARGS = maybe(EXPR + many(COMMA + EXPR)) >> make_args
 
 
-FUNC_CALL = (NAME + OPT_SPACE + LPAR + OPT_SPACE + FUNC_ARGS + RPAR) >> make_call
+FUNC_CALL = (NAME + LPAR + FUNC_ARGS + RPAR) >> make_call
 
 
 ATOM_EXPR.define(ATOM | FUNC_CALL | LOOKUP)
@@ -323,9 +381,9 @@ ATOM_EXPR.define(ATOM | FUNC_CALL | LOOKUP)
 EXPR.define(ATOM_EXPR)
 
 
-TMPL = OPEN_TMPL + OPT_SPACE + EXPR + OPT_SPACE + CLOSE_TMPL
+TMPL = OPEN_TMPL + EXPR + CLOSE_TMPL
 
-TEXT = oneplus(NOT_TMPL) >> (lambda arg: Text("".join(arg)))
+TEXT = some(lambda tok: tok.type == "TEXT") >> make_text
 
 PARSER = oneplus(TMPL | TEXT) + skip(finished)
 

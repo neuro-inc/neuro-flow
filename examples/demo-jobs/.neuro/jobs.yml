@@ -65,7 +65,7 @@ jobs:
       EXPOSE_SSH: "yes"
       PYTHONPATH: ${{ volumes.code.mount }}
     cmd: |
-        bash -c 'cd ${{ volumes.project.mount}} &&
+        bash -c 'cd ${{ volumes.project.mount }} &&
           python -u ${{ volumes.code.mount }}/train.py
             --data ${{ volumes.data.mount }}'
   jupyter:
