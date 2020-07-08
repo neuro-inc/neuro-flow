@@ -9,11 +9,13 @@ setup(
     license="Apache License, version 2.0",
     url="https://neu.ro/",
     python_requires=">=3.6.0",
+    include_package_data=True,
     install_requires=[
         "neuromation>=20.6.23",
         "pyyaml>=5.3",
         "trafaret>=2.0.2",
         "funcparserlib>=0.3",
+        'dataclasses>=0.5; python_version<"3.7"',
     ],
     packages=find_packages(),
     classifiers=[
