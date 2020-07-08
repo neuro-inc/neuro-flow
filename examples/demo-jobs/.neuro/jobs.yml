@@ -8,24 +8,24 @@ defaults:
 volumes:
   data:
     uri: storage:${{ flow.id }}/data
-    mount: /data
+    mount: /project/data
     local: data
     read-only: True
   code:
-    uri: storage:${{ flow.id }}/code
-    mount: /code
-    local: code
+    uri: storage:${{ flow.id }}/modules
+    mount: /project/modules
+    local: modules
   config:
     uri: storage:${{ flow.id }}/config
-    mount: /config
+    mount: /project/config
     local: config
   notebooks:
     uri: storage:${{ flow.id }}/notebooks
-    mount: /notebooks
+    mount: /project/notebooks
     local: notebooks
   results:
     uri: storage:${{ flow.id }}/results
-    mount: /results
+    mount: /project/results
     local: results
   project:
     uri: storage:${{ flow.id }}
@@ -64,10 +64,8 @@ jobs:
     env:
       EXPOSE_SSH: "yes"
       PYTHONPATH: ${{ volumes.code.mount }}
-    cmd: |
-        bash -c 'cd ${{ volumes.project.mount }} &&
-          python -u ${{ volumes.code.mount }}/train.py
-            --data ${{ volumes.data.mount }}'
+    cmd: >-
+        bash -c 'cd ${{ volumes.project.mount }} && python -u ${{ volumes.code.mount }}/train.py --data ${{ volumes.data.mount }}'
   jupyter:
     http-port: 8888
     browse: True
@@ -82,7 +80,7 @@ jobs:
     env:
       PYTHONPATH: ${{ volumes.code.mount }}
     image: ${{ images.img.uri }}
-    cmd: |
+    cmd: >-
       jupyter notebook
         --no-browser
         --ip=0.0.0.0

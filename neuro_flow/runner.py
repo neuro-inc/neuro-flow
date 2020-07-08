@@ -1,5 +1,6 @@
 import asyncio
 import dataclasses
+import shlex
 import sys
 from types import TracebackType
 from typing import AbstractSet, List, Optional, Tuple, Type
@@ -195,7 +196,7 @@ class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
 
         args.append(job.image)
         if job.cmd:
-            args.append(job.cmd)
+            args.extend(shlex.split(job.cmd))
         await self.run_neuro(*args)
 
     async def run_neuro(self, *args: str) -> None:
