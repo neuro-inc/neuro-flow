@@ -15,6 +15,7 @@ from .expr import (
     StrExpr,
     URIExpr,
 )
+from .types import LocalPath
 
 
 # There are 'batch' for pipelined mode and 'job' for interactive one
@@ -144,6 +145,7 @@ class BaseFlow:
     # Note, flow.defaults is not changed actually but the calculation is applied
     # at contexts.Context creation level
     id: str
+    workspace: LocalPath
 
     title: OptStrExpr  # explicitly set or defived from config file name.
 

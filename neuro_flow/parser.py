@@ -5,6 +5,7 @@
 # Defaults are evaluated by the separate processing step.
 
 
+import dataclasses
 import datetime
 import re
 from functools import partial
@@ -30,6 +31,13 @@ from .expr import (
     StrExpr,
     URIExpr,
 )
+from .types import LocalPath as LocalPathT
+
+
+@dataclasses.dataclass
+class ConfigPath:
+    workspace: LocalPathT
+    config_file: LocalPathT
 
 
 def _is_identifier(value: str) -> str:
@@ -240,9 +248,12 @@ BASE_FLOW = t.Dict(
 )
 
 
-def parse_base_flow(default_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
+def parse_base_flow(
+    workspace: Path, default_id: str, data: Dict[str, Any]
+) -> Dict[str, Any]:
     return dict(
         id=str(data.get("id", default_id)),
+        workspace=workspace,
         kind=ast.Kind(data["kind"]),
         title=OptStrExpr(data.get("title")),
         images={
@@ -259,11 +270,15 @@ def parse_base_flow(default_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
 INTERACTIVE_FLOW = BASE_FLOW.merge(t.Dict({t.Key("jobs"): t.Mapping(t.String, JOB)}))
 
 
-def _parse_interactive(default_id: str, data: Dict[str, Any]) -> ast.InteractiveFlow:
+def _parse_interactive(
+    workspace: Path, default_id: str, data: Dict[str, Any]
+) -> ast.InteractiveFlow:
     data = INTERACTIVE_FLOW(data)
     assert data["kind"] == ast.Kind.JOB.value
     jobs = {str(id): parse_job(str(id), job) for id, job in data["jobs"].items()}
-    return ast.InteractiveFlow(jobs=jobs, **parse_base_flow(default_id, data))
+    return ast.InteractiveFlow(
+        jobs=jobs, **parse_base_flow(workspace, default_id, data)
+    )
 
 
 def _calc_interactive_default_id(path: Path) -> str:
@@ -274,30 +289,18 @@ def _calc_interactive_default_id(path: Path) -> str:
     return default_id
 
 
-def parse_interactive(path: Path) -> ast.InteractiveFlow:
+def parse_interactive(workspace: Path, config_file: Path) -> ast.InteractiveFlow:
     # Parse interactive flow config file
-    with path.open() as f:
+    with config_file.open() as f:
         data = yaml.safe_load(f)
-        return _parse_interactive(_calc_interactive_default_id(path), data)
-
-
-def parse(path: Path) -> ast.BaseFlow:
-    # Parse flow config file
-    with path.open() as f:
-        data = yaml.safe_load(f)
-    kind = data.get("kind")
-    if kind is None:
-        raise RuntimeError("Missing field 'kind'")
-    elif kind == ast.Kind.JOB.value:
-        return _parse_interactive(_calc_interactive_default_id(path), data)
-    else:
-        raise RuntimeError(
-            f"Unknown 'kind': {kind}, supported values are 'job' and 'batch'"
+        return _parse_interactive(
+            workspace, _calc_interactive_default_id(config_file), data
         )
 
 
-def find_interactive_config(path: Optional[Union[Path, str]]) -> Path:
+def find_interactive_config(path: Optional[Union[Path, str]]) -> ConfigPath:
     # Find interactive config file, starting from path.
+    # Return a project root folder and a path to config file.
     #
     # If path is a file -- it is used as is.
     # If path is a directory -- it is used as starting point, Path.cwd() otherwise.
@@ -310,10 +313,8 @@ def find_interactive_config(path: Optional[Union[Path, str]]) -> Path:
             path = Path(path)
         if not path.exists():
             raise ValueError(f"{path} does not exist")
-        if path.is_file():
-            return path
         if not path.is_dir():
-            raise ValueError(f"{path} should be a file or directory")
+            raise ValueError(f"{path} should be a directory")
     else:
         path = Path.cwd()
 
@@ -331,4 +332,4 @@ def find_interactive_config(path: Optional[Union[Path, str]]) -> Path:
         raise ValueError(f"{ret} does not exist")
     if not ret.is_file():
         raise ValueError(f"{ret} is not a file")
-    return ret
+    return ConfigPath(path, ret)

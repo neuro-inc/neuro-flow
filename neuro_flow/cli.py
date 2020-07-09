@@ -38,7 +38,7 @@ def wrap_async(callback: Callable[..., Awaitable[_T]],) -> Callable[..., _T]:
 @click.pass_context
 def main(ctx: click.Context, config: Optional[str]) -> None:
     config_path = find_interactive_config(config)
-    flow = parse_interactive(config_path)
+    flow = parse_interactive(config_path.workspace, config_path.config_file)
     ctx.obj = flow
 
 

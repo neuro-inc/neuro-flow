@@ -281,7 +281,7 @@ class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
             "--recursive",
             "--update",
             "--no-target-directory",
-            str(volume_ctx.local),
+            str(volume_ctx.full_local_path),
             str(volume_ctx.uri),
         )
 
@@ -293,7 +293,7 @@ class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
             "--update",
             "--no-target-directory",
             str(volume_ctx.uri),
-            str(volume_ctx.local),
+            str(volume_ctx.full_local_path),
         )
 
     async def clean(self, volume: str) -> None:

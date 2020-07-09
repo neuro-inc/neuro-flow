@@ -105,6 +105,7 @@ class VolumeCtx:
     mount: RemotePath
     read_only: bool
     local: Optional[LocalPath]
+    full_local_path: Optional[LocalPath]
 
     @property
     def ro_volume(self) -> str:
@@ -125,7 +126,9 @@ class ImageCtx:
     id: str
     uri: URL
     context: Optional[LocalPath]
+    full_context_path: Optional[LocalPath]
     dockerfile: Optional[LocalPath]
+    full_dockerfile_path: Optional[LocalPath]
     build_args: Sequence[str]
 
 
@@ -140,6 +143,7 @@ class DefaultsCtx:
 @dataclass(frozen=True)
 class FlowCtx:
     id: str
+    workspace: LocalPath
 
 
 @dataclass(frozen=True)
@@ -159,7 +163,7 @@ class Context(RootABC):
 
     @classmethod
     async def create(cls, flow_ast: ast.BaseFlow) -> "Context":
-        flow = FlowCtx(id=flow_ast.id)
+        flow = FlowCtx(id=flow_ast.id, workspace=flow_ast.workspace)
 
         ctx = cls(
             _flow_ast=flow_ast,
@@ -187,26 +191,30 @@ class Context(RootABC):
         ctx = replace(ctx, _defaults=defaults, _env=env)
 
         # volumes / images needs a context with defaults only for self initialization
-        volumes = {
-            v.id: VolumeCtx(
+        volumes = {}
+        for v in flow_ast.volumes.values():
+            local_path = await v.local.eval(ctx)
+            volumes[v.id] = VolumeCtx(
                 id=v.id,
                 uri=await v.uri.eval(ctx),
                 mount=await v.mount.eval(ctx),
                 read_only=await v.read_only.eval(ctx),
-                local=await v.local.eval(ctx),
+                local=local_path,
+                full_local_path=calc_full_path(ctx, local_path),
             )
-            for v in flow_ast.volumes.values()
-        }
-        images = {
-            i.id: ImageCtx(
+        images = {}
+        for i in flow_ast.images.values():
+            context_path = await i.context.eval(ctx)
+            dockerfile_path = await i.dockerfile.eval(ctx)
+            images[i.id] = ImageCtx(
                 id=i.id,
                 uri=await i.uri.eval(ctx),
-                context=await i.context.eval(ctx),
-                dockerfile=await i.dockerfile.eval(ctx),
+                context=context_path,
+                full_context_path=calc_full_path(ctx, context_path),
+                dockerfile=dockerfile_path,
+                full_dockerfile_path=calc_full_path(ctx, dockerfile_path),
                 build_args=[await v.eval(ctx) for v in i.build_args],
             )
-            for i in flow_ast.images.values()
-        }
         return replace(ctx, _volumes=volumes, _images=images)
 
     def lookup(self, name: str) -> TypeT:
@@ -300,3 +308,11 @@ class Context(RootABC):
         if self._images is None:
             raise NotAvailable("images")
         return self._images
+
+
+def calc_full_path(ctx: Context, path: Optional[LocalPath]) -> Optional[LocalPath]:
+    if path is None:
+        return None
+    if path.is_absolute():
+        return path
+    return ctx.flow.workspace.joinpath(path).resolve()

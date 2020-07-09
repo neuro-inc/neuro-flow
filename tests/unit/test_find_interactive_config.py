@@ -4,16 +4,10 @@ from pathlib import Path
 
 import pytest
 
-from neuro_flow.parser import find_interactive_config
+from neuro_flow.parser import ConfigPath, find_interactive_config
 
 
-def test_not_exists_explicit(tmp_path: Path) -> None:
-    f = tmp_path / "file.yml"
-    with pytest.raises(ValueError, match=".+ does not exist"):
-        find_interactive_config(f)
-
-
-def test_not_exists_implicit(tmp_path: Path) -> None:
+def test_not_exists(tmp_path: Path) -> None:
     d = tmp_path / ".neuro"
     d.mkdir()
     with pytest.raises(ValueError, match=".+ does not exist"):
@@ -35,7 +29,7 @@ def test_not_a_file_explicit(tmp_path: Path) -> None:
     s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     s.bind(str(f))
 
-    with pytest.raises(ValueError, match=r".+ should be a file or directory"):
+    with pytest.raises(ValueError, match=r".+ should be a directory"):
         find_interactive_config(f)
 
 
@@ -53,17 +47,18 @@ def test_not_a_file_implicit(tmp_path: Path) -> None:
         find_interactive_config(d)
 
 
-def test_found_explicit(tmp_path: Path) -> None:
+def test_explicit_file(tmp_path: Path) -> None:
     f = tmp_path / "file.yml"
     f.touch()
 
-    assert f == find_interactive_config(f)
+    with pytest.raises(ValueError, match=r".+ should be a directory"):
+        find_interactive_config(f)
 
 
-def test_found_implicit(tmp_path: Path) -> None:
+def test_found(tmp_path: Path) -> None:
     d = tmp_path / ".neuro"
     d.mkdir()
     f = d / "jobs.yml"
     f.touch()
 
-    assert f == find_interactive_config(d)
+    assert ConfigPath(tmp_path, f) == find_interactive_config(d)
