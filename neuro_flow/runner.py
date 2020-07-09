@@ -80,7 +80,7 @@ class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
             name=name or "",
             tags=tags,
             reverse=True,
-            limit=len(self._flow.jobs),  # fixme: limit should be 1 but it doesn't work
+            limit=100,  # fixme: limit should be 1 but it doesn't work
         ):
             return job
         raise ResourceNotFound

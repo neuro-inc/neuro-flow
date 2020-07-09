@@ -45,6 +45,7 @@ from yarl import URL
 
 _T = TypeVar("_T")
 
+Pos = Tuple[int, int]
 
 LiteralT = Union[None, bool, int, float, str]
 
@@ -73,6 +74,25 @@ class RootABC(abc.ABC):
     @abc.abstractmethod
     def lookup(self, name: str) -> TypeT:
         pass
+
+
+class EvalErrorMixin:
+    def __init__(self, msg: str, start: Pos, end: Pos) -> None:
+        super().__init__(msg)  # type: ignore  # call exception class constructor
+        self.start = start
+        self.end = end
+
+
+class EvalTypeError(EvalErrorMixin, TypeError):
+    pass
+
+
+class EvalValueError(EvalErrorMixin, ValueError):
+    pass
+
+
+class EvalLookupError(EvalErrorMixin, LookupError):
+    pass
 
 
 def make_tokenizer() -> Callable[[str], Iterator[Token]]:
@@ -107,19 +127,19 @@ def make_tokenizer() -> Callable[[str], Iterator[Token]]:
             n_pos = pos + len(value)
         else:
             n_pos = len(value) - value.rfind("\n") - 1
-        return Token(typ, value, (line, pos + 1), (n_line, n_pos))
+        return Token(typ, value, (line, pos), (n_line, n_pos))
 
-    def match_specs(s: str, i: int, position: Tuple[int, int]) -> Token:
+    def match_specs(s: str, i: int, position: Pos) -> Token:
         line, pos = position
         for typ, regexp in TOKENS:
             m = regexp.match(s, i)
             if m is not None:
                 return make_token(typ, m.group(), line, pos)
         else:
-            errline = s.splitlines()[line - 1]
-            raise LexerError((line, pos + 1), errline)
+            errline = s.splitlines()[line]
+            raise LexerError((line, pos), errline)
 
-    def match_text(s: str, i: int, position: Tuple[int, int]) -> Token:
+    def match_text(s: str, i: int, position: Pos) -> Token:
         ltmpl = s.find("${{", i)
         if ltmpl == i:
             return None
@@ -129,15 +149,18 @@ def make_tokenizer() -> Callable[[str], Iterator[Token]]:
         else:
             substr = s[i:ltmpl]
         line, pos = position
-        if "}}" in substr:
-            errline = s.splitlines()[line - 1]
-            raise LexerError((line, pos + 1), errline)
+        err_pos = substr.find("}}")
+        if err_pos != -1:
+            t = make_token("TEXT", substr[:err_pos], line, pos)
+            line, pos = t.end
+            errline = s.splitlines()[line]
+            raise LexerError((line, pos), errline)
         return make_token("TEXT", substr, line, pos)
 
     def f(s: str) -> Iterator[Token]:
         in_expr = False
         length = len(s)
-        line, pos = 1, 0
+        line, pos = 0, 0
         i = 0
         while i < length:
             if in_expr:
@@ -167,41 +190,48 @@ class FuncDef:
     call: Callable[..., Awaitable[TypeT]]
 
 
+@dataclasses.dataclass
+class CallCtx:
+    start: Pos
+    end: Pos
+    root: RootABC
+
+
 def _build_signatures(**kwargs: Callable[..., Awaitable[TypeT]]) -> Dict[str, FuncDef]:
     return {k: FuncDef(k, inspect.signature(v), v) for k, v in kwargs.items()}
 
 
-async def nothing(root: RootABC) -> None:
+async def nothing(ctx: CallCtx) -> None:
     # A test function that accepts none args.
     # Later we can replace it with something really more usefuld, e.g. succeded()
     return None
 
 
-async def alen(root: RootABC, arg: TypeT) -> int:
+async def alen(ctx: CallCtx, arg: TypeT) -> int:
     # Async version of len(), async is required for the sake of uniformness.
     if not isinstance(arg, Sized):
         raise TypeError(f"len() requires a str, sequence or mapping, got {arg!r}")
     return len(arg)
 
 
-async def akeys(root: RootABC, arg: TypeT) -> TypeT:
+async def akeys(ctx: CallCtx, arg: TypeT) -> TypeT:
     # Async version of len(), async is required for the sake of uniformness.
     if not isinstance(arg, Mapping):
         raise TypeError(f"keys() requires a mapping, got {arg!r}")
     return list(arg)  # type: ignore  # List[...] is implicitly converted to SequenceT
 
 
-async def fmt(root: RootABC, spec: str, *args: TypeT) -> str:
+async def fmt(ctx: CallCtx, spec: str, *args: TypeT) -> str:
     # We need a trampoline since expression syntax doesn't support classes and named
     # argumens
     return spec.format(*args)
 
 
-async def to_json(root: RootABC, arg: TypeT) -> str:
+async def to_json(ctx: CallCtx, arg: TypeT) -> str:
     return json.dumps(arg)
 
 
-async def from_json(root: RootABC, arg: str) -> TypeT:
+async def from_json(ctx: CallCtx, arg: str) -> TypeT:
     return cast(TypeT, json.loads(arg))
 
 
@@ -210,11 +240,13 @@ FUNCTIONS = _build_signatures(
 )
 
 
-def tokval(tok: Token) -> str:
-    return cast(str, tok.value)
+@dataclasses.dataclass(frozen=True)
+class Entity(abc.ABC):
+    start: Pos
+    end: Pos
 
 
-class Item(abc.ABC):
+class Item(Entity):
     @abc.abstractmethod
     async def eval(self, root: RootABC) -> TypeT:
         pass
@@ -230,16 +262,16 @@ class Literal(Item):
 
 def literal(toktype: str) -> Parser:
     def f(tok: Token) -> Any:
-        return Literal(literal_eval(tokval(tok)))
+        return Literal(tok.start, tok.end, literal_eval(tok.value))
 
     return some(lambda tok: tok.type == toktype) >> f
 
 
-class Getter(abc.ABC):
+class Getter(Entity):
     # Aux class for Lookup item
 
     @abc.abstractmethod
-    def __call__(self, obj: TypeT, prefix: str) -> Tuple[TypeT, str]:
+    async def eval(self, root: RootABC, obj: TypeT, start: Pos) -> TypeT:
         pass
 
 
@@ -247,41 +279,47 @@ class Getter(abc.ABC):
 class AttrGetter(Getter):
     name: str
 
-    def __call__(self, obj: TypeT, prefix: str) -> Tuple[TypeT, str]:
+    async def eval(self, root: RootABC, obj: TypeT, start: Pos) -> TypeT:
         if dataclasses.is_dataclass(obj):
             name = self.name.replace("-", "_")
             try:
-                return cast(TypeT, getattr(obj, name)), prefix + "." + self.name
+                return cast(TypeT, getattr(obj, name))
             except AttributeError:
-                raise AttributeError(f"{prefix} has no attribute {self.name}")
+                raise EvalLookupError(f"No attribute {self.name}", start, self.end)
         elif isinstance(obj, MappingT):
             try:
-                return obj[self.name], prefix + "." + self.name
+                return obj[self.name]
             except KeyError:
-                raise AttributeError(f"{prefix} has no attribute {self.name}")
+                raise EvalLookupError(f"No attribute {self.name}", start, self.end)
         else:
-            raise TypeError(
-                f"{prefix} is not an object with attributes accessible by a dot."
+            raise EvalTypeError(
+                f"Is not an object with attributes accessible by a dot.",
+                start,
+                self.end,
             )
 
 
-def lookup_attr(name: str) -> Any:
+def lookup_attr(name: Token) -> Any:
     # Just in case, NAME token cannot start with _.
-    assert not name.startswith(("_", "-"))
-    return AttrGetter(name)
+    assert not name.value.startswith(("_", "-"))
+    return AttrGetter(name.start, name.end, name.value)
 
 
 @dataclasses.dataclass(frozen=True)
 class ItemGetter(Getter):
-    key: Literal
+    key: Item
 
-    def __call__(self, obj: TypeT, prefix: str) -> Tuple[TypeT, str]:
+    async def eval(self, root: RootABC, obj: TypeT, start: Pos) -> TypeT:
         assert isinstance(obj, (SequenceT, MappingT))
-        return obj[self.key.val], prefix + "[" + str(self.key.val) + "]"
+        key = cast(LiteralT, await self.key.eval(root))
+        try:
+            return obj[key]
+        except LookupError:
+            raise EvalLookupError(f"No item {self.key}", start, self.end)
 
 
-def lookup_item(key: Literal) -> Any:
-    return ItemGetter(key)
+def lookup_item(key: Item) -> Any:
+    return ItemGetter(key.start, key.end, key)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -291,14 +329,23 @@ class Lookup(Item):
 
     async def eval(self, root: RootABC) -> TypeT:
         ret = root.lookup(self.root)
-        prefix = self.root
+        start = self.start
         for op in self.trailer:
-            ret, prefix = op(ret, prefix)
+            ret = await op.eval(root, ret, start)
         return ret
 
 
-def make_lookup(arg: Tuple[str, List[Getter]]) -> Lookup:
-    return Lookup(arg[0], arg[1])
+def make_lookup(arg: Tuple[Token, List[Getter]]) -> Lookup:
+    name, trailer = arg
+    end = trailer[-1].end if trailer else name.end
+    return Lookup(name.start, end, name.value, trailer)
+
+
+def make_args(arg: Optional[Tuple[Item, List[Item]]]) -> List[Item]:
+    if arg is None:
+        return []
+    first, tail = arg
+    return [first] + tail[:]
 
 
 @dataclasses.dataclass(frozen=True)
@@ -311,29 +358,27 @@ class Call(Item):
         args = [await a.eval(root) for a in self.args]
         tmp = await self.func.call(root, *args)  # type: ignore
         ret = cast(TypeT, tmp)
-        prefix = f"{self.func.name}(...)"
+        start = self.start
         for op in self.trailer:
-            ret, prefix = op(ret, prefix)
+            ret = await op.eval(root, ret, start)
         return ret
 
 
-def make_args(arg: Optional[Tuple[Item, List[Item]]]) -> List[Item]:
-    if arg is None:
-        return []
-    first, tail = arg
-    return [first] + tail[:]
-
-
-def make_call(arg: Tuple[str, List[Item], Sequence[Getter]]) -> Call:
+def make_call(arg: Tuple[Token, List[Item], Sequence[Getter]]) -> Call:
     funcname, args, trailer = arg
     try:
-        spec = FUNCTIONS[funcname]
+        spec = FUNCTIONS[funcname.value]
     except KeyError:
-        raise LookupError(f"Unknown function {funcname}")
+        raise LookupError(f"Unknown function {funcname.value}")
+    end = funcname.end
     args_count = len(args)
+    if args_count > 0:
+        end = args[-1].end
     dummies = [None] * args_count
     spec.sig.bind(None, *dummies)
-    return Call(spec, args, trailer)
+    if trailer:
+        end = trailer[-1].end
+    return Call(funcname.start, end, spec, args, trailer)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -345,7 +390,7 @@ class Text(Item):
 
 
 def make_text(arg: Token) -> Text:
-    return Text(tokval(arg))
+    return Text(arg.start, arg.end, arg.value)
 
 
 DOT = skip(a(Token("DOT", ".")))
@@ -372,7 +417,7 @@ NONE = literal("NONE")
 
 LITERAL = NONE | BOOL | REAL | INT | STR
 
-NAME = some(lambda tok: tok.type == "NAME") >> tokval
+NAME = some(lambda tok: tok.type == "NAME")
 
 ATOM = LITERAL  # | list-make | dict-maker
 
