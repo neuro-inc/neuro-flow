@@ -163,7 +163,7 @@ class Context(RootABC):
 
     @classmethod
     async def create(cls, flow_ast: ast.BaseFlow) -> "Context":
-        flow = FlowCtx(id=flow_ast.id, workspace=flow_ast.workspace)
+        flow = FlowCtx(id=flow_ast.id, workspace=flow_ast.workspace.resolve())
 
         ctx = cls(
             _flow_ast=flow_ast,
