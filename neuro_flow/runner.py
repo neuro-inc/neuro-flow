@@ -1,5 +1,7 @@
 import asyncio
+import humanize
 import dataclasses
+import datetime
 import shlex
 import sys
 from types import TracebackType
@@ -33,6 +35,7 @@ class JobInfo:
     status: JobStatus
     raw_id: Optional[str]  # low-level job id, None for never runned jobs
     tags: AbstractSet[str]
+    when: Optional[datetime.datetime]
 
 
 class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
@@ -90,9 +93,15 @@ class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
         job = job_ctx.job
         try:
             descr = await self.resolve_job_by_name(job.name, job.tags)
-            return JobInfo(job_id, descr.status, descr.id, job.tags)
+            if descr.status == JobStatus.PENDING:
+                when = descr.history.created_at
+            elif descr.status == JobStatus.RUNNING:
+                when = descr.history.started_at
+            else:
+                when = descr.history.finished_at
+            return JobInfo(job_id, descr.status, descr.id, job.tags, when)
         except ResourceNotFound:
-            return JobInfo(job_id, JobStatus.UNKNOWN, None, job.tags)
+            return JobInfo(job_id, JobStatus.UNKNOWN, None, job.tags, None)
 
     async def ps(self) -> None:
         """Return statuses for all jobs from the flow"""
@@ -105,7 +114,7 @@ class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
                 click.style("JOB", bold=True),
                 click.style("STATUS", bold=True),
                 click.style("RAW ID", bold=True),
-                click.style("TAGS", bold=True),
+                click.style("WHEN", bold=True),
             ]
         )
         tasks = []
@@ -113,12 +122,19 @@ class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
             tasks.append(loop.create_task(self.job_status(job_id)))
 
         for info in await asyncio.gather(*tasks):
+            if info.when is None:
+                when_humanized = "N/A"
+            delta = datetime.datetime.now(datetime.timezone.utc) - info.when
+            if delta < datetime.timedelta(days=1):
+                when_humanized = humanize.naturaltime(delta)
+            else:
+                when_humanized = humanize.naturaldate(info.when.astimezone())
             rows.append(
                 [
                     info.id,
                     format_job_status(info.status),
                     info.raw_id or "N/A",
-                    ",".join(sorted(info.tags)),
+                    when_humanized,
                 ]
             )
 
