@@ -76,8 +76,15 @@ def test_parse_full(assets: pathlib.Path) -> None:
                 id="volume_a",
                 uri=URIExpr("storage:dir"),
                 mount=RemotePathExpr("/var/dir"),
-                read_only=BoolExpr("True"),
+                read_only=OptBoolExpr("True"),
                 local=OptLocalPathExpr("dir"),
+            ),
+            "volume_b": ast.Volume(
+                id="volume_b",
+                uri=URIExpr("storage:other"),
+                mount=RemotePathExpr("/var/other"),
+                read_only=OptBoolExpr(None),
+                local=OptLocalPathExpr(None),
             )
         },
         defaults=ast.FlowDefaults(

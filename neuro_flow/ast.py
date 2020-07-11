@@ -32,8 +32,8 @@ class Volume:
     id: str  # explicitly set or defived from url/path pair.
     uri: URIExpr  # storage URI
     mount: RemotePathExpr  # mount path inside container
-    read_only: BoolExpr  # True if mounted in read-only mode, False for read-write
     local: OptLocalPathExpr
+    read_only: OptBoolExpr  # True if mounted in read-only mode, False for read-write
 
 
 @dataclass(frozen=True)

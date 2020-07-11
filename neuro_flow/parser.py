@@ -10,10 +10,11 @@ import datetime
 import re
 from functools import partial
 from pathlib import Path, PurePosixPath
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Mapping, Optional, TextIO, Type, TypeVar, Union
 
 import trafaret as t
 import yaml
+from yaml.constructor import ConstructorError, SafeConstructor
 from yarl import URL
 
 from . import ast
@@ -32,6 +33,9 @@ from .expr import (
     URIExpr,
 )
 from .types import LocalPath as LocalPathT
+
+
+_T = TypeVar("_T")
 
 
 @dataclasses.dataclass
@@ -87,24 +91,80 @@ RegexLifeSpan = (
 LIFE_SPAN = t.WithRepr(Expr | t.Float & str | RegexLifeSpan & str, "<LifeSpan>")
 
 
-VOLUME = t.Dict(
-    {
-        t.Key("uri"): URI,
-        t.Key("mount"): RemotePath,
-        t.Key("read-only", default=False): Expr | (t.Bool & str),
-        OptKey("local"): LocalPath,
-    }
-)
+def parse_dict(
+    ctor: SafeConstructor,
+    node: yaml.MappingNode,
+    keys: Mapping[str, Union[Type[str], Type[Expr]]],
+    extra: Mapping[str, Union[str]],
+    res_type: Type[_T],
+) -> _T:
+    ret_name = res_type.__name__
+    if not isinstance(node, yaml.MappingNode):
+        raise ConstructorError(
+            f"while constructing a {ret_name}",
+            node.start_mark,
+            f"expected a mapping node, but found {node.id}",
+            node.start_mark,
+        )
+    data = {}
+    for k, v in node.value:
+        key = ctor.construct_scalar(k)
+        if key not in keys:
+            raise ConstructorError(
+                f"while constructing a {ret_name}",
+                node.start_mark,
+                f"unexpected key {key}",
+                k.start_mark,
+            )
+        if v.tag in (
+            "tag:yaml.org,2002:bool",
+            "tag:yaml.org,2002:int",
+            "tag:yaml.org,2002:float",
+        ):
+            value = str(ctor.construct_object(v))
+        else:
+            value = ctor.construct_scalar(v)
+        data[key.replace("-", "_")] = keys[key](value)
+    optional_fields = {}
+    found_fields = extra.keys() | data.keys()
+    for f in dataclasses.fields(res_type):
+        if f.name not in found_fields:
+            optional_fields[f.name] = keys[f.name.replace('_', '-')](None)
+    return res_type(**extra, **data, **optional_fields)
 
 
-def parse_volume(id: str, data: Dict[str, Any]) -> ast.Volume:
-    return ast.Volume(
-        id=id,
-        uri=URIExpr(data["uri"]),
-        mount=RemotePathExpr(data["mount"]),
-        read_only=BoolExpr(data["read-only"]),
-        local=OptLocalPathExpr(data.get("local")),
+def parse_volume(ctor: SafeConstructor, id: str, node: yaml.MappingNode) -> ast.Volume:
+    # uri -> URL
+    # mount -> RemotePath
+    # read-only -> bool [False]
+    # local -> LocalPath [None]
+    return parse_dict(
+        ctor,
+        node,
+        {
+            "uri": URIExpr,
+            "mount": RemotePathExpr,
+            "read-only": OptBoolExpr,
+            "local": OptLocalPathExpr,
+        },
+        {"id": id},
+        ast.Volume,
     )
+
+
+def parse_volumes(
+    ctor: SafeConstructor, node: yaml.MappingNode
+) -> Dict[str, ast.Volume]:
+    ret = {}
+    for k, v in node.value:
+        key = ctor.construct_scalar(k)
+        value = parse_volume(ctor, key, v)
+        ret[key] = value
+    return ret
+
+
+yaml.SafeLoader.add_path_resolver("flow:volumes", [(dict, "volumes")])
+yaml.SafeLoader.add_constructor("flow:volumes", parse_volumes)
 
 
 IMAGE = t.Dict(
@@ -242,7 +302,7 @@ BASE_FLOW = t.Dict(
         OptKey("id"): t.String,
         OptKey("title"): t.String,
         t.Key("images", default=dict): t.Mapping(t.String, IMAGE),
-        t.Key("volumes", default=dict): t.Mapping(t.String, VOLUME),
+        t.Key("volumes", default=dict): t.Mapping(t.String, t.Type(ast.Volume)),
         OptKey("defaults"): FLOW_DEFAULTS,
     }
 )
@@ -259,10 +319,7 @@ def parse_base_flow(
         images={
             str(id): parse_image(str(id), image) for id, image in data["images"].items()
         },
-        volumes={
-            str(id): parse_volume(str(id), volume)
-            for id, volume in data["volumes"].items()
-        },
+        volumes=data.get("volumes", {}),
         defaults=parse_flow_defaults(data.get("defaults")),
     )
 
@@ -292,7 +349,7 @@ def _calc_interactive_default_id(path: Path) -> str:
 def parse_interactive(workspace: Path, config_file: Path) -> ast.InteractiveFlow:
     # Parse interactive flow config file
     with config_file.open() as f:
-        data = yaml.safe_load(f)
+        data = yaml.load(f, yaml.SafeLoader)
         return _parse_interactive(
             workspace, _calc_interactive_default_id(config_file), data
         )

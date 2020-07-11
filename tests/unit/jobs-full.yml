@@ -15,6 +15,9 @@ volumes:
     mount: /var/dir
     read-only: true
     local: dir
+  volume_b:
+    uri: storage:other
+    mount: /var/other
 defaults:
   tags: [tag-a, tag-b]
   env:
