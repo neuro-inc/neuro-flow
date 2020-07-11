@@ -1,5 +1,4 @@
 import asyncio
-import humanize
 import dataclasses
 import datetime
 import shlex
@@ -8,6 +7,7 @@ from types import TracebackType
 from typing import AbstractSet, List, Optional, Tuple, Type
 
 import click
+import humanize
 from neuromation.api import Client, Factory, JobDescription, JobStatus, ResourceNotFound
 from neuromation.cli.formatters import ftable  # TODO: extract into a separate library
 from typing_extensions import AsyncContextManager
