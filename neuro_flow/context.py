@@ -176,45 +176,62 @@ class Context(RootABC):
             _batch=None,
         )
 
-        env = {k: await v.eval(ctx) for k, v in flow_ast.defaults.env.items()}
+        ast_defaults = flow_ast.defaults
+        if ast_defaults is not None:
+            if ast_defaults.env is not None:
+                env = {k: await v.eval(ctx) for k, v in ast_defaults.env.items()}
+            else:
+                env = {}
 
-        tags = {await t.eval(ctx) for t in flow_ast.defaults.tags}
+            if ast_defaults.tags is not None:
+                tags = {await t.eval(ctx) for t in ast_defaults.tags}
+            else:
+                tags = set()
+            workdir = await ast_defaults.workdir.eval(ctx)
+            life_span = await ast_defaults.life_span.eval(ctx)
+            preset = await ast_defaults.preset.eval(ctx)
+        else:
+            env = {}
+            tags = set()
+            workdir = None
+            life_span = None
+            preset = None
+
         if not tags:
             tags = {f"flow:{flow.id}"}
 
         defaults = DefaultsCtx(
-            tags=tags,
-            workdir=await flow_ast.defaults.workdir.eval(ctx),
-            life_span=await flow_ast.defaults.life_span.eval(ctx),
-            preset=await flow_ast.defaults.preset.eval(ctx),
+            tags=tags, workdir=workdir, life_span=life_span, preset=preset,
         )
         ctx = replace(ctx, _defaults=defaults, _env=env)
 
         # volumes / images needs a context with defaults only for self initialization
         volumes = {}
-        for v in flow_ast.volumes.values():
-            local_path = await v.local.eval(ctx)
-            volumes[v.id] = VolumeCtx(
-                id=v.id,
-                uri=await v.uri.eval(ctx),
-                mount=await v.mount.eval(ctx),
-                read_only=await v.read_only.eval(ctx),
-                local=local_path,
-                full_local_path=calc_full_path(ctx, local_path),
-            )
+        if flow_ast.volumes is not None:
+            for v in flow_ast.volumes.values():
+                local_path = await v.local.eval(ctx)
+                volumes[v.id] = VolumeCtx(
+                    id=v.id,
+                    uri=await v.uri.eval(ctx),
+                    mount=await v.mount.eval(ctx),
+                    read_only=bool(await v.read_only.eval(ctx)),
+                    local=local_path,
+                    full_local_path=calc_full_path(ctx, local_path),
+                )
         images = {}
-        for i in flow_ast.images.values():
-            context_path = await i.context.eval(ctx)
-            dockerfile_path = await i.dockerfile.eval(ctx)
-            images[i.id] = ImageCtx(
-                id=i.id,
-                uri=await i.uri.eval(ctx),
-                context=context_path,
-                full_context_path=calc_full_path(ctx, context_path),
-                dockerfile=dockerfile_path,
-                full_dockerfile_path=calc_full_path(ctx, dockerfile_path),
-                build_args=[await v.eval(ctx) for v in i.build_args],
-            )
+        if flow_ast.images is not None:
+            for i in flow_ast.images.values():
+                context_path = await i.context.eval(ctx)
+                dockerfile_path = await i.dockerfile.eval(ctx)
+                images[i.id] = ImageCtx(
+                    id=i.id,
+                    uri=await i.uri.eval(ctx),
+                    context=context_path,
+                    full_context_path=calc_full_path(ctx, context_path),
+                    dockerfile=dockerfile_path,
+                    full_dockerfile_path=calc_full_path(ctx, dockerfile_path),
+                    build_args=[await v.eval(ctx) for v in i.build_args],
+                )
         return replace(ctx, _volumes=volumes, _images=images)
 
     def lookup(self, name: str) -> TypeT:
@@ -260,22 +277,30 @@ class Context(RootABC):
         except KeyError:
             raise UnknownJob(job_id)
 
-        tags = {await v.eval(self) for v in job.tags}
+        tags = set()
+        if job.tags is not None:
+            tags = {await v.eval(self) for v in job.tags}
         if not tags:
             tags = {f"job:{job.id}"}
 
         env = dict(self.env)
-        env.update({k: await v.eval(self) for k, v in job.env.items()})
+        if job.env is not None:
+            env.update({k: await v.eval(self) for k, v in job.env.items()})
 
         workdir = (await job.workdir.eval(self)) or self.defaults.workdir
+
+        volumes = []
+        if job.volumes is not None:
+            volumes = [await v.eval(self) for v in job.volumes]
+
         life_span = (await job.life_span.eval(self)) or self.defaults.life_span
 
         preset = (await job.preset.eval(self)) or self.defaults.preset
 
         job_ctx = JobCtx(
             id=job.id,
-            detach=await job.detach.eval(self),
-            browse=await job.browse.eval(self),
+            detach=bool(await job.detach.eval(self)),
+            browse=bool(await job.browse.eval(self)),
             title=(await job.title.eval(self)) or f"{self.flow.id}.{job.id}",
             name=(await job.name.eval(self)),
             image=await job.image.eval(self),
@@ -283,7 +308,7 @@ class Context(RootABC):
             entrypoint=await job.entrypoint.eval(self),
             cmd=await job.cmd.eval(self),
             workdir=workdir,
-            volumes=[await v.eval(self) for v in job.volumes],
+            volumes=volumes,
             tags=self.defaults.tags | tags,
             life_span=life_span,
             http_port=await job.http_port.eval(self),

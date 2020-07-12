@@ -1,10 +1,9 @@
 # Dataclasses
 import enum
 from dataclasses import dataclass
-from typing import AbstractSet, List, Mapping, Sequence
+from typing import AbstractSet, List, Mapping, Optional, Sequence
 
 from .expr import (
-    BoolExpr,
     OptBoolExpr,
     OptIntExpr,
     OptLifeSpanExpr,
@@ -54,9 +53,9 @@ class ExecUnit:
     entrypoint: OptStrExpr
     cmd: OptStrExpr
     workdir: OptRemotePathExpr
-    env: Mapping[str, StrExpr]
-    volumes: Sequence[StrExpr]  # Sequence[VolumeRef]
-    tags: AbstractSet[StrExpr]
+    env: Optional[Mapping[str, StrExpr]]
+    volumes: Optional[Sequence[StrExpr]]
+    tags: Optional[AbstractSet[StrExpr]]
     life_span: OptLifeSpanExpr
     http_port: OptIntExpr
     http_auth: OptBoolExpr
@@ -67,8 +66,8 @@ class Job(ExecUnit):
     # Interactive job used by Kind.Live flow
     id: str
 
-    detach: BoolExpr
-    browse: BoolExpr
+    detach: OptBoolExpr
+    browse: OptBoolExpr
 
 
 @dataclass(frozen=True)
@@ -76,19 +75,6 @@ class Step(ExecUnit):
     # A step of a batch
     id: str
 
-    image: StrExpr  # ImageRef
-    preset: OptStrExpr
-
-    entrypoint: OptStrExpr
-    cmd: OptStrExpr
-
-    volumes: Sequence[StrExpr]  # Sequence[VolumeRef]
-    tags: AbstractSet[StrExpr]
-
-    env: Mapping[str, StrExpr]
-    working_directory: OptStrExpr
-
-    life_span: OptLifeSpanExpr
     # continue_on_error: bool
     # if: str -- skip conditionally
 
@@ -113,10 +99,10 @@ class Batch:
     image: OptStrExpr  # ImageRef
     preset: OptStrExpr
 
-    volumes: Sequence[StrExpr]  # Sequence[VolumeRef]
-    tags: AbstractSet[StrExpr]
+    volumes: Optional[Sequence[StrExpr]]
+    tags: Optional[AbstractSet[StrExpr]]
 
-    env: Mapping[str, StrExpr]
+    env: Optional[Mapping[str, StrExpr]]
     workdir: OptRemotePathExpr
 
     life_span: OptLifeSpanExpr
@@ -126,9 +112,9 @@ class Batch:
 
 @dataclass(frozen=True)
 class FlowDefaults:
-    tags: AbstractSet[StrExpr]
+    tags: Optional[AbstractSet[StrExpr]]
 
-    env: Mapping[str, StrExpr]
+    env: Optional[Mapping[str, StrExpr]]
     workdir: OptRemotePathExpr
 
     life_span: OptLifeSpanExpr
@@ -151,9 +137,9 @@ class BaseFlow:
 
     # cluster: str  # really need it?
 
-    images: Mapping[str, Image]
-    volumes: Mapping[str, Volume]
-    defaults: FlowDefaults
+    images: Optional[Mapping[str, Image]]
+    volumes: Optional[Mapping[str, Volume]]
+    defaults: Optional[FlowDefaults]
 
 
 @dataclass(frozen=True)

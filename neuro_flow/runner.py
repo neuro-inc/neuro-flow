@@ -124,11 +124,12 @@ class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
         for info in await asyncio.gather(*tasks):
             if info.when is None:
                 when_humanized = "N/A"
-            delta = datetime.datetime.now(datetime.timezone.utc) - info.when
-            if delta < datetime.timedelta(days=1):
-                when_humanized = humanize.naturaltime(delta)
             else:
-                when_humanized = humanize.naturaldate(info.when.astimezone())
+                delta = datetime.datetime.now(datetime.timezone.utc) - info.when
+                if delta < datetime.timedelta(days=1):
+                    when_humanized = humanize.naturaltime(delta)
+                else:
+                    when_humanized = humanize.naturaldate(info.when.astimezone())
             rows.append(
                 [
                     info.id,

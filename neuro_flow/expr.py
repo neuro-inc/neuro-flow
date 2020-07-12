@@ -598,13 +598,13 @@ class OptLifeSpanExpr(OptFloatExpr):
             match = cls.RE.match(arg)
             if match is None:
                 raise ValueError(f"{arg} is not a life span")
-                td = datetime.timedelta(
-                    days=int(match.group("d") or 0),
-                    hours=int(match.group("h") or 0),
-                    minutes=int(match.group("m") or 0),
-                    seconds=int(match.group("s") or 0),
-                )
-                return td.total_seconds()
+            td = datetime.timedelta(
+                days=int(match.group("d") or 0),
+                hours=int(match.group("h") or 0),
+                minutes=int(match.group("m") or 0),
+                seconds=int(match.group("s") or 0),
+            )
+            return td.total_seconds()
 
 
 class LocalPathMixin:

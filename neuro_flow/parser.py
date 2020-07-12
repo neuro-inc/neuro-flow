@@ -79,7 +79,7 @@ OptKey = partial(t.Key, optional=True)
 
 class SimpleCompound(Generic[_T, _Cont], abc.ABC):
     @abc.abstractmethod
-    def construct(self, ctor: SafeConstructor, node: yaml.SequenceNode) -> _Cont:
+    def construct(self, ctor: SafeConstructor, node: yaml.Node) -> _Cont:
         pass
 
 
@@ -170,9 +170,11 @@ def parse_dict(
             "tag:yaml.org,2002:int",
             "tag:yaml.org,2002:float",
         ):
-            value = item_ctor(str(ctor.construct_object(v)))
+            tmp = str(ctor.construct_object(v))  # type: ignore[no-untyped-call]
+            value = item_ctor(tmp)
         else:
-            value = item_ctor(ctor.construct_scalar(v))
+            tmp = ctor.construct_scalar(v)  # type: ignore[no-untyped-call]
+            value = item_ctor(tmp)
         data[key.replace("-", "_")] = value
     optional_fields = {}
     found_fields = extra.keys() | data.keys()
@@ -217,8 +219,8 @@ def parse_volumes(
     return ret
 
 
-yaml.SafeLoader.add_path_resolver("flow:volumes", [(dict, "volumes")])
-yaml.SafeLoader.add_constructor("flow:volumes", parse_volumes)
+yaml.SafeLoader.add_path_resolver("flow:volumes", [(dict, "volumes")])  # type: ignore
+yaml.SafeLoader.add_constructor("flow:volumes", parse_volumes)  # type: ignore
 
 
 def parse_image(ctor: SafeConstructor, id: str, node: yaml.MappingNode) -> ast.Image:
@@ -240,9 +242,7 @@ def parse_image(ctor: SafeConstructor, id: str, node: yaml.MappingNode) -> ast.I
     )
 
 
-def parse_images(
-    ctor: SafeConstructor, node: yaml.MappingNode
-) -> Dict[str, ast.Volume]:
+def parse_images(ctor: SafeConstructor, node: yaml.MappingNode) -> Dict[str, ast.Image]:
     ret = {}
     for k, v in node.value:
         key = ctor.construct_scalar(k)
@@ -251,8 +251,8 @@ def parse_images(
     return ret
 
 
-yaml.SafeLoader.add_path_resolver("flow:images", [(dict, "images")])
-yaml.SafeLoader.add_constructor("flow:images", parse_images)
+yaml.SafeLoader.add_path_resolver("flow:images", [(dict, "images")])  # type: ignore
+yaml.SafeLoader.add_constructor("flow:images", parse_images)  # type: ignore
 
 
 def check_exec_unit(dct: Dict[str, Any]) -> Dict[str, Any]:
@@ -287,7 +287,7 @@ def parse_job(ctor: SafeConstructor, id: str, node: yaml.MappingNode) -> ast.Job
     return parse_dict(ctor, node, JOB, {"id": id}, ast.Job)
 
 
-def parse_jobs(ctor: SafeConstructor, node: yaml.MappingNode) -> Dict[str, ast.Volume]:
+def parse_jobs(ctor: SafeConstructor, node: yaml.MappingNode) -> Dict[str, ast.Job]:
     ret = {}
     for k, v in node.value:
         key = ctor.construct_scalar(k)
@@ -296,8 +296,8 @@ def parse_jobs(ctor: SafeConstructor, node: yaml.MappingNode) -> Dict[str, ast.V
     return ret
 
 
-yaml.SafeLoader.add_path_resolver("flow:jobs", [(dict, "jobs")])
-yaml.SafeLoader.add_constructor("flow:jobs", parse_jobs)
+yaml.SafeLoader.add_path_resolver("flow:jobs", [(dict, "jobs")])  # type: ignore
+yaml.SafeLoader.add_constructor("flow:jobs", parse_jobs)  # type: ignore
 
 
 def parse_flow_defaults(
@@ -318,8 +318,8 @@ def parse_flow_defaults(
     )
 
 
-yaml.SafeLoader.add_path_resolver("flow:defaults", [(dict, "defaults")])
-yaml.SafeLoader.add_constructor("flow:defaults", parse_flow_defaults)
+yaml.SafeLoader.add_path_resolver("flow:defaults", [(dict, "defaults")])  # type: ignore
+yaml.SafeLoader.add_constructor("flow:defaults", parse_flow_defaults)  # type: ignore
 
 BASE_FLOW = t.Dict(
     {
