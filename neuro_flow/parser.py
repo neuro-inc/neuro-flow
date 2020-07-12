@@ -5,12 +5,25 @@
 # Defaults are evaluated by the separate processing step.
 
 
+import abc
 import dataclasses
 import datetime
 import re
 from functools import partial
 from pathlib import Path, PurePosixPath
-from typing import Any, Dict, Mapping, Optional, TextIO, Type, TypeVar, Union
+from typing import (
+    AbstractSet,
+    Any,
+    Dict,
+    Generic,
+    Mapping,
+    Optional,
+    Sequence,
+    TextIO,
+    Type,
+    TypeVar,
+    Union,
+)
 
 import trafaret as t
 import yaml
@@ -20,10 +33,12 @@ from yarl import URL
 from . import ast
 from .expr import (
     BoolExpr,
+    Expr,
     OptBashExpr,
     OptBoolExpr,
     OptFloatExpr,
     OptIntExpr,
+    OptLifeSpanExpr,
     OptLocalPathExpr,
     OptPythonExpr,
     OptRemotePathExpr,
@@ -36,6 +51,7 @@ from .types import LocalPath as LocalPathT
 
 
 _T = TypeVar("_T")
+_Cont = TypeVar("_Cont")
 
 
 @dataclasses.dataclass
@@ -58,37 +74,67 @@ Id = t.WithRepr(
     ),
     "<ID>",
 )
-EXPR_RE = re.compile(r".*\$\{\{.+\}\}.*")
 OptKey = partial(t.Key, optional=True)
-Expr = t.WithRepr(t.String & t.Regexp(EXPR_RE), "<Expr>")
-URI = t.WithRepr(Expr | (t.String & URL & str), "<URI>")
 
 
-LocalPath = t.WithRepr(Expr | (t.String() & Path & str), "<LocalPath>")
-RemotePath = t.WithRepr(Expr | (t.String() & PurePosixPath & str), "<RemotePath>")
+class SimpleCompound(Generic[_T, _Cont], abc.ABC):
+    @abc.abstractmethod
+    def construct(self, ctor: SafeConstructor, node: yaml.SequenceNode) -> _Cont:
+        pass
 
 
-def make_lifespan(match: "re.Match[str]") -> float:
-    td = datetime.timedelta(
-        days=int(match.group("d") or 0),
-        hours=int(match.group("h") or 0),
-        minutes=int(match.group("m") or 0),
-        seconds=int(match.group("s") or 0),
-    )
-    return td.total_seconds()
+class SimpleSeq(SimpleCompound[_T, Sequence[_T]]):
+    def __init__(self, item: Type[_T]) -> None:
+        self._item = item
+
+    def construct(self, ctor: SafeConstructor, node: yaml.SequenceNode) -> Sequence[_T]:
+        if not isinstance(node, yaml.SequenceNode):
+            raise ConstructorError(
+                None,
+                None,
+                f"expected a sequence node, but found {node.id}",
+                node.start_mark,
+            )
+        return [self._item(ctor.construct_object(child)) for child in node.value]
 
 
-RegexLifeSpan = (
-    t.OnError(
-        t.String
-        & t.RegexpRaw(
-            re.compile(r"^((?P<d>\d+)d)?((?P<h>\d+)h)?((?P<m>\d+)m)?((?P<s>\d+)s)?$")
-        ),
-        "value is not a lifespan, e.g. 1d2h3m4s",
-    )
-    & make_lifespan
-)
-LIFE_SPAN = t.WithRepr(Expr | t.Float & str | RegexLifeSpan & str, "<LifeSpan>")
+class SimpleSet(SimpleCompound[_T, AbstractSet[_T]]):
+    def __init__(self, item: Type[_T]) -> None:
+        self._item = item
+
+    def construct(
+        self, ctor: SafeConstructor, node: yaml.SequenceNode
+    ) -> AbstractSet[_T]:
+        if not isinstance(node, yaml.SequenceNode):
+            raise ConstructorError(
+                None,
+                None,
+                f"expected a sequence node, but found {node.id}",
+                node.start_mark,
+            )
+        return {self._item(ctor.construct_object(child)) for child in node.value}
+
+
+class SimpleMapping(SimpleCompound[_T, Mapping[str, _T]]):
+    def __init__(self, item: Type[_T]) -> None:
+        self._item = item
+
+    def construct(
+        self, ctor: SafeConstructor, node: yaml.SequenceNode
+    ) -> AbstractSet[_T]:
+        if not isinstance(node, yaml.MappingNode):
+            raise ConstructorError(
+                None,
+                None,
+                f"expected a mapping node, but found {node.id}",
+                node.start_mark,
+            )
+        ret = {}
+        for k, v in node.value:
+            key = ctor.construct_scalar(k)
+            value = self._item(ctor.construct_scalar(v))
+            ret[key] = value
+        return ret
 
 
 def parse_dict(
@@ -101,8 +147,8 @@ def parse_dict(
     ret_name = res_type.__name__
     if not isinstance(node, yaml.MappingNode):
         raise ConstructorError(
-            f"while constructing a {ret_name}",
-            node.start_mark,
+            None,
+            None,
             f"expected a mapping node, but found {node.id}",
             node.start_mark,
         )
@@ -116,20 +162,28 @@ def parse_dict(
                 f"unexpected key {key}",
                 k.start_mark,
             )
-        if v.tag in (
+        item_ctor = keys[key]
+        if isinstance(item_ctor, SimpleCompound):
+            value = item_ctor.construct(ctor, v)
+        elif v.tag in (
             "tag:yaml.org,2002:bool",
             "tag:yaml.org,2002:int",
             "tag:yaml.org,2002:float",
         ):
-            value = str(ctor.construct_object(v))
+            value = item_ctor(str(ctor.construct_object(v)))
         else:
-            value = ctor.construct_scalar(v)
-        data[key.replace("-", "_")] = keys[key](value)
+            value = item_ctor(ctor.construct_scalar(v))
+        data[key.replace("-", "_")] = value
     optional_fields = {}
     found_fields = extra.keys() | data.keys()
     for f in dataclasses.fields(res_type):
         if f.name not in found_fields:
-            optional_fields[f.name] = keys[f.name.replace('_', '-')](None)
+            key = f.name.replace("_", "-")
+            item_ctor = keys[key]
+            if isinstance(item_ctor, SimpleCompound):
+                optional_fields[f.name] = None
+            else:
+                optional_fields[f.name] = item_ctor(None)
     return res_type(**extra, **data, **optional_fields)
 
 
@@ -167,45 +221,38 @@ yaml.SafeLoader.add_path_resolver("flow:volumes", [(dict, "volumes")])
 yaml.SafeLoader.add_constructor("flow:volumes", parse_volumes)
 
 
-IMAGE = t.Dict(
-    {
-        t.Key("uri"): URI,
-        OptKey("context"): LocalPath,
-        OptKey("dockerfile"): LocalPath,
-        OptKey("build-args"): t.List(t.String()),
-    }
-)
-
-
-def parse_image(id: str, data: Dict[str, Any]) -> ast.Image:
-    return ast.Image(
-        id=id,
-        uri=URIExpr(data["uri"]),
-        context=OptLocalPathExpr(data.get("context")),
-        dockerfile=OptLocalPathExpr(data.get("dockerfile")),
-        build_args=[StrExpr(v) for v in data.get("build-args", [])],
+def parse_image(ctor: SafeConstructor, id: str, node: yaml.MappingNode) -> ast.Image:
+    # uri -> URL
+    # context -> LocalPath [None]
+    # dockerfile -> LocalPath [None]
+    # build-args -> List[str] [None]
+    return parse_dict(
+        ctor,
+        node,
+        {
+            "uri": URIExpr,
+            "context": OptLocalPathExpr,
+            "dockerfile": OptLocalPathExpr,
+            "build-args": SimpleSeq(StrExpr),
+        },
+        {"id": id},
+        ast.Image,
     )
 
 
-EXEC_UNIT = t.Dict(
-    {
-        OptKey("title"): t.String,
-        OptKey("name"): t.String,
-        t.Key("image"): t.String,
-        OptKey("preset"): t.String,
-        OptKey("entrypoint"): t.String,
-        OptKey("cmd"): t.String,
-        OptKey("bash"): t.String,
-        OptKey("python"): t.String,
-        OptKey("workdir"): RemotePath,
-        t.Key("env", default=dict): t.Mapping(t.String, t.String),
-        t.Key("volumes", default=list): t.List(t.String),
-        t.Key("tags", default=list): t.List(t.String),
-        OptKey("life-span"): Expr | LIFE_SPAN,
-        OptKey("http-port"): Expr | t.Int & str,
-        OptKey("http-auth"): Expr | t.Bool & str,
-    }
-)
+def parse_images(
+    ctor: SafeConstructor, node: yaml.MappingNode
+) -> Dict[str, ast.Volume]:
+    ret = {}
+    for k, v in node.value:
+        key = ctor.construct_scalar(k)
+        value = parse_image(ctor, key, v)
+        ret[key] = value
+    return ret
+
+
+yaml.SafeLoader.add_path_resolver("flow:images", [(dict, "images")])
+yaml.SafeLoader.add_constructor("flow:images", parse_images)
 
 
 def check_exec_unit(dct: Dict[str, Any]) -> Dict[str, Any]:
@@ -215,95 +262,73 @@ def check_exec_unit(dct: Dict[str, Any]) -> Dict[str, Any]:
     return dct
 
 
-def parse_exec_unit(id: str, data: Dict[str, Any]) -> Dict[str, Any]:
-    cmd_expr = OptStrExpr(data.get("cmd"))
-    bash = data.get("bash")
-    if bash is not None:
-        cmd_expr = OptBashExpr(bash)
-    python = data.get("python")
-    if python is not None:
-        cmd_expr = OptPythonExpr(python)
-    return dict(
-        id=id,
-        title=OptStrExpr(data.get("title")),
-        name=OptStrExpr(data.get("name")),
-        image=StrExpr(data["image"]),
-        preset=OptStrExpr(data.get("preset")),
-        entrypoint=OptStrExpr(data.get("entrypoint")),
-        cmd=cmd_expr,
-        workdir=OptRemotePathExpr(data.get("workdir")),
-        env={str(k): StrExpr(v) for k, v in data["env"].items()},
-        volumes=[StrExpr(v) for v in data["volumes"]],
-        tags={StrExpr(t) for t in data["tags"]},
-        life_span=OptFloatExpr(data.get("life-span")),
-        http_port=OptIntExpr(data.get("http-port")),
-        http_auth=OptBoolExpr(data.get("http-auth")),
+EXEC_UNIT = {
+    "title": OptStrExpr,
+    "name": OptStrExpr,
+    "image": StrExpr,
+    "preset": OptStrExpr,
+    "entrypoint": OptStrExpr,
+    "cmd": OptStrExpr,
+    "bash": OptStrExpr,
+    "python": OptStrExpr,
+    "workdir": OptRemotePathExpr,
+    "env": SimpleMapping(StrExpr),
+    "volumes": SimpleSeq(StrExpr),
+    "tags": SimpleSet(StrExpr),
+    "life-span": OptLifeSpanExpr,
+    "http-port": OptIntExpr,
+    "http-auth": OptBoolExpr,
+}
+
+JOB = {"detach": OptBoolExpr, "browse": OptBoolExpr, **EXEC_UNIT}
+
+
+def parse_job(ctor: SafeConstructor, id: str, node: yaml.MappingNode) -> ast.Job:
+    return parse_dict(ctor, node, JOB, {"id": id}, ast.Job)
+
+
+def parse_jobs(ctor: SafeConstructor, node: yaml.MappingNode) -> Dict[str, ast.Volume]:
+    ret = {}
+    for k, v in node.value:
+        key = ctor.construct_scalar(k)
+        value = parse_job(ctor, key, v)
+        ret[key] = value
+    return ret
+
+
+yaml.SafeLoader.add_path_resolver("flow:jobs", [(dict, "jobs")])
+yaml.SafeLoader.add_constructor("flow:jobs", parse_jobs)
+
+
+def parse_flow_defaults(
+    ctor: SafeConstructor, node: yaml.MappingNode
+) -> ast.FlowDefaults:
+    return parse_dict(
+        ctor,
+        node,
+        {
+            "tags": SimpleSet(StrExpr),
+            "env": SimpleMapping(StrExpr),
+            "workdir": OptRemotePathExpr,
+            "life-span": OptLifeSpanExpr,
+            "preset": OptStrExpr,
+        },
+        {},
+        ast.FlowDefaults,
     )
 
 
-JOB = t.WithRepr(
-    t.OnError(
-        EXEC_UNIT.merge(
-            t.Dict(
-                {
-                    t.Key("detach", default=False): t.Bool & str,
-                    t.Key("browse", default=False): t.Bool & str,
-                }
-            )
-        )
-        & check_exec_unit,
-        "keys 'cmd', 'bash' and 'python' are mutually exclusive",
-        code="mutually_exclusive_keys",
-    ),
-    "<JOB>",
-)
-
-
-def parse_job(id: str, data: Dict[str, Any]) -> ast.Job:
-    return ast.Job(
-        detach=BoolExpr(data["detach"]),
-        browse=BoolExpr(data["browse"]),
-        **parse_exec_unit(id, data),
-    )
-
-
-FLOW_DEFAULTS = t.Dict(
-    {
-        t.Key("tags", default=list): t.List(t.String),
-        t.Key("env", default=dict): t.Mapping(t.String, t.String),
-        OptKey("workdir"): RemotePath,
-        OptKey("life-span"): LIFE_SPAN,
-        OptKey("preset"): t.String,
-    }
-)
-
-
-def parse_flow_defaults(data: Optional[Dict[str, Any]]) -> ast.FlowDefaults:
-    if data is None:
-        return ast.FlowDefaults(
-            tags=set(),
-            env={},
-            workdir=OptRemotePathExpr(None),
-            life_span=OptFloatExpr(None),
-            preset=OptStrExpr(None),
-        )
-    return ast.FlowDefaults(
-        tags={StrExpr(t) for t in data["tags"]},
-        env={str(k): StrExpr(v) for k, v in data["env"].items()},
-        workdir=OptRemotePathExpr(data.get("workdir")),
-        life_span=OptFloatExpr(data.get("life-span")),
-        preset=OptStrExpr(data.get("preset")),
-    )
-
+yaml.SafeLoader.add_path_resolver("flow:defaults", [(dict, "defaults")])
+yaml.SafeLoader.add_constructor("flow:defaults", parse_flow_defaults)
 
 BASE_FLOW = t.Dict(
     {
         t.Key("kind"): t.String,
         OptKey("id"): t.String,
         OptKey("title"): t.String,
-        t.Key("images", default=dict): t.Mapping(t.String, IMAGE),
-        t.Key("volumes", default=dict): t.Mapping(t.String, t.Type(ast.Volume)),
-        OptKey("defaults"): FLOW_DEFAULTS,
+        OptKey("images"): t.Mapping(t.String, t.Type(ast.Image)),
+        OptKey("volumes"): t.Mapping(t.String, t.Type(ast.Volume)),
+        OptKey("defaults"): t.Type(ast.FlowDefaults),
     }
 )
 
@@ -316,15 +341,15 @@ def parse_base_flow(
         workspace=workspace,
         kind=ast.Kind(data["kind"]),
         title=OptStrExpr(data.get("title")),
-        images={
-            str(id): parse_image(str(id), image) for id, image in data["images"].items()
-        },
-        volumes=data.get("volumes", {}),
-        defaults=parse_flow_defaults(data.get("defaults")),
+        images=data.get("images"),
+        volumes=data.get("volumes"),
+        defaults=data.get("defaults"),
     )
 
 
-INTERACTIVE_FLOW = BASE_FLOW.merge(t.Dict({t.Key("jobs"): t.Mapping(t.String, JOB)}))
+INTERACTIVE_FLOW = BASE_FLOW.merge(
+    t.Dict({t.Key("jobs"): t.Mapping(t.String, t.Type(ast.Job))})
+)
 
 
 def _parse_interactive(
@@ -332,9 +357,8 @@ def _parse_interactive(
 ) -> ast.InteractiveFlow:
     data = INTERACTIVE_FLOW(data)
     assert data["kind"] == ast.Kind.JOB.value
-    jobs = {str(id): parse_job(str(id), job) for id, job in data["jobs"].items()}
     return ast.InteractiveFlow(
-        jobs=jobs, **parse_base_flow(workspace, default_id, data)
+        jobs=data["jobs"], **parse_base_flow(workspace, default_id, data)
     )
 
 

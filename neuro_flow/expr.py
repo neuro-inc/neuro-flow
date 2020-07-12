@@ -3,6 +3,7 @@
 
 import abc
 import dataclasses
+import datetime
 import inspect
 import json
 import re
@@ -584,6 +585,26 @@ class FloatExpr(FloatExprMixin, StrictExpr[float]):
 
 class OptFloatExpr(FloatExprMixin, Expr[float]):
     pass
+
+
+class OptLifeSpanExpr(OptFloatExpr):
+    RE = re.compile(r"^((?P<d>\d+)d)?((?P<h>\d+)h)?((?P<m>\d+)m)?((?P<s>\d+)s)?$")
+
+    @classmethod
+    def convert(cls, arg: str) -> float:
+        try:
+            return float(literal_eval(arg))
+        except (ValueError, SyntaxError):
+            match = cls.RE.match(arg)
+            if match is None:
+                raise ValueError(f"{arg} is not a life span")
+                td = datetime.timedelta(
+                    days=int(match.group("d") or 0),
+                    hours=int(match.group("h") or 0),
+                    minutes=int(match.group("m") or 0),
+                    seconds=int(match.group("s") or 0),
+                )
+                return td.total_seconds()
 
 
 class LocalPathMixin:

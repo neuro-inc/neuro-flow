@@ -6,8 +6,8 @@ from typing import AbstractSet, List, Mapping, Sequence
 from .expr import (
     BoolExpr,
     OptBoolExpr,
-    OptFloatExpr,
     OptIntExpr,
+    OptLifeSpanExpr,
     OptLocalPathExpr,
     OptRemotePathExpr,
     OptStrExpr,
@@ -57,7 +57,7 @@ class ExecUnit:
     env: Mapping[str, StrExpr]
     volumes: Sequence[StrExpr]  # Sequence[VolumeRef]
     tags: AbstractSet[StrExpr]
-    life_span: OptFloatExpr
+    life_span: OptLifeSpanExpr
     http_port: OptIntExpr
     http_auth: OptBoolExpr
 
@@ -88,7 +88,7 @@ class Step(ExecUnit):
     env: Mapping[str, StrExpr]
     working_directory: OptStrExpr
 
-    life_span: OptFloatExpr
+    life_span: OptLifeSpanExpr
     # continue_on_error: bool
     # if: str -- skip conditionally
 
@@ -119,7 +119,7 @@ class Batch:
     env: Mapping[str, StrExpr]
     workdir: OptRemotePathExpr
 
-    life_span: OptFloatExpr
+    life_span: OptLifeSpanExpr
     # continue_on_error: bool
     # if: str -- skip conditionally
 
@@ -131,7 +131,7 @@ class FlowDefaults:
     env: Mapping[str, StrExpr]
     workdir: OptRemotePathExpr
 
-    life_span: OptFloatExpr
+    life_span: OptLifeSpanExpr
 
     preset: OptStrExpr
 
