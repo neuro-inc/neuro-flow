@@ -7,19 +7,17 @@
 
 import abc
 import dataclasses
-import datetime
-import re
 from functools import partial
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 from typing import (
     AbstractSet,
     Any,
+    Callable,
     Dict,
     Generic,
     Mapping,
     Optional,
     Sequence,
-    TextIO,
     Type,
     TypeVar,
     Union,
@@ -28,15 +26,12 @@ from typing import (
 import trafaret as t
 import yaml
 from yaml.constructor import ConstructorError, SafeConstructor
-from yarl import URL
 
 from . import ast
 from .expr import (
-    BoolExpr,
     Expr,
     OptBashExpr,
     OptBoolExpr,
-    OptFloatExpr,
     OptIntExpr,
     OptLifeSpanExpr,
     OptLocalPathExpr,
@@ -78,83 +73,93 @@ OptKey = partial(t.Key, optional=True)
 
 
 class SimpleCompound(Generic[_T, _Cont], abc.ABC):
+    def __init__(self, factory: Callable[[str], _T]) -> None:
+        self._factory = factory
+
     @abc.abstractmethod
     def construct(self, ctor: SafeConstructor, node: yaml.Node) -> _Cont:
         pass
 
 
 class SimpleSeq(SimpleCompound[_T, Sequence[_T]]):
-    def __init__(self, item: Type[_T]) -> None:
-        self._item = item
-
-    def construct(self, ctor: SafeConstructor, node: yaml.SequenceNode) -> Sequence[_T]:
+    def construct(self, ctor: SafeConstructor, node: yaml.Node) -> Sequence[_T]:
         if not isinstance(node, yaml.SequenceNode):
+            node_id = node.id  # type: ignore
             raise ConstructorError(
                 None,
                 None,
-                f"expected a sequence node, but found {node.id}",
+                f"expected a sequence node, but found {node_id}",
                 node.start_mark,
             )
-        return [self._item(ctor.construct_object(child)) for child in node.value]
+        ret = []
+        for child in node.value:
+            val = ctor.construct_object(child)  # type: ignore[no-untyped-call]
+            ret.append(self._factory(val))
+        return ret
 
 
 class SimpleSet(SimpleCompound[_T, AbstractSet[_T]]):
-    def __init__(self, item: Type[_T]) -> None:
-        self._item = item
-
-    def construct(
-        self, ctor: SafeConstructor, node: yaml.SequenceNode
-    ) -> AbstractSet[_T]:
+    def construct(self, ctor: SafeConstructor, node: yaml.Node) -> AbstractSet[_T]:
         if not isinstance(node, yaml.SequenceNode):
+            node_id = node.id  # type: ignore
             raise ConstructorError(
                 None,
                 None,
-                f"expected a sequence node, but found {node.id}",
+                f"expected a sequence node, but found {node_id}",
                 node.start_mark,
             )
-        return {self._item(ctor.construct_object(child)) for child in node.value}
+        ret = set()
+        for child in node.value:
+            val = ctor.construct_object(child)  # type: ignore[no-untyped-call]
+            ret.add(self._factory(val))
+        return ret
 
 
 class SimpleMapping(SimpleCompound[_T, Mapping[str, _T]]):
-    def __init__(self, item: Type[_T]) -> None:
-        self._item = item
-
-    def construct(
-        self, ctor: SafeConstructor, node: yaml.SequenceNode
-    ) -> AbstractSet[_T]:
+    def construct(self, ctor: SafeConstructor, node: yaml.Node) -> Mapping[str, _T]:
         if not isinstance(node, yaml.MappingNode):
+            node_id = node.id  # type: ignore
             raise ConstructorError(
                 None,
                 None,
-                f"expected a mapping node, but found {node.id}",
+                f"expected a mapping node, but found {node_id}",
                 node.start_mark,
             )
         ret = {}
         for k, v in node.value:
-            key = ctor.construct_scalar(k)
-            value = self._item(ctor.construct_scalar(v))
+            key = ctor.construct_scalar(k)  # type: ignore[no-untyped-call]
+            tmp = ctor.construct_scalar(v)  # type: ignore[no-untyped-call]
+            value = self._factory(tmp)
             ret[key] = value
         return ret
+
+
+ValT = Union[Type[str], Type[Expr[Any]], SimpleCompound[Any, Any]]
 
 
 def parse_dict(
     ctor: SafeConstructor,
     node: yaml.MappingNode,
-    keys: Mapping[str, Union[Type[str], Type[Expr]]],
-    extra: Mapping[str, Union[str]],
+    keys: Mapping[str, ValT],
     res_type: Type[_T],
+    *,
+    extra: Optional[Mapping[str, Union[str]]] = None,
+    preprocess: Optional[Callable[[Dict[str, ValT]], Dict[str, ValT]]] = None,
 ) -> _T:
+    if extra is None:
+        extra = {}
     ret_name = res_type.__name__
     if not isinstance(node, yaml.MappingNode):
+        node_id = node.id
         raise ConstructorError(
             None,
             None,
-            f"expected a mapping node, but found {node.id}",
+            f"expected a mapping node, but found {node_id}",
             node.start_mark,
         )
     data = {}
     for k, v in node.value:
-        key = ctor.construct_scalar(k)
+        key = ctor.construct_scalar(k)  # type: ignore[no-untyped-call]
         if key not in keys:
             raise ConstructorError(
                 f"while constructing a {ret_name}",
@@ -176,7 +181,11 @@ def parse_dict(
             tmp = ctor.construct_scalar(v)  # type: ignore[no-untyped-call]
             value = item_ctor(tmp)
         data[key.replace("-", "_")] = value
-    optional_fields = {}
+
+    if preprocess is not None:
+        data = preprocess(data)
+
+    optional_fields: Dict[str, Any] = {}
     found_fields = extra.keys() | data.keys()
     for f in dataclasses.fields(res_type):
         if f.name not in found_fields:
@@ -186,7 +195,7 @@ def parse_dict(
                 optional_fields[f.name] = None
             else:
                 optional_fields[f.name] = item_ctor(None)
-    return res_type(**extra, **data, **optional_fields)
+    return res_type(**extra, **data, **optional_fields)  # type: ignore[call-arg]
 
 
 def parse_volume(ctor: SafeConstructor, id: str, node: yaml.MappingNode) -> ast.Volume:
@@ -203,8 +212,8 @@ def parse_volume(ctor: SafeConstructor, id: str, node: yaml.MappingNode) -> ast.
             "read-only": OptBoolExpr,
             "local": OptLocalPathExpr,
         },
-        {"id": id},
         ast.Volume,
+        extra={"id": id},
     )
 
 
@@ -213,7 +222,7 @@ def parse_volumes(
 ) -> Dict[str, ast.Volume]:
     ret = {}
     for k, v in node.value:
-        key = ctor.construct_scalar(k)
+        key = ctor.construct_scalar(k)  # type: ignore[no-untyped-call]
         value = parse_volume(ctor, key, v)
         ret[key] = value
     return ret
@@ -237,15 +246,15 @@ def parse_image(ctor: SafeConstructor, id: str, node: yaml.MappingNode) -> ast.I
             "dockerfile": OptLocalPathExpr,
             "build-args": SimpleSeq(StrExpr),
         },
-        {"id": id},
         ast.Image,
+        extra={"id": id},
     )
 
 
 def parse_images(ctor: SafeConstructor, node: yaml.MappingNode) -> Dict[str, ast.Image]:
     ret = {}
     for k, v in node.value:
-        key = ctor.construct_scalar(k)
+        key = ctor.construct_scalar(k)  # type: ignore[no-untyped-call]
         value = parse_image(ctor, key, v)
         ret[key] = value
     return ret
@@ -255,13 +264,6 @@ yaml.SafeLoader.add_path_resolver("flow:images", [(dict, "images")])  # type: ig
 yaml.SafeLoader.add_constructor("flow:images", parse_images)  # type: ignore
 
 
-def check_exec_unit(dct: Dict[str, Any]) -> Dict[str, Any]:
-    found = sum(1 for k in dct if k in ("cmd", "bash", "python"))
-    if found > 1:
-        raise t.DataError
-    return dct
-
-
 EXEC_UNIT = {
     "title": OptStrExpr,
     "name": OptStrExpr,
@@ -269,8 +271,8 @@ EXEC_UNIT = {
     "preset": OptStrExpr,
     "entrypoint": OptStrExpr,
     "cmd": OptStrExpr,
-    "bash": OptStrExpr,
-    "python": OptStrExpr,
+    "bash": OptBashExpr,
+    "python": OptPythonExpr,
     "workdir": OptRemotePathExpr,
     "env": SimpleMapping(StrExpr),
     "volumes": SimpleSeq(StrExpr),
@@ -280,17 +282,36 @@ EXEC_UNIT = {
     "http-auth": OptBoolExpr,
 }
 
-JOB = {"detach": OptBoolExpr, "browse": OptBoolExpr, **EXEC_UNIT}
+JOB = {"detach": OptBoolExpr, "browse": OptBoolExpr, **EXEC_UNIT}  # type: ignore
+
+
+def preproc_job(dct: Dict[str, Any]) -> Dict[str, Any]:
+    ret = dct.copy()
+    found = {k for k in ret if k in ("cmd", "bash", "python")}
+    if len(found) > 1:
+        raise ValueError(f"{','.join(found)} are mutually exclusive")
+
+    bash = ret.pop("bash", None)
+    if bash is not None:
+        ret["cmd"] = bash
+
+    python = ret.pop("python", None)
+    if python is not None:
+        ret["cmd"] = python
+
+    return ret
 
 
 def parse_job(ctor: SafeConstructor, id: str, node: yaml.MappingNode) -> ast.Job:
-    return parse_dict(ctor, node, JOB, {"id": id}, ast.Job)
+    return parse_dict(
+        ctor, node, JOB, ast.Job, extra={"id": id}, preprocess=preproc_job
+    )
 
 
 def parse_jobs(ctor: SafeConstructor, node: yaml.MappingNode) -> Dict[str, ast.Job]:
     ret = {}
     for k, v in node.value:
-        key = ctor.construct_scalar(k)
+        key = ctor.construct_scalar(k)  # type: ignore[no-untyped-call]
         value = parse_job(ctor, key, v)
         ret[key] = value
     return ret
@@ -313,7 +334,6 @@ def parse_flow_defaults(
             "life-span": OptLifeSpanExpr,
             "preset": OptStrExpr,
         },
-        {},
         ast.FlowDefaults,
     )
 

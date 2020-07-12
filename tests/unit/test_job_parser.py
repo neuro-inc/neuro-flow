@@ -2,12 +2,12 @@ import pathlib
 
 from neuro_flow import ast
 from neuro_flow.expr import (
-    BoolExpr,
+    OptBashExpr,
     OptBoolExpr,
-    OptFloatExpr,
     OptIntExpr,
     OptLifeSpanExpr,
     OptLocalPathExpr,
+    OptPythonExpr,
     OptRemotePathExpr,
     OptStrExpr,
     RemotePathExpr,
@@ -110,6 +110,72 @@ def test_parse_full(assets: pathlib.Path) -> None:
                 browse=OptBoolExpr("True"),
                 http_port=OptIntExpr("8080"),
                 http_auth=OptBoolExpr("False"),
+            )
+        },
+    )
+
+
+def test_parse_bash(assets: pathlib.Path) -> None:
+    flow = parse_interactive(assets, assets / "jobs-bash.yml")
+    assert flow == ast.InteractiveFlow(
+        id="jobs-bash",
+        workspace=assets,
+        kind=ast.Kind.JOB,
+        title=OptStrExpr(None),
+        images=None,
+        volumes=None,
+        defaults=None,
+        jobs={
+            "test": ast.Job(
+                id="test",
+                name=OptStrExpr(None),
+                image=StrExpr("ubuntu"),
+                preset=OptStrExpr(None),
+                entrypoint=OptStrExpr(None),
+                cmd=OptBashExpr("echo abc\necho def\n"),
+                workdir=OptRemotePathExpr(None),
+                env=None,
+                volumes=None,
+                tags=None,
+                life_span=OptLifeSpanExpr(None),
+                title=OptStrExpr(None),
+                detach=OptBoolExpr(None),
+                browse=OptBoolExpr(None),
+                http_port=OptIntExpr(None),
+                http_auth=OptBoolExpr(None),
+            )
+        },
+    )
+
+
+def test_parse_python(assets: pathlib.Path) -> None:
+    flow = parse_interactive(assets, assets / "jobs-python.yml")
+    assert flow == ast.InteractiveFlow(
+        id="jobs-python",
+        workspace=assets,
+        kind=ast.Kind.JOB,
+        title=OptStrExpr(None),
+        images=None,
+        volumes=None,
+        defaults=None,
+        jobs={
+            "test": ast.Job(
+                id="test",
+                name=OptStrExpr(None),
+                image=StrExpr("ubuntu"),
+                preset=OptStrExpr(None),
+                entrypoint=OptStrExpr(None),
+                cmd=OptPythonExpr("import sys\nprint(sys.argv)\n"),
+                workdir=OptRemotePathExpr(None),
+                env=None,
+                volumes=None,
+                tags=None,
+                life_span=OptLifeSpanExpr(None),
+                title=OptStrExpr(None),
+                detach=OptBoolExpr(None),
+                browse=OptBoolExpr(None),
+                http_port=OptIntExpr(None),
+                http_auth=OptBoolExpr(None),
             )
         },
     )

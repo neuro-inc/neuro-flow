@@ -1,0 +1,7 @@
+kind: job
+jobs:
+  test:
+    bash: |
+      echo abc
+      echo def
+    image: ubuntu

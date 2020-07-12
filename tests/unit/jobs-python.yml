@@ -1,0 +1,7 @@
+kind: job
+jobs:
+  test:
+    python: |
+      import sys
+      print(sys.argv)
+    image: ubuntu
