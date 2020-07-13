@@ -162,8 +162,13 @@ class SimpleMapping(SimpleCompound[_T, Mapping[str, _T]]):
         return ret
 
 
-ArgT = Union[
-    None, Type[str], Type[Expr[Any]], SimpleCompound[Any, Any], Callable[..., ast.Base]
+KeyT = Union[
+    None,
+    Type[str],
+    Type[Expr[Any]],
+    SimpleCompound[Any, Any],
+    Callable[..., ast.Base],
+    Type[ast.Kind],
 ]
 VarT = Union[
     str,
@@ -181,7 +186,7 @@ _AstType = TypeVar("_AstType", bound=ast.Base)
 def parse_dict(
     ctor: ConfigConstructor,
     node: yaml.MappingNode,
-    keys: Mapping[str, ArgT],
+    keys: Mapping[str, KeyT],
     res_type: Type[_AstType],
     *,
     ret_name: Optional[str] = None,
@@ -215,11 +220,15 @@ def parse_dict(
                 f"unexpected key {key}",
                 k.start_mark,
             )
-        item_ctor = keys[key]
+        item_ctor: KeyT = keys[key]
+        tmp: Any
         value: VarT
         if item_ctor is None:
             # Get constructor from tag
             value = ctor.construct_object(v)  # type: ignore[no-untyped-call]
+        elif item_ctor is ast.Kind:
+            tmp = str(ctor.construct_object(v))  # type: ignore[no-untyped-call]
+            value = item_ctor(tmp)  # type: ignore[operator]
         elif isinstance(item_ctor, ast.Base):
             assert isinstance(
                 v, ast.Base
@@ -227,20 +236,24 @@ def parse_dict(
             value = v
         elif isinstance(item_ctor, SimpleCompound):
             value = item_ctor.construct(ctor, v)
-        elif v.tag in (
-            "tag:yaml.org,2002:null",
-            "tag:yaml.org,2002:bool",
-            "tag:yaml.org,2002:int",
-            "tag:yaml.org,2002:float",
-            "tag:yaml.org,2002:str",
-        ):
-            tmp = str(ctor.construct_object(v))  # type: ignore[no-untyped-call]
+        elif isinstance(item_ctor, str):
+            assert v.tag in (
+                "tag:yaml.org,2002:null",
+                "tag:yaml.org,2002:bool",
+                "tag:yaml.org,2002:int",
+                "tag:yaml.org,2002:float",
+                "tag:yaml.org,2002:str",
+            )
+            tmp = str(ctor.construct_object(v))
             value = item_ctor(tmp)
+        elif isinstance(item_ctor, type) and issubclass(item_ctor, Expr):
+            tmp = str(ctor.construct_object(v))  # type: ignore[no-untyped-call]
+            value = item_ctor(tmp, start=mark2pos(v.start_mark))
         else:
             raise ConstructorError(
                 f"while constructing a {ret_name}",
                 node.start_mark,
-                f"unexpected value tag {v.tag}",
+                f"unexpected value tag {v.tag} for key {key}[{item_ctor}]",
                 k.start_mark,
             )
         data[key.replace("-", "_")] = value
@@ -415,18 +428,13 @@ Loader.add_constructor("flow:defaults", parse_flow_defaults)  # type: ignore
 
 
 BASE_FLOW = {
-    "kind": str,
+    "kind": ast.Kind,
     "id": str,
     "title": OptStrExpr,
     "images": None,
     "volumes": None,
     "defaults": None,
 }
-
-
-def preproc_flow(ctor: ConfigConstructor, arg: Dict[str, VarT]) -> Dict[str, VarT]:
-    arg["kind"] = ast.Kind(arg["kind"])
-    return arg
 
 
 def find_res_type(
@@ -449,7 +457,6 @@ def parse_main(ctor: ConfigConstructor, node: yaml.MappingNode) -> ast.BaseFlow:
         node,
         INTERACTIVE_FLOW,
         ast.BaseFlow,
-        preprocess=preproc_flow,
         find_res_type=find_res_type,
         extra={"id": ctor._id, "workspace": ctor._workspace},
     )

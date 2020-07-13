@@ -96,7 +96,7 @@ class EvalLookupError(EvalErrorMixin, LookupError):
     pass
 
 
-def make_tokenizer() -> Callable[[str], Iterator[Token]]:
+class Tokenizer:
 
     TOKENS = [
         ("LTMPL", re.compile(r"\$\{\{")),
@@ -121,7 +121,7 @@ def make_tokenizer() -> Callable[[str], Iterator[Token]]:
         ("RSQB", re.compile(r"\]")),
     ]
 
-    def make_token(typ: str, value: str, line: int, pos: int) -> Token:
+    def make_token(self, typ: str, value: str, line: int, pos: int) -> Token:
         nls = value.count("\n")
         n_line = line + nls
         if nls == 0:
@@ -130,17 +130,17 @@ def make_tokenizer() -> Callable[[str], Iterator[Token]]:
             n_pos = len(value) - value.rfind("\n") - 1
         return Token(typ, value, (line, pos), (n_line, n_pos))
 
-    def match_specs(s: str, i: int, position: Pos) -> Token:
+    def match_specs(self, s: str, i: int, position: Pos) -> Token:
         line, pos = position
-        for typ, regexp in TOKENS:
+        for typ, regexp in self.TOKENS:
             m = regexp.match(s, i)
             if m is not None:
-                return make_token(typ, m.group(), line, pos)
+                return self.make_token(typ, m.group(), line, pos)
         else:
             errline = s.splitlines()[line]
             raise LexerError((line, pos), errline)
 
-    def match_text(s: str, i: int, position: Pos) -> Token:
+    def match_text(self, s: str, i: int, position: Pos) -> Token:
         ltmpl = s.find("${{", i)
         if ltmpl == i:
             return None
@@ -152,36 +152,34 @@ def make_tokenizer() -> Callable[[str], Iterator[Token]]:
         line, pos = position
         err_pos = substr.find("}}")
         if err_pos != -1:
-            t = make_token("TEXT", substr[:err_pos], line, pos)
+            t = self.make_token("TEXT", substr[:err_pos], line, pos)
             line, pos = t.end
             errline = s.splitlines()[line]
             raise LexerError((line, pos), errline)
-        return make_token("TEXT", substr, line, pos)
+        return self.make_token("TEXT", substr, line, pos)
 
-    def f(s: str) -> Iterator[Token]:
+    def __call__(self, s: str, *, start: Pos = (0, 0)) -> Iterator[Token]:
         in_expr = False
         length = len(s)
-        line, pos = 0, 0
+        line, pos = start
         i = 0
         while i < length:
             if in_expr:
-                t = match_specs(s, i, (line, pos))
+                t = self.match_specs(s, i, (line, pos))
                 if t.type == "RTMPL":
                     in_expr = False
             else:
-                t = match_text(s, i, (line, pos))
+                t = self.match_text(s, i, (line, pos))
                 if not t:
                     in_expr = True
-                    t = match_specs(s, i, (line, pos))
+                    t = self.match_specs(s, i, (line, pos))
             if t.type != "SPACE":
                 yield t
             line, pos = t.end
             i += len(t.value)
 
-    return f
 
-
-tokenize = make_tokenizer()
+tokenize = Tokenizer()
 
 
 @dataclasses.dataclass(frozen=True)
@@ -460,12 +458,12 @@ class Expr(Generic[_T]):
         # implementation for StrExpr and OptStrExpr
         return cast(_T, arg)
 
-    def __init__(self, pattern: Optional[str]) -> None:
+    def __init__(self, pattern: Optional[str], *, start: Pos = (0, 0)) -> None:
         self._pattern = pattern
         # precalculated value for constant string, allows raising errors earlier
         self._ret: Optional[_T] = None
         if pattern is not None:
-            tokens = list(tokenize(pattern))
+            tokens = list(tokenize(pattern, start=start))
             self._parsed: Optional[Sequence[Item]] = PARSER.parse(tokens)
             assert self._parsed is not None
             if len(self._parsed) == 1 and type(self._parsed[0]) == Text:
