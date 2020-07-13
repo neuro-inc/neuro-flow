@@ -1,6 +1,6 @@
 # Dataclasses
 import enum
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import AbstractSet, List, Mapping, Optional, Sequence
 
 from .expr import (
@@ -20,8 +20,8 @@ from .types import LocalPath
 
 @dataclass(frozen=True)
 class Base:
-    _start: Pos = field(compare=False)
-    _end: Pos = field(compare=False)
+    _start: Pos
+    _end: Pos
 
 
 # There are 'batch' for pipelined mode and 'job' for interactive one

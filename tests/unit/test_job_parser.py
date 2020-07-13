@@ -22,8 +22,8 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
     config_file = workspace / ".neuro" / "jobs.yml"
     flow = parse_interactive(workspace, config_file)
     assert flow == ast.InteractiveFlow(
-        None,
-        None,
+        (0, 0),
+        (5, 0),
         id="jobs-minimal",
         workspace=workspace,
         kind=ast.Kind.JOB,
@@ -33,8 +33,8 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
         defaults=None,
         jobs={
             "test": ast.Job(
-                None,
-                None,
+                (3, 4),
+                (5, 0),
                 id="test",
                 name=OptStrExpr(None),
                 image=StrExpr("ubuntu"),
@@ -61,16 +61,16 @@ def test_parse_full(assets: pathlib.Path) -> None:
     config_file = workspace / ".neuro" / "jobs.yml"
     flow = parse_interactive(workspace, config_file)
     assert flow == ast.InteractiveFlow(
-        None,
-        None,
+        (0, 0),
+        (49, 0),
         id="jobs-full",
         workspace=workspace,
         kind=ast.Kind.JOB,
         title=OptStrExpr("Global title"),
         images={
             "image_a": ast.Image(
-                None,
-                None,
+                (4, 4),
+                (11, 0),
                 id="image_a",
                 uri=URIExpr("image:banana"),
                 context=OptLocalPathExpr("dir/context"),
@@ -80,8 +80,8 @@ def test_parse_full(assets: pathlib.Path) -> None:
         },
         volumes={
             "volume_a": ast.Volume(
-                None,
-                None,
+                (13, 4),
+                (17, 2),
                 id="volume_a",
                 uri=URIExpr("storage:dir"),
                 mount=RemotePathExpr("/var/dir"),
@@ -89,8 +89,8 @@ def test_parse_full(assets: pathlib.Path) -> None:
                 local=OptLocalPathExpr("dir"),
             ),
             "volume_b": ast.Volume(
-                None,
-                None,
+                (18, 4),
+                (20, 0),
                 id="volume_b",
                 uri=URIExpr("storage:other"),
                 mount=RemotePathExpr("/var/other"),
@@ -99,8 +99,8 @@ def test_parse_full(assets: pathlib.Path) -> None:
             ),
         },
         defaults=ast.FlowDefaults(
-            None,
-            None,
+            (21, 2),
+            (28, 0),
             tags={StrExpr("tag-a"), StrExpr("tag-b")},
             env={"global_a": StrExpr("val-a"), "global_b": StrExpr("val-b")},
             workdir=OptRemotePathExpr("/global/dir"),
@@ -109,8 +109,8 @@ def test_parse_full(assets: pathlib.Path) -> None:
         ),
         jobs={
             "test-a": ast.Job(
-                None,
-                None,
+                (30, 4),
+                (49, 0),
                 id="test-a",
                 name=OptStrExpr("job-name"),
                 image=StrExpr("${{ images.image_a.ref }}"),
@@ -140,8 +140,8 @@ def test_parse_bash(assets: pathlib.Path) -> None:
     config_file = workspace / ".neuro" / "jobs.yml"
     flow = parse_interactive(workspace, config_file)
     assert flow == ast.InteractiveFlow(
-        None,
-        None,
+        (0, 0),
+        (7, 0),
         id="jobs-bash",
         workspace=workspace,
         kind=ast.Kind.JOB,
@@ -151,8 +151,8 @@ def test_parse_bash(assets: pathlib.Path) -> None:
         defaults=None,
         jobs={
             "test": ast.Job(
-                None,
-                None,
+                (3, 4),
+                (7, 0),
                 id="test",
                 name=OptStrExpr(None),
                 image=StrExpr("ubuntu"),
@@ -179,8 +179,8 @@ def test_parse_python(assets: pathlib.Path) -> None:
     config_file = workspace / ".neuro" / "jobs.yml"
     flow = parse_interactive(workspace, config_file)
     assert flow == ast.InteractiveFlow(
-        None,
-        None,
+        (0, 0),
+        (7, 0),
         id="jobs-python",
         workspace=workspace,
         kind=ast.Kind.JOB,
@@ -190,8 +190,8 @@ def test_parse_python(assets: pathlib.Path) -> None:
         defaults=None,
         jobs={
             "test": ast.Job(
-                None,
-                None,
+                (3, 4),
+                (7, 0),
                 id="test",
                 name=OptStrExpr(None),
                 image=StrExpr("ubuntu"),
