@@ -136,7 +136,7 @@ class BaseFlow(Base):
     id: str
     workspace: LocalPath
 
-    title: OptStrExpr  # explicitly set or defived from config file name.
+    title: Optional[str]
 
     # cluster: str  # really need it?
 

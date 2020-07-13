@@ -144,6 +144,7 @@ class DefaultsCtx:
 class FlowCtx:
     id: str
     workspace: LocalPath
+    title: str
 
 
 @dataclass(frozen=True)
@@ -163,7 +164,11 @@ class Context(RootABC):
 
     @classmethod
     async def create(cls, flow_ast: ast.BaseFlow) -> "Context":
-        flow = FlowCtx(id=flow_ast.id, workspace=flow_ast.workspace.resolve())
+        flow = FlowCtx(
+            id=flow_ast.id,
+            workspace=flow_ast.workspace.resolve(),
+            title=flow_ast.title or flow_ast.id,
+        )
 
         ctx = cls(
             _flow_ast=flow_ast,

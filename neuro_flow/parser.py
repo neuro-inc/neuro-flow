@@ -413,11 +413,19 @@ Loader.add_constructor("flow:defaults", parse_flow_defaults)  # type: ignore
 BASE_FLOW = {
     "kind": ast.Kind,
     "id": str,
-    "title": OptStrExpr,
+    "title": None,
     "images": None,
     "volumes": None,
     "defaults": None,
 }
+
+
+def parse_opt_str(ctor: ConfigConstructor, node: yaml.MappingNode) -> str:
+    return str(ctor.construct_scalar(node))  # type: ignore[no-untyped-call]
+
+
+Loader.add_path_resolver("flow:opt_str", [(dict, "title")])  # type: ignore
+Loader.add_constructor("flow:opt_str", parse_opt_str)  # type: ignore
 
 
 def find_res_type(
