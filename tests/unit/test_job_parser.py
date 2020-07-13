@@ -18,10 +18,14 @@ from neuro_flow.parser import parse_interactive
 
 
 def test_parse_minimal(assets: pathlib.Path) -> None:
-    flow = parse_interactive(assets, assets / "jobs-minimal.yml")
+    workspace = assets / "jobs-minimal"
+    config_file = workspace / ".neuro" / "jobs.yml"
+    flow = parse_interactive(workspace, config_file)
     assert flow == ast.InteractiveFlow(
+        None,
+        None,
         id="jobs-minimal",
-        workspace=assets,
+        workspace=workspace,
         kind=ast.Kind.JOB,
         title=OptStrExpr(None),
         images=None,
@@ -29,6 +33,8 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
         defaults=None,
         jobs={
             "test": ast.Job(
+                None,
+                None,
                 id="test",
                 name=OptStrExpr(None),
                 image=StrExpr("ubuntu"),
@@ -51,14 +57,20 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
 
 
 def test_parse_full(assets: pathlib.Path) -> None:
-    flow = parse_interactive(assets, assets / "jobs-full.yml")
+    workspace = assets / "jobs-full"
+    config_file = workspace / ".neuro" / "jobs.yml"
+    flow = parse_interactive(workspace, config_file)
     assert flow == ast.InteractiveFlow(
+        None,
+        None,
         id="jobs-full",
-        workspace=assets,
+        workspace=workspace,
         kind=ast.Kind.JOB,
         title=OptStrExpr("Global title"),
         images={
             "image_a": ast.Image(
+                None,
+                None,
                 id="image_a",
                 uri=URIExpr("image:banana"),
                 context=OptLocalPathExpr("dir/context"),
@@ -68,6 +80,8 @@ def test_parse_full(assets: pathlib.Path) -> None:
         },
         volumes={
             "volume_a": ast.Volume(
+                None,
+                None,
                 id="volume_a",
                 uri=URIExpr("storage:dir"),
                 mount=RemotePathExpr("/var/dir"),
@@ -75,6 +89,8 @@ def test_parse_full(assets: pathlib.Path) -> None:
                 local=OptLocalPathExpr("dir"),
             ),
             "volume_b": ast.Volume(
+                None,
+                None,
                 id="volume_b",
                 uri=URIExpr("storage:other"),
                 mount=RemotePathExpr("/var/other"),
@@ -83,6 +99,8 @@ def test_parse_full(assets: pathlib.Path) -> None:
             ),
         },
         defaults=ast.FlowDefaults(
+            None,
+            None,
             tags={StrExpr("tag-a"), StrExpr("tag-b")},
             env={"global_a": StrExpr("val-a"), "global_b": StrExpr("val-b")},
             workdir=OptRemotePathExpr("/global/dir"),
@@ -91,6 +109,8 @@ def test_parse_full(assets: pathlib.Path) -> None:
         ),
         jobs={
             "test-a": ast.Job(
+                None,
+                None,
                 id="test-a",
                 name=OptStrExpr("job-name"),
                 image=StrExpr("${{ images.image_a.ref }}"),
@@ -116,10 +136,14 @@ def test_parse_full(assets: pathlib.Path) -> None:
 
 
 def test_parse_bash(assets: pathlib.Path) -> None:
-    flow = parse_interactive(assets, assets / "jobs-bash.yml")
+    workspace = assets / "jobs-bash"
+    config_file = workspace / ".neuro" / "jobs.yml"
+    flow = parse_interactive(workspace, config_file)
     assert flow == ast.InteractiveFlow(
+        None,
+        None,
         id="jobs-bash",
-        workspace=assets,
+        workspace=workspace,
         kind=ast.Kind.JOB,
         title=OptStrExpr(None),
         images=None,
@@ -127,6 +151,8 @@ def test_parse_bash(assets: pathlib.Path) -> None:
         defaults=None,
         jobs={
             "test": ast.Job(
+                None,
+                None,
                 id="test",
                 name=OptStrExpr(None),
                 image=StrExpr("ubuntu"),
@@ -149,10 +175,14 @@ def test_parse_bash(assets: pathlib.Path) -> None:
 
 
 def test_parse_python(assets: pathlib.Path) -> None:
-    flow = parse_interactive(assets, assets / "jobs-python.yml")
+    workspace = assets / "jobs-python"
+    config_file = workspace / ".neuro" / "jobs.yml"
+    flow = parse_interactive(workspace, config_file)
     assert flow == ast.InteractiveFlow(
+        None,
+        None,
         id="jobs-python",
-        workspace=assets,
+        workspace=workspace,
         kind=ast.Kind.JOB,
         title=OptStrExpr(None),
         images=None,
@@ -160,6 +190,8 @@ def test_parse_python(assets: pathlib.Path) -> None:
         defaults=None,
         jobs={
             "test": ast.Job(
+                None,
+                None,
                 id="test",
                 name=OptStrExpr(None),
                 image=StrExpr("ubuntu"),

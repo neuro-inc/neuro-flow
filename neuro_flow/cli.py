@@ -29,9 +29,12 @@ def wrap_async(callback: Callable[..., Awaitable[_T]],) -> Callable[..., _T]:
 @click.group()
 @click.option(
     "--config",
-    type=click.Path(dir_okay=True, file_okay=True),
+    type=click.Path(dir_okay=True, file_okay=False),
     required=False,
-    help="Path to config file or directory with .neuro folder inside.",
+    help=(
+        "Path to a directory with .neuro folder inside, "
+        "automatic lookup is performed if not set (default)"
+    ),
     default=None,
     metavar="PATH",
 )

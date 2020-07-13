@@ -18,6 +18,7 @@ from typing import (
     Mapping,
     Optional,
     Sequence,
+    TextIO,
     Type,
     TypeVar,
     Union,
@@ -25,7 +26,12 @@ from typing import (
 
 import trafaret as t
 import yaml
+from yaml.composer import Composer
 from yaml.constructor import ConstructorError, SafeConstructor
+from yaml.parser import Parser
+from yaml.reader import Reader
+from yaml.resolver import Resolver
+from yaml.scanner import Scanner
 
 from . import ast
 from .expr import (
@@ -38,11 +44,12 @@ from .expr import (
     OptPythonExpr,
     OptRemotePathExpr,
     OptStrExpr,
+    Pos,
     RemotePathExpr,
     StrExpr,
     URIExpr,
 )
-from .types import LocalPath as LocalPathT
+from .types import LocalPath
 
 
 _T = TypeVar("_T")
@@ -51,14 +58,35 @@ _Cont = TypeVar("_Cont")
 
 @dataclasses.dataclass
 class ConfigPath:
-    workspace: LocalPathT
-    config_file: LocalPathT
+    workspace: LocalPath
+    config_file: LocalPath
+
+
+class ConfigConstructor(SafeConstructor):
+    def __init__(self, id: str, workspace: LocalPath) -> None:
+        super().__init__()
+        self._id = id
+        self._workspace = workspace
+
+
+class Loader(Reader, Scanner, Parser, Composer, ConfigConstructor, Resolver):
+    def __init__(self, stream: TextIO, id: str, workspace: LocalPath) -> None:
+        Reader.__init__(self, stream)
+        Scanner.__init__(self)
+        Parser.__init__(self)
+        Composer.__init__(self)
+        ConfigConstructor.__init__(self, id, workspace)
+        Resolver.__init__(self)
 
 
 def _is_identifier(value: str) -> str:
     if not value.replace("-", "_").isidentifier():
         raise t.DataError
     return value
+
+
+def mark2pos(mark: yaml.Mark) -> Pos:
+    return (mark.line, mark.column)
 
 
 Id = t.WithRepr(
@@ -77,12 +105,12 @@ class SimpleCompound(Generic[_T, _Cont], abc.ABC):
         self._factory = factory
 
     @abc.abstractmethod
-    def construct(self, ctor: SafeConstructor, node: yaml.Node) -> _Cont:
+    def construct(self, ctor: ConfigConstructor, node: yaml.Node) -> _Cont:
         pass
 
 
 class SimpleSeq(SimpleCompound[_T, Sequence[_T]]):
-    def construct(self, ctor: SafeConstructor, node: yaml.Node) -> Sequence[_T]:
+    def construct(self, ctor: ConfigConstructor, node: yaml.Node) -> Sequence[_T]:
         if not isinstance(node, yaml.SequenceNode):
             node_id = node.id  # type: ignore
             raise ConstructorError(
@@ -99,7 +127,7 @@ class SimpleSeq(SimpleCompound[_T, Sequence[_T]]):
 
 
 class SimpleSet(SimpleCompound[_T, AbstractSet[_T]]):
-    def construct(self, ctor: SafeConstructor, node: yaml.Node) -> AbstractSet[_T]:
+    def construct(self, ctor: ConfigConstructor, node: yaml.Node) -> AbstractSet[_T]:
         if not isinstance(node, yaml.SequenceNode):
             node_id = node.id  # type: ignore
             raise ConstructorError(
@@ -116,7 +144,7 @@ class SimpleSet(SimpleCompound[_T, AbstractSet[_T]]):
 
 
 class SimpleMapping(SimpleCompound[_T, Mapping[str, _T]]):
-    def construct(self, ctor: SafeConstructor, node: yaml.Node) -> Mapping[str, _T]:
+    def construct(self, ctor: ConfigConstructor, node: yaml.Node) -> Mapping[str, _T]:
         if not isinstance(node, yaml.MappingNode):
             node_id = node.id  # type: ignore
             raise ConstructorError(
@@ -134,21 +162,41 @@ class SimpleMapping(SimpleCompound[_T, Mapping[str, _T]]):
         return ret
 
 
-ValT = Union[Type[str], Type[Expr[Any]], SimpleCompound[Any, Any]]
+ArgT = Union[
+    None, Type[str], Type[Expr[Any]], SimpleCompound[Any, Any], Callable[..., ast.Base]
+]
+VarT = Union[
+    str,
+    Expr[Any],
+    Mapping[str, Any],
+    AbstractSet[Any],
+    Sequence[Any],
+    ast.Base,
+    ast.Kind,
+]
+
+_AstType = TypeVar("_AstType", bound=ast.Base)
 
 
 def parse_dict(
-    ctor: SafeConstructor,
+    ctor: ConfigConstructor,
     node: yaml.MappingNode,
-    keys: Mapping[str, ValT],
-    res_type: Type[_T],
+    keys: Mapping[str, ArgT],
+    res_type: Type[_AstType],
     *,
-    extra: Optional[Mapping[str, Union[str]]] = None,
-    preprocess: Optional[Callable[[Dict[str, ValT]], Dict[str, ValT]]] = None,
-) -> _T:
+    ret_name: Optional[str] = None,
+    extra: Optional[Mapping[str, Union[str, LocalPath]]] = None,
+    preprocess: Optional[
+        Callable[[ConfigConstructor, Dict[str, VarT]], Dict[str, VarT]]
+    ] = None,
+    find_res_type: Optional[
+        Callable[[ConfigConstructor, Type[_AstType], Dict[str, VarT]], Type[_AstType]]
+    ] = None,
+) -> _AstType:
     if extra is None:
         extra = {}
-    ret_name = res_type.__name__
+    if ret_name is None:
+        ret_name = res_type.__name__
     if not isinstance(node, yaml.MappingNode):
         node_id = node.id
         raise ConstructorError(
@@ -159,7 +207,7 @@ def parse_dict(
         )
     data = {}
     for k, v in node.value:
-        key = ctor.construct_scalar(k)  # type: ignore[no-untyped-call]
+        key = ctor.construct_object(k)  # type: ignore[no-untyped-call]
         if key not in keys:
             raise ConstructorError(
                 f"while constructing a {ret_name}",
@@ -168,37 +216,66 @@ def parse_dict(
                 k.start_mark,
             )
         item_ctor = keys[key]
-        if isinstance(item_ctor, SimpleCompound):
+        value: VarT
+        if item_ctor is None:
+            # Get constructor from tag
+            value = ctor.construct_object(v)  # type: ignore[no-untyped-call]
+        elif isinstance(item_ctor, ast.Base):
+            assert isinstance(
+                v, ast.Base
+            ), f"[{type(v)}] {v} should be ast.Base derived"
+            value = v
+        elif isinstance(item_ctor, SimpleCompound):
             value = item_ctor.construct(ctor, v)
         elif v.tag in (
+            "tag:yaml.org,2002:null",
             "tag:yaml.org,2002:bool",
             "tag:yaml.org,2002:int",
             "tag:yaml.org,2002:float",
+            "tag:yaml.org,2002:str",
         ):
             tmp = str(ctor.construct_object(v))  # type: ignore[no-untyped-call]
             value = item_ctor(tmp)
         else:
-            tmp = ctor.construct_scalar(v)  # type: ignore[no-untyped-call]
-            value = item_ctor(tmp)
+            raise ConstructorError(
+                f"while constructing a {ret_name}",
+                node.start_mark,
+                f"unexpected value tag {v.tag}",
+                k.start_mark,
+            )
         data[key.replace("-", "_")] = value
 
     if preprocess is not None:
-        data = preprocess(data)
+        data = preprocess(ctor, dict(data))
+    if find_res_type is not None:
+        res_type = find_res_type(ctor, res_type, dict(data))
 
     optional_fields: Dict[str, Any] = {}
-    found_fields = extra.keys() | data.keys()
+    found_fields = extra.keys() | data.keys() | {"_start", "_end"}
     for f in dataclasses.fields(res_type):
         if f.name not in found_fields:
             key = f.name.replace("_", "-")
             item_ctor = keys[key]
-            if isinstance(item_ctor, SimpleCompound):
+            if item_ctor is None:
+                optional_fields[f.name] = None
+            elif isinstance(item_ctor, SimpleCompound):
+                optional_fields[f.name] = None
+            elif isinstance(item_ctor, ast.Base):
                 optional_fields[f.name] = None
             else:
                 optional_fields[f.name] = item_ctor(None)
-    return res_type(**extra, **data, **optional_fields)  # type: ignore[call-arg]
+    return res_type(  # type: ignore[call-arg]
+        _start=mark2pos(node.start_mark),
+        _end=mark2pos(node.end_mark),
+        **extra,
+        **data,
+        **optional_fields,
+    )
 
 
-def parse_volume(ctor: SafeConstructor, id: str, node: yaml.MappingNode) -> ast.Volume:
+def parse_volume(
+    ctor: ConfigConstructor, id: str, node: yaml.MappingNode
+) -> ast.Volume:
     # uri -> URL
     # mount -> RemotePath
     # read-only -> bool [False]
@@ -218,7 +295,7 @@ def parse_volume(ctor: SafeConstructor, id: str, node: yaml.MappingNode) -> ast.
 
 
 def parse_volumes(
-    ctor: SafeConstructor, node: yaml.MappingNode
+    ctor: ConfigConstructor, node: yaml.MappingNode
 ) -> Dict[str, ast.Volume]:
     ret = {}
     for k, v in node.value:
@@ -228,11 +305,11 @@ def parse_volumes(
     return ret
 
 
-yaml.SafeLoader.add_path_resolver("flow:volumes", [(dict, "volumes")])  # type: ignore
-yaml.SafeLoader.add_constructor("flow:volumes", parse_volumes)  # type: ignore
+Loader.add_path_resolver("flow:volumes", [(dict, "volumes")])  # type: ignore
+Loader.add_constructor("flow:volumes", parse_volumes)  # type: ignore
 
 
-def parse_image(ctor: SafeConstructor, id: str, node: yaml.MappingNode) -> ast.Image:
+def parse_image(ctor: ConfigConstructor, id: str, node: yaml.MappingNode) -> ast.Image:
     # uri -> URL
     # context -> LocalPath [None]
     # dockerfile -> LocalPath [None]
@@ -251,7 +328,9 @@ def parse_image(ctor: SafeConstructor, id: str, node: yaml.MappingNode) -> ast.I
     )
 
 
-def parse_images(ctor: SafeConstructor, node: yaml.MappingNode) -> Dict[str, ast.Image]:
+def parse_images(
+    ctor: ConfigConstructor, node: yaml.MappingNode
+) -> Dict[str, ast.Image]:
     ret = {}
     for k, v in node.value:
         key = ctor.construct_scalar(k)  # type: ignore[no-untyped-call]
@@ -260,8 +339,8 @@ def parse_images(ctor: SafeConstructor, node: yaml.MappingNode) -> Dict[str, ast
     return ret
 
 
-yaml.SafeLoader.add_path_resolver("flow:images", [(dict, "images")])  # type: ignore
-yaml.SafeLoader.add_constructor("flow:images", parse_images)  # type: ignore
+Loader.add_path_resolver("flow:images", [(dict, "images")])  # type: ignore
+Loader.add_constructor("flow:images", parse_images)  # type: ignore
 
 
 EXEC_UNIT = {
@@ -285,30 +364,29 @@ EXEC_UNIT = {
 JOB = {"detach": OptBoolExpr, "browse": OptBoolExpr, **EXEC_UNIT}  # type: ignore
 
 
-def preproc_job(dct: Dict[str, Any]) -> Dict[str, Any]:
-    ret = dct.copy()
-    found = {k for k in ret if k in ("cmd", "bash", "python")}
+def preproc_job(ctor: ConfigConstructor, dct: Dict[str, Any]) -> Dict[str, Any]:
+    found = {k for k in dct if k in ("cmd", "bash", "python")}
     if len(found) > 1:
         raise ValueError(f"{','.join(found)} are mutually exclusive")
 
-    bash = ret.pop("bash", None)
+    bash = dct.pop("bash", None)
     if bash is not None:
-        ret["cmd"] = bash
+        dct["cmd"] = bash
 
-    python = ret.pop("python", None)
+    python = dct.pop("python", None)
     if python is not None:
-        ret["cmd"] = python
+        dct["cmd"] = python
 
-    return ret
+    return dct
 
 
-def parse_job(ctor: SafeConstructor, id: str, node: yaml.MappingNode) -> ast.Job:
+def parse_job(ctor: ConfigConstructor, id: str, node: yaml.MappingNode) -> ast.Job:
     return parse_dict(
         ctor, node, JOB, ast.Job, extra={"id": id}, preprocess=preproc_job
     )
 
 
-def parse_jobs(ctor: SafeConstructor, node: yaml.MappingNode) -> Dict[str, ast.Job]:
+def parse_jobs(ctor: ConfigConstructor, node: yaml.MappingNode) -> Dict[str, ast.Job]:
     ret = {}
     for k, v in node.value:
         key = ctor.construct_scalar(k)  # type: ignore[no-untyped-call]
@@ -317,12 +395,12 @@ def parse_jobs(ctor: SafeConstructor, node: yaml.MappingNode) -> Dict[str, ast.J
     return ret
 
 
-yaml.SafeLoader.add_path_resolver("flow:jobs", [(dict, "jobs")])  # type: ignore
-yaml.SafeLoader.add_constructor("flow:jobs", parse_jobs)  # type: ignore
+Loader.add_path_resolver("flow:jobs", [(dict, "jobs")])  # type: ignore
+Loader.add_constructor("flow:jobs", parse_jobs)  # type: ignore
 
 
 def parse_flow_defaults(
-    ctor: SafeConstructor, node: yaml.MappingNode
+    ctor: ConfigConstructor, node: yaml.MappingNode
 ) -> ast.FlowDefaults:
     return parse_dict(
         ctor,
@@ -338,65 +416,66 @@ def parse_flow_defaults(
     )
 
 
-yaml.SafeLoader.add_path_resolver("flow:defaults", [(dict, "defaults")])  # type: ignore
-yaml.SafeLoader.add_constructor("flow:defaults", parse_flow_defaults)  # type: ignore
-
-BASE_FLOW = t.Dict(
-    {
-        t.Key("kind"): t.String,
-        OptKey("id"): t.String,
-        OptKey("title"): t.String,
-        OptKey("images"): t.Mapping(t.String, t.Type(ast.Image)),
-        OptKey("volumes"): t.Mapping(t.String, t.Type(ast.Volume)),
-        OptKey("defaults"): t.Type(ast.FlowDefaults),
-    }
-)
+Loader.add_path_resolver("flow:defaults", [(dict, "defaults")])  # type: ignore
+Loader.add_constructor("flow:defaults", parse_flow_defaults)  # type: ignore
 
 
-def parse_base_flow(
-    workspace: Path, default_id: str, data: Dict[str, Any]
-) -> Dict[str, Any]:
-    return dict(
-        id=str(data.get("id", default_id)),
-        workspace=workspace,
-        kind=ast.Kind(data["kind"]),
-        title=OptStrExpr(data.get("title")),
-        images=data.get("images"),
-        volumes=data.get("volumes"),
-        defaults=data.get("defaults"),
-    )
+BASE_FLOW = {
+    "kind": str,
+    "id": str,
+    "title": OptStrExpr,
+    "images": None,
+    "volumes": None,
+    "defaults": None,
+}
 
 
-INTERACTIVE_FLOW = BASE_FLOW.merge(
-    t.Dict({t.Key("jobs"): t.Mapping(t.String, t.Type(ast.Job))})
-)
+def preproc_flow(ctor: ConfigConstructor, arg: Dict[str, VarT]) -> Dict[str, VarT]:
+    arg["kind"] = ast.Kind(arg["kind"])
+    return arg
 
 
-def _parse_interactive(
-    workspace: Path, default_id: str, data: Dict[str, Any]
-) -> ast.InteractiveFlow:
-    data = INTERACTIVE_FLOW(data)
-    assert data["kind"] == ast.Kind.JOB.value
-    return ast.InteractiveFlow(
-        jobs=data["jobs"], **parse_base_flow(workspace, default_id, data)
-    )
-
-
-def _calc_interactive_default_id(path: Path) -> str:
-    if path.parts[-2:] == (".neuro", "jobs.yml"):
-        default_id = path.parts[-3]
+def find_res_type(
+    ctor: ConfigConstructor, res_type: Type[ast.BaseFlow], arg: Dict[str, VarT]
+) -> Type[ast.BaseFlow]:
+    if arg["kind"] == ast.Kind.JOB:
+        return ast.InteractiveFlow
+    elif arg["kind"] == ast.Kind.JOB:
+        return ast.BatchFlow
     else:
-        default_id = path.stem
-    return default_id
+        raise ValueError(f"Unknown kind {arg['kind']} of the flow")
+
+
+INTERACTIVE_FLOW = {"jobs": None, **BASE_FLOW}  # type: ignore[arg-type]
+
+
+def parse_main(ctor: ConfigConstructor, node: yaml.MappingNode) -> ast.BaseFlow:
+    return parse_dict(
+        ctor,
+        node,
+        INTERACTIVE_FLOW,
+        ast.BaseFlow,
+        preprocess=preproc_flow,
+        find_res_type=find_res_type,
+        extra={"id": ctor._id, "workspace": ctor._workspace},
+    )
+
+
+Loader.add_path_resolver("flow:main", [])  # type: ignore
+Loader.add_constructor("flow:main", parse_main)  # type: ignore
 
 
 def parse_interactive(workspace: Path, config_file: Path) -> ast.InteractiveFlow:
     # Parse interactive flow config file
     with config_file.open() as f:
-        data = yaml.load(f, yaml.SafeLoader)
-        return _parse_interactive(
-            workspace, _calc_interactive_default_id(config_file), data
-        )
+        loader = Loader(f, workspace.stem, workspace)
+        try:
+            ret = loader.get_single_data()  # type: ignore[no-untyped-call]
+            assert isinstance(ret, ast.InteractiveFlow)
+            assert ret.kind == ast.Kind.JOB
+            return ret
+        finally:
+            loader.dispose()  # type: ignore[no-untyped-call]
 
 
 def find_interactive_config(path: Optional[Union[Path, str]]) -> ConfigPath:

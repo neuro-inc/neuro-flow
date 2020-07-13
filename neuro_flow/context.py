@@ -223,6 +223,10 @@ class Context(RootABC):
             for i in flow_ast.images.values():
                 context_path = await i.context.eval(ctx)
                 dockerfile_path = await i.dockerfile.eval(ctx)
+                if i.build_args is not None:
+                    build_args = [await v.eval(ctx) for v in i.build_args]
+                else:
+                    build_args = []
                 images[i.id] = ImageCtx(
                     id=i.id,
                     uri=await i.uri.eval(ctx),
@@ -230,7 +234,7 @@ class Context(RootABC):
                     full_context_path=calc_full_path(ctx, context_path),
                     dockerfile=dockerfile_path,
                     full_dockerfile_path=calc_full_path(ctx, dockerfile_path),
-                    build_args=[await v.eval(ctx) for v in i.build_args],
+                    build_args=build_args,
                 )
         return replace(ctx, _volumes=volumes, _images=images)
 

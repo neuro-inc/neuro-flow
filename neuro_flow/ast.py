@@ -1,6 +1,6 @@
 # Dataclasses
 import enum
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import AbstractSet, List, Mapping, Optional, Sequence
 
 from .expr import (
@@ -10,11 +10,18 @@ from .expr import (
     OptLocalPathExpr,
     OptRemotePathExpr,
     OptStrExpr,
+    Pos,
     RemotePathExpr,
     StrExpr,
     URIExpr,
 )
 from .types import LocalPath
+
+
+@dataclass(frozen=True)
+class Base:
+    _start: Pos = field(compare=False)
+    _end: Pos = field(compare=False)
 
 
 # There are 'batch' for pipelined mode and 'job' for interactive one
@@ -27,7 +34,7 @@ class Kind(enum.Enum):
 
 
 @dataclass(frozen=True)
-class Volume:
+class Volume(Base):
     id: str  # explicitly set or defived from url/path pair.
     uri: URIExpr  # storage URI
     mount: RemotePathExpr  # mount path inside container
@@ -36,16 +43,16 @@ class Volume:
 
 
 @dataclass(frozen=True)
-class Image:
+class Image(Base):
     id: str
     uri: URIExpr
     context: OptLocalPathExpr
     dockerfile: OptLocalPathExpr
-    build_args: Sequence[StrExpr]
+    build_args: Optional[Sequence[StrExpr]]
 
 
 @dataclass(frozen=True)
-class ExecUnit:
+class ExecUnit(Base):
     title: OptStrExpr  # Autocalculated if not passed explicitly
     name: OptStrExpr
     image: StrExpr
@@ -80,7 +87,7 @@ class Step(ExecUnit):
 
 
 @dataclass(frozen=True)
-class Batch:
+class Batch(Base):
     # A set of steps, used in non-interactive mode
     # All steps share the same implicit persistent disk volume
 
@@ -111,7 +118,7 @@ class Batch:
 
 
 @dataclass(frozen=True)
-class FlowDefaults:
+class FlowDefaults(Base):
     tags: Optional[AbstractSet[StrExpr]]
 
     env: Optional[Mapping[str, StrExpr]]
@@ -123,7 +130,7 @@ class FlowDefaults:
 
 
 @dataclass(frozen=True)
-class BaseFlow:
+class BaseFlow(Base):
     kind: Kind
     # explicitly set or defived from config file name.
     # The name is used as default tags,
