@@ -208,10 +208,10 @@ class Context(RootABC):
         # volumes / images needs a context with defaults only for self initialization
         volumes = {}
         if flow_ast.volumes is not None:
-            for v in flow_ast.volumes.values():
+            for k, v in flow_ast.volumes.items():
                 local_path = await v.local.eval(ctx)
-                volumes[v.id] = VolumeCtx(
-                    id=v.id,
+                volumes[k] = VolumeCtx(
+                    id=k,
                     uri=await v.uri.eval(ctx),
                     mount=await v.mount.eval(ctx),
                     read_only=bool(await v.read_only.eval(ctx)),
@@ -220,15 +220,15 @@ class Context(RootABC):
                 )
         images = {}
         if flow_ast.images is not None:
-            for i in flow_ast.images.values():
+            for k, i in flow_ast.images.items():
                 context_path = await i.context.eval(ctx)
                 dockerfile_path = await i.dockerfile.eval(ctx)
                 if i.build_args is not None:
                     build_args = [await v.eval(ctx) for v in i.build_args]
                 else:
                     build_args = []
-                images[i.id] = ImageCtx(
-                    id=i.id,
+                images[k] = ImageCtx(
+                    id=k,
                     uri=await i.uri.eval(ctx),
                     context=context_path,
                     full_context_path=calc_full_path(ctx, context_path),
@@ -285,7 +285,7 @@ class Context(RootABC):
         if job.tags is not None:
             tags = {await v.eval(self) for v in job.tags}
         if not tags:
-            tags = {f"job:{job.id}"}
+            tags = {f"job:{job_id}"}
 
         env = dict(self.env)
         if job.env is not None:
@@ -302,10 +302,10 @@ class Context(RootABC):
         preset = (await job.preset.eval(self)) or self.defaults.preset
 
         job_ctx = JobCtx(
-            id=job.id,
+            id=job_id,
             detach=bool(await job.detach.eval(self)),
             browse=bool(await job.browse.eval(self)),
-            title=(await job.title.eval(self)) or f"{self.flow.id}.{job.id}",
+            title=(await job.title.eval(self)) or f"{self.flow.id}.{job_id}",
             name=(await job.name.eval(self)),
             image=await job.image.eval(self),
             preset=preset,

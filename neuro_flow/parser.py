@@ -273,9 +273,7 @@ def parse_dict(
     )
 
 
-def parse_volume(
-    ctor: ConfigConstructor, id: str, node: yaml.MappingNode
-) -> ast.Volume:
+def parse_volume(ctor: ConfigConstructor, node: yaml.MappingNode) -> ast.Volume:
     # uri -> URL
     # mount -> RemotePath
     # read-only -> bool [False]
@@ -290,7 +288,6 @@ def parse_volume(
             "local": OptLocalPathExpr,
         },
         ast.Volume,
-        extra={"id": id},
     )
 
 
@@ -300,7 +297,7 @@ def parse_volumes(
     ret = {}
     for k, v in node.value:
         key = ctor.construct_scalar(k)  # type: ignore[no-untyped-call]
-        value = parse_volume(ctor, key, v)
+        value = parse_volume(ctor, v)
         ret[key] = value
     return ret
 
@@ -309,7 +306,7 @@ Loader.add_path_resolver("flow:volumes", [(dict, "volumes")])  # type: ignore
 Loader.add_constructor("flow:volumes", parse_volumes)  # type: ignore
 
 
-def parse_image(ctor: ConfigConstructor, id: str, node: yaml.MappingNode) -> ast.Image:
+def parse_image(ctor: ConfigConstructor, node: yaml.MappingNode) -> ast.Image:
     # uri -> URL
     # context -> LocalPath [None]
     # dockerfile -> LocalPath [None]
@@ -324,7 +321,6 @@ def parse_image(ctor: ConfigConstructor, id: str, node: yaml.MappingNode) -> ast
             "build-args": SimpleSeq(StrExpr),
         },
         ast.Image,
-        extra={"id": id},
     )
 
 
@@ -334,7 +330,7 @@ def parse_images(
     ret = {}
     for k, v in node.value:
         key = ctor.construct_scalar(k)  # type: ignore[no-untyped-call]
-        value = parse_image(ctor, key, v)
+        value = parse_image(ctor, v)
         ret[key] = value
     return ret
 
@@ -381,9 +377,7 @@ def preproc_job(ctor: ConfigConstructor, dct: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def parse_job(ctor: ConfigConstructor, id: str, node: yaml.MappingNode) -> ast.Job:
-    return parse_dict(
-        ctor, node, JOB, ast.Job, extra={"id": id}, preprocess=preproc_job
-    )
+    return parse_dict(ctor, node, JOB, ast.Job, preprocess=preproc_job)
 
 
 def parse_jobs(ctor: ConfigConstructor, node: yaml.MappingNode) -> Dict[str, ast.Job]:

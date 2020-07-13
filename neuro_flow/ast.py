@@ -35,7 +35,6 @@ class Kind(enum.Enum):
 
 @dataclass(frozen=True)
 class Volume(Base):
-    id: str  # explicitly set or defived from url/path pair.
     uri: URIExpr  # storage URI
     mount: RemotePathExpr  # mount path inside container
     local: OptLocalPathExpr
@@ -44,7 +43,6 @@ class Volume(Base):
 
 @dataclass(frozen=True)
 class Image(Base):
-    id: str
     uri: URIExpr
     context: OptLocalPathExpr
     dockerfile: OptLocalPathExpr
@@ -71,7 +69,6 @@ class ExecUnit(Base):
 @dataclass(frozen=True)
 class Job(ExecUnit):
     # Interactive job used by Kind.Live flow
-    id: str
 
     detach: OptBoolExpr
     browse: OptBoolExpr
@@ -80,7 +77,7 @@ class Job(ExecUnit):
 @dataclass(frozen=True)
 class Step(ExecUnit):
     # A step of a batch
-    id: str
+    pass
 
     # continue_on_error: bool
     # if: str -- skip conditionally
@@ -91,7 +88,6 @@ class Batch(Base):
     # A set of steps, used in non-interactive mode
     # All steps share the same implicit persistent disk volume
 
-    id: str
     title: OptStrExpr  # Autocalculated if not passed explicitly
     needs: List[StrExpr]  # BatchRef
     steps: List[Step]

@@ -35,7 +35,6 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
             "test": ast.Job(
                 (3, 4),
                 (5, 0),
-                id="test",
                 name=OptStrExpr(None),
                 image=StrExpr("ubuntu"),
                 preset=OptStrExpr(None),
@@ -71,7 +70,6 @@ def test_parse_full(assets: pathlib.Path) -> None:
             "image_a": ast.Image(
                 (4, 4),
                 (11, 0),
-                id="image_a",
                 uri=URIExpr("image:banana"),
                 context=OptLocalPathExpr("dir/context"),
                 dockerfile=OptLocalPathExpr("dir/Dockerfile"),
@@ -82,7 +80,6 @@ def test_parse_full(assets: pathlib.Path) -> None:
             "volume_a": ast.Volume(
                 (13, 4),
                 (17, 2),
-                id="volume_a",
                 uri=URIExpr("storage:dir"),
                 mount=RemotePathExpr("/var/dir"),
                 read_only=OptBoolExpr("True"),
@@ -91,7 +88,6 @@ def test_parse_full(assets: pathlib.Path) -> None:
             "volume_b": ast.Volume(
                 (18, 4),
                 (20, 0),
-                id="volume_b",
                 uri=URIExpr("storage:other"),
                 mount=RemotePathExpr("/var/other"),
                 read_only=OptBoolExpr(None),
@@ -111,7 +107,6 @@ def test_parse_full(assets: pathlib.Path) -> None:
             "test-a": ast.Job(
                 (30, 4),
                 (49, 0),
-                id="test-a",
                 name=OptStrExpr("job-name"),
                 image=StrExpr("${{ images.image_a.ref }}"),
                 preset=OptStrExpr("cpu-small"),
@@ -153,7 +148,6 @@ def test_parse_bash(assets: pathlib.Path) -> None:
             "test": ast.Job(
                 (3, 4),
                 (7, 0),
-                id="test",
                 name=OptStrExpr(None),
                 image=StrExpr("ubuntu"),
                 preset=OptStrExpr(None),
@@ -192,7 +186,6 @@ def test_parse_python(assets: pathlib.Path) -> None:
             "test": ast.Job(
                 (3, 4),
                 (7, 0),
-                id="test",
                 name=OptStrExpr(None),
                 image=StrExpr("ubuntu"),
                 preset=OptStrExpr(None),
