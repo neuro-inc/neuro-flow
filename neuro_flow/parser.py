@@ -7,7 +7,6 @@
 
 import abc
 import dataclasses
-from functools import partial
 from pathlib import Path
 from typing import (
     AbstractSet,
@@ -24,7 +23,6 @@ from typing import (
     Union,
 )
 
-import trafaret as t
 import yaml
 from yaml.composer import Composer
 from yaml.constructor import ConstructorError, SafeConstructor
@@ -79,29 +77,12 @@ class Loader(Reader, Scanner, Parser, Composer, ConfigConstructor, Resolver):
         Resolver.__init__(self)
 
 
-def _is_identifier(value: str) -> str:
-    if not value.replace("-", "_").isidentifier():
-        raise t.DataError
-    return value
-
-
 def mark2pos(mark: yaml.Mark) -> Pos:
     return (mark.line, mark.column)
 
 
-Id = t.WithRepr(
-    t.OnError(
-        t.String & _is_identifier,
-        "value is not an identifier",
-        code="is_not_identifier",
-    ),
-    "<ID>",
-)
-OptKey = partial(t.Key, optional=True)
-
-
 class SimpleCompound(Generic[_T, _Cont], abc.ABC):
-    def __init__(self, factory: Callable[[str], _T]) -> None:
+    def __init__(self, factory: Type[_T]) -> None:
         self._factory = factory
 
     @abc.abstractmethod
@@ -122,7 +103,8 @@ class SimpleSeq(SimpleCompound[_T, Sequence[_T]]):
         ret = []
         for child in node.value:
             val = ctor.construct_object(child)  # type: ignore[no-untyped-call]
-            ret.append(self._factory(val))
+            tmp = self._factory(val, start=mark2pos(child.start_mark))  # type: ignore
+            ret.append(tmp)
         return ret
 
 
@@ -139,7 +121,8 @@ class SimpleSet(SimpleCompound[_T, AbstractSet[_T]]):
         ret = set()
         for child in node.value:
             val = ctor.construct_object(child)  # type: ignore[no-untyped-call]
-            ret.add(self._factory(val))
+            tmp = self._factory(val, start=mark2pos(child.start_mark))  # type: ignore
+            ret.add(tmp)
         return ret
 
 
@@ -157,7 +140,7 @@ class SimpleMapping(SimpleCompound[_T, Mapping[str, _T]]):
         for k, v in node.value:
             key = ctor.construct_scalar(k)  # type: ignore[no-untyped-call]
             tmp = ctor.construct_scalar(v)  # type: ignore[no-untyped-call]
-            value = self._factory(tmp)
+            value = self._factory(tmp, start=mark2pos(v.start_mark))  # type: ignore
             ret[key] = value
         return ret
 
