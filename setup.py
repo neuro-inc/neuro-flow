@@ -15,7 +15,7 @@ setup(
         "pyyaml>=5.3",
         "funcparserlib>=0.3",
         'dataclasses>=0.5; python_version<"3.7"',
-        "humanize>=0.5",
+        "humanize>=0.5.1",
     ],
     packages=find_packages(),
     classifiers=[
