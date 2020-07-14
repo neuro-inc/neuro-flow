@@ -99,7 +99,7 @@ def test_parse_full(assets: pathlib.Path) -> None:
         defaults=ast.FlowDefaults(
             (21, 2),
             (28, 0),
-            tags={StrExpr("tag-a"), StrExpr("tag-b")},
+            tags=[StrExpr("tag-a"), StrExpr("tag-b")],
             env={"global_a": StrExpr("val-a"), "global_b": StrExpr("val-b")},
             workdir=OptRemotePathExpr("/global/dir"),
             life_span=OptLifeSpanExpr("1d4h"),
@@ -120,7 +120,7 @@ def test_parse_full(assets: pathlib.Path) -> None:
                     StrExpr("${{ volumes.volume_a.ref }}"),
                     StrExpr("storage:dir:/var/dir:ro"),
                 ],
-                tags={StrExpr("tag-2"), StrExpr("tag-1")},
+                tags=[StrExpr("tag-1"), StrExpr("tag-2")],
                 life_span=OptLifeSpanExpr("2h55m"),
                 title=OptStrExpr("Job title"),
                 detach=OptBoolExpr("True"),

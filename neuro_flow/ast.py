@@ -2,7 +2,7 @@
 from dataclasses import dataclass
 
 import enum
-from typing import AbstractSet, List, Mapping, Optional, Sequence
+from typing import Mapping, Optional, Sequence
 
 from .expr import (
     OptBoolExpr,
@@ -62,7 +62,7 @@ class ExecUnit(Base):
     workdir: OptRemotePathExpr
     env: Optional[Mapping[str, StrExpr]]
     volumes: Optional[Sequence[StrExpr]]
-    tags: Optional[AbstractSet[StrExpr]]
+    tags: Optional[Sequence[StrExpr]]
     life_span: OptLifeSpanExpr
     http_port: OptIntExpr
     http_auth: OptBoolExpr
@@ -92,8 +92,8 @@ class Batch(Base):
     # All steps share the same implicit persistent disk volume
 
     title: OptStrExpr  # Autocalculated if not passed explicitly
-    needs: List[StrExpr]  # BatchRef
-    steps: List[Step]
+    needs: Sequence[StrExpr]  # BatchRef
+    steps: Sequence[Step]
 
     # matrix? Do we need a build matrix? Yes probably.
 
@@ -106,7 +106,7 @@ class Batch(Base):
     preset: OptStrExpr
 
     volumes: Optional[Sequence[StrExpr]]
-    tags: Optional[AbstractSet[StrExpr]]
+    tags: Optional[Sequence[StrExpr]]
 
     env: Optional[Mapping[str, StrExpr]]
     workdir: OptRemotePathExpr
@@ -118,7 +118,7 @@ class Batch(Base):
 
 @dataclass(frozen=True)
 class FlowDefaults(Base):
-    tags: Optional[AbstractSet[StrExpr]]
+    tags: Optional[Sequence[StrExpr]]
 
     env: Optional[Mapping[str, StrExpr]]
     workdir: OptRemotePathExpr

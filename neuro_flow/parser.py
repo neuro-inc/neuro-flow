@@ -109,24 +109,6 @@ class SimpleSeq(SimpleCompound[_T, Sequence[_T]]):
         return ret
 
 
-class SimpleSet(SimpleCompound[_T, AbstractSet[_T]]):
-    def construct(self, ctor: ConfigConstructor, node: yaml.Node) -> AbstractSet[_T]:
-        if not isinstance(node, yaml.SequenceNode):
-            node_id = node.id  # type: ignore
-            raise ConstructorError(
-                None,
-                None,
-                f"expected a sequence node, but found {node_id}",
-                node.start_mark,
-            )
-        ret = set()
-        for child in node.value:
-            val = ctor.construct_object(child)  # type: ignore[no-untyped-call]
-            tmp = self._factory(val, start=mark2pos(child.start_mark))  # type: ignore
-            ret.add(tmp)
-        return ret
-
-
 class SimpleMapping(SimpleCompound[_T, Mapping[str, _T]]):
     def construct(self, ctor: ConfigConstructor, node: yaml.Node) -> Mapping[str, _T]:
         if not isinstance(node, yaml.MappingNode):
@@ -348,7 +330,7 @@ EXEC_UNIT = {
     "workdir": OptRemotePathExpr,
     "env": SimpleMapping(StrExpr),
     "volumes": SimpleSeq(StrExpr),
-    "tags": SimpleSet(StrExpr),
+    "tags": SimpleSeq(StrExpr),
     "life_span": OptLifeSpanExpr,
     "http_port": OptIntExpr,
     "http_auth": OptBoolExpr,
@@ -398,7 +380,7 @@ def parse_flow_defaults(
         ctor,
         node,
         {
-            "tags": SimpleSet(StrExpr),
+            "tags": SimpleSeq(StrExpr),
             "env": SimpleMapping(StrExpr),
             "workdir": OptRemotePathExpr,
             "life_span": OptLifeSpanExpr,
