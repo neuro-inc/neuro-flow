@@ -24,6 +24,9 @@ def test_neuro_not_found(tmp_path: Path) -> None:
 @pytest.mark.skipif(  # type: ignore
     sys.platform == "win32", reason="UNIX sockets are not supported by Windows"
 )
+@pytest.mark.skipif(  # type: ignore
+    sys.platform == "darwin", reason="MacOS doesn't support too long UNIX socket names"
+)
 def test_not_a_file_explicit(tmp_path: Path) -> None:
     f = tmp_path / "file.sock"
     s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -35,6 +38,9 @@ def test_not_a_file_explicit(tmp_path: Path) -> None:
 
 @pytest.mark.skipif(  # type: ignore
     sys.platform == "win32", reason="UNIX sockets are not supported by Windows"
+)
+@pytest.mark.skipif(  # type: ignore
+    sys.platform == "darwin", reason="MacOS doesn't support too long UNIX socket names"
 )
 def test_not_a_file_implicit(tmp_path: Path) -> None:
     d = tmp_path / ".neuro"
