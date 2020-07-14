@@ -34,7 +34,7 @@ volumes:
 
 images:
   img:
-    uri: image:${{ flow.id}}:v1.0
+    uri: image:${{ flow.id }}:v1.0
     dockerfile: ${{ flow.workspace }}/Dockerfile
     context: ${{ flow.workspace }}
 
