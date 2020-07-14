@@ -13,7 +13,7 @@ from neuromation.cli.formatters import ftable  # TODO: extract into a separate l
 from typing_extensions import AsyncContextManager
 
 from . import ast
-from .context import Context, ImageCtx, VolumeCtx
+from .context import Context, ImageCtx, UnknownJob, VolumeCtx
 
 
 COLORS = {
@@ -89,6 +89,16 @@ class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
                 proc.kill()
                 await proc.wait()
 
+    async def ensure_job(self, job_id: str) -> Context:
+        try:
+            return await self.ctx.with_job(job_id)
+        except UnknownJob:
+            click.secho(f"Unknown job {click.style(job_id, bold=True)}", fg="red")
+            jobs = sorted([job for job in self._flow.jobs.keys()])
+            jobs_str = ",".join(jobs)
+            click.secho(f"Existing jobs: {jobs_str}", dim=True)
+            sys.exit(1)
+
     async def resolve_job_by_name(
         self, name: Optional[str], tags: AbstractSet[str]
     ) -> JobDescription:
@@ -102,7 +112,7 @@ class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
         raise ResourceNotFound
 
     async def job_status(self, job_id: str) -> JobInfo:
-        job_ctx = await self.ctx.with_job(job_id)
+        job_ctx = await self.ensure_job(job_id)
         job = job_ctx.job
         try:
             descr = await self.resolve_job_by_name(job.name, job.tags)
@@ -156,7 +166,7 @@ class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
             click.echo(line)
 
     async def status(self, job_id: str) -> None:
-        job_ctx = await self.ctx.with_job(job_id)
+        job_ctx = await self.ensure_job(job_id)
         job = job_ctx.job
         try:
             descr = await self.resolve_job_by_name(job.name, job.tags)
@@ -167,7 +177,7 @@ class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
 
     async def run(self, job_id: str) -> None:
         """Run a named job"""
-        job_ctx = await self.ctx.with_job(job_id)
+        job_ctx = await self.ensure_job(job_id)
         job = job_ctx.job
 
         try:
@@ -230,7 +240,7 @@ class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
 
     async def logs(self, job_id: str) -> None:
         """Return job logs"""
-        job_ctx = await self.ctx.with_job(job_id)
+        job_ctx = await self.ensure_job(job_id)
         job = job_ctx.job
         try:
             descr = await self.resolve_job_by_name(job.name, job.tags)
@@ -241,7 +251,7 @@ class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
 
     async def kill_job(self, job_id: str) -> bool:
         """Kill named job"""
-        job_ctx = await self.ctx.with_job(job_id)
+        job_ctx = await self.ensure_job(job_id)
         job = job_ctx.job
 
         try:
@@ -286,7 +296,10 @@ class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
     async def find_volume(self, volume: str) -> VolumeCtx:
         volume_ctx = self.ctx.volumes.get(volume)
         if volume_ctx is None:
-            click.echo(f"Unknown volume {click.style(volume, bold=True)}")
+            click.secho(f"Unknown volume {click.style(volume, bold=True)}", fg="red")
+            volumes = sorted([volume for volume in self.ctx.volumes.keys()])
+            volumes_str = ",".join(volumes)
+            click.secho(f"Existing volumes: {volumes_str}", dim=True)
             sys.exit(1)
         if volume_ctx.local is None:
             click.echo(f"Volume's {click.style('local', bold=True)} part is not set")
@@ -349,7 +362,10 @@ class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
     async def find_image(self, image: str) -> ImageCtx:
         image_ctx = self.ctx.images.get(image)
         if image_ctx is None:
-            click.echo(f"Unknown image {click.style(image, bold=True)}")
+            click.secho(f"Unknown image {click.style(image, bold=True)}", fg="red")
+            images = sorted([image for image in self.ctx.images.keys()])
+            images_str = ",".join(images)
+            click.secho(f"Existing images: {images_str}", dim=True)
             sys.exit(1)
         if image_ctx.context is None:
             click.echo(f"Image's {click.style('context', bold=True)} part is not set")
