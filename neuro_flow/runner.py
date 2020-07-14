@@ -232,6 +232,8 @@ class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
             args.append(f"--browse")
         if job.detach:
             args.append(f"--detach")
+        for pf in job.port_forward:
+            args.append(f"--port-forward={pf}")
 
         args.append(job.image)
         if job.cmd:

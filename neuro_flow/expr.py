@@ -463,6 +463,8 @@ class Expr(Generic[_T]):
         # precalculated value for constant string, allows raising errors earlier
         self._ret: Optional[_T] = None
         if pattern is not None:
+            if not isinstance(pattern, str):
+                raise TypeError(f"str is expected, got {type(pattern)}")
             tokens = list(tokenize(pattern, start=start))
             self._parsed: Optional[Sequence[Item]] = PARSER.parse(tokens)
             assert self._parsed is not None
@@ -645,3 +647,14 @@ class OptPythonExpr(OptStrExpr):
     def convert(cls, arg: str) -> str:
         ret = " ".join(["python3", "-c", shlex.quote(arg)])
         return ret
+
+
+class PortPairExpr(StrExpr):
+    RE = re.compile(r"^\d+:\d+$")
+
+    @classmethod
+    def convert(cls, arg: str) -> str:
+        match = cls.RE.match(arg)
+        if match is None:
+            raise ValueError(f"{arg} is not a LOCAL:REMOTE ports pairn")
+        return arg

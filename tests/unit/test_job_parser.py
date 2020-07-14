@@ -10,6 +10,7 @@ from neuro_flow.expr import (
     OptPythonExpr,
     OptRemotePathExpr,
     OptStrExpr,
+    PortPairExpr,
     RemotePathExpr,
     StrExpr,
     URIExpr,
@@ -50,6 +51,7 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
                 browse=OptBoolExpr(None),
                 http_port=OptIntExpr(None),
                 http_auth=OptBoolExpr(None),
+                port_forward=None,
             )
         },
     )
@@ -61,7 +63,7 @@ def test_parse_full(assets: pathlib.Path) -> None:
     flow = parse_interactive(workspace, config_file)
     assert flow == ast.InteractiveFlow(
         (0, 0),
-        (49, 0),
+        (51, 0),
         id="jobs-full",
         workspace=workspace,
         kind=ast.Kind.JOB,
@@ -106,7 +108,7 @@ def test_parse_full(assets: pathlib.Path) -> None:
         jobs={
             "test-a": ast.Job(
                 (30, 4),
-                (49, 0),
+                (51, 0),
                 name=OptStrExpr("job-name"),
                 image=StrExpr("${{ images.image_a.ref }}"),
                 preset=OptStrExpr("cpu-small"),
@@ -125,6 +127,7 @@ def test_parse_full(assets: pathlib.Path) -> None:
                 browse=OptBoolExpr("True"),
                 http_port=OptIntExpr("8080"),
                 http_auth=OptBoolExpr("False"),
+                port_forward=[PortPairExpr("2211:22")],
             )
         },
     )
@@ -163,6 +166,7 @@ def test_parse_bash(assets: pathlib.Path) -> None:
                 browse=OptBoolExpr(None),
                 http_port=OptIntExpr(None),
                 http_auth=OptBoolExpr(None),
+                port_forward=None,
             )
         },
     )
@@ -201,6 +205,7 @@ def test_parse_python(assets: pathlib.Path) -> None:
                 browse=OptBoolExpr(None),
                 http_port=OptIntExpr(None),
                 http_auth=OptBoolExpr(None),
+                port_forward=None,
             )
         },
     )

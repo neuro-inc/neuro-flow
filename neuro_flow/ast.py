@@ -11,6 +11,7 @@ from .expr import (
     OptLocalPathExpr,
     OptRemotePathExpr,
     OptStrExpr,
+    PortPairExpr,
     Pos,
     RemotePathExpr,
     StrExpr,
@@ -65,6 +66,7 @@ class ExecUnit(Base):
     life_span: OptLifeSpanExpr
     http_port: OptIntExpr
     http_auth: OptBoolExpr
+    port_forward: Optional[Sequence[PortPairExpr]]
 
 
 @dataclass(frozen=True)

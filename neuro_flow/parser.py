@@ -42,6 +42,7 @@ from .expr import (
     OptPythonExpr,
     OptRemotePathExpr,
     OptStrExpr,
+    PortPairExpr,
     Pos,
     RemotePathExpr,
     StrExpr,
@@ -351,6 +352,7 @@ EXEC_UNIT = {
     "life_span": OptLifeSpanExpr,
     "http_port": OptIntExpr,
     "http_auth": OptBoolExpr,
+    "port_forward": SimpleSeq(PortPairExpr),
 }
 
 JOB = {"detach": OptBoolExpr, "browse": OptBoolExpr, **EXEC_UNIT}  # type: ignore

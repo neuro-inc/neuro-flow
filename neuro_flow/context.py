@@ -84,6 +84,7 @@ class ExecUnitCtx:
     volumes: Sequence[str]  # Sequence[VolumeRef]
     tags: AbstractSet[str]
     life_span: Optional[float]
+    port_forward: Sequence[str]
 
 
 @dataclass(frozen=True)
@@ -305,6 +306,9 @@ class Context(RootABC):
         life_span = (await job.life_span.eval(self)) or self.defaults.life_span
 
         preset = (await job.preset.eval(self)) or self.defaults.preset
+        port_forward = []
+        if job.port_forward is not None:
+            port_forward = [await val.eval(self) for val in job.port_forward]
 
         job_ctx = JobCtx(
             id=job_id,
@@ -322,6 +326,7 @@ class Context(RootABC):
             life_span=life_span,
             http_port=await job.http_port.eval(self),
             http_auth=await job.http_auth.eval(self),
+            port_forward=port_forward,
         )
         return replace(self, _job=job_ctx, _env=env,)
 
