@@ -1,8 +1,7 @@
+import pytest
 import socket
 import sys
 from pathlib import Path
-
-import pytest
 
 from neuro_flow.parser import ConfigPath, find_interactive_config
 

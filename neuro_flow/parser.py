@@ -5,8 +5,10 @@
 # Defaults are evaluated by the separate processing step.
 
 
-import abc
 import dataclasses
+
+import abc
+import yaml
 from pathlib import Path
 from typing import (
     AbstractSet,
@@ -22,8 +24,6 @@ from typing import (
     TypeVar,
     Union,
 )
-
-import yaml
 from yaml.composer import Composer
 from yaml.constructor import ConstructorError, SafeConstructor
 from yaml.parser import Parser

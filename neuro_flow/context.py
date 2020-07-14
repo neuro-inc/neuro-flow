@@ -1,7 +1,7 @@
 # Contexts
 from dataclasses import dataclass, replace
-from typing import AbstractSet, Mapping, Optional, Sequence, cast
 
+from typing import AbstractSet, Mapping, Optional, Sequence, cast
 from yarl import URL
 
 from . import ast

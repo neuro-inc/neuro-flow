@@ -1,8 +1,9 @@
 # expression parser/evaluator
 # ${{ <expression> }}
 
-import abc
 import dataclasses
+
+import abc
 import datetime
 import inspect
 import json
@@ -10,6 +11,18 @@ import re
 import shlex
 from ast import literal_eval
 from collections.abc import Sized
+from funcparserlib.lexer import LexerError, Token
+from funcparserlib.parser import (
+    Parser,
+    a,
+    finished,
+    forward_decl,
+    many,
+    maybe,
+    oneplus,
+    skip,
+    some,
+)
 from pathlib import Path, PurePosixPath
 from typing import (
     Any,
@@ -26,19 +39,6 @@ from typing import (
     TypeVar,
     Union,
     cast,
-)
-
-from funcparserlib.lexer import LexerError, Token
-from funcparserlib.parser import (
-    Parser,
-    a,
-    finished,
-    forward_decl,
-    many,
-    maybe,
-    oneplus,
-    skip,
-    some,
 )
 from typing_extensions import Protocol, runtime_checkable
 from yarl import URL
