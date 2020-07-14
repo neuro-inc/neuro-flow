@@ -1,6 +1,6 @@
 -r base.txt
 black==19.10b0
-isort==4.3.21
+isort==5.0.9
 flake8==3.8.3
 pytest==5.4.3
 mypy==0.782

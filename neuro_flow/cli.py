@@ -1,9 +1,8 @@
+import click
 import functools
 import inspect
-from typing import Any, Awaitable, Callable, Optional, TypeVar
-
-import click
 from neuromation.cli.asyncio_utils import Runner
+from typing import Any, Awaitable, Callable, Optional, TypeVar
 
 from . import ast
 from .parser import find_interactive_config, parse_interactive

@@ -1,8 +1,7 @@
-from textwrap import dedent
-
 import pytest
 from funcparserlib.lexer import LexerError
 from funcparserlib.parser import NoParseError
+from textwrap import dedent
 
 from neuro_flow.expr import (
     FUNCTIONS,
