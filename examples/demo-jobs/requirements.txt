@@ -1,0 +1,6 @@
+neuromation>=20.4.6
+wandb==0.8.28
+flake8
+mypy
+isort
+black

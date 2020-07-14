@@ -1,6 +1,4 @@
-# FROM neuromation/base:v1.6
-
-FROM ubuntu:latest
+FROM neuromation/base:v1.6
 
 ENV DEBIAN_FRONTEND noninteractive 
 

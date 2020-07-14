@@ -13,7 +13,7 @@ from neuromation.cli.formatters import ftable  # TODO: extract into a separate l
 from typing_extensions import AsyncContextManager
 
 from . import ast
-from .context import Context, VolumeCtx
+from .context import Context, ImageCtx, VolumeCtx
 
 
 COLORS = {
@@ -75,6 +75,19 @@ class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
     def client(self) -> Client:
         assert self._client is not None
         return self._client
+
+    async def run_subproc(self, exe: str, *args: str) -> None:
+        proc = await asyncio.create_subprocess_exec(exe, *args)
+        try:
+            retcode = await proc.wait()
+            if retcode:
+                raise SystemExit(retcode)
+        finally:
+            if proc.returncode is None:
+                # Kill neuro process if not finished
+                # (e.g. if KeyboardInterrupt or cancellation was received)
+                proc.kill()
+                await proc.wait()
 
     async def resolve_job_by_name(
         self, name: Optional[str], tags: AbstractSet[str]
@@ -147,7 +160,7 @@ class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
         job = job_ctx.job
         try:
             descr = await self.resolve_job_by_name(job.name, job.tags)
-            await self.run_neuro("status", descr.id)
+            await self.run_subproc("neuro", "status", descr.id)
         except ResourceNotFound:
             click.echo(f"Job {click.style(job_id, bold=True)} is not running")
             sys.exit(1)
@@ -170,9 +183,9 @@ class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
                 )
                 # attach to job if needed, browse first
                 if job.browse:
-                    await self.run_neuro("job", "browse", descr.id)
+                    await self.run_subproc("neuro", "job", "browse", descr.id)
                 if not job.detach:
-                    await self.run_neuro("attach", descr.id)
+                    await self.run_subproc("neuro", "attach", descr.id)
                 return
             # Here the status is SUCCEDED or FAILED, restart
         except ResourceNotFound:
@@ -213,20 +226,7 @@ class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
         args.append(job.image)
         if job.cmd:
             args.extend(shlex.split(job.cmd))
-        await self.run_neuro(*args)
-
-    async def run_neuro(self, *args: str) -> None:
-        proc = await asyncio.create_subprocess_exec("neuro", *args)
-        try:
-            retcode = await proc.wait()
-            if retcode:
-                raise SystemExit(retcode)
-        finally:
-            if proc.returncode is None:
-                # Kill neuro process if not finished
-                # (e.g. if KeyboardInterrupt or cancellation was received)
-                proc.kill()
-                await proc.wait()
+        await self.run_subproc("neuro", *args)
 
     async def logs(self, job_id: str) -> None:
         """Return job logs"""
@@ -234,7 +234,7 @@ class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
         job = job_ctx.job
         try:
             descr = await self.resolve_job_by_name(job.name, job.tags)
-            await self.run_neuro("logs", descr.id)
+            await self.run_subproc("neuro", "logs", descr.id)
         except ResourceNotFound:
             click.echo(f"Job {click.style(job_id, bold=True)} is not running")
             sys.exit(1)
@@ -281,6 +281,8 @@ class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
             else:
                 click.echo(f"Job {click.style(job_id, bold=True)} is not running")
 
+    # volumes subsystem
+
     async def find_volume(self, volume: str) -> VolumeCtx:
         volume_ctx = self.ctx.volumes.get(volume)
         if volume_ctx is None:
@@ -293,7 +295,8 @@ class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
 
     async def upload(self, volume: str) -> None:
         volume_ctx = await self.find_volume(volume)
-        await self.run_neuro(
+        await self.run_subproc(
+            "neuro",
             "cp",
             "--recursive",
             "--update",
@@ -304,8 +307,8 @@ class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
 
     async def download(self, volume: str) -> None:
         volume_ctx = await self.find_volume(volume)
-        await self.run_neuro(
-            "cp",
+        await self.run_subproc(
+            "neuro" "cp",
             "--recursive",
             "--update",
             "--no-target-directory",
@@ -315,7 +318,7 @@ class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
 
     async def clean(self, volume: str) -> None:
         volume_ctx = await self.find_volume(volume)
-        await self.run_neuro("rm", "--recursive", str(volume_ctx.uri))
+        await self.run_subproc("neuro", "rm", "--recursive", str(volume_ctx.uri))
 
     async def upload_all(self) -> None:
         for volume in self.ctx.volumes.values():
@@ -337,6 +340,38 @@ class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
             if volume.local is not None:
                 volume_ctx = await self.find_volume(volume.id)
                 click.echo(f"Create volume {click.style(volume.id, bold=True)}")
-                await self.run_neuro(
-                    "mkdir", "--parents", str(volume_ctx.uri),
+                await self.run_subproc(
+                    "neuro" "mkdir", "--parents", str(volume_ctx.uri),
                 )
+
+    # images subsystem
+
+    async def find_image(self, image: str) -> ImageCtx:
+        image_ctx = self.ctx.images.get(image)
+        if image_ctx is None:
+            click.echo(f"Unknown image {click.style(image, bold=True)}")
+            sys.exit(1)
+        if image_ctx.context is None:
+            click.echo(f"Image's {click.style('context', bold=True)} part is not set")
+            sys.exit(2)
+        if image_ctx.dockerfile is None:
+            click.echo(
+                f"Image's {click.style('dockerfile', bold=True)} part is not set"
+            )
+            sys.exit(3)
+        return image_ctx
+
+    async def build(self, image: str) -> None:
+        image_ctx = await self.find_image(image)
+        cmd = []
+        assert image_ctx.full_dockerfile_path is not None
+        assert image_ctx.full_context_path is not None
+        rel_dockerfile_path = image_ctx.full_dockerfile_path.relative_to(
+            image_ctx.full_context_path
+        )
+        cmd.append(f"--file={rel_dockerfile_path}")
+        for arg in image_ctx.build_args:
+            cmd.append(f"--build-arg=arg")
+        cmd.append(str(image_ctx.full_context_path))
+        cmd.append(str(image_ctx.uri))
+        await self.run_subproc("neuro-extras", "image", "build", *cmd)

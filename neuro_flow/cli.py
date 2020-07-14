@@ -177,3 +177,18 @@ async def mkvolumes(flow: ast.InteractiveFlow) -> None:
     """Create all remote folders for volumes."""
     async with InteractiveRunner(flow) as runner:
         await runner.mkvolumes()
+
+
+# #### image commands ####
+
+
+@main.command()
+@click.argument("image")
+@wrap_async
+async def build(flow: ast.InteractiveFlow, image: str) -> None:
+    """Build an image.
+
+    Assemble the IMAGE remotely and publish it.
+    """
+    async with InteractiveRunner(flow) as runner:
+        await runner.build(image)
