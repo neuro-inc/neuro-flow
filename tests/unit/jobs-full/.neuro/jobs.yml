@@ -5,7 +5,7 @@ images:
     uri: image:banana
     context: dir/context
     dockerfile: dir/Dockerfile
-    build-args:
+    build_args:
     - --arg1
     - val1
     - --arg2=val2
@@ -13,7 +13,7 @@ volumes:
   volume_a:
     uri: storage:dir
     mount: /var/dir
-    read-only: true
+    read_only: true
     local: dir
   volume_b:
     uri: storage:other
@@ -24,7 +24,7 @@ defaults:
     global_a: val-a
     global_b: val-b
   workdir: /global/dir
-  life-span: 1d4h
+  life_span: 1d4h
   preset: cpu-large
 jobs:
   test-a:
@@ -41,9 +41,9 @@ jobs:
       - ${{ volumes.volume_a.ref }}
       - storage:dir:/var/dir:ro
     tags: [tag-1, tag-2]
-    life-span: 2h55m
-    http-port: 8080
-    http-auth: false
+    life_span: 2h55m
+    http_port: 8080
+    http_auth: false
     title: Job title
     detach: true
     browse: true

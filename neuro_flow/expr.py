@@ -112,7 +112,7 @@ class Tokenizer:
         ("INT", re.compile(r"-?[0-9][0-9_]*")),
         ("STR", re.compile(r"'[^']*'")),
         ("STR", re.compile(r'"[^"]*"')),
-        ("NAME", re.compile(r"[A-Za-z_][A-Za-z_0-9\-]*")),
+        ("NAME", re.compile(r"[A-Za-z][A-Za-z_0-9]*")),
         ("DOT", re.compile(r"\.")),
         ("COMMA", re.compile(r",")),
         ("LPAR", re.compile(r"\(")),
@@ -280,7 +280,7 @@ class AttrGetter(Getter):
 
     async def eval(self, root: RootABC, obj: TypeT, start: Pos) -> TypeT:
         if dataclasses.is_dataclass(obj):
-            name = self.name.replace("-", "_")
+            name = self.name
             try:
                 return cast(TypeT, getattr(obj, name))
             except AttributeError:
@@ -300,7 +300,7 @@ class AttrGetter(Getter):
 
 def lookup_attr(name: Token) -> Any:
     # Just in case, NAME token cannot start with _.
-    assert not name.value.startswith(("_", "-"))
+    assert not name.value.startswith("_")
     return AttrGetter(name.start, name.end, name.value)
 
 

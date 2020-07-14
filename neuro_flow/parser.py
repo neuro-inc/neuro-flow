@@ -239,7 +239,7 @@ def parse_dict(
                 f"unexpected value tag {v.tag} for key {key}[{item_ctor}]",
                 k.start_mark,
             )
-        data[key.replace("-", "_")] = value
+        data[key] = value
 
     if preprocess is not None:
         data = preprocess(ctor, dict(data))
@@ -250,7 +250,7 @@ def parse_dict(
     found_fields = extra.keys() | data.keys() | {"_start", "_end"}
     for f in dataclasses.fields(res_type):
         if f.name not in found_fields:
-            key = f.name.replace("_", "-")
+            key = f.name
             item_ctor = keys[key]
             if item_ctor is None:
                 optional_fields[f.name] = None
@@ -272,7 +272,7 @@ def parse_dict(
 def parse_volume(ctor: ConfigConstructor, node: yaml.MappingNode) -> ast.Volume:
     # uri -> URL
     # mount -> RemotePath
-    # read-only -> bool [False]
+    # read_only -> bool [False]
     # local -> LocalPath [None]
     return parse_dict(
         ctor,
@@ -280,7 +280,7 @@ def parse_volume(ctor: ConfigConstructor, node: yaml.MappingNode) -> ast.Volume:
         {
             "uri": URIExpr,
             "mount": RemotePathExpr,
-            "read-only": OptBoolExpr,
+            "read_only": OptBoolExpr,
             "local": OptLocalPathExpr,
         },
         ast.Volume,
@@ -306,7 +306,7 @@ def parse_image(ctor: ConfigConstructor, node: yaml.MappingNode) -> ast.Image:
     # uri -> URL
     # context -> LocalPath [None]
     # dockerfile -> LocalPath [None]
-    # build-args -> List[str] [None]
+    # build_args -> List[str] [None]
     return parse_dict(
         ctor,
         node,
@@ -314,7 +314,7 @@ def parse_image(ctor: ConfigConstructor, node: yaml.MappingNode) -> ast.Image:
             "uri": URIExpr,
             "context": OptLocalPathExpr,
             "dockerfile": OptLocalPathExpr,
-            "build-args": SimpleSeq(StrExpr),
+            "build_args": SimpleSeq(StrExpr),
         },
         ast.Image,
     )
@@ -348,9 +348,9 @@ EXEC_UNIT = {
     "env": SimpleMapping(StrExpr),
     "volumes": SimpleSeq(StrExpr),
     "tags": SimpleSet(StrExpr),
-    "life-span": OptLifeSpanExpr,
-    "http-port": OptIntExpr,
-    "http-auth": OptBoolExpr,
+    "life_span": OptLifeSpanExpr,
+    "http_port": OptIntExpr,
+    "http_auth": OptBoolExpr,
 }
 
 JOB = {"detach": OptBoolExpr, "browse": OptBoolExpr, **EXEC_UNIT}  # type: ignore
@@ -399,7 +399,7 @@ def parse_flow_defaults(
             "tags": SimpleSet(StrExpr),
             "env": SimpleMapping(StrExpr),
             "workdir": OptRemotePathExpr,
-            "life-span": OptLifeSpanExpr,
+            "life_span": OptLifeSpanExpr,
             "preset": OptStrExpr,
         },
         ast.FlowDefaults,

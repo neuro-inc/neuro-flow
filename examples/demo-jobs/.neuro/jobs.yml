@@ -10,7 +10,7 @@ volumes:
     uri: storage:${{ flow.id }}/data
     mount: /project/data
     local: data
-    read-only: True
+    read_only: True
   code:
     uri: storage:${{ flow.id }}/modules
     mount: /project/modules
@@ -30,7 +30,7 @@ volumes:
   project:
     uri: storage:${{ flow.id }}
     mount: /project
-    read-only: True
+    read_only: True
 
 images:
   img:
@@ -66,12 +66,12 @@ jobs:
   train:
     image: ${{ images.img.uri }}
     detach: True
-    life-span: 10d
+    life_span: 10d
     volumes:
-      - ${{ volumes.data.ro-volume }}
-      - ${{ volumes.code.rw-volume }}
-      - ${{ volumes.config.ro-volume }}
-      - ${{ volumes.results.rw-volume }}
+      - ${{ volumes.data.ro_volume }}
+      - ${{ volumes.code.rw_volume }}
+      - ${{ volumes.config.ro_volume }}
+      - ${{ volumes.results.rw_volume }}
     env:
       EXPOSE_SSH: "yes"
       PYTHONPATH: ${{ volumes.code.mount }}
@@ -80,16 +80,16 @@ jobs:
         python ${{ volumes.code.mount }}/train.py --data ${{ volumes.data.mount }}
 
   jupyter:
-    http-port: 8888
+    http_port: 8888
     browse: True
     detach: True
-    life-span: 10d
+    life_span: 10d
     volumes:
-      - ${{ volumes.data.ro-volume }}
-      - ${{ volumes.code.rw-volume }}
-      - ${{ volumes.config.ro-volume }}
-      - ${{ volumes.notebooks.rw-volume }}
-      - ${{ volumes.results.rw-volume }}
+      - ${{ volumes.data.ro_volume }}
+      - ${{ volumes.code.rw_volume }}
+      - ${{ volumes.config.ro_volume }}
+      - ${{ volumes.notebooks.rw_volume }}
+      - ${{ volumes.results.rw_volume }}
     env:
       PYTHONPATH: ${{ volumes.code.mount }}
     image: ${{ images.img.uri }}
@@ -103,17 +103,17 @@ jobs:
 
   tensorboard:
     preset: cpu-small
-    http-port: 6006
+    http_port: 6006
     browse: True
     detach: True
     volumes:
-      - ${{ volumes.results.ro-volume }}
+      - ${{ volumes.results.ro_volume }}
     image: tensorflow/tensorflow:latest
     cmd: tensorboard --host=0.0.0.0 --logdir=${{ volumes.results.mount }}
 
   filebrowser:
     preset: cpu-small
-    http-port: 80
+    http_port: 80
     browse: True
     detach: True
     volumes:

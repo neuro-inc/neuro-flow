@@ -19,9 +19,9 @@ def test_template() -> None:
         Token("LTMPL", "${{"),
         Token("NAME", "job"),
         Token("DOT", "."),
-        Token("NAME", "job-id"),
+        Token("NAME", "job_id"),
         Token("DOT", "."),
         Token("NAME", "name"),
         Token("RTMPL", "}}"),
         Token("TEXT", "jik"),
-    ] == list(tokenize("abc ${{ job.job-id.name }}jik"))
+    ] == list(tokenize("abc ${{ job.job_id.name }}jik"))
