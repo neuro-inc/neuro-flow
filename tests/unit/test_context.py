@@ -86,3 +86,14 @@ async def test_images(assets: pathlib.Path) -> None:
     assert ctx.images["image_a"].dockerfile == LocalPath("dir/Dockerfile")
     assert ctx.images["image_a"].full_dockerfile_path == workspace / "dir/Dockerfile"
     assert ctx.images["image_a"].build_args == ["--arg1", "val1", "--arg2=val2"]
+
+
+async def test_defaults(assets: pathlib.Path) -> None:
+    workspace = assets / "jobs-full"
+    config_file = workspace / ".neuro" / "jobs.yml"
+    flow = parse_interactive(workspace, config_file)
+    ctx = await Context.create(flow)
+    assert ctx.defaults.tags == {"tag-a", "tag-b"}
+    assert ctx.defaults.workdir == RemotePath("/global/dir")
+    assert ctx.defaults.life_span == 100800.0
+    assert ctx.defaults.preset == "cpu-large"
