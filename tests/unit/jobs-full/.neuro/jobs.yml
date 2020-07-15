@@ -29,7 +29,7 @@ defaults:
 jobs:
   test-a:
     name: job-name
-    image: ${{ images.image_a.ref }}
+    image: ${{ images.image_a.uri }}
     preset: cpu-small
     entrypoint: bash
     cmd: echo abc
@@ -38,7 +38,7 @@ jobs:
       local_a: val-1
       local_b: val-2
     volumes:
-      - ${{ volumes.volume_a.ref }}
+      - ${{ volumes.volume_a.uri }}
       - storage:dir:/var/dir:ro
     tags: [tag-1, tag-2]
     life_span: 2h55m

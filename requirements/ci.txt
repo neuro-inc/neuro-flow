@@ -3,4 +3,5 @@ black==19.10b0
 isort==5.0.9
 flake8==3.8.3
 pytest==5.4.3
+pytest-aiohttp==0.3.0
 mypy==0.782
