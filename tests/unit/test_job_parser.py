@@ -75,7 +75,7 @@ def test_parse_full(assets: pathlib.Path) -> None:
                 (4, 4),
                 (11, 0),
                 ref=StrExpr("image:banana"),
-                context=OptLocalPathExpr("dir/context"),
+                context=OptLocalPathExpr("dir"),
                 dockerfile=OptLocalPathExpr("dir/Dockerfile"),
                 build_args=[StrExpr("--arg1"), StrExpr("val1"), StrExpr("--arg2=val2")],
             )

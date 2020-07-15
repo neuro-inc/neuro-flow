@@ -3,7 +3,7 @@ title: Global title
 images:
   image_a:
     ref: image:banana
-    context: dir/context
+    context: dir
     dockerfile: dir/Dockerfile
     build_args:
     - --arg1
