@@ -265,15 +265,11 @@ def parse_dict(
 
 
 def parse_volume(ctor: ConfigConstructor, node: yaml.MappingNode) -> ast.Volume:
-    # uri -> URL
-    # mount -> RemotePath
-    # read_only -> bool [False]
-    # local -> LocalPath [None]
     return parse_dict(
         ctor,
         node,
         {
-            "uri": URIExpr,
+            "remote": URIExpr,
             "mount": RemotePathExpr,
             "read_only": OptBoolExpr,
             "local": OptLocalPathExpr,
@@ -298,15 +294,11 @@ Loader.add_constructor("flow:volumes", parse_volumes)  # type: ignore
 
 
 def parse_image(ctor: ConfigConstructor, node: yaml.MappingNode) -> ast.Image:
-    # uri -> URL
-    # context -> LocalPath [None]
-    # dockerfile -> LocalPath [None]
-    # build_args -> List[str] [None]
     return parse_dict(
         ctor,
         node,
         {
-            "uri": URIExpr,
+            "ref": StrExpr,
             "context": OptLocalPathExpr,
             "dockerfile": OptLocalPathExpr,
             "build_args": SimpleSeq(StrExpr),

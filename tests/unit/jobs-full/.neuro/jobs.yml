@@ -2,7 +2,7 @@ kind: job
 title: Global title
 images:
   image_a:
-    uri: image:banana
+    ref: image:banana
     context: dir/context
     dockerfile: dir/Dockerfile
     build_args:
@@ -11,12 +11,12 @@ images:
     - --arg2=val2
 volumes:
   volume_a:
-    uri: storage:dir
+    remote: storage:dir
     mount: /var/dir
     read_only: true
     local: dir
   volume_b:
-    uri: storage:other
+    remote: storage:other
     mount: /var/other
 defaults:
   tags: [tag-a, tag-b]
@@ -29,7 +29,7 @@ defaults:
 jobs:
   test_a:
     name: job-name
-    image: ${{ images.image_a.uri }}
+    image: ${{ images.image_a.ref }}
     preset: cpu-small
     entrypoint: bash
     cmd: echo abc
@@ -38,7 +38,7 @@ jobs:
       local_a: val-1
       local_b: val-2
     volumes:
-      - ${{ volumes.volume_a.uri }}
+      - ${{ volumes.volume_a.ref }}
       - storage:dir:/var/dir:ro
     tags: [tag-1, tag-2]
     life_span: 2h55m

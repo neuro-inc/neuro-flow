@@ -37,7 +37,7 @@ class Kind(enum.Enum):
 
 @dataclass(frozen=True)
 class Volume(Base):
-    uri: URIExpr  # storage URI
+    remote: URIExpr  # remote URI, e.g. storage:folder/subfolder
     mount: RemotePathExpr  # mount path inside container
     local: OptLocalPathExpr
     read_only: OptBoolExpr  # True if mounted in read-only mode, False for read-write
@@ -45,7 +45,7 @@ class Volume(Base):
 
 @dataclass(frozen=True)
 class Image(Base):
-    uri: URIExpr
+    ref: StrExpr  # Image reference, e.g. image:my-proj or neuromation/base@v1.6
     context: OptLocalPathExpr
     dockerfile: OptLocalPathExpr
     build_args: Optional[Sequence[StrExpr]]

@@ -317,7 +317,7 @@ class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
             "--update",
             "--no-target-directory",
             str(volume_ctx.full_local_path),
-            str(volume_ctx.uri),
+            str(volume_ctx.remote),
         )
 
     async def download(self, volume: str) -> None:
@@ -327,13 +327,13 @@ class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
             "--recursive",
             "--update",
             "--no-target-directory",
-            str(volume_ctx.uri),
+            str(volume_ctx.remote),
             str(volume_ctx.full_local_path),
         )
 
     async def clean(self, volume: str) -> None:
         volume_ctx = await self.find_volume(volume)
-        await self.run_subproc("neuro", "rm", "--recursive", str(volume_ctx.uri))
+        await self.run_subproc("neuro", "rm", "--recursive", str(volume_ctx.remote))
 
     async def upload_all(self) -> None:
         for volume in self.ctx.volumes.values():
@@ -356,7 +356,7 @@ class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
                 volume_ctx = await self.find_volume(volume.id)
                 click.echo(f"Create volume {click.style(volume.id, bold=True)}")
                 await self.run_subproc(
-                    "neuro" "mkdir", "--parents", str(volume_ctx.uri),
+                    "neuro" "mkdir", "--parents", str(volume_ctx.remote),
                 )
 
     # images subsystem
@@ -391,5 +391,5 @@ class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
         for arg in image_ctx.build_args:
             cmd.append(f"--build-arg=arg")
         cmd.append(str(image_ctx.full_context_path))
-        cmd.append(str(image_ctx.uri))
+        cmd.append(str(image_ctx.ref))
         await self.run_subproc("neuro-extras", "image", "build", *cmd)

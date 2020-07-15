@@ -102,30 +102,30 @@ class BatchCtx:
 @dataclass(frozen=True)
 class VolumeCtx:
     id: str
-    uri: URL
+    remote: URL
     mount: RemotePath
     read_only: bool
     local: Optional[LocalPath]
     full_local_path: Optional[LocalPath]
 
     @property
-    def ro_volume(self) -> str:
-        return f"{self.uri}:{self.mount}:ro"
+    def ref_ro(self) -> str:
+        return f"{self.remote}:{self.mount}:ro"
 
     @property
-    def rw_volume(self) -> str:
-        return f"{self.uri}:{self.mount}:rw"
+    def ref_rw(self) -> str:
+        return f"{self.remote}:{self.mount}:rw"
 
     @property
-    def volume(self) -> str:
+    def ref(self) -> str:
         ro = "ro" if self.read_only else "rw"
-        return f"{self.uri}:{self.mount}:{ro}"
+        return f"{self.remote}:{self.mount}:{ro}"
 
 
 @dataclass(frozen=True)
 class ImageCtx:
     id: str
-    uri: URL
+    ref: str
     context: Optional[LocalPath]
     full_context_path: Optional[LocalPath]
     dockerfile: Optional[LocalPath]
@@ -218,7 +218,7 @@ class Context(RootABC):
                 local_path = await v.local.eval(ctx)
                 volumes[k] = VolumeCtx(
                     id=k,
-                    uri=await v.uri.eval(ctx),
+                    remote=await v.remote.eval(ctx),
                     mount=await v.mount.eval(ctx),
                     read_only=bool(await v.read_only.eval(ctx)),
                     local=local_path,
@@ -235,7 +235,7 @@ class Context(RootABC):
                     build_args = []
                 images[k] = ImageCtx(
                     id=k,
-                    uri=await i.uri.eval(ctx),
+                    ref=await i.ref.eval(ctx),
                     context=context_path,
                     full_context_path=calc_full_path(ctx, context_path),
                     dockerfile=dockerfile_path,

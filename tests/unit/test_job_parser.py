@@ -74,7 +74,7 @@ def test_parse_full(assets: pathlib.Path) -> None:
             "image_a": ast.Image(
                 (4, 4),
                 (11, 0),
-                uri=URIExpr("image:banana"),
+                ref=StrExpr("image:banana"),
                 context=OptLocalPathExpr("dir/context"),
                 dockerfile=OptLocalPathExpr("dir/Dockerfile"),
                 build_args=[StrExpr("--arg1"), StrExpr("val1"), StrExpr("--arg2=val2")],
@@ -84,7 +84,7 @@ def test_parse_full(assets: pathlib.Path) -> None:
             "volume_a": ast.Volume(
                 (13, 4),
                 (17, 2),
-                uri=URIExpr("storage:dir"),
+                remote=URIExpr("storage:dir"),
                 mount=RemotePathExpr("/var/dir"),
                 read_only=OptBoolExpr("True"),
                 local=OptLocalPathExpr("dir"),
@@ -92,7 +92,7 @@ def test_parse_full(assets: pathlib.Path) -> None:
             "volume_b": ast.Volume(
                 (18, 4),
                 (20, 0),
-                uri=URIExpr("storage:other"),
+                remote=URIExpr("storage:other"),
                 mount=RemotePathExpr("/var/other"),
                 read_only=OptBoolExpr(None),
                 local=OptLocalPathExpr(None),
@@ -112,14 +112,14 @@ def test_parse_full(assets: pathlib.Path) -> None:
                 (30, 4),
                 (51, 0),
                 name=OptStrExpr("job-name"),
-                image=StrExpr("${{ images.image_a.uri }}"),
+                image=StrExpr("${{ images.image_a.ref }}"),
                 preset=OptStrExpr("cpu-small"),
                 entrypoint=OptStrExpr("bash"),
                 cmd=OptStrExpr("echo abc"),
                 workdir=OptRemotePathExpr("/local/dir"),
                 env={"local_a": StrExpr("val-1"), "local_b": StrExpr("val-2")},
                 volumes=[
-                    StrExpr("${{ volumes.volume_a.uri }}"),
+                    StrExpr("${{ volumes.volume_a.ref }}"),
                     StrExpr("storage:dir:/var/dir:ro"),
                 ],
                 tags=[StrExpr("tag-1"), StrExpr("tag-2")],
