@@ -421,7 +421,7 @@ def find_res_type(
 ) -> Type[ast.BaseFlow]:
     if arg["kind"] == ast.Kind.JOB:
         return ast.InteractiveFlow
-    elif arg["kind"] == ast.Kind.JOB:
+    elif arg["kind"] == ast.Kind.BATCH:
         return ast.BatchFlow
     else:
         raise ValueError(f"Unknown kind {arg['kind']} of the flow")
