@@ -27,7 +27,7 @@ defaults:
   life_span: 1d4h
   preset: cpu-large
 jobs:
-  test-a:
+  test_a:
     name: job-name
     image: ${{ images.image_a.uri }}
     preset: cpu-small

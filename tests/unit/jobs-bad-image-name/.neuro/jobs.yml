@@ -1,0 +1,8 @@
+kind: job
+images:
+  image-a:
+    uri: ubuntu
+jobs:
+  test:
+    cmd: echo abc
+    image: ubuntu

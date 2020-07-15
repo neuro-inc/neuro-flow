@@ -33,7 +33,7 @@ async def test_env_from_job(assets: pathlib.Path) -> None:
     config_file = workspace / ".neuro" / "jobs.yml"
     flow = parse_interactive(workspace, config_file)
     ctx = await Context.create(flow)
-    ctx2 = await ctx.with_job("test-a")
+    ctx2 = await ctx.with_job("test_a")
     assert ctx2.env == {
         "global_a": "val-a",
         "global_b": "val-b",

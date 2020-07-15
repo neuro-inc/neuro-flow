@@ -1,0 +1,8 @@
+kind: job
+volumes:
+  volume-a:
+    uri: storage:folder:/folder
+jobs:
+  test:
+    cmd: echo abc
+    image: ubuntu

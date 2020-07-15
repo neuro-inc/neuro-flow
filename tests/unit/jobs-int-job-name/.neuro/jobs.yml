@@ -1,0 +1,5 @@
+kind: job
+jobs:
+  123:
+    cmd: echo abc
+    image: ubuntu

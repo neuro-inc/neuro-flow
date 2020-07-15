@@ -67,6 +67,18 @@ class ConfigConstructor(SafeConstructor):
         self._id = id
         self._workspace = workspace
 
+    def construct_id(self, node: yaml.Node) -> str:
+        val = self.construct_object(node)  # type: ignore[no-untyped-call]
+        if not isinstance(val, str):
+            raise ConstructorError(
+                None, None, f"expected a str, found {type(val)}", node.start_mark
+            )
+        if not val.isidentifier():
+            raise ConstructorError(
+                None, None, f"{val} is not an identifier", node.start_mark
+            )
+        return val
+
 
 class Loader(Reader, Scanner, Parser, Composer, ConfigConstructor, Resolver):
     def __init__(self, stream: TextIO, id: str, workspace: LocalPath) -> None:
@@ -121,7 +133,7 @@ class SimpleMapping(SimpleCompound[_T, Mapping[str, _T]]):
             )
         ret = {}
         for k, v in node.value:
-            key = ctor.construct_scalar(k)  # type: ignore[no-untyped-call]
+            key = ctor.construct_id(k)
             tmp = ctor.construct_scalar(v)  # type: ignore[no-untyped-call]
             value = self._factory(tmp, start=mark2pos(v.start_mark))  # type: ignore
             ret[key] = value
@@ -275,7 +287,7 @@ def parse_volumes(
 ) -> Dict[str, ast.Volume]:
     ret = {}
     for k, v in node.value:
-        key = ctor.construct_scalar(k)  # type: ignore[no-untyped-call]
+        key = ctor.construct_id(k)
         value = parse_volume(ctor, v)
         ret[key] = value
     return ret
@@ -308,7 +320,7 @@ def parse_images(
 ) -> Dict[str, ast.Image]:
     ret = {}
     for k, v in node.value:
-        key = ctor.construct_scalar(k)  # type: ignore[no-untyped-call]
+        key = ctor.construct_id(k)
         value = parse_image(ctor, v)
         ret[key] = value
     return ret
@@ -363,7 +375,7 @@ def parse_job(ctor: ConfigConstructor, id: str, node: yaml.MappingNode) -> ast.J
 def parse_jobs(ctor: ConfigConstructor, node: yaml.MappingNode) -> Dict[str, ast.Job]:
     ret = {}
     for k, v in node.value:
-        key = ctor.construct_scalar(k)  # type: ignore[no-untyped-call]
+        key = ctor.construct_id(k)
         value = parse_job(ctor, key, v)
         ret[key] = value
     return ret

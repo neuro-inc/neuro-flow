@@ -1,4 +1,6 @@
 import pathlib
+import pytest
+import yaml
 
 from neuro_flow import ast
 from neuro_flow.expr import (
@@ -106,7 +108,7 @@ def test_parse_full(assets: pathlib.Path) -> None:
             preset=OptStrExpr("cpu-large"),
         ),
         jobs={
-            "test-a": ast.Job(
+            "test_a": ast.Job(
                 (30, 4),
                 (51, 0),
                 name=OptStrExpr("job-name"),
@@ -209,3 +211,39 @@ def test_parse_python(assets: pathlib.Path) -> None:
             )
         },
     )
+
+
+def test_bad_job_name_not_identifier(assets: pathlib.Path) -> None:
+    workspace = assets / "jobs-bad-job-name"
+    config_file = workspace / ".neuro" / "jobs.yml"
+    with pytest.raises(yaml.MarkedYAMLError) as ctx:
+        parse_interactive(workspace, config_file)
+    assert ctx.value.problem == "bad-name-with-dash is not an identifier"
+    assert str(ctx.value.problem_mark) == f'  in "{config_file}", line 3, column 3'
+
+
+def test_bad_job_name_non_string(assets: pathlib.Path) -> None:
+    workspace = assets / "jobs-int-job-name"
+    config_file = workspace / ".neuro" / "jobs.yml"
+    with pytest.raises(yaml.MarkedYAMLError) as ctx:
+        parse_interactive(workspace, config_file)
+    assert ctx.value.problem == "expected a str, found <class 'int'>"
+    assert str(ctx.value.problem_mark) == f'  in "{config_file}", line 3, column 3'
+
+
+def test_bad_image_name(assets: pathlib.Path) -> None:
+    workspace = assets / "jobs-bad-image-name"
+    config_file = workspace / ".neuro" / "jobs.yml"
+    with pytest.raises(yaml.MarkedYAMLError) as ctx:
+        parse_interactive(workspace, config_file)
+    assert ctx.value.problem == "image-a is not an identifier"
+    assert str(ctx.value.problem_mark) == f'  in "{config_file}", line 3, column 3'
+
+
+def test_bad_volume_name(assets: pathlib.Path) -> None:
+    workspace = assets / "jobs-bad-volume-name"
+    config_file = workspace / ".neuro" / "jobs.yml"
+    with pytest.raises(yaml.MarkedYAMLError) as ctx:
+        parse_interactive(workspace, config_file)
+    assert ctx.value.problem == "volume-a is not an identifier"
+    assert str(ctx.value.problem_mark) == f'  in "{config_file}", line 3, column 3'
