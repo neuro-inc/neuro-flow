@@ -431,7 +431,7 @@ class BatchContext(BaseContext):
         else:
             needs = set()
 
-        job_ctx = BatchCtx(
+        batch_ctx = BatchCtx(
             id=batch_id,
             title=(await batch.title.eval(self)) or f"{self.flow.id}.{batch_id}",
             needs=needs,
@@ -443,7 +443,7 @@ class BatchContext(BaseContext):
             tags=self.defaults.tags | tags,
             life_span=life_span,
         )
-        return replace(self, _job=job_ctx, _env=env,)
+        return replace(self, _batch=batch_ctx, _env=env,)
 
 
 def calc_full_path(ctx: BaseContext, path: Optional[LocalPath]) -> Optional[LocalPath]:
