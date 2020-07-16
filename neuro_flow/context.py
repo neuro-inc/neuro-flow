@@ -75,6 +75,10 @@ class UnknownJob(KeyError):
     pass
 
 
+class UnknownBatch(KeyError):
+    pass
+
+
 @dataclass(frozen=True)
 class Neuro:
     pass
@@ -106,7 +110,29 @@ class JobCtx(ExecUnitCtx):
 
 @dataclass(frozen=True)
 class BatchCtx:
-    pass
+    id: str
+
+    title: Optional[str]
+    needs: AbstractSet[str]  # A set of batch.id
+
+    # matrix? Do we need a build matrix? Yes probably.
+
+    # outputs: Mapping[str, str] -- metadata for communicating between batches.
+    # will be added later
+
+    # defaults for steps
+    image: Optional[str]
+    entrypoint: Optional[str]
+    preset: Optional[str]
+
+    volumes: Sequence[str]
+    tags: AbstractSet[str]
+
+    workdir: Optional[RemotePath]
+
+    life_span: Optional[float]
+    # continue_on_error: OptBoolExpr
+    # if_: OptBoolExpr  # -- skip conditionally
 
 
 @dataclass(frozen=True)
@@ -163,6 +189,7 @@ _CtxT = TypeVar("_CtxT", bound="BaseContext")
 
 @dataclass(frozen=True)
 class BaseContext(RootABC):
+    FLOW_TYPE: ClassVar[Type[ast.BaseFlow]]
     LOOKUP_KEYS: ClassVar[Tuple[str, ...]] = (
         "flow",
         "defaults",
@@ -175,35 +202,24 @@ class BaseContext(RootABC):
 
     _flow_ast: ast.BaseFlow
     flow: FlowCtx
-    _defaults: Optional[DefaultsCtx]
-    _env: Optional[Mapping[str, str]]
+    _defaults: Optional[DefaultsCtx] = None
+    _env: Optional[Mapping[str, str]] = None
 
-    _images: Optional[Mapping[str, ImageCtx]]
-    _volumes: Optional[Mapping[str, VolumeCtx]]
-
-    _job: Optional[JobCtx]
-    _batch: Optional[BatchCtx]
+    _images: Optional[Mapping[str, ImageCtx]] = None
+    _volumes: Optional[Mapping[str, VolumeCtx]] = None
 
     # Add a context with global flow info, e.g. ctx.flow.id maybe?
 
     @classmethod
     async def create(cls: Type[_CtxT], flow_ast: ast.BaseFlow) -> _CtxT:
+        assert isinstance(flow_ast, cls.FLOW_TYPE)
         flow = FlowCtx(
             id=flow_ast.id,
             workspace=flow_ast.workspace.resolve(),
             title=flow_ast.title or flow_ast.id,
         )
 
-        ctx = cls(
-            _flow_ast=flow_ast,
-            flow=flow,
-            _env=None,
-            _defaults=None,
-            _images=None,
-            _volumes=None,
-            _job=None,
-            _batch=None,
-        )
+        ctx = cls(_flow_ast=flow_ast, flow=flow,)
 
         ast_defaults = flow_ast.defaults
         if ast_defaults is not None:
@@ -286,11 +302,24 @@ class BaseContext(RootABC):
             raise NotAvailable("defaults")
         return self._defaults
 
+    @property
+    def volumes(self) -> Mapping[str, VolumeCtx]:
+        if self._volumes is None:
+            raise NotAvailable("volumes")
+        return self._volumes
+
+    @property
+    def images(self) -> Mapping[str, ImageCtx]:
+        if self._images is None:
+            raise NotAvailable("images")
+        return self._images
+
 
 @dataclass(frozen=True)
 class JobContext(BaseContext):
+    FLOW_TYPE: ClassVar[Type[ast.InteractiveFlow]] = ast.InteractiveFlow
     LOOKUP_KEYS = BaseContext.LOOKUP_KEYS + ("jobs",)
-    _job: Optional[JobCtx]
+    _job: Optional[JobCtx] = None
 
     @property
     def job(self) -> JobCtx:
@@ -303,14 +332,8 @@ class JobContext(BaseContext):
             raise TypeError(
                 "Cannot enter into the job context, if job is already initialized"
             )
-        if self._batch is not None:
-            raise TypeError(
-                "Cannot enter into the job context if batch is already initialized"
-            )
-        if not isinstance(self._flow_ast, ast.InteractiveFlow):
-            raise TypeError(
-                "Cannot enter into the job context for non-interactive flow"
-            )
+        assert isinstance(self._flow_ast, self.FLOW_TYPE)
+
         try:
             job = self._flow_ast.jobs[job_id]
         except KeyError:
@@ -359,23 +382,68 @@ class JobContext(BaseContext):
         )
         return replace(self, _job=job_ctx, _env=env,)
 
+
+@dataclass(frozen=True)
+class BatchContext(BaseContext):
+    FLOW_TYPE: ClassVar[Type[ast.PipelineFlow]] = ast.PipelineFlow
+    LOOKUP_KEYS = BaseContext.LOOKUP_KEYS + ("jobs",)
+    _batch: Optional[BatchCtx] = None
+
     @property
     def batch(self) -> BatchCtx:
         if self._batch is None:
             raise NotAvailable("batch")
         return self._batch
 
-    @property
-    def volumes(self) -> Mapping[str, VolumeCtx]:
-        if self._volumes is None:
-            raise NotAvailable("volumes")
-        return self._volumes
+    async def with_batch(self, batch_id: str) -> "BatchContext":
+        if self._batch is not None:
+            raise TypeError(
+                "Cannot enter into the batch context if batch is already initialized"
+            )
+        assert isinstance(self._flow_ast, self.FLOW_TYPE)
+        try:
+            batch = self._flow_ast.batches[batch_id]
+        except KeyError:
+            raise UnknownBatch(batch_id)
 
-    @property
-    def images(self) -> Mapping[str, ImageCtx]:
-        if self._images is None:
-            raise NotAvailable("images")
-        return self._images
+        tags = set()
+        if batch.tags is not None:
+            tags = {await v.eval(self) for v in batch.tags}
+        if not tags:
+            tags = {f"batch:{batch_id}"}
+
+        env = dict(self.env)
+        if batch.env is not None:
+            env.update({k: await v.eval(self) for k, v in batch.env.items()})
+
+        workdir = (await batch.workdir.eval(self)) or self.defaults.workdir
+
+        volumes = []
+        if batch.volumes is not None:
+            volumes = [await v.eval(self) for v in batch.volumes]
+
+        life_span = (await batch.life_span.eval(self)) or self.defaults.life_span
+
+        preset = (await batch.preset.eval(self)) or self.defaults.preset
+
+        if batch.needs is not None:
+            needs = {await n.eval(self) for n in batch.needs}
+        else:
+            needs = set()
+
+        job_ctx = BatchCtx(
+            id=batch_id,
+            title=(await batch.title.eval(self)) or f"{self.flow.id}.{batch_id}",
+            needs=needs,
+            image=await batch.image.eval(self),
+            preset=preset,
+            entrypoint=await batch.entrypoint.eval(self),
+            workdir=workdir,
+            volumes=volumes,
+            tags=self.defaults.tags | tags,
+            life_span=life_span,
+        )
+        return replace(self, _job=job_ctx, _env=env,)
 
 
 def calc_full_path(ctx: BaseContext, path: Optional[LocalPath]) -> Optional[LocalPath]:
