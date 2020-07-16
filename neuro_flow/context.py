@@ -1,7 +1,17 @@
 # Contexts
 from dataclasses import dataclass, replace
 
-from typing import AbstractSet, Mapping, Optional, Sequence, cast
+from typing import (
+    AbstractSet,
+    ClassVar,
+    Mapping,
+    Optional,
+    Sequence,
+    Tuple,
+    Type,
+    TypeVar,
+    cast,
+)
 from yarl import URL
 
 from . import ast
@@ -148,8 +158,21 @@ class FlowCtx:
     title: str
 
 
+_CtxT = TypeVar("_CtxT", bound="BaseContext")
+
+
 @dataclass(frozen=True)
-class Context(RootABC):
+class BaseContext(RootABC):
+    LOOKUP_KEYS: ClassVar[Tuple[str, ...]] = (
+        "flow",
+        "defaults",
+        "volumes",
+        "images",
+        "env",
+        "job",
+        "batch",
+    )
+
     _flow_ast: ast.BaseFlow
     flow: FlowCtx
     _defaults: Optional[DefaultsCtx]
@@ -164,7 +187,7 @@ class Context(RootABC):
     # Add a context with global flow info, e.g. ctx.flow.id maybe?
 
     @classmethod
-    async def create(cls, flow_ast: ast.BaseFlow) -> "Context":
+    async def create(cls: Type[_CtxT], flow_ast: ast.BaseFlow) -> _CtxT:
         flow = FlowCtx(
             id=flow_ast.id,
             workspace=flow_ast.workspace.resolve(),
@@ -245,7 +268,7 @@ class Context(RootABC):
         return replace(ctx, _volumes=volumes, _images=images)
 
     def lookup(self, name: str) -> TypeT:
-        if name not in ("flow", "defaults", "volumes", "images", "env", "job", "batch"):
+        if name not in self.LOOKUP_KEYS:
             raise NotAvailable(name)
         ret = getattr(self, name)
         # assert isinstance(ret, (ContainerT, SequenceT, MappingT)), ret
@@ -263,13 +286,19 @@ class Context(RootABC):
             raise NotAvailable("defaults")
         return self._defaults
 
+
+@dataclass(frozen=True)
+class JobContext(BaseContext):
+    LOOKUP_KEYS = BaseContext.LOOKUP_KEYS + ("jobs",)
+    _job: Optional[JobCtx]
+
     @property
     def job(self) -> JobCtx:
         if self._job is None:
             raise NotAvailable("job")
         return self._job
 
-    async def with_job(self, job_id: str) -> "Context":
+    async def with_job(self, job_id: str) -> "JobContext":
         if self._job is not None:
             raise TypeError(
                 "Cannot enter into the job context, if job is already initialized"
@@ -349,7 +378,7 @@ class Context(RootABC):
         return self._images
 
 
-def calc_full_path(ctx: Context, path: Optional[LocalPath]) -> Optional[LocalPath]:
+def calc_full_path(ctx: BaseContext, path: Optional[LocalPath]) -> Optional[LocalPath]:
     if path is None:
         return None
     if path.is_absolute():

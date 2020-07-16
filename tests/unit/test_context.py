@@ -2,7 +2,7 @@ import pathlib
 import pytest
 from yarl import URL
 
-from neuro_flow.context import Context, NotAvailable
+from neuro_flow.context import JobContext, NotAvailable
 from neuro_flow.parser import parse_interactive
 from neuro_flow.types import LocalPath, RemotePath
 
@@ -17,7 +17,7 @@ async def test_ctx_flow(assets: pathlib.Path) -> None:
     workspace = assets / "jobs-minimal"
     config_file = workspace / ".neuro" / "jobs.yml"
     flow = parse_interactive(workspace, config_file)
-    ctx = await Context.create(flow)
+    ctx = await JobContext.create(flow)
     assert ctx.flow.id == "jobs-minimal"
     assert ctx.flow.workspace == workspace
     assert ctx.flow.title == "jobs-minimal"
@@ -27,7 +27,7 @@ async def test_env_defaults(assets: pathlib.Path) -> None:
     workspace = assets / "jobs-full"
     config_file = workspace / ".neuro" / "jobs.yml"
     flow = parse_interactive(workspace, config_file)
-    ctx = await Context.create(flow)
+    ctx = await JobContext.create(flow)
     assert ctx.env == {"global_a": "val-a", "global_b": "val-b"}
 
 
@@ -35,7 +35,7 @@ async def test_env_from_job(assets: pathlib.Path) -> None:
     workspace = assets / "jobs-full"
     config_file = workspace / ".neuro" / "jobs.yml"
     flow = parse_interactive(workspace, config_file)
-    ctx = await Context.create(flow)
+    ctx = await JobContext.create(flow)
     ctx2 = await ctx.with_job("test_a")
     assert ctx2.env == {
         "global_a": "val-a",
@@ -49,7 +49,7 @@ async def test_volumes(assets: pathlib.Path) -> None:
     workspace = assets / "jobs-full"
     config_file = workspace / ".neuro" / "jobs.yml"
     flow = parse_interactive(workspace, config_file)
-    ctx = await Context.create(flow)
+    ctx = await JobContext.create(flow)
     assert ctx.volumes.keys() == {"volume_a", "volume_b"}
 
     assert ctx.volumes["volume_a"].id == "volume_a"
@@ -77,7 +77,7 @@ async def test_images(assets: pathlib.Path) -> None:
     workspace = assets / "jobs-full"
     config_file = workspace / ".neuro" / "jobs.yml"
     flow = parse_interactive(workspace, config_file)
-    ctx = await Context.create(flow)
+    ctx = await JobContext.create(flow)
     assert ctx.images.keys() == {"image_a"}
 
     assert ctx.images["image_a"].id == "image_a"
@@ -93,7 +93,7 @@ async def test_defaults(assets: pathlib.Path) -> None:
     workspace = assets / "jobs-full"
     config_file = workspace / ".neuro" / "jobs.yml"
     flow = parse_interactive(workspace, config_file)
-    ctx = await Context.create(flow)
+    ctx = await JobContext.create(flow)
     assert ctx.defaults.tags == {"tag-a", "tag-b"}
     assert ctx.defaults.workdir == RemotePath("/global/dir")
     assert ctx.defaults.life_span == 100800.0
@@ -104,7 +104,7 @@ async def test_job_root_ctx(assets: pathlib.Path) -> None:
     workspace = assets / "jobs-full"
     config_file = workspace / ".neuro" / "jobs.yml"
     flow = parse_interactive(workspace, config_file)
-    ctx = await Context.create(flow)
+    ctx = await JobContext.create(flow)
     with pytest.raises(NotAvailable):
         ctx.job
 
@@ -113,7 +113,7 @@ async def test_job(assets: pathlib.Path) -> None:
     workspace = assets / "jobs-full"
     config_file = workspace / ".neuro" / "jobs.yml"
     flow = parse_interactive(workspace, config_file)
-    ctx = await Context.create(flow)
+    ctx = await JobContext.create(flow)
 
     ctx2 = await ctx.with_job("test_a")
     assert ctx2.job.id == "test_a"

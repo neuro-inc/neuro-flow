@@ -13,7 +13,7 @@ from typing import AbstractSet, List, Optional, Tuple, Type
 from typing_extensions import AsyncContextManager
 
 from . import ast
-from .context import Context, ImageCtx, UnknownJob, VolumeCtx
+from .context import ImageCtx, JobContext, UnknownJob, VolumeCtx
 
 
 COLORS = {
@@ -41,13 +41,13 @@ class JobInfo:
 class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
     def __init__(self, flow: ast.InteractiveFlow) -> None:
         self._flow = flow
-        self._ctx: Optional[Context] = None
+        self._ctx: Optional[JobContext] = None
         self._client: Optional[Client] = None
 
     async def post_init(self) -> None:
         if self._ctx is not None:
             return
-        self._ctx = await Context.create(self._flow)
+        self._ctx = await JobContext.create(self._flow)
         self._client = await Factory().get()
 
     async def close(self) -> None:
@@ -67,7 +67,7 @@ class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
         await self.close()
 
     @property
-    def ctx(self) -> Context:
+    def ctx(self) -> JobContext:
         assert self._ctx is not None
         return self._ctx
 
@@ -89,7 +89,7 @@ class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
                 proc.kill()
                 await proc.wait()
 
-    async def ensure_job(self, job_id: str) -> Context:
+    async def ensure_job(self, job_id: str) -> JobContext:
         try:
             return await self.ctx.with_job(job_id)
         except UnknownJob:
