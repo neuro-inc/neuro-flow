@@ -130,17 +130,17 @@ class Tokenizer:
             n_pos = len(value) - value.rfind("\n") - 1
         return Token(typ, value, (line, pos), (n_line, n_pos))
 
-    def match_specs(self, s: str, i: int, position: Pos) -> Token:
+    def match_specs(self, s: str, i: int, start: Pos, position: Pos) -> Token:
         line, pos = position
         for typ, regexp in self.TOKENS:
             m = regexp.match(s, i)
             if m is not None:
                 return self.make_token(typ, m.group(), line, pos)
         else:
-            errline = s.splitlines()[line]
-            raise LexerError((line, pos), errline)
+            errline = s.splitlines()[line - start[0]]
+            raise LexerError((line + 1, pos + 1), " " * start[1] + errline)
 
-    def match_text(self, s: str, i: int, position: Pos) -> Token:
+    def match_text(self, s: str, i: int, start: Pos, position: Pos) -> Token:
         ltmpl = s.find("${{", i)
         if ltmpl == i:
             return None
@@ -154,8 +154,8 @@ class Tokenizer:
         if err_pos != -1:
             t = self.make_token("TEXT", substr[:err_pos], line, pos)
             line, pos = t.end
-            errline = s.splitlines()[line]
-            raise LexerError((line, pos), errline)
+            errline = s.splitlines()[line - start[0]]
+            raise LexerError((line + 1, pos + 1), " " * start[1] + errline)
         return self.make_token("TEXT", substr, line, pos)
 
     def __call__(self, s: str, *, start: Pos = (0, 0)) -> Iterator[Token]:
@@ -165,14 +165,14 @@ class Tokenizer:
         i = 0
         while i < length:
             if in_expr:
-                t = self.match_specs(s, i, (line, pos))
+                t = self.match_specs(s, i, start, (line, pos))
                 if t.type == "RTMPL":
                     in_expr = False
             else:
-                t = self.match_text(s, i, (line, pos))
+                t = self.match_text(s, i, start, (line, pos))
                 if not t:
                     in_expr = True
-                    t = self.match_specs(s, i, (line, pos))
+                    t = self.match_specs(s, i, start, (line, pos))
             if t.type != "SPACE":
                 yield t
             line, pos = t.end

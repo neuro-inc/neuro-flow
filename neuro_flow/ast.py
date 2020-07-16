@@ -66,7 +66,6 @@ class ExecUnit(Base):
     life_span: OptLifeSpanExpr
     http_port: OptIntExpr
     http_auth: OptBoolExpr
-    port_forward: Optional[Sequence[PortPairExpr]]
 
 
 @dataclass(frozen=True)
@@ -75,15 +74,17 @@ class Job(ExecUnit):
 
     detach: OptBoolExpr
     browse: OptBoolExpr
+    port_forward: Optional[Sequence[PortPairExpr]]
 
 
 @dataclass(frozen=True)
 class Step(ExecUnit):
     # A step of a batch
-    pass
 
-    # continue_on_error: bool
-    # if: str -- skip conditionally
+    id: OptStrExpr
+
+    # continue_on_error: OptBoolExpr
+    # if_: OptBoolExpr  # -- skip conditionally
 
 
 @dataclass(frozen=True)
@@ -92,8 +93,7 @@ class Batch(Base):
     # All steps share the same implicit persistent disk volume
 
     title: OptStrExpr  # Autocalculated if not passed explicitly
-    needs: Sequence[StrExpr]  # BatchRef
-    steps: Sequence[Step]
+    needs: Optional[Sequence[StrExpr]]  # BatchRef
 
     # matrix? Do we need a build matrix? Yes probably.
 
@@ -101,8 +101,8 @@ class Batch(Base):
     # will be added later
 
     # defaults for steps
-    name: OptStrExpr
     image: OptStrExpr  # ImageRef
+    entrypoint: OptStrExpr
     preset: OptStrExpr
 
     volumes: Optional[Sequence[StrExpr]]
@@ -112,8 +112,10 @@ class Batch(Base):
     workdir: OptRemotePathExpr
 
     life_span: OptLifeSpanExpr
-    # continue_on_error: bool
-    # if: str -- skip conditionally
+    # continue_on_error: OptBoolExpr
+    # if_: OptBoolExpr  # -- skip conditionally
+
+    steps: Sequence[Step]
 
 
 @dataclass(frozen=True)
@@ -155,6 +157,6 @@ class InteractiveFlow(BaseFlow):
 
 
 @dataclass(frozen=True)
-class BatchFlow(BaseFlow):
+class PipelineFlow(BaseFlow):
     # self.kind == Kind.Batch
     batches: Mapping[str, Batch]

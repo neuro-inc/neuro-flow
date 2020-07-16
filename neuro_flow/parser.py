@@ -338,13 +338,17 @@ EXEC_UNIT = {
     "life_span": OptLifeSpanExpr,
     "http_port": OptIntExpr,
     "http_auth": OptBoolExpr,
-    "port_forward": SimpleSeq(PortPairExpr),
 }
 
-JOB = {"detach": OptBoolExpr, "browse": OptBoolExpr, **EXEC_UNIT}  # type: ignore
+JOB = {
+    "detach": OptBoolExpr,
+    "browse": OptBoolExpr,
+    "port_forward": SimpleSeq(PortPairExpr),
+    **EXEC_UNIT,
+}
 
 
-def preproc_job(ctor: ConfigConstructor, dct: Dict[str, Any]) -> Dict[str, Any]:
+def select_shells(ctor: ConfigConstructor, dct: Dict[str, Any]) -> Dict[str, Any]:
     found = {k for k in dct if k in ("cmd", "bash", "python")}
     if len(found) > 1:
         raise ValueError(f"{','.join(found)} are mutually exclusive")
@@ -361,7 +365,9 @@ def preproc_job(ctor: ConfigConstructor, dct: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def parse_job(ctor: ConfigConstructor, id: str, node: yaml.MappingNode) -> ast.Job:
-    return parse_dict(ctor, node, JOB, ast.Job, preprocess=preproc_job)
+    return parse_dict(
+        ctor, node, JOB, ast.Job, preprocess=select_shells  # type: ignore[arg-type]
+    )
 
 
 def parse_jobs(ctor: ConfigConstructor, node: yaml.MappingNode) -> Dict[str, ast.Job]:
@@ -375,6 +381,53 @@ def parse_jobs(ctor: ConfigConstructor, node: yaml.MappingNode) -> Dict[str, ast
 
 Loader.add_path_resolver("flow:jobs", [(dict, "jobs")])  # type: ignore
 Loader.add_constructor("flow:jobs", parse_jobs)  # type: ignore
+
+
+STEP = {"id": OptStrExpr, **EXEC_UNIT}  # type: ignore
+
+
+def parse_step(ctor: ConfigConstructor, node: yaml.MappingNode) -> ast.Step:
+    return parse_dict(ctor, node, STEP, ast.Step)
+
+
+Loader.add_path_resolver(  # type: ignore[no-untyped-call]
+    "flow:step", [(dict, "batches"), (dict, False), (dict, "steps"), (list, None)]
+)
+Loader.add_constructor("flow:step", parse_step)  # type: ignore
+
+
+BATCH = {
+    "title": OptStrExpr,
+    "needs": SimpleSeq(StrExpr),
+    "steps": None,
+    "image": OptStrExpr,
+    "entrypoint": OptStrExpr,
+    "preset": OptStrExpr,
+    "volumes": SimpleSeq(StrExpr),
+    "env": SimpleMapping(StrExpr),
+    "tags": SimpleSeq(StrExpr),
+    "workdir": OptRemotePathExpr,
+    "life_span": OptLifeSpanExpr,
+}
+
+
+def parse_batch(ctor: ConfigConstructor, id: str, node: yaml.MappingNode) -> ast.Batch:
+    return parse_dict(ctor, node, BATCH, ast.Batch)  # type: ignore
+
+
+def parse_batches(
+    ctor: ConfigConstructor, node: yaml.MappingNode
+) -> Dict[str, ast.Batch]:
+    ret = {}
+    for k, v in node.value:
+        key = ctor.construct_id(k)
+        value = parse_batch(ctor, key, v)
+        ret[key] = value
+    return ret
+
+
+Loader.add_path_resolver("flow:batches", [(dict, "batches")])  # type: ignore
+Loader.add_constructor("flow:batches", parse_batches)  # type: ignore
 
 
 def parse_flow_defaults(
@@ -398,13 +451,15 @@ Loader.add_path_resolver("flow:defaults", [(dict, "defaults")])  # type: ignore
 Loader.add_constructor("flow:defaults", parse_flow_defaults)  # type: ignore
 
 
-BASE_FLOW = {
+FLOW = {
     "kind": ast.Kind,
     "id": str,
     "title": None,
     "images": None,
     "volumes": None,
     "defaults": None,
+    "jobs": None,
+    "batches": None,
 }
 
 
@@ -416,25 +471,37 @@ Loader.add_path_resolver("flow:opt_str", [(dict, "title")])  # type: ignore
 Loader.add_constructor("flow:opt_str", parse_opt_str)  # type: ignore
 
 
+def select_kind(ctor: ConfigConstructor, dct: Dict[str, Any]) -> Dict[str, Any]:
+    if dct["kind"] == ast.Kind.JOB:
+        batches = dct.pop("batches", None)
+        if batches is not None:
+            raise ValueError("flow of kind={dct['kind']} cannot have batches")
+    elif dct["kind"] == ast.Kind.BATCH:
+        jobs = dct.pop("jobs", None)
+        if jobs is not None:
+            raise ValueError("flow of kind={dct['kind']} cannot have jobs")
+        del dct["jobs"]
+    else:
+        raise ValueError(f"Unknown kind {dct['kind']} of the flow")
+    return dct
+
+
 def find_res_type(
     ctor: ConfigConstructor, res_type: Type[ast.BaseFlow], arg: Dict[str, VarT]
 ) -> Type[ast.BaseFlow]:
     if arg["kind"] == ast.Kind.JOB:
         return ast.InteractiveFlow
     elif arg["kind"] == ast.Kind.BATCH:
-        return ast.BatchFlow
+        return ast.PipelineFlow
     else:
         raise ValueError(f"Unknown kind {arg['kind']} of the flow")
-
-
-INTERACTIVE_FLOW = {"jobs": None, **BASE_FLOW}  # type: ignore[arg-type]
 
 
 def parse_main(ctor: ConfigConstructor, node: yaml.MappingNode) -> ast.BaseFlow:
     return parse_dict(
         ctor,
         node,
-        INTERACTIVE_FLOW,
+        FLOW,
         ast.BaseFlow,
         find_res_type=find_res_type,
         extra={"id": ctor._id, "workspace": ctor._workspace},
@@ -445,14 +512,35 @@ Loader.add_path_resolver("flow:main", [])  # type: ignore
 Loader.add_constructor("flow:main", parse_main)  # type: ignore
 
 
-def parse_interactive(workspace: Path, config_file: Path) -> ast.InteractiveFlow:
+def parse_interactive(
+    workspace: Path, config_file: Path, *, id: Optional[str] = None
+) -> ast.InteractiveFlow:
     # Parse interactive flow config file
+    if id is None:
+        id = workspace.stem
     with config_file.open() as f:
-        loader = Loader(f, workspace.stem, workspace)
+        loader = Loader(f, id, workspace)
         try:
             ret = loader.get_single_data()  # type: ignore[no-untyped-call]
             assert isinstance(ret, ast.InteractiveFlow)
             assert ret.kind == ast.Kind.JOB
+            return ret
+        finally:
+            loader.dispose()  # type: ignore[no-untyped-call]
+
+
+def parse_pipeline(
+    workspace: Path, config_file: Path, *, id: Optional[str] = None
+) -> ast.PipelineFlow:
+    # Parse pipeline flow config file
+    if id is None:
+        id = config_file.stem
+    with config_file.open() as f:
+        loader = Loader(f, id, workspace)
+        try:
+            ret = loader.get_single_data()  # type: ignore[no-untyped-call]
+            assert isinstance(ret, ast.PipelineFlow)
+            assert ret.kind == ast.Kind.BATCH
             return ret
         finally:
             loader.dispose()  # type: ignore[no-untyped-call]

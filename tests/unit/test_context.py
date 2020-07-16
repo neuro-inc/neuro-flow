@@ -125,10 +125,10 @@ async def test_job(assets: pathlib.Path) -> None:
     assert not ctx2.job.http_auth
     assert ctx2.job.entrypoint == "bash"
     assert ctx2.job.cmd == "echo abc"
-    assert ctx2.job.workdir == RemotePath('/local/dir')
-    assert ctx2.job.volumes == ['storage:dir:/var/dir:ro', 'storage:dir:/var/dir:ro']
-    assert ctx2.job.tags == {'tag-1', 'tag-2', 'tag-a', 'tag-b'}
+    assert ctx2.job.workdir == RemotePath("/local/dir")
+    assert ctx2.job.volumes == ["storage:dir:/var/dir:ro", "storage:dir:/var/dir:ro"]
+    assert ctx2.job.tags == {"tag-1", "tag-2", "tag-a", "tag-b"}
     assert ctx2.job.life_span == 10500.0
-    assert ctx2.job.port_forward == ['2211:22']
+    assert ctx2.job.port_forward == ["2211:22"]
     assert ctx2.job.detach
     assert ctx2.job.browse
