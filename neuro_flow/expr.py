@@ -499,7 +499,7 @@ class Expr(Generic[_T]):
             return None
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__qualname__}({self._pattern})"
+        return f"{self.__class__.__qualname__}({self._pattern!r})"
 
     def __eq__(self, other: Any) -> bool:
         if type(self) != type(other):
