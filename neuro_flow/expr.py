@@ -99,27 +99,27 @@ class EvalLookupError(EvalErrorMixin, LookupError):
 class Tokenizer:
 
     TOKENS = [
-        ("LTMPL", re.compile(r"\$\{\{")),
-        ("RTMPL", re.compile(r"\}\}")),
-        ("SPACE", re.compile(r"[ \t]+")),
-        ("NONE", re.compile(r"None")),
-        ("BOOL", re.compile(r"True|False")),
-        ("REAL", re.compile(r"-?[0-9]+\.[0-9]*([Ee][+\-]?[0-9]+)*")),
-        ("EXP", re.compile(r"-?[0-9]+\.[0-9]*([Ee][+\-]?[0-9]+)*[+\-]?e[0-9]+")),
-        ("HEX", re.compile(r"0[xX][0-9a-fA-F_]+")),
-        ("OCT", re.compile(r"0[oO][0-7_]+")),
-        ("BIN", re.compile(r"0[bB][0-1_]+")),
-        ("INT", re.compile(r"-?[0-9][0-9_]*")),
-        ("STR", re.compile(r"'[^']*'")),
-        ("STR", re.compile(r'"[^"]*"')),
-        ("NAME", re.compile(r"[A-Za-z][A-Za-z_0-9]*")),
-        ("DOT", re.compile(r"\.")),
-        ("COMMA", re.compile(r",")),
-        ("LPAR", re.compile(r"\(")),
-        ("RPAR", re.compile(r"\)")),
-        ("LSQB", re.compile(r"\[")),
-        ("RSQB", re.compile(r"\]")),
+        ("LTMPL", r"\$\{\{"),
+        ("RTMPL", r"\}\}"),
+        ("SPACE", r"[ \t]+"),
+        ("NONE", r"None"),
+        ("BOOL", r"True|False"),
+        ("REAL", r"-?[0-9]+\.[0-9]*([Ee][+\-]?[0-9]+)*"),
+        ("EXP", r"-?[0-9]+\.[0-9]*([Ee][+\-]?[0-9]+)*[+\-]?e[0-9]+"),
+        ("HEX", r"0[xX][0-9a-fA-F_]+"),
+        ("OCT", r"0[oO][0-7_]+"),
+        ("BIN", r"0[bB][0-1_]+"),
+        ("INT", r"-?[0-9][0-9_]*"),
+        ("STR", r"'[^']*'|" r'"[^"]*"'),
+        ("NAME", r"[A-Za-z][A-Za-z_0-9]*"),
+        ("DOT", r"\."),
+        ("COMMA", r","),
+        ("LPAR", r"\("),
+        ("RPAR", r"\)"),
+        ("LSQB", r"\["),
+        ("RSQB", r"\]"),
     ]
+    TOKENS_RE = re.compile("|".join(f"(?P<{typ}>{regexp})" for typ, regexp in TOKENS))
 
     def make_token(self, typ: str, value: str, line: int, pos: int) -> Token:
         nls = value.count("\n")
@@ -132,10 +132,10 @@ class Tokenizer:
 
     def match_specs(self, s: str, i: int, position: Pos) -> Token:
         line, pos = position
-        for typ, regexp in self.TOKENS:
-            m = regexp.match(s, i)
-            if m is not None:
-                return self.make_token(typ, m.group(), line, pos)
+        m = self.TOKENS_RE.match(s, i)
+        if m is not None:
+            assert m.lastgroup
+            return self.make_token(m.lastgroup, m.group(), line, pos)
         else:
             errline = s.splitlines()[line]
             raise LexerError((line, pos), errline)
