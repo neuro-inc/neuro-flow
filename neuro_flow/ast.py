@@ -2,7 +2,7 @@
 from dataclasses import dataclass
 
 import enum
-from typing import AbstractSet, List, Mapping, Optional, Sequence
+from typing import Mapping, Optional, Sequence
 
 from .expr import (
     OptBoolExpr,
@@ -11,6 +11,7 @@ from .expr import (
     OptLocalPathExpr,
     OptRemotePathExpr,
     OptStrExpr,
+    PortPairExpr,
     Pos,
     RemotePathExpr,
     StrExpr,
@@ -36,7 +37,7 @@ class Kind(enum.Enum):
 
 @dataclass(frozen=True)
 class Volume(Base):
-    uri: URIExpr  # storage URI
+    remote: URIExpr  # remote URI, e.g. storage:folder/subfolder
     mount: RemotePathExpr  # mount path inside container
     local: OptLocalPathExpr
     read_only: OptBoolExpr  # True if mounted in read-only mode, False for read-write
@@ -44,7 +45,7 @@ class Volume(Base):
 
 @dataclass(frozen=True)
 class Image(Base):
-    uri: URIExpr
+    ref: StrExpr  # Image reference, e.g. image:my-proj or neuromation/base@v1.6
     context: OptLocalPathExpr
     dockerfile: OptLocalPathExpr
     build_args: Optional[Sequence[StrExpr]]
@@ -61,7 +62,7 @@ class ExecUnit(Base):
     workdir: OptRemotePathExpr
     env: Optional[Mapping[str, StrExpr]]
     volumes: Optional[Sequence[StrExpr]]
-    tags: Optional[AbstractSet[StrExpr]]
+    tags: Optional[Sequence[StrExpr]]
     life_span: OptLifeSpanExpr
     http_port: OptIntExpr
     http_auth: OptBoolExpr
@@ -73,15 +74,17 @@ class Job(ExecUnit):
 
     detach: OptBoolExpr
     browse: OptBoolExpr
+    port_forward: Optional[Sequence[PortPairExpr]]
 
 
 @dataclass(frozen=True)
 class Step(ExecUnit):
     # A step of a batch
-    pass
 
-    # continue_on_error: bool
-    # if: str -- skip conditionally
+    id: OptStrExpr
+
+    # continue_on_error: OptBoolExpr
+    # if_: OptBoolExpr  # -- skip conditionally
 
 
 @dataclass(frozen=True)
@@ -90,8 +93,7 @@ class Batch(Base):
     # All steps share the same implicit persistent disk volume
 
     title: OptStrExpr  # Autocalculated if not passed explicitly
-    needs: List[StrExpr]  # BatchRef
-    steps: List[Step]
+    needs: Optional[Sequence[StrExpr]]  # BatchRef
 
     # matrix? Do we need a build matrix? Yes probably.
 
@@ -99,24 +101,26 @@ class Batch(Base):
     # will be added later
 
     # defaults for steps
-    name: OptStrExpr
     image: OptStrExpr  # ImageRef
+    entrypoint: OptStrExpr
     preset: OptStrExpr
 
     volumes: Optional[Sequence[StrExpr]]
-    tags: Optional[AbstractSet[StrExpr]]
+    tags: Optional[Sequence[StrExpr]]
 
     env: Optional[Mapping[str, StrExpr]]
     workdir: OptRemotePathExpr
 
     life_span: OptLifeSpanExpr
-    # continue_on_error: bool
-    # if: str -- skip conditionally
+    # continue_on_error: OptBoolExpr
+    # if_: OptBoolExpr  # -- skip conditionally
+
+    steps: Sequence[Step]
 
 
 @dataclass(frozen=True)
 class FlowDefaults(Base):
-    tags: Optional[AbstractSet[StrExpr]]
+    tags: Optional[Sequence[StrExpr]]
 
     env: Optional[Mapping[str, StrExpr]]
     workdir: OptRemotePathExpr
@@ -153,6 +157,6 @@ class InteractiveFlow(BaseFlow):
 
 
 @dataclass(frozen=True)
-class BatchFlow(BaseFlow):
+class PipelineFlow(BaseFlow):
     # self.kind == Kind.Batch
     batches: Mapping[str, Batch]

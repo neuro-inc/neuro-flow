@@ -7,34 +7,34 @@ defaults:
 
 volumes:
   data:
-    uri: storage:${{ flow.id }}/data
+    remote: storage:${{ flow.id }}/data
     mount: /project/data
     local: data
     read_only: True
   code:
-    uri: storage:${{ flow.id }}/modules
+    remote: storage:${{ flow.id }}/modules
     mount: /project/modules
     local: modules
   config:
-    uri: storage:${{ flow.id }}/config
+    remote: storage:${{ flow.id }}/config
     mount: /project/config
     local: config
   notebooks:
-    uri: storage:${{ flow.id }}/notebooks
+    remote: storage:${{ flow.id }}/notebooks
     mount: /project/notebooks
     local: notebooks
   results:
-    uri: storage:${{ flow.id }}/results
+    remote: storage:${{ flow.id }}/results
     mount: /project/results
     local: results
   project:
-    uri: storage:${{ flow.id }}
+    remote: storage:${{ flow.id }}
     mount: /project
     read_only: True
 
 images:
   img:
-    uri: image:${{ flow.id }}:v1.0
+    ref: image:${{ flow.id }}:v1.0
     dockerfile: ${{ flow.workspace }}/Dockerfile
     context: ${{ flow.workspace }}
 
@@ -55,23 +55,25 @@ jobs:
         sys.exit(1)
 
   develop:
-    image: ${{ images.img.uri }}
+    image: ${{ images.img.ref }}
     # note, since the base image v1.6 redirects the output via '2>&1 | tee'
     # the image cannot run bash in interactive mode.
     cmd: bash
     env:
       EXPOSE_SSH: "yes"
       PYTHONPATH: ${{ volumes.code.mount }}
+    port_forward:
+    - 2211:22
 
   train:
-    image: ${{ images.img.uri }}
+    image: ${{ images.img.ref }}
     detach: True
     life_span: 10d
     volumes:
-      - ${{ volumes.data.ro_volume }}
-      - ${{ volumes.code.rw_volume }}
-      - ${{ volumes.config.ro_volume }}
-      - ${{ volumes.results.rw_volume }}
+      - ${{ volumes.data.ref_ro }}
+      - ${{ volumes.code.ref_rw }}
+      - ${{ volumes.config.ref_ro }}
+      - ${{ volumes.results.ref_rw }}
     env:
       EXPOSE_SSH: "yes"
       PYTHONPATH: ${{ volumes.code.mount }}
@@ -85,14 +87,14 @@ jobs:
     detach: True
     life_span: 10d
     volumes:
-      - ${{ volumes.data.ro_volume }}
-      - ${{ volumes.code.rw_volume }}
-      - ${{ volumes.config.ro_volume }}
-      - ${{ volumes.notebooks.rw_volume }}
-      - ${{ volumes.results.rw_volume }}
+      - ${{ volumes.data.ref_ro }}
+      - ${{ volumes.code.ref_rw }}
+      - ${{ volumes.config.ref_ro }}
+      - ${{ volumes.notebooks.ref_rw }}
+      - ${{ volumes.results.ref_rw }}
     env:
       PYTHONPATH: ${{ volumes.code.mount }}
-    image: ${{ images.img.uri }}
+    image: ${{ images.img.ref }}
     cmd: >-
       jupyter notebook
         --no-browser
@@ -107,7 +109,7 @@ jobs:
     browse: True
     detach: True
     volumes:
-      - ${{ volumes.results.ro_volume }}
+      - ${{ volumes.results.ref_ro }}
     image: tensorflow/tensorflow:latest
     cmd: tensorboard --host=0.0.0.0 --logdir=${{ volumes.results.mount }}
 
@@ -117,7 +119,7 @@ jobs:
     browse: True
     detach: True
     volumes:
-      - ${{ volumes.project.uri }}:/srv:rw
+      - ${{ volumes.project.remote }}:/srv:rw
     image: filebrowser/filebrowser:latest
     cmd: --noauth
 

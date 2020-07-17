@@ -42,6 +42,7 @@ from .expr import (
     OptPythonExpr,
     OptRemotePathExpr,
     OptStrExpr,
+    PortPairExpr,
     Pos,
     RemotePathExpr,
     StrExpr,
@@ -65,6 +66,18 @@ class ConfigConstructor(SafeConstructor):
         super().__init__()
         self._id = id
         self._workspace = workspace
+
+    def construct_id(self, node: yaml.Node) -> str:
+        val = self.construct_object(node)  # type: ignore[no-untyped-call]
+        if not isinstance(val, str):
+            raise ConstructorError(
+                None, None, f"expected a str, found {type(val)}", node.start_mark
+            )
+        if not val.isidentifier():
+            raise ConstructorError(
+                None, None, f"{val} is not an identifier", node.start_mark
+            )
+        return val
 
 
 class Loader(Reader, Scanner, Parser, Composer, ConfigConstructor, Resolver):
@@ -108,24 +121,6 @@ class SimpleSeq(SimpleCompound[_T, Sequence[_T]]):
         return ret
 
 
-class SimpleSet(SimpleCompound[_T, AbstractSet[_T]]):
-    def construct(self, ctor: ConfigConstructor, node: yaml.Node) -> AbstractSet[_T]:
-        if not isinstance(node, yaml.SequenceNode):
-            node_id = node.id  # type: ignore
-            raise ConstructorError(
-                None,
-                None,
-                f"expected a sequence node, but found {node_id}",
-                node.start_mark,
-            )
-        ret = set()
-        for child in node.value:
-            val = ctor.construct_object(child)  # type: ignore[no-untyped-call]
-            tmp = self._factory(val, start=mark2pos(child.start_mark))  # type: ignore
-            ret.add(tmp)
-        return ret
-
-
 class SimpleMapping(SimpleCompound[_T, Mapping[str, _T]]):
     def construct(self, ctor: ConfigConstructor, node: yaml.Node) -> Mapping[str, _T]:
         if not isinstance(node, yaml.MappingNode):
@@ -138,7 +133,7 @@ class SimpleMapping(SimpleCompound[_T, Mapping[str, _T]]):
             )
         ret = {}
         for k, v in node.value:
-            key = ctor.construct_scalar(k)  # type: ignore[no-untyped-call]
+            key = ctor.construct_id(k)
             tmp = ctor.construct_scalar(v)  # type: ignore[no-untyped-call]
             value = self._factory(tmp, start=mark2pos(v.start_mark))  # type: ignore
             ret[key] = value
@@ -270,15 +265,11 @@ def parse_dict(
 
 
 def parse_volume(ctor: ConfigConstructor, node: yaml.MappingNode) -> ast.Volume:
-    # uri -> URL
-    # mount -> RemotePath
-    # read_only -> bool [False]
-    # local -> LocalPath [None]
     return parse_dict(
         ctor,
         node,
         {
-            "uri": URIExpr,
+            "remote": URIExpr,
             "mount": RemotePathExpr,
             "read_only": OptBoolExpr,
             "local": OptLocalPathExpr,
@@ -292,7 +283,7 @@ def parse_volumes(
 ) -> Dict[str, ast.Volume]:
     ret = {}
     for k, v in node.value:
-        key = ctor.construct_scalar(k)  # type: ignore[no-untyped-call]
+        key = ctor.construct_id(k)
         value = parse_volume(ctor, v)
         ret[key] = value
     return ret
@@ -303,15 +294,11 @@ Loader.add_constructor("flow:volumes", parse_volumes)  # type: ignore
 
 
 def parse_image(ctor: ConfigConstructor, node: yaml.MappingNode) -> ast.Image:
-    # uri -> URL
-    # context -> LocalPath [None]
-    # dockerfile -> LocalPath [None]
-    # build_args -> List[str] [None]
     return parse_dict(
         ctor,
         node,
         {
-            "uri": URIExpr,
+            "ref": StrExpr,
             "context": OptLocalPathExpr,
             "dockerfile": OptLocalPathExpr,
             "build_args": SimpleSeq(StrExpr),
@@ -325,7 +312,7 @@ def parse_images(
 ) -> Dict[str, ast.Image]:
     ret = {}
     for k, v in node.value:
-        key = ctor.construct_scalar(k)  # type: ignore[no-untyped-call]
+        key = ctor.construct_id(k)
         value = parse_image(ctor, v)
         ret[key] = value
     return ret
@@ -347,16 +334,21 @@ EXEC_UNIT = {
     "workdir": OptRemotePathExpr,
     "env": SimpleMapping(StrExpr),
     "volumes": SimpleSeq(StrExpr),
-    "tags": SimpleSet(StrExpr),
+    "tags": SimpleSeq(StrExpr),
     "life_span": OptLifeSpanExpr,
     "http_port": OptIntExpr,
     "http_auth": OptBoolExpr,
 }
 
-JOB = {"detach": OptBoolExpr, "browse": OptBoolExpr, **EXEC_UNIT}  # type: ignore
+JOB = {
+    "detach": OptBoolExpr,
+    "browse": OptBoolExpr,
+    "port_forward": SimpleSeq(PortPairExpr),
+    **EXEC_UNIT,
+}
 
 
-def preproc_job(ctor: ConfigConstructor, dct: Dict[str, Any]) -> Dict[str, Any]:
+def select_shells(ctor: ConfigConstructor, dct: Dict[str, Any]) -> Dict[str, Any]:
     found = {k for k in dct if k in ("cmd", "bash", "python")}
     if len(found) > 1:
         raise ValueError(f"{','.join(found)} are mutually exclusive")
@@ -373,13 +365,15 @@ def preproc_job(ctor: ConfigConstructor, dct: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def parse_job(ctor: ConfigConstructor, id: str, node: yaml.MappingNode) -> ast.Job:
-    return parse_dict(ctor, node, JOB, ast.Job, preprocess=preproc_job)
+    return parse_dict(
+        ctor, node, JOB, ast.Job, preprocess=select_shells  # type: ignore[arg-type]
+    )
 
 
 def parse_jobs(ctor: ConfigConstructor, node: yaml.MappingNode) -> Dict[str, ast.Job]:
     ret = {}
     for k, v in node.value:
-        key = ctor.construct_scalar(k)  # type: ignore[no-untyped-call]
+        key = ctor.construct_id(k)
         value = parse_job(ctor, key, v)
         ret[key] = value
     return ret
@@ -389,6 +383,53 @@ Loader.add_path_resolver("flow:jobs", [(dict, "jobs")])  # type: ignore
 Loader.add_constructor("flow:jobs", parse_jobs)  # type: ignore
 
 
+STEP = {"id": OptStrExpr, **EXEC_UNIT}  # type: ignore
+
+
+def parse_step(ctor: ConfigConstructor, node: yaml.MappingNode) -> ast.Step:
+    return parse_dict(ctor, node, STEP, ast.Step)
+
+
+Loader.add_path_resolver(  # type: ignore[no-untyped-call]
+    "flow:step", [(dict, "batches"), (dict, False), (dict, "steps"), (list, None)]
+)
+Loader.add_constructor("flow:step", parse_step)  # type: ignore
+
+
+BATCH = {
+    "title": OptStrExpr,
+    "needs": SimpleSeq(StrExpr),
+    "steps": None,
+    "image": OptStrExpr,
+    "entrypoint": OptStrExpr,
+    "preset": OptStrExpr,
+    "volumes": SimpleSeq(StrExpr),
+    "env": SimpleMapping(StrExpr),
+    "tags": SimpleSeq(StrExpr),
+    "workdir": OptRemotePathExpr,
+    "life_span": OptLifeSpanExpr,
+}
+
+
+def parse_batch(ctor: ConfigConstructor, id: str, node: yaml.MappingNode) -> ast.Batch:
+    return parse_dict(ctor, node, BATCH, ast.Batch)  # type: ignore
+
+
+def parse_batches(
+    ctor: ConfigConstructor, node: yaml.MappingNode
+) -> Dict[str, ast.Batch]:
+    ret = {}
+    for k, v in node.value:
+        key = ctor.construct_id(k)
+        value = parse_batch(ctor, key, v)
+        ret[key] = value
+    return ret
+
+
+Loader.add_path_resolver("flow:batches", [(dict, "batches")])  # type: ignore
+Loader.add_constructor("flow:batches", parse_batches)  # type: ignore
+
+
 def parse_flow_defaults(
     ctor: ConfigConstructor, node: yaml.MappingNode
 ) -> ast.FlowDefaults:
@@ -396,7 +437,7 @@ def parse_flow_defaults(
         ctor,
         node,
         {
-            "tags": SimpleSet(StrExpr),
+            "tags": SimpleSeq(StrExpr),
             "env": SimpleMapping(StrExpr),
             "workdir": OptRemotePathExpr,
             "life_span": OptLifeSpanExpr,
@@ -410,13 +451,15 @@ Loader.add_path_resolver("flow:defaults", [(dict, "defaults")])  # type: ignore
 Loader.add_constructor("flow:defaults", parse_flow_defaults)  # type: ignore
 
 
-BASE_FLOW = {
+FLOW = {
     "kind": ast.Kind,
     "id": str,
     "title": None,
     "images": None,
     "volumes": None,
     "defaults": None,
+    "jobs": None,
+    "batches": None,
 }
 
 
@@ -428,25 +471,37 @@ Loader.add_path_resolver("flow:opt_str", [(dict, "title")])  # type: ignore
 Loader.add_constructor("flow:opt_str", parse_opt_str)  # type: ignore
 
 
+def select_kind(ctor: ConfigConstructor, dct: Dict[str, Any]) -> Dict[str, Any]:
+    if dct["kind"] == ast.Kind.JOB:
+        batches = dct.pop("batches", None)
+        if batches is not None:
+            raise ValueError("flow of kind={dct['kind']} cannot have batches")
+    elif dct["kind"] == ast.Kind.BATCH:
+        jobs = dct.pop("jobs", None)
+        if jobs is not None:
+            raise ValueError("flow of kind={dct['kind']} cannot have jobs")
+        del dct["jobs"]
+    else:
+        raise ValueError(f"Unknown kind {dct['kind']} of the flow")
+    return dct
+
+
 def find_res_type(
     ctor: ConfigConstructor, res_type: Type[ast.BaseFlow], arg: Dict[str, VarT]
 ) -> Type[ast.BaseFlow]:
     if arg["kind"] == ast.Kind.JOB:
         return ast.InteractiveFlow
-    elif arg["kind"] == ast.Kind.JOB:
-        return ast.BatchFlow
+    elif arg["kind"] == ast.Kind.BATCH:
+        return ast.PipelineFlow
     else:
         raise ValueError(f"Unknown kind {arg['kind']} of the flow")
-
-
-INTERACTIVE_FLOW = {"jobs": None, **BASE_FLOW}  # type: ignore[arg-type]
 
 
 def parse_main(ctor: ConfigConstructor, node: yaml.MappingNode) -> ast.BaseFlow:
     return parse_dict(
         ctor,
         node,
-        INTERACTIVE_FLOW,
+        FLOW,
         ast.BaseFlow,
         find_res_type=find_res_type,
         extra={"id": ctor._id, "workspace": ctor._workspace},
@@ -457,14 +512,35 @@ Loader.add_path_resolver("flow:main", [])  # type: ignore
 Loader.add_constructor("flow:main", parse_main)  # type: ignore
 
 
-def parse_interactive(workspace: Path, config_file: Path) -> ast.InteractiveFlow:
+def parse_interactive(
+    workspace: Path, config_file: Path, *, id: Optional[str] = None
+) -> ast.InteractiveFlow:
     # Parse interactive flow config file
+    if id is None:
+        id = workspace.stem
     with config_file.open() as f:
-        loader = Loader(f, workspace.stem, workspace)
+        loader = Loader(f, id, workspace)
         try:
             ret = loader.get_single_data()  # type: ignore[no-untyped-call]
             assert isinstance(ret, ast.InteractiveFlow)
             assert ret.kind == ast.Kind.JOB
+            return ret
+        finally:
+            loader.dispose()  # type: ignore[no-untyped-call]
+
+
+def parse_pipeline(
+    workspace: Path, config_file: Path, *, id: Optional[str] = None
+) -> ast.PipelineFlow:
+    # Parse pipeline flow config file
+    if id is None:
+        id = config_file.stem
+    with config_file.open() as f:
+        loader = Loader(f, id, workspace)
+        try:
+            ret = loader.get_single_data()  # type: ignore[no-untyped-call]
+            assert isinstance(ret, ast.PipelineFlow)
+            assert ret.kind == ast.Kind.BATCH
             return ret
         finally:
             loader.dispose()  # type: ignore[no-untyped-call]

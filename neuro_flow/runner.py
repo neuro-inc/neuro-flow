@@ -13,7 +13,7 @@ from typing import AbstractSet, List, Optional, Tuple, Type
 from typing_extensions import AsyncContextManager
 
 from . import ast
-from .context import Context, ImageCtx, UnknownJob, VolumeCtx
+from .context import ImageCtx, JobContext, UnknownJob, VolumeCtx
 
 
 COLORS = {
@@ -41,13 +41,13 @@ class JobInfo:
 class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
     def __init__(self, flow: ast.InteractiveFlow) -> None:
         self._flow = flow
-        self._ctx: Optional[Context] = None
+        self._ctx: Optional[JobContext] = None
         self._client: Optional[Client] = None
 
     async def post_init(self) -> None:
         if self._ctx is not None:
             return
-        self._ctx = await Context.create(self._flow)
+        self._ctx = await JobContext.create(self._flow)
         self._client = await Factory().get()
 
     async def close(self) -> None:
@@ -67,7 +67,7 @@ class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
         await self.close()
 
     @property
-    def ctx(self) -> Context:
+    def ctx(self) -> JobContext:
         assert self._ctx is not None
         return self._ctx
 
@@ -89,7 +89,7 @@ class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
                 proc.kill()
                 await proc.wait()
 
-    async def ensure_job(self, job_id: str) -> Context:
+    async def ensure_job(self, job_id: str) -> JobContext:
         try:
             return await self.ctx.with_job(job_id)
         except UnknownJob:
@@ -232,6 +232,8 @@ class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
             args.append(f"--browse")
         if job.detach:
             args.append(f"--detach")
+        for pf in job.port_forward:
+            args.append(f"--port-forward={pf}")
 
         args.append(job.image)
         if job.cmd:
@@ -315,7 +317,7 @@ class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
             "--update",
             "--no-target-directory",
             str(volume_ctx.full_local_path),
-            str(volume_ctx.uri),
+            str(volume_ctx.remote),
         )
 
     async def download(self, volume: str) -> None:
@@ -325,13 +327,13 @@ class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
             "--recursive",
             "--update",
             "--no-target-directory",
-            str(volume_ctx.uri),
+            str(volume_ctx.remote),
             str(volume_ctx.full_local_path),
         )
 
     async def clean(self, volume: str) -> None:
         volume_ctx = await self.find_volume(volume)
-        await self.run_subproc("neuro", "rm", "--recursive", str(volume_ctx.uri))
+        await self.run_subproc("neuro", "rm", "--recursive", str(volume_ctx.remote))
 
     async def upload_all(self) -> None:
         for volume in self.ctx.volumes.values():
@@ -354,7 +356,7 @@ class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
                 volume_ctx = await self.find_volume(volume.id)
                 click.echo(f"Create volume {click.style(volume.id, bold=True)}")
                 await self.run_subproc(
-                    "neuro" "mkdir", "--parents", str(volume_ctx.uri),
+                    "neuro" "mkdir", "--parents", str(volume_ctx.remote),
                 )
 
     # images subsystem
@@ -389,5 +391,5 @@ class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
         for arg in image_ctx.build_args:
             cmd.append(f"--build-arg=arg")
         cmd.append(str(image_ctx.full_context_path))
-        cmd.append(str(image_ctx.uri))
+        cmd.append(str(image_ctx.ref))
         await self.run_subproc("neuro-extras", "image", "build", *cmd)

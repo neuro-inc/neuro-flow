@@ -1,4 +1,4 @@
-kind: job
+kind: batch
 title: Global title
 images:
   image_a:
@@ -26,7 +26,7 @@ defaults:
   workdir: /global/dir
   life_span: 1d4h
   preset: cpu-large
-jobs:
+batches:
   test_a:
     name: job-name
     image: ${{ images.image_a.ref }}

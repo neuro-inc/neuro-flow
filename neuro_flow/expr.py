@@ -130,17 +130,17 @@ class Tokenizer:
             n_pos = len(value) - value.rfind("\n") - 1
         return Token(typ, value, (line, pos), (n_line, n_pos))
 
-    def match_specs(self, s: str, i: int, position: Pos) -> Token:
+    def match_specs(self, s: str, i: int, start: Pos, position: Pos) -> Token:
         line, pos = position
         m = self.TOKENS_RE.match(s, i)
         if m is not None:
             assert m.lastgroup
             return self.make_token(m.lastgroup, m.group(), line, pos)
         else:
-            errline = s.splitlines()[line]
-            raise LexerError((line, pos), errline)
+            errline = s.splitlines()[line - start[0]]
+            raise LexerError((line + 1, pos + 1), " " * start[1] + errline)
 
-    def match_text(self, s: str, i: int, position: Pos) -> Token:
+    def match_text(self, s: str, i: int, start: Pos, position: Pos) -> Token:
         ltmpl = s.find("${{", i)
         if ltmpl == i:
             return None
@@ -154,8 +154,8 @@ class Tokenizer:
         if err_pos != -1:
             t = self.make_token("TEXT", substr[:err_pos], line, pos)
             line, pos = t.end
-            errline = s.splitlines()[line]
-            raise LexerError((line, pos), errline)
+            errline = s.splitlines()[line - start[0]]
+            raise LexerError((line + 1, pos + 1), " " * start[1] + errline)
         return self.make_token("TEXT", substr, line, pos)
 
     def __call__(self, s: str, *, start: Pos = (0, 0)) -> Iterator[Token]:
@@ -165,14 +165,14 @@ class Tokenizer:
         i = 0
         while i < length:
             if in_expr:
-                t = self.match_specs(s, i, (line, pos))
+                t = self.match_specs(s, i, start, (line, pos))
                 if t.type == "RTMPL":
                     in_expr = False
             else:
-                t = self.match_text(s, i, (line, pos))
+                t = self.match_text(s, i, start, (line, pos))
                 if not t:
                     in_expr = True
-                    t = self.match_specs(s, i, (line, pos))
+                    t = self.match_specs(s, i, start, (line, pos))
             if t.type != "SPACE":
                 yield t
             line, pos = t.end
@@ -463,6 +463,8 @@ class Expr(Generic[_T]):
         # precalculated value for constant string, allows raising errors earlier
         self._ret: Optional[_T] = None
         if pattern is not None:
+            if not isinstance(pattern, str):
+                raise TypeError(f"str is expected, got {type(pattern)}")
             tokens = list(tokenize(pattern, start=start))
             self._parsed: Optional[Sequence[Item]] = PARSER.parse(tokens)
             assert self._parsed is not None
@@ -497,7 +499,7 @@ class Expr(Generic[_T]):
             return None
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__qualname__}({self._pattern})"
+        return f"{self.__class__.__qualname__}({self._pattern!r})"
 
     def __eq__(self, other: Any) -> bool:
         if type(self) != type(other):
@@ -645,3 +647,14 @@ class OptPythonExpr(OptStrExpr):
     def convert(cls, arg: str) -> str:
         ret = " ".join(["python3", "-c", shlex.quote(arg)])
         return ret
+
+
+class PortPairExpr(StrExpr):
+    RE = re.compile(r"^\d+:\d+$")
+
+    @classmethod
+    def convert(cls, arg: str) -> str:
+        match = cls.RE.match(arg)
+        if match is None:
+            raise ValueError(f"{arg} is not a LOCAL:REMOTE ports pairn")
+        return arg
