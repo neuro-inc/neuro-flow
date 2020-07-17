@@ -1,5 +1,5 @@
 # Contexts
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 
 from typing import (
     AbstractSet,
@@ -189,15 +189,10 @@ _CtxT = TypeVar("_CtxT", bound="BaseContext")
 
 @dataclass(frozen=True)
 class BaseContext(RootABC):
-    FLOW_TYPE: ClassVar[Type[ast.BaseFlow]]
-    LOOKUP_KEYS: ClassVar[Tuple[str, ...]] = (
-        "flow",
-        "defaults",
-        "volumes",
-        "images",
-        "env",
-        "job",
-        "batch",
+    FLOW_TYPE: ClassVar[Type[ast.BaseFlow]] = field(init=False)
+    LOOKUP_KEYS: ClassVar[Tuple[str, ...]] = field(
+        init=False,
+        default=("flow", "defaults", "volumes", "images", "env", "job", "batch",),
     )
 
     _flow_ast: ast.BaseFlow
@@ -317,8 +312,12 @@ class BaseContext(RootABC):
 
 @dataclass(frozen=True)
 class JobContext(BaseContext):
-    FLOW_TYPE: ClassVar[Type[ast.InteractiveFlow]] = ast.InteractiveFlow
-    LOOKUP_KEYS = BaseContext.LOOKUP_KEYS + ("jobs",)
+    FLOW_TYPE: ClassVar[Type[ast.InteractiveFlow]] = field(
+        init=False, default=ast.InteractiveFlow
+    )
+    LOOKUP_KEYS: ClassVar[Tuple[str, ...]] = field(
+        init=False, default=BaseContext.LOOKUP_KEYS + ("jobs",)
+    )
     _job: Optional[JobCtx] = None
 
     @property
@@ -385,8 +384,12 @@ class JobContext(BaseContext):
 
 @dataclass(frozen=True)
 class BatchContext(BaseContext):
-    FLOW_TYPE: ClassVar[Type[ast.PipelineFlow]] = ast.PipelineFlow
-    LOOKUP_KEYS = BaseContext.LOOKUP_KEYS + ("jobs",)
+    FLOW_TYPE: ClassVar[Type[ast.PipelineFlow]] = field(
+        init=False, default=ast.PipelineFlow
+    )
+    LOOKUP_KEYS: ClassVar[Tuple[str, ...]] = field(
+        init=False, default=BaseContext.LOOKUP_KEYS + ("batches",)
+    )
     _batch: Optional[BatchCtx] = None
 
     @property
