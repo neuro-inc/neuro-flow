@@ -2,8 +2,8 @@ import pathlib
 import pytest
 from yarl import URL
 
-from neuro_flow.context import JobContext, NotAvailable
-from neuro_flow.parser import parse_interactive
+from neuro_flow.context import JobContext, NotAvailable, PipelineContext
+from neuro_flow.parser import parse_interactive, parse_pipeline
 from neuro_flow.types import LocalPath, RemotePath
 
 
@@ -132,3 +132,91 @@ async def test_job(assets: pathlib.Path) -> None:
     assert ctx2.job.port_forward == ["2211:22"]
     assert ctx2.job.detach
     assert ctx2.job.browse
+
+
+async def test_pipline_root_ctx(assets: pathlib.Path) -> None:
+    workspace = assets
+    config_file = workspace / "pipeline-minimal.yml"
+    flow = parse_pipeline(workspace, config_file)
+    ctx = await PipelineContext.create(flow)
+    with pytest.raises(NotAvailable):
+        ctx.batch
+
+
+async def test_pipeline_minimal_ctx(assets: pathlib.Path) -> None:
+    workspace = assets
+    config_file = workspace / "pipeline-minimal.yml"
+    flow = parse_pipeline(workspace, config_file)
+    ctx = await PipelineContext.create(flow)
+
+    ctx2 = await ctx.with_batch("test_a")
+    assert ctx2.batch.id == "test_a"
+    assert ctx2.batch.real_id == "test_a"
+    assert ctx2.batch.needs == set()
+    assert ctx2.batch.title == "Batch title"
+    assert ctx2.batch.name == "job-name"
+    assert ctx2.batch.image == "image:banana"
+    assert ctx2.batch.preset == "cpu-small"
+    assert ctx2.batch.http_port == 8080
+    assert not ctx2.batch.http_auth
+    assert ctx2.batch.entrypoint == "bash"
+    assert ctx2.batch.cmd == "echo abc"
+    assert ctx2.batch.workdir == RemotePath("/local/dir")
+    assert ctx2.batch.volumes == ["storage:dir:/var/dir:ro", "storage:dir:/var/dir:ro"]
+    assert ctx2.batch.tags == {"tag-1", "tag-2", "tag-a", "tag-b"}
+    assert ctx2.batch.life_span == 10500.0
+
+    assert ctx._topo == [{"test_a"}]
+
+
+async def test_pipeline_seq(assets: pathlib.Path) -> None:
+    workspace = assets
+    config_file = workspace / "pipeline-seq.yml"
+    flow = parse_pipeline(workspace, config_file)
+    ctx = await PipelineContext.create(flow)
+
+    ctx2 = await ctx.with_batch("batch-2")
+    assert ctx2.batch.id is None
+    assert ctx2.batch.real_id == "batch-2"
+    assert ctx2.batch.needs == {"batch-1"}
+    assert ctx2.batch.title is None
+    assert ctx2.batch.name is None
+    assert ctx2.batch.image == "ubuntu"
+    assert ctx2.batch.preset == "cpu-small"
+    assert ctx2.batch.http_port is None
+    assert not ctx2.batch.http_auth
+    assert ctx2.batch.entrypoint is None
+    assert ctx2.batch.cmd == "bash -euxo pipefail -c 'echo def'"
+    assert ctx2.batch.workdir is None
+    assert ctx2.batch.volumes == []
+    assert ctx2.batch.tags == {"flow:pipeline-seq", "batch:batch-2"}
+    assert ctx2.batch.life_span is None
+
+    assert ctx._topo == [{"batch-1"}, {"batch-2"}]
+
+
+async def test_pipeline_needs(assets: pathlib.Path) -> None:
+    workspace = assets
+    config_file = workspace / "pipeline-needs.yml"
+    flow = parse_pipeline(workspace, config_file)
+    ctx = await PipelineContext.create(flow)
+
+    ctx2 = await ctx.with_batch("batch-2")
+    assert ctx2.batch.id is None
+    assert ctx2.batch.real_id == "batch-2"
+    assert ctx2.batch.needs == {"batch_a"}
+    assert ctx2.batch.title is None
+    assert ctx2.batch.name is None
+    assert ctx2.batch.image == "ubuntu"
+    assert ctx2.batch.preset == "cpu-small"
+    assert ctx2.batch.http_port is None
+    assert not ctx2.batch.http_auth
+    assert ctx2.batch.entrypoint is None
+    assert ctx2.batch.cmd == "bash -euxo pipefail -c 'echo def'"
+    assert ctx2.batch.workdir is None
+    assert ctx2.batch.volumes == []
+    assert ctx2.batch.tags == {"flow:pipeline-needs", "batch:batch-2"}
+    assert ctx2.batch.life_span is None
+
+    assert ctx._topo == [{"batch_a", "batch-2"}]
+

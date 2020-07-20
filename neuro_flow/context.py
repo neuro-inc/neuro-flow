@@ -398,6 +398,7 @@ class PipelineContext(BaseContext):
     )
     _batch: Optional[BatchCtx] = None
     _prep_batches: Optional[Mapping[str, PreparedBatchCtx]] = None
+    _topo: Sequence[AbstractSet[str]] = None
 
     @classmethod
     async def create(cls: Type[_CtxT], ast_flow: ast.BaseFlow) -> _CtxT:
@@ -427,33 +428,22 @@ class PipelineContext(BaseContext):
                 id=batch_id, real_id=real_id, needs=needs, ast=ast_batch
             )
             prep_batches[real_id] = prep
+            last_batch = real_id
 
-        return replace(ctx, _prep_batches=prep_batches)  # type: ignore[return-value]
+        to_sort: Dict[str, AbstractSet[str]] = {}
+        for key, val in prep_batches.items():
+            to_sort[key] = val.needs
+        topo = list(toposort(to_sort))
+
+        return replace(
+            ctx, _prep_batches=prep_batches, _topo=topo  # type: ignore[return-value]
+        )
 
     @property
     def batch(self) -> BatchCtx:
         if self._batch is None:
             raise NotAvailable("batch")
         return self._batch
-
-    async def ready_to_start(self, completed: AbstractSet[str]) -> Set[str]:
-        # Return a list of ready-to-start batches if *completed* batches
-        # are finished successfully.
-        #
-        # *completed* is a full set of completed batches, not the completed on the last
-        # step only.  A pipeline runner is responsible to keep this set in a consistent
-        # state.
-        assert self._prep_batches is not None
-
-        to_sort: Dict[str, AbstractSet[str]] = {}
-        for key, val in self._prep_batches.items():
-            if key not in completed:
-                to_sort[key] = val.needs
-        topo = list(toposort(to_sort))
-        if topo:
-            return topo[0]  # type: ignore[no-any-return]
-        else:
-            return set()
 
     async def with_batch(self, real_id: str) -> "PipelineContext":
         assert self._prep_batches is not None
