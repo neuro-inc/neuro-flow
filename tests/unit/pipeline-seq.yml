@@ -1,0 +1,9 @@
+kind: batch
+batches:
+  - image: ubuntu
+    preset: cpu-small
+    bash: echo abc
+
+  - image: ubuntu
+    preset: cpu-small
+    bash: echo def

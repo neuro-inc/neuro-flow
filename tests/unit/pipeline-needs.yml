@@ -1,0 +1,11 @@
+kind: batch
+batches:
+  - id: batch_a
+    image: ubuntu
+    preset: cpu-small
+    bash: echo abc
+
+  - image: ubuntu
+    preset: cpu-small
+    bash: echo def
+    needs: [batch_a]

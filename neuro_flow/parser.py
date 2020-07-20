@@ -11,7 +11,6 @@ import abc
 import yaml
 from pathlib import Path
 from typing import (
-    AbstractSet,
     Any,
     Callable,
     Dict,
@@ -34,8 +33,11 @@ from yaml.scanner import Scanner
 from . import ast
 from .expr import (
     Expr,
+    IdExpr,
+    LiteralT,
     OptBashExpr,
     OptBoolExpr,
+    OptIdExpr,
     OptIntExpr,
     OptLifeSpanExpr,
     OptLocalPathExpr,
@@ -55,7 +57,7 @@ _T = TypeVar("_T")
 _Cont = TypeVar("_Cont")
 
 
-opt_str = object()
+ScalarFactory = Callable[[Any], LiteralT]
 
 
 @dataclasses.dataclass
@@ -145,6 +147,7 @@ class SimpleMapping(SimpleCompound[_T, Mapping[str, _T]]):
 
 KeyT = Union[
     None,
+    ScalarFactory,
     Type[str],
     Type[Expr[Any]],
     SimpleCompound[Any, Any],
@@ -152,13 +155,7 @@ KeyT = Union[
     Type[ast.Kind],
 ]
 VarT = Union[
-    str,
-    Expr[Any],
-    Mapping[str, Any],
-    AbstractSet[Any],
-    Sequence[Any],
-    ast.Base,
-    ast.Kind,
+    LiteralT, None, Expr[Any], Mapping[str, Any], Sequence[Any], ast.Base, ast.Kind,
 ]
 
 _AstType = TypeVar("_AstType", bound=ast.Base)
@@ -225,8 +222,11 @@ def parse_dict(
                 "tag:yaml.org,2002:float",
                 "tag:yaml.org,2002:str",
             )
-            value = str(ctor.construct_object(v))
-        elif item_ctor is opt_str:
+            value = str(ctor.construct_object(v))  # type: ignore[no-untyped-call]
+        elif isinstance(item_ctor, type) and issubclass(item_ctor, Expr):
+            tmp = str(ctor.construct_object(v))  # type: ignore[no-untyped-call]
+            value = item_ctor(tmp, start=mark2pos(v.start_mark))
+        elif callable(item_ctor):
             assert v.tag in (
                 "tag:yaml.org,2002:null",
                 "tag:yaml.org,2002:bool",
@@ -234,14 +234,8 @@ def parse_dict(
                 "tag:yaml.org,2002:float",
                 "tag:yaml.org,2002:str",
             )
-            tmp = str(ctor.construct_object(v))
-            if tmp is None:
-                value = None
-            else:
-                value = str(tmp)
-        elif isinstance(item_ctor, type) and issubclass(item_ctor, Expr):
-            tmp = str(ctor.construct_object(v))  # type: ignore[no-untyped-call]
-            value = item_ctor(tmp, start=mark2pos(v.start_mark))
+            tmp = ctor.construct_object(v)  # type: ignore[no-untyped-call]
+            value = item_ctor(tmp)
         else:
             raise ConstructorError(
                 f"while constructing a {ret_name}",
@@ -399,14 +393,16 @@ Loader.add_constructor("flow:jobs", parse_jobs)  # type: ignore
 
 
 BATCH = {
-    "id": opt_str,  # Optional[str] actually
-    "needs": SimpleSeq(StrExpr),
+    "id": OptIdExpr,
+    "needs": SimpleSeq(IdExpr),
     **EXEC_UNIT,
 }
 
 
 def parse_batch(ctor: ConfigConstructor, node: yaml.MappingNode) -> ast.Batch:
-    return parse_dict(ctor, node, BATCH, ast.Batch)  # type: ignore
+    return parse_dict(
+        ctor, node, BATCH, ast.Batch, preprocess=select_shells  # type: ignore
+    )
 
 
 Loader.add_path_resolver(  # type: ignore[no-untyped-call]

@@ -531,6 +531,22 @@ class OptStrExpr(Expr[str]):
     pass
 
 
+class IdExprMixin:
+    @classmethod
+    def convert(cls, arg: str) -> str:
+        if not arg.isidentifier():
+            raise ValueError(f"{arg} is not identifier")
+        return arg
+
+
+class IdExpr(IdExprMixin, StrictExpr[str]):
+    pass
+
+
+class OptIdExpr(IdExprMixin, Expr[str]):
+    pass
+
+
 class URIExprMixin:
     @classmethod
     def convert(cls, arg: str) -> URL:

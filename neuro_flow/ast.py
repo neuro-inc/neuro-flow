@@ -5,7 +5,9 @@ import enum
 from typing import Mapping, Optional, Sequence
 
 from .expr import (
+    IdExpr,
     OptBoolExpr,
+    OptIdExpr,
     OptIntExpr,
     OptLifeSpanExpr,
     OptLocalPathExpr,
@@ -78,23 +80,13 @@ class Job(ExecUnit):
 
 
 @dataclass(frozen=True)
-class Step(ExecUnit):
-    # A step of a batch
-
-    id: OptStrExpr
-
-    # continue_on_error: OptBoolExpr
-    # if_: OptBoolExpr  # -- skip conditionally
-
-
-@dataclass(frozen=True)
 class Batch(ExecUnit):
-    id: Optional[str]  # cannot be calculated
+    id: OptIdExpr
 
     # A set of steps, used in non-interactive mode
     # All steps share the same implicit persistent disk volume
 
-    needs: Optional[Sequence[StrExpr]]  # BatchRef
+    needs: Optional[Sequence[IdExpr]]  # BatchRef
 
     # matrix? Do we need a build matrix? Yes probably.
 
@@ -146,4 +138,4 @@ class InteractiveFlow(BaseFlow):
 @dataclass(frozen=True)
 class PipelineFlow(BaseFlow):
     # self.kind == Kind.Batch
-    batches: Mapping[str, Batch]
+    batches: Sequence[Batch]

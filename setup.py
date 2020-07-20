@@ -16,6 +16,7 @@ setup(
         "funcparserlib>=0.3",
         'dataclasses>=0.5; python_version<"3.7"',
         "humanize>=0.5.1",
+        "toposort>=1.5",
     ],
     packages=find_packages(),
     classifiers=[

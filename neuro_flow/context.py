@@ -1,12 +1,15 @@
 # Contexts
 from dataclasses import dataclass, field, replace
 
+from toposort import toposort
 from typing import (
     AbstractSet,
     ClassVar,
+    Dict,
     Mapping,
     Optional,
     Sequence,
+    Set,
     Tuple,
     Type,
     TypeVar,
@@ -98,7 +101,6 @@ class ExecUnitCtx:
     volumes: Sequence[str]  # Sequence[VolumeRef]
     tags: AbstractSet[str]
     life_span: Optional[float]
-    port_forward: Sequence[str]
 
 
 @dataclass(frozen=True)
@@ -106,13 +108,24 @@ class JobCtx(ExecUnitCtx):
     id: str
     detach: bool
     browse: bool
+    port_forward: Sequence[str]
 
 
 @dataclass(frozen=True)
-class BatchCtx:
-    id: str
+class PreparedBatchCtx:
+    id: Optional[str]
+    real_id: str
 
-    title: Optional[str]
+    needs: AbstractSet[str]  # A set of batch.id
+
+    ast: ast.Batch
+
+
+@dataclass(frozen=True)
+class BatchCtx(ExecUnitCtx):
+    id: Optional[str]
+    real_id: str
+
     needs: AbstractSet[str]  # A set of batch.id
 
     # matrix? Do we need a build matrix? Yes probably.
@@ -120,17 +133,6 @@ class BatchCtx:
     # outputs: Mapping[str, str] -- metadata for communicating between batches.
     # will be added later
 
-    # defaults for steps
-    image: Optional[str]
-    entrypoint: Optional[str]
-    preset: Optional[str]
-
-    volumes: Sequence[str]
-    tags: AbstractSet[str]
-
-    workdir: Optional[RemotePath]
-
-    life_span: Optional[float]
     # continue_on_error: OptBoolExpr
     # if_: OptBoolExpr  # -- skip conditionally
 
@@ -195,7 +197,7 @@ class BaseContext(RootABC):
         default=("flow", "defaults", "volumes", "images", "env", "job", "batch",),
     )
 
-    _flow_ast: ast.BaseFlow
+    _ast_flow: ast.BaseFlow
     flow: FlowCtx
     _defaults: Optional[DefaultsCtx] = None
     _env: Optional[Mapping[str, str]] = None
@@ -206,17 +208,17 @@ class BaseContext(RootABC):
     # Add a context with global flow info, e.g. ctx.flow.id maybe?
 
     @classmethod
-    async def create(cls: Type[_CtxT], flow_ast: ast.BaseFlow) -> _CtxT:
-        assert isinstance(flow_ast, cls.FLOW_TYPE)
+    async def create(cls: Type[_CtxT], ast_flow: ast.BaseFlow) -> _CtxT:
+        assert isinstance(ast_flow, cls.FLOW_TYPE)
         flow = FlowCtx(
-            id=flow_ast.id,
-            workspace=flow_ast.workspace.resolve(),
-            title=flow_ast.title or flow_ast.id,
+            id=ast_flow.id,
+            workspace=ast_flow.workspace.resolve(),
+            title=ast_flow.title or ast_flow.id,
         )
 
-        ctx = cls(_flow_ast=flow_ast, flow=flow,)
+        ctx = cls(_ast_flow=ast_flow, flow=flow,)
 
-        ast_defaults = flow_ast.defaults
+        ast_defaults = ast_flow.defaults
         if ast_defaults is not None:
             if ast_defaults.env is not None:
                 env = {k: await v.eval(ctx) for k, v in ast_defaults.env.items()}
@@ -247,8 +249,8 @@ class BaseContext(RootABC):
 
         # volumes / images needs a context with defaults only for self initialization
         volumes = {}
-        if flow_ast.volumes is not None:
-            for k, v in flow_ast.volumes.items():
+        if ast_flow.volumes is not None:
+            for k, v in ast_flow.volumes.items():
                 local_path = await v.local.eval(ctx)
                 volumes[k] = VolumeCtx(
                     id=k,
@@ -259,8 +261,8 @@ class BaseContext(RootABC):
                     full_local_path=calc_full_path(ctx, local_path),
                 )
         images = {}
-        if flow_ast.images is not None:
-            for k, i in flow_ast.images.items():
+        if ast_flow.images is not None:
+            for k, i in ast_flow.images.items():
                 context_path = await i.context.eval(ctx)
                 dockerfile_path = await i.dockerfile.eval(ctx)
                 if i.build_args is not None:
@@ -316,7 +318,7 @@ class JobContext(BaseContext):
         init=False, default=ast.InteractiveFlow
     )
     LOOKUP_KEYS: ClassVar[Tuple[str, ...]] = field(
-        init=False, default=BaseContext.LOOKUP_KEYS + ("jobs",)
+        init=False, default=BaseContext.LOOKUP_KEYS + ("job",)
     )
     _job: Optional[JobCtx] = None
 
@@ -331,10 +333,10 @@ class JobContext(BaseContext):
             raise TypeError(
                 "Cannot enter into the job context, if job is already initialized"
             )
-        assert isinstance(self._flow_ast, self.FLOW_TYPE)
+        assert isinstance(self._ast_flow, self.FLOW_TYPE)
 
         try:
-            job = self._flow_ast.jobs[job_id]
+            job = self._ast_flow.jobs[job_id]
         except KeyError:
             raise UnknownJob(job_id)
 
@@ -347,6 +349,10 @@ class JobContext(BaseContext):
         env = dict(self.env)
         if job.env is not None:
             env.update({k: await v.eval(self) for k, v in job.env.items()})
+
+        title = await job.title.eval(self)
+        if title is None:
+            title = f"{self.flow.id}.{job_id}"
 
         workdir = (await job.workdir.eval(self)) or self.defaults.workdir
 
@@ -365,7 +371,7 @@ class JobContext(BaseContext):
             id=job_id,
             detach=bool(await job.detach.eval(self)),
             browse=bool(await job.browse.eval(self)),
-            title=(await job.title.eval(self)) or f"{self.flow.id}.{job_id}",
+            title=title,
             name=(await job.name.eval(self)),
             image=await job.image.eval(self),
             preset=preset,
@@ -383,14 +389,46 @@ class JobContext(BaseContext):
 
 
 @dataclass(frozen=True)
-class BatchContext(BaseContext):
+class PipelineContext(BaseContext):
     FLOW_TYPE: ClassVar[Type[ast.PipelineFlow]] = field(
         init=False, default=ast.PipelineFlow
     )
     LOOKUP_KEYS: ClassVar[Tuple[str, ...]] = field(
-        init=False, default=BaseContext.LOOKUP_KEYS + ("batches",)
+        init=False, default=BaseContext.LOOKUP_KEYS + ("batch",)
     )
     _batch: Optional[BatchCtx] = None
+    _prep_batches: Optional[Mapping[str, PreparedBatchCtx]] = None
+
+    @classmethod
+    async def create(cls: Type[_CtxT], ast_flow: ast.BaseFlow) -> _CtxT:
+        ctx = await super(cls, PipelineContext).create(ast_flow)
+        assert isinstance(ctx._ast_flow, ast.PipelineFlow)
+        prep_batches = {}
+        last_batch = None
+        for num, ast_batch in enumerate(ctx._ast_flow.batches, 1):
+            batch_id = await ast_batch.id.eval(ctx)
+            if batch_id is None:
+                # Dash is not allowed in identifier, so the generated read id
+                # never clamps with user_provided one.
+                real_id = f"batch-{num}"
+            else:
+                real_id = batch_id
+            if real_id in prep_batches:
+                raise ValueError(f"Duplicated batch id {real_id}")
+            if ast_batch.needs is not None:
+                needs = {await need.eval(ctx) for need in ast_batch.needs}
+            else:
+                if last_batch is not None:
+                    needs = {last_batch}
+                else:
+                    needs = set()
+
+            prep = PreparedBatchCtx(
+                id=batch_id, real_id=real_id, needs=needs, ast=ast_batch
+            )
+            prep_batches[real_id] = prep
+
+        return replace(ctx, _prep_batches=prep_batches)  # type: ignore[return-value]
 
     @property
     def batch(self) -> BatchCtx:
@@ -398,55 +436,82 @@ class BatchContext(BaseContext):
             raise NotAvailable("batch")
         return self._batch
 
-    async def with_batch(self, batch_id: str) -> "BatchContext":
+    async def ready_to_start(self, completed: AbstractSet[str]) -> Set[str]:
+        # Return a list of ready-to-start batches if *completed* batches
+        # are finished successfully.
+        #
+        # *completed* is a full set of completed batches, not the completed on the last
+        # step only.  A pipeline runner is responsible to keep this set in a consistent
+        # state.
+        assert self._prep_batches is not None
+
+        to_sort: Dict[str, AbstractSet[str]] = {}
+        for key, val in self._prep_batches.items():
+            if key not in completed:
+                to_sort[key] = val.needs
+        topo = list(toposort(to_sort))
+        if topo:
+            return topo[0]  # type: ignore[no-any-return]
+        else:
+            return set()
+
+    async def with_batch(self, real_id: str) -> "PipelineContext":
+        assert self._prep_batches is not None
+
         if self._batch is not None:
             raise TypeError(
                 "Cannot enter into the batch context if batch is already initialized"
             )
-        assert isinstance(self._flow_ast, self.FLOW_TYPE)
         try:
-            batch = self._flow_ast.batches[batch_id]
+            prep_batch = self._prep_batches[real_id]
         except KeyError:
-            raise UnknownBatch(batch_id)
-
-        tags = set()
-        if batch.tags is not None:
-            tags = {await v.eval(self) for v in batch.tags}
-        if not tags:
-            tags = {f"batch:{batch_id}"}
+            raise UnknownBatch(real_id)
 
         env = dict(self.env)
-        if batch.env is not None:
-            env.update({k: await v.eval(self) for k, v in batch.env.items()})
+        if prep_batch.ast.env is not None:
+            env.update({k: await v.eval(self) for k, v in prep_batch.ast.env.items()})
 
-        workdir = (await batch.workdir.eval(self)) or self.defaults.workdir
+        title = await prep_batch.ast.title.eval(self)
+        if title is None:
+            title = f"{self.flow.id}.{real_id}"
+        title = await prep_batch.ast.title.eval(self)
+
+        tags = set()
+        if prep_batch.ast.tags is not None:
+            tags = {await v.eval(self) for v in prep_batch.ast.tags}
+        if not tags:
+            tags = {f"batch:{real_id}"}
+
+        workdir = (await prep_batch.ast.workdir.eval(self)) or self.defaults.workdir
 
         volumes = []
-        if batch.volumes is not None:
-            volumes = [await v.eval(self) for v in batch.volumes]
+        if prep_batch.ast.volumes is not None:
+            volumes = [await v.eval(self) for v in prep_batch.ast.volumes]
 
-        life_span = (await batch.life_span.eval(self)) or self.defaults.life_span
+        life_span = (
+            await prep_batch.ast.life_span.eval(self)
+        ) or self.defaults.life_span
 
-        preset = (await batch.preset.eval(self)) or self.defaults.preset
-
-        if batch.needs is not None:
-            needs = {await n.eval(self) for n in batch.needs}
-        else:
-            needs = set()
+        preset = (await prep_batch.ast.preset.eval(self)) or self.defaults.preset
 
         batch_ctx = BatchCtx(
-            id=batch_id,
-            title=(await batch.title.eval(self)) or f"{self.flow.id}.{batch_id}",
-            needs=needs,
-            image=await batch.image.eval(self),
+            id=prep_batch.id,
+            real_id=prep_batch.real_id,
+            needs=prep_batch.needs,
+            title=title,
+            name=(await prep_batch.ast.name.eval(self)),
+            image=await prep_batch.ast.image.eval(self),
             preset=preset,
-            entrypoint=await batch.entrypoint.eval(self),
+            entrypoint=await prep_batch.ast.entrypoint.eval(self),
+            cmd=await prep_batch.ast.cmd.eval(self),
             workdir=workdir,
             volumes=volumes,
             tags=self.defaults.tags | tags,
             life_span=life_span,
+            http_port=await prep_batch.ast.http_port.eval(self),
+            http_auth=await prep_batch.ast.http_auth.eval(self),
         )
-        return replace(self, _batch=batch_ctx, _env=env,)
+        return replace(self, _batch=batch_ctx, _env=env)
 
 
 def calc_full_path(ctx: BaseContext, path: Optional[LocalPath]) -> Optional[LocalPath]:

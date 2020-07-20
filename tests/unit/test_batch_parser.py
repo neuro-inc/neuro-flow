@@ -2,7 +2,10 @@ import pathlib
 
 from neuro_flow import ast
 from neuro_flow.expr import (
+    IdExpr,
+    OptBashExpr,
     OptBoolExpr,
+    OptIdExpr,
     OptIntExpr,
     OptLifeSpanExpr,
     OptLocalPathExpr,
@@ -67,7 +70,7 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
             ast.Batch(
                 _start=(29, 4),
                 _end=(47, 0),
-                id="test_a",
+                id=OptIdExpr("test_a"),
                 title=OptStrExpr("Batch title"),
                 needs=None,
                 name=OptStrExpr("job-name"),
@@ -86,5 +89,119 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
                 http_port=OptIntExpr("8080"),
                 http_auth=OptBoolExpr("False"),
             )
+        ],
+    )
+
+
+def test_parse_seq(assets: pathlib.Path) -> None:
+    workspace = assets
+    config_file = workspace / "pipeline-seq.yml"
+    flow = parse_pipeline(workspace, config_file)
+    assert flow == ast.PipelineFlow(
+        (0, 0),
+        (9, 0),
+        id="pipeline-seq",
+        workspace=workspace,
+        kind=ast.Kind.BATCH,
+        title=None,
+        images=None,
+        volumes=None,
+        defaults=None,
+        batches=[
+            ast.Batch(
+                _start=(2, 4),
+                _end=(6, 2),
+                id=OptIdExpr(None),
+                title=OptStrExpr(None),
+                needs=None,
+                name=OptStrExpr(None),
+                image=StrExpr("ubuntu"),
+                preset=OptStrExpr("cpu-small"),
+                entrypoint=OptStrExpr(None),
+                cmd=OptBashExpr("echo abc"),
+                workdir=OptRemotePathExpr(None),
+                env=None,
+                volumes=None,
+                tags=None,
+                life_span=OptLifeSpanExpr(None),
+                http_port=OptIntExpr(None),
+                http_auth=OptBoolExpr(None),
+            ),
+            ast.Batch(
+                _start=(6, 4),
+                _end=(9, 0),
+                id=OptIdExpr(None),
+                title=OptStrExpr(None),
+                needs=None,
+                name=OptStrExpr(None),
+                image=StrExpr("ubuntu"),
+                preset=OptStrExpr("cpu-small"),
+                entrypoint=OptStrExpr(None),
+                cmd=OptBashExpr("echo def"),
+                workdir=OptRemotePathExpr(None),
+                env=None,
+                volumes=None,
+                tags=None,
+                life_span=OptLifeSpanExpr(None),
+                http_port=OptIntExpr(None),
+                http_auth=OptBoolExpr(None),
+            ),
+        ],
+    )
+
+
+def test_parse_needs(assets: pathlib.Path) -> None:
+    workspace = assets
+    config_file = workspace / "pipeline-needs.yml"
+    flow = parse_pipeline(workspace, config_file)
+    assert flow == ast.PipelineFlow(
+        (0, 0),
+        (11, 0),
+        id="pipeline-needs",
+        workspace=workspace,
+        kind=ast.Kind.BATCH,
+        title=None,
+        images=None,
+        volumes=None,
+        defaults=None,
+        batches=[
+            ast.Batch(
+                _start=(2, 4),
+                _end=(7, 2),
+                id=OptIdExpr("batch_a"),
+                title=OptStrExpr(None),
+                needs=None,
+                name=OptStrExpr(None),
+                image=StrExpr("ubuntu"),
+                preset=OptStrExpr("cpu-small"),
+                entrypoint=OptStrExpr(None),
+                cmd=OptBashExpr("echo abc"),
+                workdir=OptRemotePathExpr(None),
+                env=None,
+                volumes=None,
+                tags=None,
+                life_span=OptLifeSpanExpr(None),
+                http_port=OptIntExpr(None),
+                http_auth=OptBoolExpr(None),
+            ),
+            ast.Batch(
+                _start=(7, 4),
+                _end=(11, 0),
+                id=OptIdExpr(None),
+                title=OptStrExpr(None),
+                needs=[IdExpr("batch_a")],
+                name=OptStrExpr(None),
+                image=StrExpr("ubuntu"),
+                preset=OptStrExpr("cpu-small"),
+                entrypoint=OptStrExpr(None),
+                cmd=OptBashExpr("echo def"),
+                workdir=OptRemotePathExpr(None),
+                env=None,
+                volumes=None,
+                tags=None,
+                life_span=OptLifeSpanExpr(None),
+                http_port=OptIntExpr(None),
+                http_auth=OptBoolExpr(None),
+            ),
         ],
     )
