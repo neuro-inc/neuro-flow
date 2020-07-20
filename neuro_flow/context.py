@@ -446,7 +446,8 @@ class PipelineContext(BaseContext):
 
     @property
     def order(self) -> Sequence[AbstractSet[str]]:
-        # Batch names, sorted by the execution order
+        # Batch names, sorted by the execution order.
+        # Batches from each set in the list can be executed concurrently.
         assert self._order is not None
         return self._order
 
