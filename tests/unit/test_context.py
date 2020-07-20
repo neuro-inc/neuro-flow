@@ -218,5 +218,4 @@ async def test_pipeline_needs(assets: pathlib.Path) -> None:
     assert ctx2.batch.tags == {"flow:pipeline-needs", "batch:batch-2"}
     assert ctx2.batch.life_span is None
 
-    assert ctx._topo == [{"batch_a", "batch-2"}]
-
+    assert ctx._topo == [{"batch_a"}, {"batch-2"}]

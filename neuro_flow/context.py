@@ -9,7 +9,6 @@ from typing import (
     Mapping,
     Optional,
     Sequence,
-    Set,
     Tuple,
     Type,
     TypeVar,
@@ -398,7 +397,7 @@ class PipelineContext(BaseContext):
     )
     _batch: Optional[BatchCtx] = None
     _prep_batches: Optional[Mapping[str, PreparedBatchCtx]] = None
-    _topo: Sequence[AbstractSet[str]] = None
+    _topo: Optional[Sequence[AbstractSet[str]]] = None
 
     @classmethod
     async def create(cls: Type[_CtxT], ast_flow: ast.BaseFlow) -> _CtxT:
@@ -435,8 +434,8 @@ class PipelineContext(BaseContext):
             to_sort[key] = val.needs
         topo = list(toposort(to_sort))
 
-        return replace(
-            ctx, _prep_batches=prep_batches, _topo=topo  # type: ignore[return-value]
+        return replace(  # type: ignore[return-value]
+            ctx, _prep_batches=prep_batches, _topo=topo
         )
 
     @property
