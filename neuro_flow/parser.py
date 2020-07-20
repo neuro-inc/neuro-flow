@@ -55,6 +55,9 @@ _T = TypeVar("_T")
 _Cont = TypeVar("_Cont")
 
 
+opt_str = object()
+
+
 @dataclasses.dataclass
 class ConfigPath:
     workspace: LocalPath
@@ -214,7 +217,16 @@ def parse_dict(
             value = v
         elif isinstance(item_ctor, SimpleCompound):
             value = item_ctor.construct(ctor, v)
-        elif isinstance(item_ctor, str):
+        elif item_ctor is str:
+            assert v.tag in (
+                "tag:yaml.org,2002:null",
+                "tag:yaml.org,2002:bool",
+                "tag:yaml.org,2002:int",
+                "tag:yaml.org,2002:float",
+                "tag:yaml.org,2002:str",
+            )
+            value = str(ctor.construct_object(v))
+        elif item_ctor is opt_str:
             assert v.tag in (
                 "tag:yaml.org,2002:null",
                 "tag:yaml.org,2002:bool",
@@ -223,7 +235,10 @@ def parse_dict(
                 "tag:yaml.org,2002:str",
             )
             tmp = str(ctor.construct_object(v))
-            value = item_ctor(tmp)
+            if tmp is None:
+                value = None
+            else:
+                value = str(tmp)
         elif isinstance(item_ctor, type) and issubclass(item_ctor, Expr):
             tmp = str(ctor.construct_object(v))  # type: ignore[no-untyped-call]
             value = item_ctor(tmp, start=mark2pos(v.start_mark))
@@ -364,7 +379,7 @@ def select_shells(ctor: ConfigConstructor, dct: Dict[str, Any]) -> Dict[str, Any
     return dct
 
 
-def parse_job(ctor: ConfigConstructor, id: str, node: yaml.MappingNode) -> ast.Job:
+def parse_job(ctor: ConfigConstructor, node: yaml.MappingNode) -> ast.Job:
     return parse_dict(
         ctor, node, JOB, ast.Job, preprocess=select_shells  # type: ignore[arg-type]
     )
@@ -374,7 +389,7 @@ def parse_jobs(ctor: ConfigConstructor, node: yaml.MappingNode) -> Dict[str, ast
     ret = {}
     for k, v in node.value:
         key = ctor.construct_id(k)
-        value = parse_job(ctor, key, v)
+        value = parse_job(ctor, v)
         ret[key] = value
     return ret
 
@@ -383,51 +398,25 @@ Loader.add_path_resolver("flow:jobs", [(dict, "jobs")])  # type: ignore
 Loader.add_constructor("flow:jobs", parse_jobs)  # type: ignore
 
 
-STEP = {"id": OptStrExpr, **EXEC_UNIT}  # type: ignore
-
-
-def parse_step(ctor: ConfigConstructor, node: yaml.MappingNode) -> ast.Step:
-    return parse_dict(ctor, node, STEP, ast.Step)
-
-
-Loader.add_path_resolver(  # type: ignore[no-untyped-call]
-    "flow:step", [(dict, "batches"), (dict, False), (dict, "steps"), (list, None)]
-)
-Loader.add_constructor("flow:step", parse_step)  # type: ignore
-
-
 BATCH = {
-    "title": OptStrExpr,
+    "id": opt_str,  # Optional[str] actually
     "needs": SimpleSeq(StrExpr),
-    "steps": None,
-    "image": OptStrExpr,
-    "entrypoint": OptStrExpr,
-    "preset": OptStrExpr,
-    "volumes": SimpleSeq(StrExpr),
-    "env": SimpleMapping(StrExpr),
-    "tags": SimpleSeq(StrExpr),
-    "workdir": OptRemotePathExpr,
-    "life_span": OptLifeSpanExpr,
+    **EXEC_UNIT,
 }
 
 
-def parse_batch(ctor: ConfigConstructor, id: str, node: yaml.MappingNode) -> ast.Batch:
+def parse_batch(ctor: ConfigConstructor, node: yaml.MappingNode) -> ast.Batch:
     return parse_dict(ctor, node, BATCH, ast.Batch)  # type: ignore
 
 
-def parse_batches(
-    ctor: ConfigConstructor, node: yaml.MappingNode
-) -> Dict[str, ast.Batch]:
-    ret = {}
-    for k, v in node.value:
-        key = ctor.construct_id(k)
-        value = parse_batch(ctor, key, v)
-        ret[key] = value
-    return ret
+Loader.add_path_resolver(  # type: ignore[no-untyped-call]
+    "flow:batch", [(dict, "batches"), (list, None)]
+)
+Loader.add_constructor("flow:batch", parse_batch)  # type: ignore
 
 
 Loader.add_path_resolver("flow:batches", [(dict, "batches")])  # type: ignore
-Loader.add_constructor("flow:batches", parse_batches)  # type: ignore
+Loader.add_constructor("flow:batches", Loader.construct_sequence)  # type: ignore
 
 
 def parse_flow_defaults(

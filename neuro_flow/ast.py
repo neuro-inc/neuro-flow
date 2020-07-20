@@ -88,11 +88,12 @@ class Step(ExecUnit):
 
 
 @dataclass(frozen=True)
-class Batch(Base):
+class Batch(ExecUnit):
+    id: Optional[str]  # cannot be calculated
+
     # A set of steps, used in non-interactive mode
     # All steps share the same implicit persistent disk volume
 
-    title: OptStrExpr  # Autocalculated if not passed explicitly
     needs: Optional[Sequence[StrExpr]]  # BatchRef
 
     # matrix? Do we need a build matrix? Yes probably.
@@ -100,22 +101,8 @@ class Batch(Base):
     # outputs: Mapping[str, str] -- metadata for communicating between batches.
     # will be added later
 
-    # defaults for steps
-    image: OptStrExpr  # ImageRef
-    entrypoint: OptStrExpr
-    preset: OptStrExpr
-
-    volumes: Optional[Sequence[StrExpr]]
-    tags: Optional[Sequence[StrExpr]]
-
-    env: Optional[Mapping[str, StrExpr]]
-    workdir: OptRemotePathExpr
-
-    life_span: OptLifeSpanExpr
     # continue_on_error: OptBoolExpr
     # if_: OptBoolExpr  # -- skip conditionally
-
-    steps: Sequence[Step]
 
 
 @dataclass(frozen=True)

@@ -21,7 +21,7 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
     flow = parse_pipeline(workspace, config_file)
     assert flow == ast.PipelineFlow(
         (0, 0),
-        (60, 0),
+        (47, 0),
         id="pipeline-minimal",
         workspace=workspace,
         kind=ast.Kind.BATCH,
@@ -63,43 +63,28 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
             life_span=OptLifeSpanExpr("1d4h"),
             preset=OptStrExpr("cpu-large"),
         ),
-        batches={
-            "test_a": ast.Batch(
-                _start=(30, 4),
-                _end=(60, 0),
+        batches=[
+            ast.Batch(
+                _start=(29, 4),
+                _end=(47, 0),
+                id="test_a",
                 title=OptStrExpr("Batch title"),
                 needs=None,
-                image=OptStrExpr("ubuntu"),
-                entrypoint=OptStrExpr("python"),
-                preset=OptStrExpr("cpu-medium"),
-                volumes=[StrExpr("${{ volumes.volume_b.ref }}")],
-                tags=[StrExpr("batch-tag")],
-                env={"batch_a": StrExpr("val")},
-                workdir=OptRemotePathExpr("/batch/dir"),
-                life_span=OptLifeSpanExpr("15m"),
-                steps=[
-                    ast.Step(
-                        _start=(43, 8),
-                        _end=(60, 0),
-                        title=OptStrExpr(None),
-                        name=OptStrExpr("job-name"),
-                        image=StrExpr("${{ images.image_a.ref }}"),
-                        preset=OptStrExpr("cpu-small"),
-                        entrypoint=OptStrExpr("bash"),
-                        cmd=OptStrExpr("echo abc"),
-                        workdir=OptRemotePathExpr("/local/dir"),
-                        env={"local_a": StrExpr("val-1"), "local_b": StrExpr("val-2")},
-                        volumes=[
-                            StrExpr("${{ volumes.volume_a.ref }}"),
-                            StrExpr("storage:dir:/var/dir:ro"),
-                        ],
-                        tags=[StrExpr("tag-1"), StrExpr("tag-2")],
-                        life_span=OptLifeSpanExpr("2h55m"),
-                        http_port=OptIntExpr("8080"),
-                        http_auth=OptBoolExpr("False"),
-                        id=OptStrExpr("step_1"),
-                    )
+                name=OptStrExpr("job-name"),
+                image=StrExpr("${{ images.image_a.ref }}"),
+                preset=OptStrExpr("cpu-small"),
+                entrypoint=OptStrExpr("bash"),
+                cmd=OptStrExpr("echo abc"),
+                workdir=OptRemotePathExpr("/local/dir"),
+                env={"local_a": StrExpr("val-1"), "local_b": StrExpr("val-2")},
+                volumes=[
+                    StrExpr("${{ volumes.volume_a.ref }}"),
+                    StrExpr("storage:dir:/var/dir:ro"),
                 ],
+                tags=[StrExpr("tag-1"), StrExpr("tag-2")],
+                life_span=OptLifeSpanExpr("2h55m"),
+                http_port=OptIntExpr("8080"),
+                http_auth=OptBoolExpr("False"),
             )
-        },
+        ],
     )
