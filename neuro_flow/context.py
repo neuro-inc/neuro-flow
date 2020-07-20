@@ -1,6 +1,7 @@
 # Contexts
 from dataclasses import dataclass, field, replace
 
+import enum
 from toposort import toposort
 from typing import (
     AbstractSet,
@@ -84,6 +85,21 @@ class UnknownBatch(KeyError):
 @dataclass(frozen=True)
 class Neuro:
     pass
+
+
+class Result(str, enum.Enum):
+    SUCCESS = "success"
+    FAILURE = "failure"
+    CANCELLED = "cancelled"
+
+
+@dataclass(frozen=True)
+class DepCtx:
+    result: Result
+    outputs: Mapping[str, str]
+
+
+NeedsCtx = Mapping[str, DepCtx]
 
 
 @dataclass(frozen=True)
@@ -393,9 +409,10 @@ class PipelineContext(BaseContext):
         init=False, default=ast.PipelineFlow
     )
     LOOKUP_KEYS: ClassVar[Tuple[str, ...]] = field(
-        init=False, default=BaseContext.LOOKUP_KEYS + ("batch",)
+        init=False, default=BaseContext.LOOKUP_KEYS + ("batch", "needs")
     )
     _batch: Optional[BatchCtx] = None
+    _needs: Optional[NeedsCtx] = None
     _prep_batches: Optional[Mapping[str, PreparedBatchCtx]] = None
     _order: Optional[Sequence[AbstractSet[str]]] = None
 
@@ -445,18 +462,30 @@ class PipelineContext(BaseContext):
         return self._batch
 
     @property
+    def needs(self) -> NeedsCtx:
+        if self._needs is None:
+            raise NotAvailable("needs")
+        return self._needs
+
+    @property
     def order(self) -> Sequence[AbstractSet[str]]:
         # Batch names, sorted by the execution order.
         # Batches from each set in the list can be executed concurrently.
         assert self._order is not None
         return self._order
 
-    def get_needs(self, real_id: str) -> AbstractSet[str]:
+    def get_dep_ids(self, real_id: str) -> AbstractSet[str]:
         assert self._prep_batches is not None
         prep_batch = self._prep_batches[real_id]
         return prep_batch.needs
 
-    async def with_batch(self, real_id: str) -> "PipelineContext":
+    async def with_batch(self, real_id: str, *, needs: NeedsCtx,) -> "PipelineContext":
+        # real_id -- the batch's real id
+        #
+        # outputs -- real_id -> (output_name -> value) mapping for all batch ids
+        # enumerated in needs.
+        #
+        # TODO: multi-state batches require 'state' mapping (state_name -> value)
         assert self._prep_batches is not None
 
         if self._batch is not None:
@@ -467,6 +496,16 @@ class PipelineContext(BaseContext):
             prep_batch = self._prep_batches[real_id]
         except KeyError:
             raise UnknownBatch(real_id)
+
+        if needs.keys() != prep_batch.needs:
+            extra = ",".join(needs.keys() - prep_batch.needs)
+            missing = ",".join(prep_batch.needs - needs.keys())
+            err = ["Error in 'needs':"]
+            if extra:
+                err.append(f"unexpected keys {extra}")
+            if missing:
+                err.append(f"missing keys {missing}")
+            raise ValueError(" ".join(err))
 
         env = dict(self.env)
         if prep_batch.ast.env is not None:
@@ -512,7 +551,7 @@ class PipelineContext(BaseContext):
             http_port=await prep_batch.ast.http_port.eval(self),
             http_auth=await prep_batch.ast.http_auth.eval(self),
         )
-        return replace(self, _batch=batch_ctx, _env=env)
+        return replace(self, _batch=batch_ctx, _env=env, _needs=needs)
 
 
 def calc_full_path(ctx: BaseContext, path: Optional[LocalPath]) -> Optional[LocalPath]:

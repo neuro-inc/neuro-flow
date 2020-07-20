@@ -2,7 +2,7 @@ import pathlib
 import pytest
 from yarl import URL
 
-from neuro_flow.context import JobContext, NotAvailable, PipelineContext
+from neuro_flow.context import DepCtx, JobContext, NotAvailable, PipelineContext, Result
 from neuro_flow.parser import parse_interactive, parse_pipeline
 from neuro_flow.types import LocalPath, RemotePath
 
@@ -149,7 +149,7 @@ async def test_pipeline_minimal_ctx(assets: pathlib.Path) -> None:
     flow = parse_pipeline(workspace, config_file)
     ctx = await PipelineContext.create(flow)
 
-    ctx2 = await ctx.with_batch("test_a")
+    ctx2 = await ctx.with_batch("test_a", needs={})
     assert ctx2.batch.id == "test_a"
     assert ctx2.batch.real_id == "test_a"
     assert ctx2.batch.needs == set()
@@ -175,7 +175,9 @@ async def test_pipeline_seq(assets: pathlib.Path) -> None:
     flow = parse_pipeline(workspace, config_file)
     ctx = await PipelineContext.create(flow)
 
-    ctx2 = await ctx.with_batch("batch-2")
+    ctx2 = await ctx.with_batch(
+        "batch-2", needs={"batch-1": DepCtx(Result.SUCCESS, {})}
+    )
     assert ctx2.batch.id is None
     assert ctx2.batch.real_id == "batch-2"
     assert ctx2.batch.needs == {"batch-1"}
@@ -201,7 +203,9 @@ async def test_pipeline_needs(assets: pathlib.Path) -> None:
     flow = parse_pipeline(workspace, config_file)
     ctx = await PipelineContext.create(flow)
 
-    ctx2 = await ctx.with_batch("batch-2")
+    ctx2 = await ctx.with_batch(
+        "batch-2", needs={"batch_a": DepCtx(Result.SUCCESS, {})}
+    )
     assert ctx2.batch.id is None
     assert ctx2.batch.real_id == "batch-2"
     assert ctx2.batch.needs == {"batch_a"}
