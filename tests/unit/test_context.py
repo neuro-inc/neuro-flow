@@ -166,7 +166,7 @@ async def test_pipeline_minimal_ctx(assets: pathlib.Path) -> None:
     assert ctx2.batch.tags == {"tag-1", "tag-2", "tag-a", "tag-b"}
     assert ctx2.batch.life_span == 10500.0
 
-    assert ctx._topo == [{"test_a"}]
+    assert ctx.exec_order == [{"test_a"}]
 
 
 async def test_pipeline_seq(assets: pathlib.Path) -> None:
@@ -192,7 +192,7 @@ async def test_pipeline_seq(assets: pathlib.Path) -> None:
     assert ctx2.batch.tags == {"flow:pipeline-seq", "batch:batch-2"}
     assert ctx2.batch.life_span is None
 
-    assert ctx._topo == [{"batch-1"}, {"batch-2"}]
+    assert ctx.exec_order == [{"batch-1"}, {"batch-2"}]
 
 
 async def test_pipeline_needs(assets: pathlib.Path) -> None:
@@ -218,4 +218,4 @@ async def test_pipeline_needs(assets: pathlib.Path) -> None:
     assert ctx2.batch.tags == {"flow:pipeline-needs", "batch:batch-2"}
     assert ctx2.batch.life_span is None
 
-    assert ctx._topo == [{"batch_a"}, {"batch-2"}]
+    assert ctx.exec_order == [{"batch_a"}, {"batch-2"}]

@@ -397,7 +397,7 @@ class PipelineContext(BaseContext):
     )
     _batch: Optional[BatchCtx] = None
     _prep_batches: Optional[Mapping[str, PreparedBatchCtx]] = None
-    _topo: Optional[Sequence[AbstractSet[str]]] = None
+    _exec_order: Optional[Sequence[AbstractSet[str]]] = None
 
     @classmethod
     async def create(cls: Type[_CtxT], ast_flow: ast.BaseFlow) -> _CtxT:
@@ -435,7 +435,7 @@ class PipelineContext(BaseContext):
         topo = list(toposort(to_sort))
 
         return replace(  # type: ignore[return-value]
-            ctx, _prep_batches=prep_batches, _topo=topo
+            ctx, _prep_batches=prep_batches, _exec_order=topo
         )
 
     @property
@@ -443,6 +443,13 @@ class PipelineContext(BaseContext):
         if self._batch is None:
             raise NotAvailable("batch")
         return self._batch
+
+    @property
+    def exec_order(self) -> Sequence[AbstractSet[str]]:
+        # Batch names, sorted by the execution order
+        if self._exec_order is None:
+            raise NotAvailable("exec_order")
+        return self._exec_order
 
     async def with_batch(self, real_id: str) -> "PipelineContext":
         assert self._prep_batches is not None
