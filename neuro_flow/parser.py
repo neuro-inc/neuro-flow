@@ -15,6 +15,7 @@ from typing import (
     Callable,
     Dict,
     Generic,
+    List,
     Mapping,
     Optional,
     Sequence,
@@ -339,6 +340,87 @@ Loader.add_path_resolver("flow:images", [(dict, "images")])  # type: ignore
 Loader.add_constructor("flow:images", parse_images)  # type: ignore
 
 
+def parse_exc_inc(
+    ctor: ConfigConstructor, node: yaml.MappingNode
+) -> Sequence[Mapping[str, StrExpr]]:
+    if not isinstance(node, yaml.SequenceNode):
+        node_id = node.id
+        raise ConstructorError(
+            None,
+            None,
+            f"expected a sequence node, but found {node_id}",
+            node.start_mark,
+        )
+    builder = SimpleMapping(StrExpr)
+    ret: List[Mapping[str, StrExpr]] = []
+    for v in node.value:
+        ret.append(builder.construct(ctor, v))
+    return ret
+
+
+def parse_matrix(ctor: ConfigConstructor, node: yaml.MappingNode) -> ast.Matrix:
+    if not isinstance(node, yaml.MappingNode):
+        node_id = node.id
+        raise ConstructorError(
+            None,
+            None,
+            f"expected a mapping node, but found {node_id}",
+            node.start_mark,
+        )
+    products_builder = SimpleSeq(StrExpr)
+    products = {}
+    exclude: Sequence[Mapping[str, StrExpr]] = []
+    include: Sequence[Mapping[str, StrExpr]] = []
+    for k, v in node.value:
+        key = ctor.construct_id(k)
+        if key == "include":
+            include = parse_exc_inc(ctor, node)
+        elif key == "exclude":
+            exclude = parse_exc_inc(ctor, node)
+        else:
+            products[key] = products_builder.construct(ctor, v)
+    return ast.Matrix(
+        _start=mark2pos(node.start_mark),
+        _end=mark2pos(node.end_mark),
+        products=products,
+        exclude=exclude,
+        include=include,
+    )
+
+
+Loader.add_path_resolver(  # type: ignore
+    "flow:strategy",
+    [(dict, "batches"), (list, None), (dict, "strategy"), (dict, "matrix")],
+)
+Loader.add_constructor("flow:strategy", parse_matrix)  # type: ignore
+
+
+STRATEGY = {
+    "matrix": None,
+    "fail_fast": OptBoolExpr,
+    "max_parallel": OptIntExpr,
+}
+
+
+def parse_strategy(ctor: ConfigConstructor, node: yaml.MappingNode) -> ast.Strategy:
+    return parse_dict(
+        ctor,
+        node,
+        {
+            "metrix": None,
+            "fail_fast": OptLocalPathExpr,
+            "max_parallel": OptLocalPathExpr,
+        },
+        ast.Strategy,
+    )
+
+
+Loader.add_path_resolver(  # type: ignore
+    "flow:strategy", [(dict, "batches"), (list, None), (dict, "strategy")]
+)
+Loader.add_constructor("flow:strategy", parse_strategy)  # type: ignore
+
+
 EXEC_UNIT = {
     "title": OptStrExpr,
     "name": OptStrExpr,
@@ -403,6 +485,7 @@ Loader.add_constructor("flow:jobs", parse_jobs)  # type: ignore
 BATCH = {
     "id": OptIdExpr,
     "needs": SimpleSeq(IdExpr),
+    "strategy": None,
     **EXEC_UNIT,
 }
 

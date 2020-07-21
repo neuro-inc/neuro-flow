@@ -88,6 +88,7 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
                 life_span=OptLifeSpanExpr("2h55m"),
                 http_port=OptIntExpr("8080"),
                 http_auth=OptBoolExpr("False"),
+                strategy=None,
             )
         ],
     )
@@ -126,6 +127,7 @@ def test_parse_seq(assets: pathlib.Path) -> None:
                 life_span=OptLifeSpanExpr(None),
                 http_port=OptIntExpr(None),
                 http_auth=OptBoolExpr(None),
+                strategy=None,
             ),
             ast.Batch(
                 _start=(6, 4),
@@ -145,6 +147,7 @@ def test_parse_seq(assets: pathlib.Path) -> None:
                 life_span=OptLifeSpanExpr(None),
                 http_port=OptIntExpr(None),
                 http_auth=OptBoolExpr(None),
+                strategy=None,
             ),
         ],
     )
@@ -183,6 +186,7 @@ def test_parse_needs(assets: pathlib.Path) -> None:
                 life_span=OptLifeSpanExpr(None),
                 http_port=OptIntExpr(None),
                 http_auth=OptBoolExpr(None),
+                strategy=None,
             ),
             ast.Batch(
                 _start=(7, 4),
@@ -202,6 +206,7 @@ def test_parse_needs(assets: pathlib.Path) -> None:
                 life_span=OptLifeSpanExpr(None),
                 http_port=OptIntExpr(None),
                 http_auth=OptBoolExpr(None),
+                strategy=None,
             ),
         ],
     )

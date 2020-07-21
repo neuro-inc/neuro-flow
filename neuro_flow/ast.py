@@ -71,6 +71,22 @@ class ExecUnit(Base):
 
 
 @dataclass(frozen=True)
+class Matrix(Base):
+    # AST class is slightly different from YAML representation,
+    # in YAML `products` mapping is embedded into the matrix itself.
+    products: Mapping[str, Sequence[StrExpr]]
+    exclude: Sequence[Mapping[str, StrExpr]]
+    include: Sequence[Mapping[str, StrExpr]]
+
+
+@dataclass(frozen=True)
+class Strategy(Base):
+    matrix: Matrix
+    fail_fast: OptBoolExpr
+    max_parallel: OptIntExpr
+
+
+@dataclass(frozen=True)
 class Job(ExecUnit):
     # Interactive job used by Kind.Live flow
 
@@ -90,8 +106,7 @@ class Batch(ExecUnit):
 
     # matrix? Do we need a build matrix? Yes probably.
 
-    # outputs: Mapping[str, str] -- metadata for communicating between batches.
-    # will be added later
+    strategy: Optional[Strategy]
 
     # continue_on_error: OptBoolExpr
     # if_: OptBoolExpr  # -- skip conditionally
