@@ -82,6 +82,14 @@ class ConfigConstructor(SafeConstructor):
             raise ConstructorError(
                 None, None, f"{val} is not an identifier", node.start_mark
             )
+        if val == val.upper():
+            raise ConstructorError(
+                None,
+                None,
+                f"{val} is invalid identifier, "
+                "uppercase names are reserved for internal usage",
+                node.start_mark,
+            )
         return val
 
 

@@ -536,6 +536,11 @@ class IdExprMixin:
     def convert(cls, arg: str) -> str:
         if not arg.isidentifier():
             raise ValueError(f"{arg} is not identifier")
+        if arg == arg.upper():
+            raise ValueError(
+                f"{arg} is invalid identifier, "
+                "uppercase names are reserved for internal usage"
+            )
         return arg
 
 
