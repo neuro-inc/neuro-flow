@@ -374,9 +374,9 @@ def parse_matrix(ctor: ConfigConstructor, node: yaml.MappingNode) -> ast.Matrix:
     for k, v in node.value:
         key = ctor.construct_id(k)
         if key == "include":
-            include = parse_exc_inc(ctor, node)
+            include = parse_exc_inc(ctor, v)
         elif key == "exclude":
-            exclude = parse_exc_inc(ctor, node)
+            exclude = parse_exc_inc(ctor, v)
         else:
             products[key] = products_builder.construct(ctor, v)
     return ast.Matrix(
@@ -389,10 +389,10 @@ def parse_matrix(ctor: ConfigConstructor, node: yaml.MappingNode) -> ast.Matrix:
 
 
 Loader.add_path_resolver(  # type: ignore
-    "flow:strategy",
+    "flow:matrix",
     [(dict, "batches"), (list, None), (dict, "strategy"), (dict, "matrix")],
 )
-Loader.add_constructor("flow:strategy", parse_matrix)  # type: ignore
+Loader.add_constructor("flow:matrix", parse_matrix)  # type: ignore
 
 
 STRATEGY = {
@@ -406,11 +406,7 @@ def parse_strategy(ctor: ConfigConstructor, node: yaml.MappingNode) -> ast.Strat
     return parse_dict(
         ctor,
         node,
-        {
-            "metrix": None,
-            "fail_fast": OptLocalPathExpr,
-            "max_parallel": OptLocalPathExpr,
-        },
+        {"matrix": None, "fail_fast": OptBoolExpr, "max_parallel": OptIntExpr,},
         ast.Strategy,
     )
 
