@@ -97,17 +97,12 @@ async def status(flow: ast.InteractiveFlow, job_id: str) -> None:
 async def kill(flow: ast.InteractiveFlow, job_id: str) -> None:
     """Kill a job.
 
-    Kill JOB-ID"""
+    Kill JOB-ID, use `kill ALL` for killing all jobs."""
     async with InteractiveRunner(flow) as runner:
-        await runner.kill(job_id)
-
-
-@main.command()
-@wrap_async
-async def kill_all(flow: ast.InteractiveFlow) -> None:
-    """Kill all jobs."""
-    async with InteractiveRunner(flow) as runner:
-        await runner.kill_all()
+        if job_id != "ALL":
+            await runner.kill(job_id)
+        else:
+            await runner.kill_all()
 
 
 # #### storage commands ####
@@ -119,9 +114,13 @@ async def kill_all(flow: ast.InteractiveFlow) -> None:
 async def upload(flow: ast.InteractiveFlow, volume: str) -> None:
     """Upload volume.
 
-    Upload local files to remote for VOLUME"""
+    Upload local files to remote for VOLUME,
+    use `upload ALL` for uploading all volumes."""
     async with InteractiveRunner(flow) as runner:
-        await runner.upload(volume)
+        if volume != "ALL":
+            await runner.upload(volume)
+        else:
+            await runner.upload_all()
 
 
 @main.command()
@@ -130,9 +129,13 @@ async def upload(flow: ast.InteractiveFlow, volume: str) -> None:
 async def download(flow: ast.InteractiveFlow, volume: str) -> None:
     """Download volume.
 
-    Download remote files to local for VOLUME"""
+    Download remote files to local for VOLUME,
+    use `download ALL` for downloading all volumes."""
     async with InteractiveRunner(flow) as runner:
-        await runner.download(volume)
+        if volume != "ALL":
+            await runner.download(volume)
+        else:
+            await runner.download_all()
 
 
 @main.command()
@@ -141,33 +144,13 @@ async def download(flow: ast.InteractiveFlow, volume: str) -> None:
 async def clean(flow: ast.InteractiveFlow, volume: str) -> None:
     """Clean volume.
 
-    Clean remote files on VOLUME"""
+    Clean remote files on VOLUME,
+    use `clean ALL` for cleaning up all volumes."""
     async with InteractiveRunner(flow) as runner:
-        await runner.clean(volume)
-
-
-@main.command()
-@wrap_async
-async def upload_all(flow: ast.InteractiveFlow) -> None:
-    """Upload all volumes."""
-    async with InteractiveRunner(flow) as runner:
-        await runner.upload_all()
-
-
-@main.command()
-@wrap_async
-async def download_all(flow: ast.InteractiveFlow) -> None:
-    """Download all volumes."""
-    async with InteractiveRunner(flow) as runner:
-        await runner.download_all()
-
-
-@main.command()
-@wrap_async
-async def clean_all(flow: ast.InteractiveFlow) -> None:
-    """Clean all volumes."""
-    async with InteractiveRunner(flow) as runner:
-        await runner.clean_all()
+        if volume != "ALL":
+            await runner.clean(volume)
+        else:
+            await runner.clean_all()
 
 
 @main.command()
