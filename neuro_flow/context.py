@@ -348,9 +348,7 @@ class BaseContext(RootABC):
 
 @dataclass(frozen=True)
 class JobContext(BaseContext):
-    FLOW_TYPE: ClassVar[Type[ast.InteractiveFlow]] = field(
-        init=False, default=ast.InteractiveFlow
-    )
+    FLOW_TYPE: ClassVar[Type[ast.LiveFlow]] = field(init=False, default=ast.LiveFlow)
     LOOKUP_KEYS: ClassVar[Tuple[str, ...]] = field(
         init=False, default=BaseContext.LOOKUP_KEYS + ("job",)
     )

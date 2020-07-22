@@ -38,8 +38,8 @@ class JobInfo:
     when: Optional[datetime.datetime]
 
 
-class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
-    def __init__(self, flow: ast.InteractiveFlow) -> None:
+class LiveRunner(AsyncContextManager["LiveRunner"]):
+    def __init__(self, flow: ast.LiveFlow) -> None:
         self._flow = flow
         self._ctx: Optional[JobContext] = None
         self._client: Optional[Client] = None
@@ -54,7 +54,7 @@ class InteractiveRunner(AsyncContextManager["InteractiveRunner"]):
         if self._client is not None:
             await self._client.close()
 
-    async def __aenter__(self) -> "InteractiveRunner":
+    async def __aenter__(self) -> "LiveRunner":
         await self.post_init()
         return self
 

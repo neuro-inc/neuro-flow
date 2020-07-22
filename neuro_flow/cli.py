@@ -5,8 +5,8 @@ from neuromation.cli.asyncio_utils import Runner
 from typing import Any, Awaitable, Callable, Optional, TypeVar
 
 from . import ast
-from .parser import find_interactive_config, parse_interactive
-from .runner import InteractiveRunner
+from .live_runner import LiveRunner
+from .parser import find_live_config, parse_live
 
 
 _T = TypeVar("_T")
@@ -39,8 +39,8 @@ def wrap_async(callback: Callable[..., Awaitable[_T]],) -> Callable[..., _T]:
 )
 @click.pass_context
 def main(ctx: click.Context, config: Optional[str]) -> None:
-    config_path = find_interactive_config(config)
-    flow = parse_interactive(config_path.workspace, config_path.config_file)
+    config_path = find_live_config(config)
+    flow = parse_live(config_path.workspace, config_path.config_file)
     ctx.obj = flow
 
 
@@ -49,56 +49,56 @@ def main(ctx: click.Context, config: Optional[str]) -> None:
 
 @main.command()
 @wrap_async
-async def ps(flow: ast.InteractiveFlow) -> None:
+async def ps(flow: ast.LiveFlow) -> None:
     """List all jobs"""
-    async with InteractiveRunner(flow) as runner:
+    async with LiveRunner(flow) as runner:
         await runner.ps()
 
 
 @main.command()
 @click.argument("job-id")
 @wrap_async
-async def run(flow: ast.InteractiveFlow, job_id: str) -> None:
+async def run(flow: ast.LiveFlow, job_id: str) -> None:
     """Run a job.
 
     RUN job JOB-ID or ATTACH to it if the job is already running
     """
-    async with InteractiveRunner(flow) as runner:
+    async with LiveRunner(flow) as runner:
         await runner.run(job_id)
 
 
 @main.command()
 @click.argument("job-id")
 @wrap_async
-async def logs(flow: ast.InteractiveFlow, job_id: str) -> None:
+async def logs(flow: ast.LiveFlow, job_id: str) -> None:
     """Print logs.
 
     Displys logs for JOB-ID
     """
-    async with InteractiveRunner(flow) as runner:
+    async with LiveRunner(flow) as runner:
         await runner.logs(job_id)
 
 
 @main.command()
 @click.argument("job-id")
 @wrap_async
-async def status(flow: ast.InteractiveFlow, job_id: str) -> None:
+async def status(flow: ast.LiveFlow, job_id: str) -> None:
     """Show job status.
 
     Print status for JOB-ID
     """
-    async with InteractiveRunner(flow) as runner:
+    async with LiveRunner(flow) as runner:
         await runner.status(job_id)
 
 
 @main.command()
 @click.argument("job-id")
 @wrap_async
-async def kill(flow: ast.InteractiveFlow, job_id: str) -> None:
+async def kill(flow: ast.LiveFlow, job_id: str) -> None:
     """Kill a job.
 
     Kill JOB-ID, use `kill ALL` for killing all jobs."""
-    async with InteractiveRunner(flow) as runner:
+    async with LiveRunner(flow) as runner:
         if job_id != "ALL":
             await runner.kill(job_id)
         else:
@@ -111,12 +111,12 @@ async def kill(flow: ast.InteractiveFlow, job_id: str) -> None:
 @main.command()
 @click.argument("volume")
 @wrap_async
-async def upload(flow: ast.InteractiveFlow, volume: str) -> None:
+async def upload(flow: ast.LiveFlow, volume: str) -> None:
     """Upload volume.
 
     Upload local files to remote for VOLUME,
     use `upload ALL` for uploading all volumes."""
-    async with InteractiveRunner(flow) as runner:
+    async with LiveRunner(flow) as runner:
         if volume != "ALL":
             await runner.upload(volume)
         else:
@@ -126,12 +126,12 @@ async def upload(flow: ast.InteractiveFlow, volume: str) -> None:
 @main.command()
 @click.argument("volume")
 @wrap_async
-async def download(flow: ast.InteractiveFlow, volume: str) -> None:
+async def download(flow: ast.LiveFlow, volume: str) -> None:
     """Download volume.
 
     Download remote files to local for VOLUME,
     use `download ALL` for downloading all volumes."""
-    async with InteractiveRunner(flow) as runner:
+    async with LiveRunner(flow) as runner:
         if volume != "ALL":
             await runner.download(volume)
         else:
@@ -141,12 +141,12 @@ async def download(flow: ast.InteractiveFlow, volume: str) -> None:
 @main.command()
 @click.argument("volume")
 @wrap_async
-async def clean(flow: ast.InteractiveFlow, volume: str) -> None:
+async def clean(flow: ast.LiveFlow, volume: str) -> None:
     """Clean volume.
 
     Clean remote files on VOLUME,
     use `clean ALL` for cleaning up all volumes."""
-    async with InteractiveRunner(flow) as runner:
+    async with LiveRunner(flow) as runner:
         if volume != "ALL":
             await runner.clean(volume)
         else:
@@ -155,9 +155,9 @@ async def clean(flow: ast.InteractiveFlow, volume: str) -> None:
 
 @main.command()
 @wrap_async
-async def mkvolumes(flow: ast.InteractiveFlow) -> None:
+async def mkvolumes(flow: ast.LiveFlow) -> None:
     """Create all remote folders for volumes."""
-    async with InteractiveRunner(flow) as runner:
+    async with LiveRunner(flow) as runner:
         await runner.mkvolumes()
 
 
@@ -167,10 +167,10 @@ async def mkvolumes(flow: ast.InteractiveFlow) -> None:
 @main.command()
 @click.argument("image")
 @wrap_async
-async def build(flow: ast.InteractiveFlow, image: str) -> None:
+async def build(flow: ast.LiveFlow, image: str) -> None:
     """Build an image.
 
     Assemble the IMAGE remotely and publish it.
     """
-    async with InteractiveRunner(flow) as runner:
+    async with LiveRunner(flow) as runner:
         await runner.build(image)

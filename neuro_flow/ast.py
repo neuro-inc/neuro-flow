@@ -28,12 +28,12 @@ class Base:
     _end: Pos
 
 
-# There are 'batch' for pipelined mode and 'job' for interactive one
+# There are 'batch' for pipelined mode and 'live' for interactive one
 # (while 'batches' are technically just non-interactive jobs.
 
 
 class Kind(enum.Enum):
-    JOB = "job"  # interactive mode.
+    LIVE = "live"  # interactive mode.
     BATCH = "batch"  # pipelined mode
 
 
@@ -99,7 +99,7 @@ class Job(ExecUnit):
 class Batch(ExecUnit):
     id: OptIdExpr
 
-    # A set of steps, used in non-interactive mode
+    # A set of steps, used in net mode
     # All steps share the same implicit persistent disk volume
 
     needs: Optional[Sequence[IdExpr]]  # BatchRef
@@ -144,7 +144,7 @@ class BaseFlow(Base):
 
 
 @dataclass(frozen=True)
-class InteractiveFlow(BaseFlow):
+class LiveFlow(BaseFlow):
     # self.kind == Kind.Job
     jobs: Mapping[str, Job]
 

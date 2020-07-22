@@ -1,4 +1,4 @@
-kind: job
+kind: live
 images:
   image-a:
     uri: ubuntu

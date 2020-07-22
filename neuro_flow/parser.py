@@ -568,7 +568,7 @@ Loader.add_constructor("flow:opt_str", parse_opt_str)  # type: ignore
 
 
 def select_kind(ctor: ConfigConstructor, dct: Dict[str, Any]) -> Dict[str, Any]:
-    if dct["kind"] == ast.Kind.JOB:
+    if dct["kind"] == ast.Kind.LIVE:
         batches = dct.pop("batches", None)
         if batches is not None:
             raise ValueError("flow of kind={dct['kind']} cannot have batches")
@@ -585,8 +585,8 @@ def select_kind(ctor: ConfigConstructor, dct: Dict[str, Any]) -> Dict[str, Any]:
 def find_res_type(
     ctor: ConfigConstructor, res_type: Type[ast.BaseFlow], arg: Dict[str, VarT]
 ) -> Type[ast.BaseFlow]:
-    if arg["kind"] == ast.Kind.JOB:
-        return ast.InteractiveFlow
+    if arg["kind"] == ast.Kind.LIVE:
+        return ast.LiveFlow
     elif arg["kind"] == ast.Kind.BATCH:
         return ast.PipelineFlow
     else:
@@ -608,18 +608,18 @@ Loader.add_path_resolver("flow:main", [])  # type: ignore
 Loader.add_constructor("flow:main", parse_main)  # type: ignore
 
 
-def parse_interactive(
+def parse_live(
     workspace: Path, config_file: Path, *, id: Optional[str] = None
-) -> ast.InteractiveFlow:
-    # Parse interactive flow config file
+) -> ast.LiveFlow:
+    # Parse live flow config file
     if id is None:
         id = workspace.stem
     with config_file.open() as f:
         loader = Loader(f, id, workspace)
         try:
             ret = loader.get_single_data()  # type: ignore[no-untyped-call]
-            assert isinstance(ret, ast.InteractiveFlow)
-            assert ret.kind == ast.Kind.JOB
+            assert isinstance(ret, ast.LiveFlow)
+            assert ret.kind == ast.Kind.LIVE
             return ret
         finally:
             loader.dispose()  # type: ignore[no-untyped-call]
@@ -642,14 +642,14 @@ def parse_pipeline(
             loader.dispose()  # type: ignore[no-untyped-call]
 
 
-def find_interactive_config(path: Optional[Union[Path, str]]) -> ConfigPath:
-    # Find interactive config file, starting from path.
+def find_live_config(path: Optional[Union[Path, str]]) -> ConfigPath:
+    # Find live config file, starting from path.
     # Return a project root folder and a path to config file.
     #
     # If path is a file -- it is used as is.
     # If path is a directory -- it is used as starting point, Path.cwd() otherwise.
     # The lookup searches bottom-top from path dir up to the root folder,
-    # looking for .neuro folder and ./neuro/jobs.yml
+    # looking for .neuro folder and ./neuro/live.yml
     # If the config file not found -- raise an exception.
 
     if path is not None:
@@ -671,7 +671,7 @@ def find_interactive_config(path: Optional[Union[Path, str]]) -> ConfigPath:
             break
         path = path.parent
 
-    ret = path / ".neuro" / "jobs.yml"
+    ret = path / ".neuro" / "live.yml"
     if not ret.exists():
         raise ValueError(f"{ret} does not exist")
     if not ret.is_file():

@@ -1,4 +1,4 @@
-kind: job
+kind: live
 jobs:
   123:
     cmd: echo abc

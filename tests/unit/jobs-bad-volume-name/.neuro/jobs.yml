@@ -1,4 +1,4 @@
-kind: job
+kind: live
 volumes:
   volume-a:
     uri: storage:folder:/folder
