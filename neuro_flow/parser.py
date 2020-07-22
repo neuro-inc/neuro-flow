@@ -414,7 +414,7 @@ def parse_matrix(ctor: ConfigConstructor, node: yaml.MappingNode) -> ast.Matrix:
 
 Loader.add_path_resolver(  # type: ignore
     "flow:matrix",
-    [(dict, "batches"), (list, None), (dict, "strategy"), (dict, "matrix")],
+    [(dict, "tasks"), (list, None), (dict, "strategy"), (dict, "matrix")],
 )
 Loader.add_constructor("flow:matrix", parse_matrix)  # type: ignore
 
@@ -436,7 +436,7 @@ def parse_strategy(ctor: ConfigConstructor, node: yaml.MappingNode) -> ast.Strat
 
 
 Loader.add_path_resolver(  # type: ignore
-    "flow:strategy", [(dict, "batches"), (list, None), (dict, "strategy")]
+    "flow:strategy", [(dict, "tasks"), (list, None), (dict, "strategy")]
 )
 Loader.add_constructor("flow:strategy", parse_strategy)  # type: ignore
 
@@ -502,7 +502,7 @@ Loader.add_path_resolver("flow:jobs", [(dict, "jobs")])  # type: ignore
 Loader.add_constructor("flow:jobs", parse_jobs)  # type: ignore
 
 
-BATCH = {
+TASK = {
     "id": OptIdExpr,
     "needs": SimpleSeq(IdExpr),
     "strategy": None,
@@ -510,20 +510,20 @@ BATCH = {
 }
 
 
-def parse_batch(ctor: ConfigConstructor, node: yaml.MappingNode) -> ast.Batch:
+def parse_task(ctor: ConfigConstructor, node: yaml.MappingNode) -> ast.Task:
     return parse_dict(
-        ctor, node, BATCH, ast.Batch, preprocess=select_shells  # type: ignore
+        ctor, node, TASK, ast.Task, preprocess=select_shells  # type: ignore
     )
 
 
 Loader.add_path_resolver(  # type: ignore[no-untyped-call]
-    "flow:batch", [(dict, "batches"), (list, None)]
+    "flow:task", [(dict, "tasks"), (list, None)]
 )
-Loader.add_constructor("flow:batch", parse_batch)  # type: ignore
+Loader.add_constructor("flow:task", parse_task)  # type: ignore
 
 
-Loader.add_path_resolver("flow:batches", [(dict, "batches")])  # type: ignore
-Loader.add_constructor("flow:batches", Loader.construct_sequence)  # type: ignore
+Loader.add_path_resolver("flow:tasks", [(dict, "tasks")])  # type: ignore
+Loader.add_constructor("flow:tasks", Loader.construct_sequence)  # type: ignore
 
 
 def parse_flow_defaults(
@@ -555,7 +555,7 @@ FLOW = {
     "volumes": None,
     "defaults": None,
     "jobs": None,
-    "batches": None,
+    "tasks": None,
 }
 
 
@@ -569,9 +569,9 @@ Loader.add_constructor("flow:opt_str", parse_opt_str)  # type: ignore
 
 def select_kind(ctor: ConfigConstructor, dct: Dict[str, Any]) -> Dict[str, Any]:
     if dct["kind"] == ast.Kind.LIVE:
-        batches = dct.pop("batches", None)
-        if batches is not None:
-            raise ValueError("flow of kind={dct['kind']} cannot have batches")
+        tasks = dct.pop("tass", None)
+        if tasks is not None:
+            raise ValueError("flow of kind={dct['kind']} cannot have tasks")
     elif dct["kind"] == ast.Kind.BATCH:
         jobs = dct.pop("jobs", None)
         if jobs is not None:
@@ -588,7 +588,7 @@ def find_res_type(
     if arg["kind"] == ast.Kind.LIVE:
         return ast.LiveFlow
     elif arg["kind"] == ast.Kind.BATCH:
-        return ast.PipelineFlow
+        return ast.BatchFlow
     else:
         raise ValueError(f"Unknown kind {arg['kind']} of the flow")
 
@@ -627,7 +627,7 @@ def parse_live(
 
 def parse_pipeline(
     workspace: Path, config_file: Path, *, id: Optional[str] = None
-) -> ast.PipelineFlow:
+) -> ast.BatchFlow:
     # Parse pipeline flow config file
     if id is None:
         id = config_file.stem
@@ -635,7 +635,7 @@ def parse_pipeline(
         loader = Loader(f, id, workspace)
         try:
             ret = loader.get_single_data()  # type: ignore[no-untyped-call]
-            assert isinstance(ret, ast.PipelineFlow)
+            assert isinstance(ret, ast.BatchFlow)
             assert ret.kind == ast.Kind.BATCH
             return ret
         finally:

@@ -1,5 +1,5 @@
 kind: batch
-batches:
+tasks:
   - id: batch_a
     image: ubuntu
     preset: cpu-small

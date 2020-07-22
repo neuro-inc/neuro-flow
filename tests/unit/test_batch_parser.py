@@ -20,12 +20,12 @@ from neuro_flow.parser import parse_pipeline
 
 def test_parse_minimal(assets: pathlib.Path) -> None:
     workspace = assets
-    config_file = workspace / "pipeline-minimal.yml"
+    config_file = workspace / "batch-minimal.yml"
     flow = parse_pipeline(workspace, config_file)
-    assert flow == ast.PipelineFlow(
+    assert flow == ast.BatchFlow(
         (0, 0),
         (47, 0),
-        id="pipeline-minimal",
+        id="batch-minimal",
         workspace=workspace,
         kind=ast.Kind.BATCH,
         title="Global title",
@@ -66,8 +66,8 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
             life_span=OptLifeSpanExpr("1d4h"),
             preset=OptStrExpr("cpu-large"),
         ),
-        batches=[
-            ast.Batch(
+        tasks=[
+            ast.Task(
                 _start=(29, 4),
                 _end=(47, 0),
                 id=OptIdExpr("test_a"),
@@ -96,20 +96,20 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
 
 def test_parse_seq(assets: pathlib.Path) -> None:
     workspace = assets
-    config_file = workspace / "pipeline-seq.yml"
+    config_file = workspace / "batch-seq.yml"
     flow = parse_pipeline(workspace, config_file)
-    assert flow == ast.PipelineFlow(
+    assert flow == ast.BatchFlow(
         (0, 0),
         (9, 0),
-        id="pipeline-seq",
+        id="batch-seq",
         workspace=workspace,
         kind=ast.Kind.BATCH,
         title=None,
         images=None,
         volumes=None,
         defaults=None,
-        batches=[
-            ast.Batch(
+        tasks=[
+            ast.Task(
                 _start=(2, 4),
                 _end=(6, 2),
                 id=OptIdExpr(None),
@@ -129,7 +129,7 @@ def test_parse_seq(assets: pathlib.Path) -> None:
                 http_auth=OptBoolExpr(None),
                 strategy=None,
             ),
-            ast.Batch(
+            ast.Task(
                 _start=(6, 4),
                 _end=(9, 0),
                 id=OptIdExpr(None),
@@ -155,20 +155,20 @@ def test_parse_seq(assets: pathlib.Path) -> None:
 
 def test_parse_needs(assets: pathlib.Path) -> None:
     workspace = assets
-    config_file = workspace / "pipeline-needs.yml"
+    config_file = workspace / "batch-needs.yml"
     flow = parse_pipeline(workspace, config_file)
-    assert flow == ast.PipelineFlow(
+    assert flow == ast.BatchFlow(
         (0, 0),
         (11, 0),
-        id="pipeline-needs",
+        id="batch-needs",
         workspace=workspace,
         kind=ast.Kind.BATCH,
         title=None,
         images=None,
         volumes=None,
         defaults=None,
-        batches=[
-            ast.Batch(
+        tasks=[
+            ast.Task(
                 _start=(2, 4),
                 _end=(7, 2),
                 id=OptIdExpr("batch_a"),
@@ -188,7 +188,7 @@ def test_parse_needs(assets: pathlib.Path) -> None:
                 http_auth=OptBoolExpr(None),
                 strategy=None,
             ),
-            ast.Batch(
+            ast.Task(
                 _start=(7, 4),
                 _end=(11, 0),
                 id=OptIdExpr(None),
@@ -214,20 +214,20 @@ def test_parse_needs(assets: pathlib.Path) -> None:
 
 def test_parse_matrix(assets: pathlib.Path) -> None:
     workspace = assets
-    config_file = workspace / "pipeline-matrix.yml"
+    config_file = workspace / "batch-matrix.yml"
     flow = parse_pipeline(workspace, config_file)
-    assert flow == ast.PipelineFlow(
+    assert flow == ast.BatchFlow(
         (0, 0),
         (15, 0),
-        id="pipeline-matrix",
+        id="batch-matrix",
         workspace=workspace,
         kind=ast.Kind.BATCH,
         title=None,
         images=None,
         volumes=None,
         defaults=None,
-        batches=[
-            ast.Batch(
+        tasks=[
+            ast.Task(
                 _start=(2, 4),
                 _end=(15, 0),
                 title=OptStrExpr(None),
@@ -274,20 +274,20 @@ def test_parse_matrix(assets: pathlib.Path) -> None:
 
 def test_parse_matrix_with_strategy(assets: pathlib.Path) -> None:
     workspace = assets
-    config_file = workspace / "pipeline-matrix-with-strategy.yml"
+    config_file = workspace / "batch-matrix-with-strategy.yml"
     flow = parse_pipeline(workspace, config_file)
-    assert flow == ast.PipelineFlow(
+    assert flow == ast.BatchFlow(
         (0, 0),
         (17, 0),
-        id="pipeline-matrix-with-strategy",
+        id="batch-matrix-with-strategy",
         workspace=workspace,
         kind=ast.Kind.BATCH,
         title=None,
         images=None,
         volumes=None,
         defaults=None,
-        batches=[
-            ast.Batch(
+        tasks=[
+            ast.Task(
                 _start=(2, 4),
                 _end=(17, 0),
                 title=OptStrExpr(None),

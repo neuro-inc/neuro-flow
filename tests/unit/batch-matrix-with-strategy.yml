@@ -1,5 +1,5 @@
 kind: batch
-batches:
+tasks:
   - strategy:
       matrix:
         one: [o1, o2]

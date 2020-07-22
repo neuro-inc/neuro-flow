@@ -26,7 +26,7 @@ defaults:
   workdir: /global/dir
   life_span: 1d4h
   preset: cpu-large
-batches:
+tasks:
   - id: test_a
     title: Batch title
     name: job-name

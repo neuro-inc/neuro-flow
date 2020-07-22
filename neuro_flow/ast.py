@@ -96,7 +96,7 @@ class Job(ExecUnit):
 
 
 @dataclass(frozen=True)
-class Batch(ExecUnit):
+class Task(ExecUnit):
     id: OptIdExpr
 
     # A set of steps, used in net mode
@@ -125,7 +125,7 @@ class FlowDefaults(Base):
 
 
 # @dataclass(frozen=True)
-# class PipelineFlowDefaults(FlowDefaults):
+# class BatchFlowDefaults(FlowDefaults):
 #     fail_fast: OptBoolExpr
 #     max_parallel: OptIntExpr
 
@@ -150,6 +150,6 @@ class LiveFlow(BaseFlow):
 
 
 @dataclass(frozen=True)
-class PipelineFlow(BaseFlow):
+class BatchFlow(BaseFlow):
     # self.kind == Kind.Batch
-    batches: Sequence[Batch]
+    tasks: Sequence[Task]
