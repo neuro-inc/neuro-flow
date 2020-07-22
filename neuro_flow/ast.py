@@ -28,12 +28,12 @@ class Base:
     _end: Pos
 
 
-# There are 'batch' for pipelined mode and 'job' for interactive one
+# There are 'batch' for pipelined mode and 'live' for interactive one
 # (while 'batches' are technically just non-interactive jobs.
 
 
 class Kind(enum.Enum):
-    JOB = "job"  # interactive mode.
+    LIVE = "live"  # interactive mode.
     BATCH = "batch"  # pipelined mode
 
 
@@ -96,10 +96,10 @@ class Job(ExecUnit):
 
 
 @dataclass(frozen=True)
-class Batch(ExecUnit):
+class Task(ExecUnit):
     id: OptIdExpr
 
-    # A set of steps, used in non-interactive mode
+    # A set of steps, used in net mode
     # All steps share the same implicit persistent disk volume
 
     needs: Optional[Sequence[IdExpr]]  # BatchRef
@@ -125,7 +125,7 @@ class FlowDefaults(Base):
 
 
 # @dataclass(frozen=True)
-# class PipelineFlowDefaults(FlowDefaults):
+# class BatchFlowDefaults(FlowDefaults):
 #     fail_fast: OptBoolExpr
 #     max_parallel: OptIntExpr
 
@@ -144,12 +144,12 @@ class BaseFlow(Base):
 
 
 @dataclass(frozen=True)
-class InteractiveFlow(BaseFlow):
+class LiveFlow(BaseFlow):
     # self.kind == Kind.Job
     jobs: Mapping[str, Job]
 
 
 @dataclass(frozen=True)
-class PipelineFlow(BaseFlow):
+class BatchFlow(BaseFlow):
     # self.kind == Kind.Batch
-    batches: Sequence[Batch]
+    tasks: Sequence[Task]

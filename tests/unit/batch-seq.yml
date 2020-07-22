@@ -1,5 +1,5 @@
 kind: batch
-batches:
+tasks:
   - image: ubuntu
     preset: cpu-small
     bash: echo abc

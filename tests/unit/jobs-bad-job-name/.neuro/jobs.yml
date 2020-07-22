@@ -1,4 +1,4 @@
-kind: job
+kind: live
 jobs:
   bad-name-with-dash:
     cmd: echo abc

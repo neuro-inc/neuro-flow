@@ -1,4 +1,4 @@
-kind: job
+kind: live
 jobs:
   test:
     bash: |
