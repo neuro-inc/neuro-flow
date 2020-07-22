@@ -108,6 +108,12 @@ MatrixCtx = Mapping[str, LiteralT]
 
 
 @dataclass(frozen=True)
+class StrategyCtx:
+    fail_fast: bool = False
+    max_parallel: int = 10
+
+
+@dataclass(frozen=True)
 class ExecUnitCtx:
     title: Optional[str]
     name: Optional[str]
@@ -138,6 +144,7 @@ class PreparedBatchCtx:
 
     needs: AbstractSet[str]  # A set of batch.id
     matrix: MatrixCtx
+    strategy: StrategyCtx
 
     ast: ast.Batch
 
@@ -198,6 +205,12 @@ class DefaultsCtx:
     workdir: Optional[RemotePath]
     life_span: Optional[float]
     preset: Optional[str]
+
+
+# @dataclass(frozen=True)
+# class BatchDefaultsCtx(DefaultsCtx):
+#     fail_fast: Optional[bool]
+#     max_parallel: Optional[int]
 
 
 @dataclass(frozen=True)
@@ -415,13 +428,15 @@ class PipelineContext(BaseContext):
         init=False, default=ast.PipelineFlow
     )
     LOOKUP_KEYS: ClassVar[Tuple[str, ...]] = field(
-        init=False, default=BaseContext.LOOKUP_KEYS + ("batch", "needs", "matrix")
+        init=False,
+        default=BaseContext.LOOKUP_KEYS + ("batch", "needs", "matrix", "strategy"),
     )
     _batch: Optional[BatchCtx] = None
     _needs: Optional[NeedsCtx] = None
     _prep_batches: Optional[Mapping[str, PreparedBatchCtx]] = None
     _order: Optional[Sequence[AbstractSet[str]]] = None
     _matrix: Optional[MatrixCtx] = None
+    _strategy: Optional[StrategyCtx] = None
 
     @classmethod
     async def create(cls: Type[_CtxT], ast_flow: ast.BaseFlow) -> _CtxT:
@@ -432,11 +447,24 @@ class PipelineContext(BaseContext):
         for num, ast_batch in enumerate(ctx._ast_flow.batches, 1):
             # eval matrix
             matrix: Sequence[MatrixCtx]
-            if ast_batch.strategy is not None and ast_batch.strategy.matrix is not None:
-                matrix = await ctx._build_matrix(ast_batch.strategy)
-                matrix = await ctx._exclude(ast_batch.strategy, matrix)
-                matrix = await ctx._include(ast_batch.strategy, matrix)
+            strategy: StrategyCtx
+            default_strategy = StrategyCtx()
+            if ast_batch.strategy is not None:
+                fail_fast = await ast_batch.strategy.fail_fast.eval(ctx)
+                if fail_fast is None:
+                    fail_fast = default_strategy.fail_fast
+                max_parallel = await ast_batch.strategy.max_parallel.eval(ctx)
+                if max_parallel is None:
+                    max_parallel = default_strategy.max_parallel
+                strategy = StrategyCtx(fail_fast=fail_fast, max_parallel=max_parallel,)
+                if ast_batch.strategy.matrix is not None:
+                    matrix = await ctx._build_matrix(ast_batch.strategy)
+                    matrix = await ctx._exclude(ast_batch.strategy, matrix)
+                    matrix = await ctx._include(ast_batch.strategy, matrix)
+                else:
+                    matrix = [{}]  # dummy
             else:
+                strategy = default_strategy  # default
                 matrix = [{}]  # dummy
 
             real_ids = set()
@@ -459,7 +487,12 @@ class PipelineContext(BaseContext):
                     needs = last_needs
 
                 prep = PreparedBatchCtx(
-                    id=batch_id, real_id=real_id, needs=needs, matrix=row, ast=ast_batch
+                    id=batch_id,
+                    real_id=real_id,
+                    needs=needs,
+                    matrix=row,
+                    strategy=strategy,
+                    ast=ast_batch,
                 )
                 prep_batches[real_id] = prep
                 real_ids.add(real_id)
@@ -492,6 +525,12 @@ class PipelineContext(BaseContext):
         if self._matrix is None:
             raise NotAvailable("matrix")
         return self._matrix
+
+    @property
+    def strategy(self) -> StrategyCtx:
+        if self._strategy is None:
+            raise NotAvailable("strategy")
+        return self._strategy
 
     @property
     def order(self) -> Sequence[AbstractSet[str]]:
@@ -586,7 +625,9 @@ class PipelineContext(BaseContext):
             http_port=await prep_batch.ast.http_port.eval(ctx),
             http_auth=await prep_batch.ast.http_auth.eval(ctx),
         )
-        return replace(ctx, _batch=batch_ctx, _env=env, _needs=needs)
+        return replace(
+            ctx, _batch=batch_ctx, _env=env, _needs=needs, _strategy=prep_batch.strategy
+        )
 
     async def _build_matrix(self, strategy: ast.Strategy) -> Sequence[MatrixCtx]:
         assert strategy.matrix is not None

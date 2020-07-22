@@ -124,20 +124,19 @@ class FlowDefaults(Base):
     preset: OptStrExpr
 
 
+# @dataclass(frozen=True)
+# class PipelineFlowDefaults(FlowDefaults):
+#     fail_fast: OptBoolExpr
+#     max_parallel: OptIntExpr
+
+
 @dataclass(frozen=True)
 class BaseFlow(Base):
     kind: Kind
-    # explicitly set or defived from config file name.
-    # The name is used as default tags,
-    # e.g. it works as flow.default.tags == [flow.name] if default.tags are not defined.
-    # Note, flow.defaults is not changed actually but the calculation is applied
-    # at contexts.Context creation level
     id: str
     workspace: LocalPath
 
     title: Optional[str]
-
-    # cluster: str  # really need it?
 
     images: Optional[Mapping[str, Image]]
     volumes: Optional[Mapping[str, Volume]]

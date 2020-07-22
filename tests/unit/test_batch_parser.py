@@ -270,3 +270,63 @@ def test_parse_matrix(assets: pathlib.Path) -> None:
             )
         ],
     )
+
+
+def test_parse_matrix_with_strategy(assets: pathlib.Path) -> None:
+    workspace = assets
+    config_file = workspace / "pipeline-matrix-with-strategy.yml"
+    flow = parse_pipeline(workspace, config_file)
+    assert flow == ast.PipelineFlow(
+        (0, 0),
+        (17, 0),
+        id="pipeline-matrix-with-strategy",
+        workspace=workspace,
+        kind=ast.Kind.BATCH,
+        title=None,
+        images=None,
+        volumes=None,
+        defaults=None,
+        batches=[
+            ast.Batch(
+                _start=(2, 4),
+                _end=(17, 0),
+                title=OptStrExpr(None),
+                name=OptStrExpr(None),
+                image=StrExpr("ubuntu"),
+                preset=OptStrExpr(None),
+                entrypoint=OptStrExpr(None),
+                cmd=OptStrExpr("echo abc"),
+                workdir=OptRemotePathExpr(None),
+                env=None,
+                volumes=None,
+                tags=None,
+                life_span=OptLifeSpanExpr(None),
+                http_port=OptIntExpr(None),
+                http_auth=OptBoolExpr(None),
+                id=OptIdExpr(None),
+                needs=None,
+                strategy=ast.Strategy(
+                    _start=(3, 6),
+                    _end=(15, 4),
+                    matrix=ast.Matrix(
+                        _start=(4, 8),
+                        _end=(13, 6),
+                        products={
+                            "one": [StrExpr("o1"), StrExpr("o2")],
+                            "two": [StrExpr("t1"), StrExpr("t2")],
+                        },
+                        exclude=[{"one": StrExpr("o1"), "two": StrExpr("t2")}],
+                        include=[
+                            {
+                                "one": StrExpr("o3"),
+                                "two": StrExpr("t3"),
+                                "extra": StrExpr("e3"),
+                            }
+                        ],
+                    ),
+                    fail_fast=OptBoolExpr("True"),
+                    max_parallel=OptIntExpr("5"),
+                ),
+            )
+        ],
+    )
