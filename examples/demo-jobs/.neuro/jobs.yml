@@ -63,7 +63,7 @@ jobs:
       EXPOSE_SSH: "yes"
       PYTHONPATH: ${{ volumes.code.mount }}
     port_forward:
-    - 2211:22
+    - "2211:22"
 
   train:
     image: ${{ images.img.ref }}

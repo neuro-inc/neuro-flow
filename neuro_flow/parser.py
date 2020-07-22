@@ -112,6 +112,16 @@ class SimpleCompound(Generic[_T, _Cont], abc.ABC):
     def construct(self, ctor: ConfigConstructor, node: yaml.Node) -> _Cont:
         pass
 
+    def check_scalar(self, ctor: ConfigConstructor, node: yaml.Node) -> None:
+        node_id = node.id  # type: ignore
+        if node_id != "scalar":
+            raise ConstructorError(
+                None,
+                None,
+                f"expected a scalar node, but found {node_id}",
+                node.start_mark,
+            )
+
 
 class SimpleSeq(SimpleCompound[_T, Sequence[_T]]):
     def construct(self, ctor: ConfigConstructor, node: yaml.Node) -> Sequence[_T]:
@@ -125,7 +135,11 @@ class SimpleSeq(SimpleCompound[_T, Sequence[_T]]):
             )
         ret = []
         for child in node.value:
+            self.check_scalar(ctor, child)
             val = ctor.construct_object(child)  # type: ignore[no-untyped-call]
+            # check if scalar
+            if val is not None:
+                val = str(val)
             tmp = self._factory(val, start=mark2pos(child.start_mark))  # type: ignore
             ret.append(tmp)
         return ret
@@ -144,7 +158,10 @@ class SimpleMapping(SimpleCompound[_T, Mapping[str, _T]]):
         ret = {}
         for k, v in node.value:
             key = ctor.construct_object(k)  # type: ignore[no-untyped-call]
-            tmp = ctor.construct_scalar(v)  # type: ignore[no-untyped-call]
+            self.check_scalar(ctor, v)
+            tmp = ctor.construct_object(v)  # type: ignore[no-untyped-call]
+            if tmp is not None:
+                tmp = str(tmp)
             value = self._factory(tmp, start=mark2pos(v.start_mark))  # type: ignore
             ret[key] = value
         return ret
@@ -163,7 +180,10 @@ class IdMapping(SimpleCompound[_T, Mapping[str, _T]]):
         ret = {}
         for k, v in node.value:
             key = ctor.construct_id(k)
-            tmp = ctor.construct_scalar(v)  # type: ignore[no-untyped-call]
+            self.check_scalar(ctor, v)
+            tmp = ctor.construct_object(v)  # type: ignore[no-untyped-call]
+            if tmp is not None:
+                tmp = str(tmp)
             value = self._factory(tmp, start=mark2pos(v.start_mark))  # type: ignore
             ret[key] = value
         return ret

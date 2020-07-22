@@ -677,5 +677,5 @@ class PortPairExpr(StrExpr):
     def convert(cls, arg: str) -> str:
         match = cls.RE.match(arg)
         if match is None:
-            raise ValueError(f"{arg} is not a LOCAL:REMOTE ports pairn")
+            raise ValueError(f"{arg} is not a LOCAL:REMOTE ports pair")
         return arg
