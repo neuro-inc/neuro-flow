@@ -3,7 +3,7 @@ import pytest
 from yarl import URL
 
 from neuro_flow.context import BatchContext, DepCtx, LiveContext, NotAvailable, Result
-from neuro_flow.parser import parse_live, parse_pipeline
+from neuro_flow.parser import parse_batch, parse_live
 from neuro_flow.types import LocalPath, RemotePath
 
 
@@ -137,7 +137,7 @@ async def test_job(assets: pathlib.Path) -> None:
 async def test_pipline_root_ctx(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "batch-minimal.yml"
-    flow = parse_pipeline(workspace, config_file)
+    flow = parse_batch(workspace, config_file)
     ctx = await BatchContext.create(flow)
     with pytest.raises(NotAvailable):
         ctx.task
@@ -146,7 +146,7 @@ async def test_pipline_root_ctx(assets: pathlib.Path) -> None:
 async def test_pipeline_minimal_ctx(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "batch-minimal.yml"
-    flow = parse_pipeline(workspace, config_file)
+    flow = parse_batch(workspace, config_file)
     ctx = await BatchContext.create(flow)
 
     ctx2 = await ctx.with_task("test_a", needs={})
@@ -175,7 +175,7 @@ async def test_pipeline_minimal_ctx(assets: pathlib.Path) -> None:
 async def test_pipeline_seq(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "batch-seq.yml"
-    flow = parse_pipeline(workspace, config_file)
+    flow = parse_batch(workspace, config_file)
     ctx = await BatchContext.create(flow)
 
     ctx2 = await ctx.with_task("batch-2", needs={"batch-1": DepCtx(Result.SUCCESS, {})})
@@ -204,7 +204,7 @@ async def test_pipeline_seq(assets: pathlib.Path) -> None:
 async def test_pipeline_needs(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "batch-needs.yml"
-    flow = parse_pipeline(workspace, config_file)
+    flow = parse_batch(workspace, config_file)
     ctx = await BatchContext.create(flow)
 
     ctx2 = await ctx.with_task("batch-2", needs={"batch_a": DepCtx(Result.SUCCESS, {})})
@@ -233,7 +233,7 @@ async def test_pipeline_needs(assets: pathlib.Path) -> None:
 async def test_pipeline_matrix(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "batch-matrix.yml"
-    flow = parse_pipeline(workspace, config_file)
+    flow = parse_batch(workspace, config_file)
     ctx = await BatchContext.create(flow)
 
     assert ctx.order == [
@@ -265,7 +265,7 @@ async def test_pipeline_matrix(assets: pathlib.Path) -> None:
 async def test_pipeline_matrix_with_strategy(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "batch-matrix-with-strategy.yml"
-    flow = parse_pipeline(workspace, config_file)
+    flow = parse_batch(workspace, config_file)
     ctx = await BatchContext.create(flow)
 
     assert ctx.order == [

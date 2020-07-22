@@ -625,7 +625,7 @@ def parse_live(
             loader.dispose()  # type: ignore[no-untyped-call]
 
 
-def parse_pipeline(
+def parse_batch(
     workspace: Path, config_file: Path, *, id: Optional[str] = None
 ) -> ast.BatchFlow:
     # Parse pipeline flow config file

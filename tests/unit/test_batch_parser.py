@@ -15,13 +15,13 @@ from neuro_flow.expr import (
     StrExpr,
     URIExpr,
 )
-from neuro_flow.parser import parse_pipeline
+from neuro_flow.parser import parse_batch
 
 
 def test_parse_minimal(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "batch-minimal.yml"
-    flow = parse_pipeline(workspace, config_file)
+    flow = parse_batch(workspace, config_file)
     assert flow == ast.BatchFlow(
         (0, 0),
         (47, 0),
@@ -97,7 +97,7 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
 def test_parse_seq(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "batch-seq.yml"
-    flow = parse_pipeline(workspace, config_file)
+    flow = parse_batch(workspace, config_file)
     assert flow == ast.BatchFlow(
         (0, 0),
         (9, 0),
@@ -156,7 +156,7 @@ def test_parse_seq(assets: pathlib.Path) -> None:
 def test_parse_needs(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "batch-needs.yml"
-    flow = parse_pipeline(workspace, config_file)
+    flow = parse_batch(workspace, config_file)
     assert flow == ast.BatchFlow(
         (0, 0),
         (11, 0),
@@ -215,7 +215,7 @@ def test_parse_needs(assets: pathlib.Path) -> None:
 def test_parse_matrix(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "batch-matrix.yml"
-    flow = parse_pipeline(workspace, config_file)
+    flow = parse_batch(workspace, config_file)
     assert flow == ast.BatchFlow(
         (0, 0),
         (15, 0),
@@ -275,7 +275,7 @@ def test_parse_matrix(assets: pathlib.Path) -> None:
 def test_parse_matrix_with_strategy(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "batch-matrix-with-strategy.yml"
-    flow = parse_pipeline(workspace, config_file)
+    flow = parse_batch(workspace, config_file)
     assert flow == ast.BatchFlow(
         (0, 0),
         (17, 0),
