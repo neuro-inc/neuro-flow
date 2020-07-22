@@ -2,6 +2,7 @@
 from dataclasses import dataclass, field, replace
 
 import enum
+import itertools
 from toposort import toposort
 from typing import (
     AbstractSet,
@@ -10,6 +11,7 @@ from typing import (
     Mapping,
     Optional,
     Sequence,
+    Set,
     Tuple,
     Type,
     TypeVar,
@@ -18,7 +20,7 @@ from typing import (
 from yarl import URL
 
 from . import ast
-from .expr import RootABC, TypeT
+from .expr import LiteralT, RootABC, TypeT
 from .types import LocalPath, RemotePath
 
 
@@ -102,6 +104,15 @@ class DepCtx:
 NeedsCtx = Mapping[str, DepCtx]
 
 
+MatrixCtx = Mapping[str, LiteralT]
+
+
+@dataclass(frozen=True)
+class StrategyCtx:
+    fail_fast: bool = False
+    max_parallel: int = 10
+
+
 @dataclass(frozen=True)
 class ExecUnitCtx:
     title: Optional[str]
@@ -132,6 +143,8 @@ class PreparedBatchCtx:
     real_id: str
 
     needs: AbstractSet[str]  # A set of batch.id
+    matrix: MatrixCtx
+    strategy: StrategyCtx
 
     ast: ast.Batch
 
@@ -192,6 +205,12 @@ class DefaultsCtx:
     workdir: Optional[RemotePath]
     life_span: Optional[float]
     preset: Optional[str]
+
+
+# @dataclass(frozen=True)
+# class BatchDefaultsCtx(DefaultsCtx):
+#     fail_fast: Optional[bool]
+#     max_parallel: Optional[int]
 
 
 @dataclass(frozen=True)
@@ -409,42 +428,76 @@ class PipelineContext(BaseContext):
         init=False, default=ast.PipelineFlow
     )
     LOOKUP_KEYS: ClassVar[Tuple[str, ...]] = field(
-        init=False, default=BaseContext.LOOKUP_KEYS + ("batch", "needs")
+        init=False,
+        default=BaseContext.LOOKUP_KEYS + ("batch", "needs", "matrix", "strategy"),
     )
     _batch: Optional[BatchCtx] = None
     _needs: Optional[NeedsCtx] = None
     _prep_batches: Optional[Mapping[str, PreparedBatchCtx]] = None
     _order: Optional[Sequence[AbstractSet[str]]] = None
+    _matrix: Optional[MatrixCtx] = None
+    _strategy: Optional[StrategyCtx] = None
 
     @classmethod
     async def create(cls: Type[_CtxT], ast_flow: ast.BaseFlow) -> _CtxT:
         ctx = await super(cls, PipelineContext).create(ast_flow)
         assert isinstance(ctx._ast_flow, ast.PipelineFlow)
         prep_batches = {}
-        last_batch = None
+        last_needs: Set[str] = set()
         for num, ast_batch in enumerate(ctx._ast_flow.batches, 1):
-            batch_id = await ast_batch.id.eval(ctx)
-            if batch_id is None:
-                # Dash is not allowed in identifier, so the generated read id
-                # never clamps with user_provided one.
-                real_id = f"batch-{num}"
-            else:
-                real_id = batch_id
-            if real_id in prep_batches:
-                raise ValueError(f"Duplicated batch id {real_id}")
-            if ast_batch.needs is not None:
-                needs = {await need.eval(ctx) for need in ast_batch.needs}
-            else:
-                if last_batch is not None:
-                    needs = {last_batch}
+            # eval matrix
+            matrix: Sequence[MatrixCtx]
+            strategy: StrategyCtx
+            default_strategy = StrategyCtx()
+            if ast_batch.strategy is not None:
+                fail_fast = await ast_batch.strategy.fail_fast.eval(ctx)
+                if fail_fast is None:
+                    fail_fast = default_strategy.fail_fast
+                max_parallel = await ast_batch.strategy.max_parallel.eval(ctx)
+                if max_parallel is None:
+                    max_parallel = default_strategy.max_parallel
+                strategy = StrategyCtx(fail_fast=fail_fast, max_parallel=max_parallel,)
+                if ast_batch.strategy.matrix is not None:
+                    matrix = await ctx._build_matrix(ast_batch.strategy)
+                    matrix = await ctx._exclude(ast_batch.strategy, matrix)
+                    matrix = await ctx._include(ast_batch.strategy, matrix)
                 else:
-                    needs = set()
+                    matrix = [{}]  # dummy
+            else:
+                strategy = default_strategy  # default
+                matrix = [{}]  # dummy
 
-            prep = PreparedBatchCtx(
-                id=batch_id, real_id=real_id, needs=needs, ast=ast_batch
-            )
-            prep_batches[real_id] = prep
-            last_batch = real_id
+            real_ids = set()
+            for row in matrix:
+                # make prep patch(es)
+                matrix_ctx = await ctx.with_matrix(row)
+                batch_id = await ast_batch.id.eval(matrix_ctx)
+                if batch_id is None:
+                    # Dash is not allowed in identifier, so the generated read id
+                    # never clamps with user_provided one.
+                    suffix = [str(row[k]) for k in sorted(row)]
+                    real_id = "-".join(["batch", str(num), *suffix])
+                else:
+                    real_id = batch_id
+                if real_id in prep_batches:
+                    raise ValueError(f"Duplicated batch id {real_id}")
+                if ast_batch.needs is not None:
+                    needs = {await need.eval(matrix_ctx) for need in ast_batch.needs}
+                else:
+                    needs = last_needs
+
+                prep = PreparedBatchCtx(
+                    id=batch_id,
+                    real_id=real_id,
+                    needs=needs,
+                    matrix=row,
+                    strategy=strategy,
+                    ast=ast_batch,
+                )
+                prep_batches[real_id] = prep
+                real_ids.add(real_id)
+
+            last_needs = real_ids
 
         to_sort: Dict[str, AbstractSet[str]] = {}
         for key, val in prep_batches.items():
@@ -468,6 +521,18 @@ class PipelineContext(BaseContext):
         return self._needs
 
     @property
+    def matrix(self) -> MatrixCtx:
+        if self._matrix is None:
+            raise NotAvailable("matrix")
+        return self._matrix
+
+    @property
+    def strategy(self) -> StrategyCtx:
+        if self._strategy is None:
+            raise NotAvailable("strategy")
+        return self._strategy
+
+    @property
     def order(self) -> Sequence[AbstractSet[str]]:
         # Batch names, sorted by the execution order.
         # Batches from each set in the list can be executed concurrently.
@@ -478,6 +543,14 @@ class PipelineContext(BaseContext):
         assert self._prep_batches is not None
         prep_batch = self._prep_batches[real_id]
         return prep_batch.needs
+
+    async def with_matrix(self, matrix: MatrixCtx) -> "PipelineContext":
+        if self._matrix is not None:
+            raise TypeError(
+                "Cannot enter into the matrix context if "
+                "the matrix is already initialized"
+            )
+        return replace(self, _matrix=matrix)
 
     async def with_batch(self, real_id: str, *, needs: NeedsCtx,) -> "PipelineContext":
         # real_id -- the batch's real id
@@ -490,7 +563,8 @@ class PipelineContext(BaseContext):
 
         if self._batch is not None:
             raise TypeError(
-                "Cannot enter into the batch context if batch is already initialized"
+                "Cannot enter into the batch context if "
+                "the batch is already initialized"
             )
         try:
             prep_batch = self._prep_batches[real_id]
@@ -507,51 +581,95 @@ class PipelineContext(BaseContext):
                 err.append(f"missing keys {missing}")
             raise ValueError(" ".join(err))
 
-        env = dict(self.env)
-        if prep_batch.ast.env is not None:
-            env.update({k: await v.eval(self) for k, v in prep_batch.ast.env.items()})
+        ctx = await self.with_matrix(prep_batch.matrix)
 
-        title = await prep_batch.ast.title.eval(self)
+        env = dict(ctx.env)
+        if prep_batch.ast.env is not None:
+            env.update({k: await v.eval(ctx) for k, v in prep_batch.ast.env.items()})
+
+        title = await prep_batch.ast.title.eval(ctx)
         if title is None:
-            title = f"{self.flow.id}.{real_id}"
-        title = await prep_batch.ast.title.eval(self)
+            title = f"{ctx.flow.id}.{real_id}"
+        title = await prep_batch.ast.title.eval(ctx)
 
         tags = set()
         if prep_batch.ast.tags is not None:
-            tags = {await v.eval(self) for v in prep_batch.ast.tags}
+            tags = {await v.eval(ctx) for v in prep_batch.ast.tags}
         if not tags:
             tags = {f"batch:{real_id}"}
 
-        workdir = (await prep_batch.ast.workdir.eval(self)) or self.defaults.workdir
+        workdir = (await prep_batch.ast.workdir.eval(ctx)) or ctx.defaults.workdir
 
         volumes = []
         if prep_batch.ast.volumes is not None:
-            volumes = [await v.eval(self) for v in prep_batch.ast.volumes]
+            volumes = [await v.eval(ctx) for v in prep_batch.ast.volumes]
 
-        life_span = (
-            await prep_batch.ast.life_span.eval(self)
-        ) or self.defaults.life_span
+        life_span = (await prep_batch.ast.life_span.eval(ctx)) or ctx.defaults.life_span
 
-        preset = (await prep_batch.ast.preset.eval(self)) or self.defaults.preset
+        preset = (await prep_batch.ast.preset.eval(ctx)) or ctx.defaults.preset
 
         batch_ctx = BatchCtx(
             id=prep_batch.id,
             real_id=prep_batch.real_id,
             needs=prep_batch.needs,
             title=title,
-            name=(await prep_batch.ast.name.eval(self)),
-            image=await prep_batch.ast.image.eval(self),
+            name=(await prep_batch.ast.name.eval(ctx)),
+            image=await prep_batch.ast.image.eval(ctx),
             preset=preset,
-            entrypoint=await prep_batch.ast.entrypoint.eval(self),
-            cmd=await prep_batch.ast.cmd.eval(self),
+            entrypoint=await prep_batch.ast.entrypoint.eval(ctx),
+            cmd=await prep_batch.ast.cmd.eval(ctx),
             workdir=workdir,
             volumes=volumes,
-            tags=self.defaults.tags | tags,
+            tags=ctx.defaults.tags | tags,
             life_span=life_span,
-            http_port=await prep_batch.ast.http_port.eval(self),
-            http_auth=await prep_batch.ast.http_auth.eval(self),
+            http_port=await prep_batch.ast.http_port.eval(ctx),
+            http_auth=await prep_batch.ast.http_auth.eval(ctx),
         )
-        return replace(self, _batch=batch_ctx, _env=env, _needs=needs)
+        return replace(
+            ctx, _batch=batch_ctx, _env=env, _needs=needs, _strategy=prep_batch.strategy
+        )
+
+    async def _build_matrix(self, strategy: ast.Strategy) -> Sequence[MatrixCtx]:
+        assert strategy.matrix is not None
+        products = []
+        for k, lst in strategy.matrix.products.items():
+            lst2 = [{k: await i.eval(self)} for i in lst]
+            products.append(lst2)
+        ret = []
+        for row in itertools.product(*products):
+            dct: Dict[str, LiteralT] = {}
+            for elem in row:
+                dct.update(elem)
+            ret.append(dct)
+        return ret
+
+    async def _exclude(
+        self, strategy: ast.Strategy, matrix: Sequence[MatrixCtx]
+    ) -> Sequence[MatrixCtx]:
+        assert strategy.matrix is not None
+        exclude = []
+        for dct in strategy.matrix.exclude:
+            exclude.append({k: await v.eval(self) for k, v in dct.items()})
+        ret = []
+        for row in matrix:
+            for exc in exclude:
+                match = True
+                for k, v in exc.items():
+                    if row[k] != v:
+                        match = False
+                        break
+                if not match:
+                    ret.append(row)
+        return ret
+
+    async def _include(
+        self, strategy: ast.Strategy, matrix: Sequence[MatrixCtx]
+    ) -> Sequence[MatrixCtx]:
+        assert strategy.matrix is not None
+        ret = list(matrix)
+        for dct in strategy.matrix.include:
+            ret.append({k: await v.eval(self) for k, v in dct.items()})
+        return ret
 
 
 def calc_full_path(ctx: BaseContext, path: Optional[LocalPath]) -> Optional[LocalPath]:

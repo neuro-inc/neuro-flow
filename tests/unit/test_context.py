@@ -167,6 +167,9 @@ async def test_pipeline_minimal_ctx(assets: pathlib.Path) -> None:
     assert ctx2.batch.life_span == 10500.0
 
     assert ctx.order == [{"test_a"}]
+    assert ctx2.matrix == {}
+    assert ctx2.strategy.max_parallel == 10
+    assert not ctx2.strategy.fail_fast
 
 
 async def test_pipeline_seq(assets: pathlib.Path) -> None:
@@ -195,6 +198,9 @@ async def test_pipeline_seq(assets: pathlib.Path) -> None:
     assert ctx2.batch.life_span is None
 
     assert ctx.order == [{"batch-1"}, {"batch-2"}]
+    assert ctx2.matrix == {}
+    assert ctx2.strategy.max_parallel == 10
+    assert not ctx2.strategy.fail_fast
 
 
 async def test_pipeline_needs(assets: pathlib.Path) -> None:
@@ -223,3 +229,73 @@ async def test_pipeline_needs(assets: pathlib.Path) -> None:
     assert ctx2.batch.life_span is None
 
     assert ctx.order == [{"batch_a"}, {"batch-2"}]
+    assert ctx2.matrix == {}
+    assert ctx2.strategy.max_parallel == 10
+    assert not ctx2.strategy.fail_fast
+
+
+async def test_pipeline_matrix(assets: pathlib.Path) -> None:
+    workspace = assets
+    config_file = workspace / "pipeline-matrix.yml"
+    flow = parse_pipeline(workspace, config_file)
+    ctx = await PipelineContext.create(flow)
+
+    assert ctx.order == [
+        {"batch-1-o2-t1", "batch-1-o2-t2", "batch-1-o1-t1", "batch-1-e3-o3-t3"}
+    ]
+
+    ctx2 = await ctx.with_batch("batch-1-o2-t2", needs={})
+    assert ctx2.batch.id is None
+    assert ctx2.batch.real_id == "batch-1-o2-t2"
+    assert ctx2.batch.needs == set()
+    assert ctx2.batch.title is None
+    assert ctx2.batch.name is None
+    assert ctx2.batch.image == "ubuntu"
+    assert ctx2.batch.preset is None
+    assert ctx2.batch.http_port is None
+    assert not ctx2.batch.http_auth
+    assert ctx2.batch.entrypoint is None
+    assert ctx2.batch.cmd == "echo abc"
+    assert ctx2.batch.workdir is None
+    assert ctx2.batch.volumes == []
+    assert ctx2.batch.tags == {"flow:pipeline-matrix", "batch:batch-1-o2-t2"}
+    assert ctx2.batch.life_span is None
+
+    assert ctx2.matrix == {"one": "o2", "two": "t2"}
+    assert ctx2.strategy.max_parallel == 10
+    assert not ctx2.strategy.fail_fast
+
+
+async def test_pipeline_matrix_with_strategy(assets: pathlib.Path) -> None:
+    workspace = assets
+    config_file = workspace / "pipeline-matrix-with-strategy.yml"
+    flow = parse_pipeline(workspace, config_file)
+    ctx = await PipelineContext.create(flow)
+
+    assert ctx.order == [
+        {"batch-1-o2-t1", "batch-1-o2-t2", "batch-1-o1-t1", "batch-1-e3-o3-t3"}
+    ]
+
+    ctx2 = await ctx.with_batch("batch-1-e3-o3-t3", needs={})
+    assert ctx2.batch.id is None
+    assert ctx2.batch.real_id == "batch-1-e3-o3-t3"
+    assert ctx2.batch.needs == set()
+    assert ctx2.batch.title is None
+    assert ctx2.batch.name is None
+    assert ctx2.batch.image == "ubuntu"
+    assert ctx2.batch.preset is None
+    assert ctx2.batch.http_port is None
+    assert not ctx2.batch.http_auth
+    assert ctx2.batch.entrypoint is None
+    assert ctx2.batch.cmd == "echo abc"
+    assert ctx2.batch.workdir is None
+    assert ctx2.batch.volumes == []
+    assert ctx2.batch.tags == {
+        "flow:pipeline-matrix-with-strategy",
+        "batch:batch-1-e3-o3-t3",
+    }
+    assert ctx2.batch.life_span is None
+
+    assert ctx2.matrix == {"extra": "e3", "one": "o3", "two": "t3"}
+    assert ctx2.strategy.max_parallel == 5
+    assert ctx2.strategy.fail_fast

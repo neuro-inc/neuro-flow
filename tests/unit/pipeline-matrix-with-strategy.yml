@@ -1,0 +1,17 @@
+kind: batch
+batches:
+  - strategy:
+      matrix:
+        one: [o1, o2]
+        two: [t1, t2]
+        exclude:
+          - one: o1
+            two: t2
+        include:
+          - one: o3
+            two: t3
+            extra: e3
+      fail_fast: true
+      max_parallel: 5
+    image: ubuntu
+    cmd: echo abc
