@@ -341,7 +341,7 @@ class BaseContext(RootABC):
 
 
 @dataclass(frozen=True)
-class JobContext(BaseContext):
+class LiveContext(BaseContext):
     FLOW_TYPE: ClassVar[Type[ast.LiveFlow]] = field(init=False, default=ast.LiveFlow)
     LOOKUP_KEYS: ClassVar[Tuple[str, ...]] = field(
         init=False, default=BaseContext.LOOKUP_KEYS + ("job",)
@@ -354,7 +354,7 @@ class JobContext(BaseContext):
             raise NotAvailable("job")
         return self._job
 
-    async def with_job(self, job_id: str) -> "JobContext":
+    async def with_job(self, job_id: str) -> "LiveContext":
         if self._job is not None:
             raise TypeError(
                 "Cannot enter into the job context, if job is already initialized"
