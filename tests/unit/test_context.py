@@ -237,3 +237,22 @@ async def test_pipeline_matrix(assets: pathlib.Path) -> None:
     assert ctx.order == [
         {"batch-1-o2-t1", "batch-1-o2-t2", "batch-1-o1-t1", "batch-1-e3-o3-t3"}
     ]
+
+    ctx2 = await ctx.with_batch("batch-1-o2-t2", needs={})
+    assert ctx2.batch.id is None
+    assert ctx2.batch.real_id == "batch-1-o2-t2"
+    assert ctx2.batch.needs == set()
+    assert ctx2.batch.title is None
+    assert ctx2.batch.name is None
+    assert ctx2.batch.image == "ubuntu"
+    assert ctx2.batch.preset is None
+    assert ctx2.batch.http_port is None
+    assert not ctx2.batch.http_auth
+    assert ctx2.batch.entrypoint is None
+    assert ctx2.batch.cmd == "echo abc"
+    assert ctx2.batch.workdir is None
+    assert ctx2.batch.volumes == []
+    assert ctx2.batch.tags == {"flow:pipeline-matrix", "batch:batch-1-o2-t2"}
+    assert ctx2.batch.life_span is None
+
+    assert ctx2.matrix == {"one": "o2", "two": "t2"}

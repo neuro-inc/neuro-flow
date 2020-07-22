@@ -147,7 +147,7 @@ class SimpleMapping(SimpleCompound[_T, Mapping[str, _T]]):
             )
         ret = {}
         for k, v in node.value:
-            key = ctor.construct_object(k)
+            key = ctor.construct_object(k)  # type: ignore[no-untyped-call]
             tmp = ctor.construct_scalar(v)  # type: ignore[no-untyped-call]
             value = self._factory(tmp, start=mark2pos(v.start_mark))  # type: ignore
             ret[key] = value

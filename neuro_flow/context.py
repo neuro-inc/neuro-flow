@@ -8,10 +8,10 @@ from typing import (
     AbstractSet,
     ClassVar,
     Dict,
-    List,
     Mapping,
     Optional,
     Sequence,
+    Set,
     Tuple,
     Type,
     TypeVar,
@@ -415,7 +415,7 @@ class PipelineContext(BaseContext):
         init=False, default=ast.PipelineFlow
     )
     LOOKUP_KEYS: ClassVar[Tuple[str, ...]] = field(
-        init=False, default=BaseContext.LOOKUP_KEYS + ("batch", "needs")
+        init=False, default=BaseContext.LOOKUP_KEYS + ("batch", "needs", "matrix")
     )
     _batch: Optional[BatchCtx] = None
     _needs: Optional[NeedsCtx] = None
@@ -428,9 +428,10 @@ class PipelineContext(BaseContext):
         ctx = await super(cls, PipelineContext).create(ast_flow)
         assert isinstance(ctx._ast_flow, ast.PipelineFlow)
         prep_batches = {}
-        last_needs = set()
+        last_needs: Set[str] = set()
         for num, ast_batch in enumerate(ctx._ast_flow.batches, 1):
             # eval matrix
+            matrix: Sequence[MatrixCtx]
             if ast_batch.strategy is not None and ast_batch.strategy.matrix is not None:
                 matrix = await ctx._build_matrix(ast_batch.strategy)
                 matrix = await ctx._exclude(ast_batch.strategy, matrix)
@@ -587,7 +588,7 @@ class PipelineContext(BaseContext):
         )
         return replace(ctx, _batch=batch_ctx, _env=env, _needs=needs)
 
-    async def _build_matrix(self, strategy: ast.Strategy) -> List[Dict[str, LiteralT]]:
+    async def _build_matrix(self, strategy: ast.Strategy) -> Sequence[MatrixCtx]:
         assert strategy.matrix is not None
         products = []
         for k, lst in strategy.matrix.products.items():
@@ -595,13 +596,15 @@ class PipelineContext(BaseContext):
             products.append(lst2)
         ret = []
         for row in itertools.product(*products):
-            dct = {}
+            dct: Dict[str, LiteralT] = {}
             for elem in row:
                 dct.update(elem)
             ret.append(dct)
         return ret
 
-    async def _exclude(self, strategy: ast.Strategy, matrix: List) -> List:
+    async def _exclude(
+        self, strategy: ast.Strategy, matrix: Sequence[MatrixCtx]
+    ) -> Sequence[MatrixCtx]:
         assert strategy.matrix is not None
         exclude = []
         for dct in strategy.matrix.exclude:
@@ -618,9 +621,11 @@ class PipelineContext(BaseContext):
                     ret.append(row)
         return ret
 
-    async def _include(self, strategy: ast.Strategy, matrix: List) -> List:
+    async def _include(
+        self, strategy: ast.Strategy, matrix: Sequence[MatrixCtx]
+    ) -> Sequence[MatrixCtx]:
         assert strategy.matrix is not None
-        ret = matrix.copy()
+        ret = list(matrix)
         for dct in strategy.matrix.include:
             ret.append({k: await v.eval(self) for k, v in dct.items()})
         return ret

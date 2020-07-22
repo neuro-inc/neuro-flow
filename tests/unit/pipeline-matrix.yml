@@ -11,5 +11,5 @@ batches:
           - one: o3
             two: t3
             extra: e3
-    image: ubnutu
+    image: ubuntu
     cmd: echo abc

@@ -232,7 +232,7 @@ def test_parse_matrix(assets: pathlib.Path) -> None:
                 _end=(15, 0),
                 title=OptStrExpr(None),
                 name=OptStrExpr(None),
-                image=StrExpr("ubnutu"),
+                image=StrExpr("ubuntu"),
                 preset=OptStrExpr(None),
                 entrypoint=OptStrExpr(None),
                 cmd=OptStrExpr("echo abc"),
