@@ -167,6 +167,7 @@ async def test_pipeline_minimal_ctx(assets: pathlib.Path) -> None:
     assert ctx2.batch.life_span == 10500.0
 
     assert ctx.order == [{"test_a"}]
+    assert ctx2.matrix == {}
 
 
 async def test_pipeline_seq(assets: pathlib.Path) -> None:
@@ -195,6 +196,7 @@ async def test_pipeline_seq(assets: pathlib.Path) -> None:
     assert ctx2.batch.life_span is None
 
     assert ctx.order == [{"batch-1"}, {"batch-2"}]
+    assert ctx2.matrix == {}
 
 
 async def test_pipeline_needs(assets: pathlib.Path) -> None:
@@ -223,3 +225,15 @@ async def test_pipeline_needs(assets: pathlib.Path) -> None:
     assert ctx2.batch.life_span is None
 
     assert ctx.order == [{"batch_a"}, {"batch-2"}]
+    assert ctx2.matrix == {}
+
+
+async def test_pipeline_matrix(assets: pathlib.Path) -> None:
+    workspace = assets
+    config_file = workspace / "pipeline-matrix.yml"
+    flow = parse_pipeline(workspace, config_file)
+    ctx = await PipelineContext.create(flow)
+
+    assert ctx.order == [
+        {"batch-1-o2-t1", "batch-1-o2-t2", "batch-1-o1-t1", "batch-1-e3-o3-t3"}
+    ]

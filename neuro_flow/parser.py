@@ -147,6 +147,25 @@ class SimpleMapping(SimpleCompound[_T, Mapping[str, _T]]):
             )
         ret = {}
         for k, v in node.value:
+            key = ctor.construct_object(k)
+            tmp = ctor.construct_scalar(v)  # type: ignore[no-untyped-call]
+            value = self._factory(tmp, start=mark2pos(v.start_mark))  # type: ignore
+            ret[key] = value
+        return ret
+
+
+class IdMapping(SimpleCompound[_T, Mapping[str, _T]]):
+    def construct(self, ctor: ConfigConstructor, node: yaml.Node) -> Mapping[str, _T]:
+        if not isinstance(node, yaml.MappingNode):
+            node_id = node.id  # type: ignore
+            raise ConstructorError(
+                None,
+                None,
+                f"expected a mapping node, but found {node_id}",
+                node.start_mark,
+            )
+        ret = {}
+        for k, v in node.value:
             key = ctor.construct_id(k)
             tmp = ctor.construct_scalar(v)  # type: ignore[no-untyped-call]
             value = self._factory(tmp, start=mark2pos(v.start_mark))  # type: ignore
@@ -351,7 +370,7 @@ def parse_exc_inc(
             f"expected a sequence node, but found {node_id}",
             node.start_mark,
         )
-    builder = SimpleMapping(StrExpr)
+    builder = IdMapping(StrExpr)
     ret: List[Mapping[str, StrExpr]] = []
     for v in node.value:
         ret.append(builder.construct(ctor, v))
@@ -406,7 +425,7 @@ def parse_strategy(ctor: ConfigConstructor, node: yaml.MappingNode) -> ast.Strat
     return parse_dict(
         ctor,
         node,
-        {"matrix": None, "fail_fast": OptBoolExpr, "max_parallel": OptIntExpr,},
+        {"matrix": None, "fail_fast": OptBoolExpr, "max_parallel": OptIntExpr},
         ast.Strategy,
     )
 
