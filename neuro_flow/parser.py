@@ -35,7 +35,6 @@ from . import ast
 from .expr import (
     Expr,
     IdExpr,
-    LiteralT,
     OptBashExpr,
     OptBoolExpr,
     OptIdExpr,
@@ -56,9 +55,6 @@ from .types import LocalPath
 
 _T = TypeVar("_T")
 _Cont = TypeVar("_Cont")
-
-
-ScalarFactory = Callable[[Any], LiteralT]
 
 
 @dataclasses.dataclass
@@ -175,7 +171,6 @@ class IdMapping(SimpleCompound[_T, Mapping[str, _T]]):
 
 KeyT = Union[
     None,
-    ScalarFactory,
     Type[str],
     Type[Expr[Any]],
     SimpleCompound[Any, Any],
@@ -183,7 +178,7 @@ KeyT = Union[
     Type[ast.Kind],
 ]
 VarT = Union[
-    LiteralT, None, Expr[Any], Mapping[str, Any], Sequence[Any], ast.Base, ast.Kind,
+    None, Expr[Any], Mapping[str, Any], Sequence[Any], ast.Base, ast.Kind,
 ]
 
 _AstType = TypeVar("_AstType", bound=ast.Base)
@@ -254,16 +249,6 @@ def parse_dict(
         elif isinstance(item_ctor, type) and issubclass(item_ctor, Expr):
             tmp = str(ctor.construct_object(v))  # type: ignore[no-untyped-call]
             value = item_ctor(tmp, start=mark2pos(v.start_mark))
-        elif callable(item_ctor):
-            assert v.tag in (
-                "tag:yaml.org,2002:null",
-                "tag:yaml.org,2002:bool",
-                "tag:yaml.org,2002:int",
-                "tag:yaml.org,2002:float",
-                "tag:yaml.org,2002:str",
-            )
-            tmp = ctor.construct_object(v)  # type: ignore[no-untyped-call]
-            value = item_ctor(tmp)
         else:
             raise ConstructorError(
                 f"while constructing a {ret_name}",
