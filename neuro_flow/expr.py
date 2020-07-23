@@ -4,6 +4,7 @@
 import dataclasses
 
 import abc
+import asyncio
 import datetime
 import inspect
 import json
@@ -267,7 +268,14 @@ class Call(Item):
 
     async def eval(self, root: RootABC) -> TypeT:
         args = [await a.eval(root) for a in self.args]
-        tmp = await self.func.call(root, *args)  # type: ignore
+        try:
+            tmp = await self.func.call(root, *args)  # type: ignore
+        except asyncio.CancelledError:
+            raise
+        except EvalError:
+            raise
+        except Exception as exc:
+            raise EvalError(str(exc), self.start, self.end)
         ret = cast(TypeT, tmp)
         start = self.start
         for op in self.trailer:
@@ -408,14 +416,25 @@ class Expr(Generic[_T]):
         if self._parsed is not None:
             ret: List[str] = []
             for part in self._parsed:
-                val = await part.eval(root)
+                try:
+                    val = await part.eval(root)
+                except asyncio.CancelledError:
+                    raise
+                except EvalError:
+                    raise
+                except Exception as exc:
+                    raise EvalError(str(exc), part.start, part.end)
                 # TODO: add str() function, raise an explicit error if
                 # an expresion evaluates non-str type
                 # assert isinstance(val, str), repr(val)
                 ret.append(str(val))
             try:
                 return self.convert("".join(ret))
-            except (TypeError, ValueError) as exc:
+            except asyncio.CancelledError:
+                raise
+            except EvalError:
+                raise
+            except Exception as exc:
                 raise EvalError(str(exc), self._parsed[0].start, self._parsed[-1].end)
         else:
             # __init__() makes sure that the pattern is not None if
