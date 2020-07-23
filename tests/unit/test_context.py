@@ -14,27 +14,27 @@ def test_inavailable_context_ctor() -> None:
 
 
 async def test_ctx_flow(assets: pathlib.Path) -> None:
-    workspace = assets / "jobs-minimal"
-    config_file = workspace / ".neuro" / "jobs.yml"
-    flow = parse_live(workspace, config_file)
+    workspace = assets
+    config_file = workspace / "live-minimal.yml"
+    flow = parse_live(workspace, config_file, id=config_file.stem)
     ctx = await LiveContext.create(flow)
-    assert ctx.flow.id == "jobs-minimal"
+    assert ctx.flow.id == "live-minimal"
     assert ctx.flow.workspace == workspace
-    assert ctx.flow.title == "jobs-minimal"
+    assert ctx.flow.title == "live-minimal"
 
 
 async def test_env_defaults(assets: pathlib.Path) -> None:
-    workspace = assets / "jobs-full"
-    config_file = workspace / ".neuro" / "jobs.yml"
-    flow = parse_live(workspace, config_file)
+    workspace = assets
+    config_file = workspace / "live-full.yml"
+    flow = parse_live(workspace, config_file, id=config_file.stem)
     ctx = await LiveContext.create(flow)
     assert ctx.env == {"global_a": "val-a", "global_b": "val-b"}
 
 
 async def test_env_from_job(assets: pathlib.Path) -> None:
-    workspace = assets / "jobs-full"
-    config_file = workspace / ".neuro" / "jobs.yml"
-    flow = parse_live(workspace, config_file)
+    workspace = assets
+    config_file = workspace / "live-full.yml"
+    flow = parse_live(workspace, config_file, id=config_file.stem)
     ctx = await LiveContext.create(flow)
     ctx2 = await ctx.with_job("test_a")
     assert ctx2.env == {
@@ -46,9 +46,9 @@ async def test_env_from_job(assets: pathlib.Path) -> None:
 
 
 async def test_volumes(assets: pathlib.Path) -> None:
-    workspace = assets / "jobs-full"
-    config_file = workspace / ".neuro" / "jobs.yml"
-    flow = parse_live(workspace, config_file)
+    workspace = assets
+    config_file = workspace / "live-full.yml"
+    flow = parse_live(workspace, config_file, id=config_file.stem)
     ctx = await LiveContext.create(flow)
     assert ctx.volumes.keys() == {"volume_a", "volume_b"}
 
@@ -74,9 +74,9 @@ async def test_volumes(assets: pathlib.Path) -> None:
 
 
 async def test_images(assets: pathlib.Path) -> None:
-    workspace = assets / "jobs-full"
-    config_file = workspace / ".neuro" / "jobs.yml"
-    flow = parse_live(workspace, config_file)
+    workspace = assets
+    config_file = workspace / "live-full.yml"
+    flow = parse_live(workspace, config_file, id=config_file.stem)
     ctx = await LiveContext.create(flow)
     assert ctx.images.keys() == {"image_a"}
 
@@ -90,9 +90,9 @@ async def test_images(assets: pathlib.Path) -> None:
 
 
 async def test_defaults(assets: pathlib.Path) -> None:
-    workspace = assets / "jobs-full"
-    config_file = workspace / ".neuro" / "jobs.yml"
-    flow = parse_live(workspace, config_file)
+    workspace = assets
+    config_file = workspace / "live-full.yml"
+    flow = parse_live(workspace, config_file, id=config_file.stem)
     ctx = await LiveContext.create(flow)
     assert ctx.defaults.tags == {"tag-a", "tag-b"}
     assert ctx.defaults.workdir == RemotePath("/global/dir")
@@ -101,18 +101,18 @@ async def test_defaults(assets: pathlib.Path) -> None:
 
 
 async def test_job_root_ctx(assets: pathlib.Path) -> None:
-    workspace = assets / "jobs-full"
-    config_file = workspace / ".neuro" / "jobs.yml"
-    flow = parse_live(workspace, config_file)
+    workspace = assets
+    config_file = workspace / "live-full.yml"
+    flow = parse_live(workspace, config_file, id=config_file.stem)
     ctx = await LiveContext.create(flow)
     with pytest.raises(NotAvailable):
         ctx.job
 
 
 async def test_job(assets: pathlib.Path) -> None:
-    workspace = assets / "jobs-full"
-    config_file = workspace / ".neuro" / "jobs.yml"
-    flow = parse_live(workspace, config_file)
+    workspace = assets
+    config_file = workspace / "live-full.yml"
+    flow = parse_live(workspace, config_file, id=config_file.stem)
     ctx = await LiveContext.create(flow)
 
     ctx2 = await ctx.with_job("test_a")

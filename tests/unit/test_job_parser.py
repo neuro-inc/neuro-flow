@@ -21,13 +21,13 @@ from neuro_flow.parser import parse_live
 
 
 def test_parse_minimal(assets: pathlib.Path) -> None:
-    workspace = assets / "jobs-minimal"
-    config_file = workspace / ".neuro" / "jobs.yml"
-    flow = parse_live(workspace, config_file)
+    workspace = assets
+    config_file = workspace / "live-minimal.yml"
+    flow = parse_live(workspace, config_file, id=config_file.stem)
     assert flow == ast.LiveFlow(
         (0, 0),
         (5, 0),
-        id="jobs-minimal",
+        id="live-minimal",
         workspace=workspace,
         kind=ast.Kind.LIVE,
         title=None,
@@ -60,13 +60,13 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
 
 
 def test_parse_full(assets: pathlib.Path) -> None:
-    workspace = assets / "jobs-full"
-    config_file = workspace / ".neuro" / "jobs.yml"
-    flow = parse_live(workspace, config_file)
+    workspace = assets
+    config_file = workspace / "live-full.yml"
+    flow = parse_live(workspace, config_file, id=config_file.stem)
     assert flow == ast.LiveFlow(
         (0, 0),
         (51, 0),
-        id="jobs-full",
+        id="live-full",
         workspace=workspace,
         kind=ast.Kind.LIVE,
         title="Global title",
@@ -136,13 +136,13 @@ def test_parse_full(assets: pathlib.Path) -> None:
 
 
 def test_parse_bash(assets: pathlib.Path) -> None:
-    workspace = assets / "jobs-bash"
-    config_file = workspace / ".neuro" / "jobs.yml"
-    flow = parse_live(workspace, config_file)
+    workspace = assets
+    config_file = workspace / "live-bash.yml"
+    flow = parse_live(workspace, config_file, id=config_file.stem)
     assert flow == ast.LiveFlow(
         (0, 0),
         (7, 0),
-        id="jobs-bash",
+        id="live-bash",
         workspace=workspace,
         kind=ast.Kind.LIVE,
         title=None,
@@ -175,13 +175,13 @@ def test_parse_bash(assets: pathlib.Path) -> None:
 
 
 def test_parse_python(assets: pathlib.Path) -> None:
-    workspace = assets / "jobs-python"
-    config_file = workspace / ".neuro" / "jobs.yml"
-    flow = parse_live(workspace, config_file)
+    workspace = assets
+    config_file = workspace / "live-python.yml"
+    flow = parse_live(workspace, config_file, id=config_file.stem)
     assert flow == ast.LiveFlow(
         (0, 0),
         (7, 0),
-        id="jobs-python",
+        id="live-python",
         workspace=workspace,
         kind=ast.Kind.LIVE,
         title=None,
@@ -214,8 +214,8 @@ def test_parse_python(assets: pathlib.Path) -> None:
 
 
 def test_bad_job_name_not_identifier(assets: pathlib.Path) -> None:
-    workspace = assets / "jobs-bad-job-name"
-    config_file = workspace / ".neuro" / "jobs.yml"
+    workspace = assets
+    config_file = workspace / "live-bad-job-name.yml"
     with pytest.raises(yaml.MarkedYAMLError) as ctx:
         parse_live(workspace, config_file)
     assert ctx.value.problem == "bad-name-with-dash is not an identifier"
@@ -223,8 +223,8 @@ def test_bad_job_name_not_identifier(assets: pathlib.Path) -> None:
 
 
 def test_bad_job_name_non_string(assets: pathlib.Path) -> None:
-    workspace = assets / "jobs-int-job-name"
-    config_file = workspace / ".neuro" / "jobs.yml"
+    workspace = assets
+    config_file = workspace / "live-int-job-name.yml"
     with pytest.raises(yaml.MarkedYAMLError) as ctx:
         parse_live(workspace, config_file)
     assert ctx.value.problem == "expected a str, found <class 'int'>"
@@ -232,8 +232,8 @@ def test_bad_job_name_non_string(assets: pathlib.Path) -> None:
 
 
 def test_bad_image_name(assets: pathlib.Path) -> None:
-    workspace = assets / "jobs-bad-image-name"
-    config_file = workspace / ".neuro" / "jobs.yml"
+    workspace = assets
+    config_file = workspace / "live-bad-image-name.yml"
     with pytest.raises(yaml.MarkedYAMLError) as ctx:
         parse_live(workspace, config_file)
     assert ctx.value.problem == "image-a is not an identifier"
@@ -241,8 +241,8 @@ def test_bad_image_name(assets: pathlib.Path) -> None:
 
 
 def test_bad_volume_name(assets: pathlib.Path) -> None:
-    workspace = assets / "jobs-bad-volume-name"
-    config_file = workspace / ".neuro" / "jobs.yml"
+    workspace = assets
+    config_file = workspace / "live-bad-volume-name.yml"
     with pytest.raises(yaml.MarkedYAMLError) as ctx:
         parse_live(workspace, config_file)
     assert ctx.value.problem == "volume-a is not an identifier"
