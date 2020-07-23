@@ -1,24 +1,24 @@
+import dataclasses
+
 import re
-from typing import Any, Iterator, NamedTuple, Optional
+from typing import Any, Iterator, Optional
 
 from .types import LocalPath
 
 
-class Pos(NamedTuple):
+@dataclasses.dataclass(frozen=True)
+class Pos:
     line: int
     col: int
     filename: LocalPath
 
 
+@dataclasses.dataclass(frozen=True)
 class Token:
-    def __init__(self, type: str, value: str, start: Pos, end: Pos) -> None:
-        self.type = type
-        self.value = value
-        self.start = start
-        self.end = end
-
-    def __repr__(self) -> str:
-        return f"Token({self.type!r}, {self.value!r}, {self.start}, {self.end})"
+    type: str
+    value: str
+    start: Pos
+    end: Pos
 
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, Token):

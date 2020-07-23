@@ -404,5 +404,5 @@ def test_bad_expr_type_before_eval(assets: pathlib.Path) -> None:
     assert str(ctx.value) == dedent(
         """\
         'abc def' is not an int
-          in line 6, column 16"""
+          in line 5, column 15"""
     )

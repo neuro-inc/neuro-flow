@@ -148,7 +148,7 @@ async def test_bad_expr_type_after_eval(assets: pathlib.Path) -> None:
     assert str(cm.value) == dedent(
         """\
         'abc def' is not an int
-          in line 6, column 20"""
+          in line 5, column 19"""
     )
 
 

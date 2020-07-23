@@ -82,8 +82,8 @@ class EvalError(Exception):
         self.end = end
 
     def __str__(self) -> str:
-        line = self.start[0] + 1
-        col = self.start[1] + 1
+        line = self.start.line
+        col = self.start.col
         return str(self.args[0]) + f"\n  in line {line}, column {col}"
 
 
