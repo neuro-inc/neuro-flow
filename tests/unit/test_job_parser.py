@@ -5,6 +5,7 @@ from textwrap import dedent
 
 from neuro_flow import ast
 from neuro_flow.expr import (
+    EvalError,
     OptBashExpr,
     OptBoolExpr,
     OptIntExpr,
@@ -17,9 +18,9 @@ from neuro_flow.expr import (
     RemotePathExpr,
     StrExpr,
     URIExpr,
-    EvalError,
 )
 from neuro_flow.parser import parse_live
+from neuro_flow.tokenizer import Pos
 
 
 def test_parse_minimal(assets: pathlib.Path) -> None:
@@ -27,8 +28,8 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
     config_file = workspace / "live-minimal.yml"
     flow = parse_live(workspace, config_file, id=config_file.stem)
     assert flow == ast.LiveFlow(
-        (0, 0),
-        (5, 0),
+        Pos(0, 0, config_file),
+        Pos(5, 0, config_file),
         id="live-minimal",
         workspace=workspace,
         kind=ast.Kind.LIVE,
@@ -38,23 +39,39 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
         defaults=None,
         jobs={
             "test": ast.Job(
-                (3, 4),
-                (5, 0),
-                name=OptStrExpr(None),
-                image=StrExpr("ubuntu"),
-                preset=OptStrExpr(None),
-                entrypoint=OptStrExpr(None),
-                cmd=OptStrExpr("echo abc"),
-                workdir=OptRemotePathExpr(None),
+                Pos(3, 4, config_file),
+                Pos(5, 0, config_file),
+                name=OptStrExpr(Pos(3, 4, config_file), Pos(5, 0, config_file), None),
+                image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
+                preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                entrypoint=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                cmd=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "echo abc"
+                ),
+                workdir=OptRemotePathExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
                 env=None,
                 volumes=None,
                 tags=None,
-                life_span=OptLifeSpanExpr(None),
-                title=OptStrExpr(None),
-                detach=OptBoolExpr(None),
-                browse=OptBoolExpr(None),
-                http_port=OptIntExpr(None),
-                http_auth=OptBoolExpr(None),
+                life_span=OptLifeSpanExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                detach=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                browse=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                http_port=OptIntExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                http_auth=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
                 port_forward=None,
             )
         },
@@ -66,72 +83,164 @@ def test_parse_full(assets: pathlib.Path) -> None:
     config_file = workspace / "live-full.yml"
     flow = parse_live(workspace, config_file, id=config_file.stem)
     assert flow == ast.LiveFlow(
-        (0, 0),
-        (51, 0),
+        Pos(0, 0, config_file),
+        Pos(51, 0, config_file),
         id="live-full",
         workspace=workspace,
         kind=ast.Kind.LIVE,
         title="Global title",
         images={
             "image_a": ast.Image(
-                (4, 4),
-                (11, 0),
-                ref=StrExpr("image:banana"),
-                context=OptLocalPathExpr("dir"),
-                dockerfile=OptLocalPathExpr("dir/Dockerfile"),
-                build_args=[StrExpr("--arg1"), StrExpr("val1"), StrExpr("--arg2=val2")],
+                Pos(4, 4, config_file),
+                Pos(11, 0, config_file),
+                ref=StrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "image:banana"
+                ),
+                context=OptLocalPathExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "dir"
+                ),
+                dockerfile=OptLocalPathExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "dir/Dockerfile"
+                ),
+                build_args=[
+                    StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "--arg1"),
+                    StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "val1"),
+                    StrExpr(
+                        Pos(0, 0, config_file), Pos(0, 0, config_file), "--arg2=val2"
+                    ),
+                ],
             )
         },
         volumes={
             "volume_a": ast.Volume(
-                (13, 4),
-                (17, 2),
-                remote=URIExpr("storage:dir"),
-                mount=RemotePathExpr("/var/dir"),
-                read_only=OptBoolExpr("True"),
-                local=OptLocalPathExpr("dir"),
+                Pos(13, 4, config_file),
+                Pos(17, 2, config_file),
+                remote=URIExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "storage:dir"
+                ),
+                mount=RemotePathExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "/var/dir"
+                ),
+                read_only=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "True"
+                ),
+                local=OptLocalPathExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "dir"
+                ),
             ),
             "volume_b": ast.Volume(
-                (18, 4),
-                (20, 0),
-                remote=URIExpr("storage:other"),
-                mount=RemotePathExpr("/var/other"),
-                read_only=OptBoolExpr(None),
-                local=OptLocalPathExpr(None),
+                Pos(18, 4, config_file),
+                Pos(20, 0, config_file),
+                remote=URIExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "storage:other"
+                ),
+                mount=RemotePathExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "/var/other"
+                ),
+                read_only=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                local=OptLocalPathExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
             ),
         },
         defaults=ast.FlowDefaults(
-            (21, 2),
-            (28, 0),
-            tags=[StrExpr("tag-a"), StrExpr("tag-b")],
-            env={"global_a": StrExpr("val-a"), "global_b": StrExpr("val-b")},
-            workdir=OptRemotePathExpr("/global/dir"),
-            life_span=OptLifeSpanExpr("1d4h"),
-            preset=OptStrExpr("cpu-large"),
+            Pos(21, 2, config_file),
+            Pos(28, 0, config_file),
+            tags=[
+                StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "tag-a"),
+                StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "tag-b"),
+            ],
+            env={
+                "global_a": StrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "val-a"
+                ),
+                "global_b": StrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "val-b"
+                ),
+            },
+            workdir=OptRemotePathExpr(
+                Pos(0, 0, config_file), Pos(0, 0, config_file), "/global/dir"
+            ),
+            life_span=OptLifeSpanExpr(
+                Pos(0, 0, config_file), Pos(0, 0, config_file), "1d4h"
+            ),
+            preset=OptStrExpr(
+                Pos(0, 0, config_file), Pos(0, 0, config_file), "cpu-large"
+            ),
         ),
         jobs={
             "test_a": ast.Job(
-                (30, 4),
-                (51, 0),
-                name=OptStrExpr("job-name"),
-                image=StrExpr("${{ images.image_a.ref }}"),
-                preset=OptStrExpr("cpu-small"),
-                entrypoint=OptStrExpr("bash"),
-                cmd=OptStrExpr("echo abc"),
-                workdir=OptRemotePathExpr("/local/dir"),
-                env={"local_a": StrExpr("val-1"), "local_b": StrExpr("val-2")},
+                Pos(30, 4, config_file),
+                Pos(51, 0, config_file),
+                name=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "job-name"
+                ),
+                image=StrExpr(
+                    Pos(0, 0, config_file),
+                    Pos(0, 0, config_file),
+                    "${{ images.image_a.ref }}",
+                ),
+                preset=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "cpu-small"
+                ),
+                entrypoint=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "bash"
+                ),
+                cmd=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "echo abc"
+                ),
+                workdir=OptRemotePathExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "/local/dir"
+                ),
+                env={
+                    "local_a": StrExpr(
+                        Pos(0, 0, config_file), Pos(0, 0, config_file), "val-1"
+                    ),
+                    "local_b": StrExpr(
+                        Pos(0, 0, config_file), Pos(0, 0, config_file), "val-2"
+                    ),
+                },
                 volumes=[
-                    StrExpr("${{ volumes.volume_a.ref }}"),
-                    StrExpr("storage:dir:/var/dir:ro"),
+                    StrExpr(
+                        Pos(0, 0, config_file),
+                        Pos(0, 0, config_file),
+                        "${{ volumes.volume_a.ref }}",
+                    ),
+                    StrExpr(
+                        Pos(0, 0, config_file),
+                        Pos(0, 0, config_file),
+                        "storage:dir:/var/dir:ro",
+                    ),
                 ],
-                tags=[StrExpr("tag-1"), StrExpr("tag-2")],
-                life_span=OptLifeSpanExpr("2h55m"),
-                title=OptStrExpr("Job title"),
-                detach=OptBoolExpr("True"),
-                browse=OptBoolExpr("True"),
-                http_port=OptIntExpr("8080"),
-                http_auth=OptBoolExpr("False"),
-                port_forward=[PortPairExpr("2211:22")],
+                tags=[
+                    StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "tag-1"),
+                    StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "tag-2"),
+                ],
+                life_span=OptLifeSpanExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "2h55m"
+                ),
+                title=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "Job title"
+                ),
+                detach=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "True"
+                ),
+                browse=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "True"
+                ),
+                http_port=OptIntExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "8080"
+                ),
+                http_auth=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "False"
+                ),
+                port_forward=[
+                    PortPairExpr(
+                        Pos(0, 0, config_file), Pos(0, 0, config_file), "2211:22"
+                    )
+                ],
             )
         },
     )
@@ -142,8 +251,8 @@ def test_parse_bash(assets: pathlib.Path) -> None:
     config_file = workspace / "live-bash.yml"
     flow = parse_live(workspace, config_file, id=config_file.stem)
     assert flow == ast.LiveFlow(
-        (0, 0),
-        (7, 0),
+        Pos(0, 0, config_file),
+        Pos(7, 0, config_file),
         id="live-bash",
         workspace=workspace,
         kind=ast.Kind.LIVE,
@@ -153,23 +262,41 @@ def test_parse_bash(assets: pathlib.Path) -> None:
         defaults=None,
         jobs={
             "test": ast.Job(
-                (3, 4),
-                (7, 0),
-                name=OptStrExpr(None),
-                image=StrExpr("ubuntu"),
-                preset=OptStrExpr(None),
-                entrypoint=OptStrExpr(None),
-                cmd=OptBashExpr("echo abc\necho def\n"),
-                workdir=OptRemotePathExpr(None),
+                Pos(3, 4, config_file),
+                Pos(7, 0, config_file),
+                name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
+                preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                entrypoint=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                cmd=OptBashExpr(
+                    Pos(0, 0, config_file),
+                    Pos(0, 0, config_file),
+                    "echo abc\necho def\n",
+                ),
+                workdir=OptRemotePathExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
                 env=None,
                 volumes=None,
                 tags=None,
-                life_span=OptLifeSpanExpr(None),
-                title=OptStrExpr(None),
-                detach=OptBoolExpr(None),
-                browse=OptBoolExpr(None),
-                http_port=OptIntExpr(None),
-                http_auth=OptBoolExpr(None),
+                life_span=OptLifeSpanExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                detach=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                browse=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                http_port=OptIntExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                http_auth=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
                 port_forward=None,
             )
         },
@@ -181,8 +308,8 @@ def test_parse_python(assets: pathlib.Path) -> None:
     config_file = workspace / "live-python.yml"
     flow = parse_live(workspace, config_file, id=config_file.stem)
     assert flow == ast.LiveFlow(
-        (0, 0),
-        (7, 0),
+        Pos(0, 0, config_file),
+        Pos(7, 0, config_file),
         id="live-python",
         workspace=workspace,
         kind=ast.Kind.LIVE,
@@ -192,23 +319,41 @@ def test_parse_python(assets: pathlib.Path) -> None:
         defaults=None,
         jobs={
             "test": ast.Job(
-                (3, 4),
-                (7, 0),
-                name=OptStrExpr(None),
-                image=StrExpr("ubuntu"),
-                preset=OptStrExpr(None),
-                entrypoint=OptStrExpr(None),
-                cmd=OptPythonExpr("import sys\nprint(sys.argv)\n"),
-                workdir=OptRemotePathExpr(None),
+                Pos(3, 4, config_file),
+                Pos(7, 0, config_file),
+                name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
+                preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                entrypoint=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                cmd=OptPythonExpr(
+                    Pos(0, 0, config_file),
+                    Pos(0, 0, config_file),
+                    "import sys\nprint(sys.argv)\n",
+                ),
+                workdir=OptRemotePathExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
                 env=None,
                 volumes=None,
                 tags=None,
-                life_span=OptLifeSpanExpr(None),
-                title=OptStrExpr(None),
-                detach=OptBoolExpr(None),
-                browse=OptBoolExpr(None),
-                http_port=OptIntExpr(None),
-                http_auth=OptBoolExpr(None),
+                life_span=OptLifeSpanExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                detach=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                browse=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                http_port=OptIntExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                http_auth=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
                 port_forward=None,
             )
         },

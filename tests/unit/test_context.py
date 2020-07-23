@@ -1,8 +1,10 @@
 import pathlib
 import pytest
+from textwrap import dedent
 from yarl import URL
 
 from neuro_flow.context import BatchContext, DepCtx, LiveContext, NotAvailable, Result
+from neuro_flow.expr import EvalError
 from neuro_flow.parser import parse_batch, parse_live
 from neuro_flow.types import LocalPath, RemotePath
 
@@ -132,6 +134,22 @@ async def test_job(assets: pathlib.Path) -> None:
     assert ctx2.job.port_forward == ["2211:22"]
     assert ctx2.job.detach
     assert ctx2.job.browse
+
+
+async def test_bad_expr_type_after_eval(assets: pathlib.Path) -> None:
+    workspace = assets
+    config_file = workspace / "live-bad-expr-type-after-eval.yml"
+
+    flow = parse_live(workspace, config_file, id=config_file.stem)
+    ctx = await LiveContext.create(flow)
+
+    with pytest.raises(EvalError) as cm:
+        await ctx.with_job("test")
+    assert str(cm.value) == dedent(
+        """\
+        'abc def' is not an int
+          in line 6, column 20"""
+    )
 
 
 async def test_pipline_root_ctx(assets: pathlib.Path) -> None:

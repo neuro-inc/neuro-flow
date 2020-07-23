@@ -45,11 +45,11 @@ from .expr import (
     OptRemotePathExpr,
     OptStrExpr,
     PortPairExpr,
-    Pos,
     RemotePathExpr,
     StrExpr,
     URIExpr,
 )
+from .tokenizer import Pos
 from .types import LocalPath
 
 
@@ -101,11 +101,11 @@ class Loader(Reader, Scanner, Parser, Composer, ConfigConstructor, Resolver):
 
 
 def mark2pos(mark: yaml.Mark) -> Pos:
-    return (mark.line, mark.column)
+    return Pos(mark.line, mark.column, LocalPath(mark.name))
 
 
 class SimpleCompound(Generic[_T, _Cont], abc.ABC):
-    def __init__(self, factory: Type[_T]) -> None:
+    def __init__(self, factory: Type[Expr[_T]]) -> None:
         self._factory = factory
 
     @abc.abstractmethod
@@ -123,8 +123,8 @@ class SimpleCompound(Generic[_T, _Cont], abc.ABC):
             )
 
 
-class SimpleSeq(SimpleCompound[_T, Sequence[_T]]):
-    def construct(self, ctor: ConfigConstructor, node: yaml.Node) -> Sequence[_T]:
+class SimpleSeq(SimpleCompound[_T, Sequence[Expr[_T]]]):
+    def construct(self, ctor: ConfigConstructor, node: yaml.Node) -> Sequence[Expr[_T]]:
         if not isinstance(node, yaml.SequenceNode):
             node_id = node.id  # type: ignore
             raise ConstructorError(
@@ -140,13 +140,17 @@ class SimpleSeq(SimpleCompound[_T, Sequence[_T]]):
             # check if scalar
             if val is not None:
                 val = str(val)
-            tmp = self._factory(val, start=mark2pos(child.start_mark), end=mark2pos(child.end_mark))  # type: ignore
+            tmp = self._factory(
+                mark2pos(child.start_mark), mark2pos(child.end_mark), val
+            )
             ret.append(tmp)
         return ret
 
 
-class SimpleMapping(SimpleCompound[_T, Mapping[str, _T]]):
-    def construct(self, ctor: ConfigConstructor, node: yaml.Node) -> Mapping[str, _T]:
+class SimpleMapping(SimpleCompound[_T, Mapping[str, Expr[_T]]]):
+    def construct(
+        self, ctor: ConfigConstructor, node: yaml.Node
+    ) -> Mapping[str, Expr[_T]]:
         if not isinstance(node, yaml.MappingNode):
             node_id = node.id  # type: ignore
             raise ConstructorError(
@@ -162,13 +166,15 @@ class SimpleMapping(SimpleCompound[_T, Mapping[str, _T]]):
             tmp = ctor.construct_object(v)  # type: ignore[no-untyped-call]
             if tmp is not None:
                 tmp = str(tmp)
-            value = self._factory(tmp, start=mark2pos(v.start_mark), end=mark2pos(v.end_mark))  # type: ignore
+            value = self._factory(mark2pos(v.start_mark), mark2pos(v.end_mark), tmp)
             ret[key] = value
         return ret
 
 
-class IdMapping(SimpleCompound[_T, Mapping[str, _T]]):
-    def construct(self, ctor: ConfigConstructor, node: yaml.Node) -> Mapping[str, _T]:
+class IdMapping(SimpleCompound[_T, Mapping[str, Expr[_T]]]):
+    def construct(
+        self, ctor: ConfigConstructor, node: yaml.Node
+    ) -> Mapping[str, Expr[_T]]:
         if not isinstance(node, yaml.MappingNode):
             node_id = node.id  # type: ignore
             raise ConstructorError(
@@ -184,18 +190,13 @@ class IdMapping(SimpleCompound[_T, Mapping[str, _T]]):
             tmp = ctor.construct_object(v)  # type: ignore[no-untyped-call]
             if tmp is not None:
                 tmp = str(tmp)
-            value = self._factory(tmp, start=mark2pos(v.start_mark), end=mark2pos(v.end_mark))  # type: ignore
+            value = self._factory(mark2pos(v.start_mark), mark2pos(v.end_mark), tmp)
             ret[key] = value
         return ret
 
 
 KeyT = Union[
-    None,
-    Type[str],
-    Type[Expr[Any]],
-    SimpleCompound[Any, Any],
-    Callable[..., ast.Base],
-    Type[ast.Kind],
+    None, Type[Expr[Any]], SimpleCompound[Any, Any], Type[ast.Kind],
 ]
 VarT = Union[
     None, Expr[Any], Mapping[str, Any], Sequence[Any], ast.Base, ast.Kind,
@@ -231,6 +232,9 @@ def parse_dict(
             f"expected a mapping node, but found {node_id}",
             node.start_mark,
         )
+    node_start = mark2pos(node.start_mark)
+    node_end = mark2pos(node.end_mark)
+
     data = {}
     for k, v in node.value:
         key = ctor.construct_object(k)  # type: ignore[no-untyped-call]
@@ -249,7 +253,7 @@ def parse_dict(
             value = ctor.construct_object(v)  # type: ignore[no-untyped-call]
         elif item_ctor is ast.Kind:
             tmp = str(ctor.construct_object(v))  # type: ignore[no-untyped-call]
-            value = item_ctor(tmp)  # type: ignore[operator]
+            value = ast.Kind(tmp)
         elif isinstance(item_ctor, ast.Base):
             assert isinstance(
                 v, ast.Base
@@ -257,20 +261,9 @@ def parse_dict(
             value = v
         elif isinstance(item_ctor, SimpleCompound):
             value = item_ctor.construct(ctor, v)
-        elif item_ctor is str:
-            assert v.tag in (
-                "tag:yaml.org,2002:null",
-                "tag:yaml.org,2002:bool",
-                "tag:yaml.org,2002:int",
-                "tag:yaml.org,2002:float",
-                "tag:yaml.org,2002:str",
-            )
-            value = str(ctor.construct_object(v))  # type: ignore[no-untyped-call]
         elif isinstance(item_ctor, type) and issubclass(item_ctor, Expr):
             tmp = str(ctor.construct_object(v))  # type: ignore[no-untyped-call]
-            value = item_ctor(
-                tmp, start=mark2pos(v.start_mark), end=mark2pos(v.end_mark)
-            )
+            value = item_ctor(mark2pos(v.start_mark), mark2pos(v.end_mark), tmp)
         else:
             raise ConstructorError(
                 f"while constructing a {ret_name}",
@@ -284,6 +277,7 @@ def parse_dict(
         data = preprocess(ctor, dict(data))
     if find_res_type is not None:
         res_type = find_res_type(ctor, res_type, dict(data))
+        ret_name = res_type.__name__
 
     optional_fields: Dict[str, Any] = {}
     found_fields = extra.keys() | data.keys() | {"_start", "_end"}
@@ -297,14 +291,22 @@ def parse_dict(
                 optional_fields[f.name] = None
             elif isinstance(item_ctor, ast.Base):
                 optional_fields[f.name] = None
+            elif isinstance(item_ctor, type) and issubclass(item_ctor, Expr):
+                if not item_ctor.allow_none:
+                    raise ConstructorError(
+                        f"while constructing a {ret_name}, "
+                        f"missing mandatory key {f.name}",
+                        node.start_mark,
+                    )
+                optional_fields[f.name] = item_ctor(node_start, node_end, None)
             else:
-                optional_fields[f.name] = item_ctor(None)
+                raise ConstructorError(
+                    f"while constructing a {ret_name}, "
+                    f"unexpected {f.name} constructor type {item_ctor!r}",
+                    node.start_mark,
+                )
     return res_type(  # type: ignore[call-arg]
-        _start=mark2pos(node.start_mark),
-        _end=mark2pos(node.end_mark),
-        **extra,
-        **data,
-        **optional_fields,
+        _start=node_start, _end=node_end, **extra, **data, **optional_fields,
     )
 
 
@@ -380,7 +382,7 @@ def parse_exc_inc(
     builder = IdMapping(StrExpr)
     ret: List[Mapping[str, StrExpr]] = []
     for v in node.value:
-        ret.append(builder.construct(ctor, v))
+        ret.append(builder.construct(ctor, v))  # type: ignore[arg-type]
     return ret
 
 
@@ -408,7 +410,7 @@ def parse_matrix(ctor: ConfigConstructor, node: yaml.MappingNode) -> ast.Matrix:
     return ast.Matrix(
         _start=mark2pos(node.start_mark),
         _end=mark2pos(node.end_mark),
-        products=products,
+        products=products,  # type: ignore[arg-type]
         exclude=exclude,
         include=include,
     )
@@ -551,7 +553,7 @@ Loader.add_constructor("flow:defaults", parse_flow_defaults)  # type: ignore
 
 FLOW = {
     "kind": ast.Kind,
-    "id": str,
+    "id": None,
     "title": None,
     "images": None,
     "volumes": None,

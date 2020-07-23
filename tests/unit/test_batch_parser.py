@@ -16,6 +16,7 @@ from neuro_flow.expr import (
     URIExpr,
 )
 from neuro_flow.parser import parse_batch
+from neuro_flow.tokenizer import Pos
 
 
 def test_parse_minimal(assets: pathlib.Path) -> None:
@@ -23,71 +24,155 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
     config_file = workspace / "batch-minimal.yml"
     flow = parse_batch(workspace, config_file)
     assert flow == ast.BatchFlow(
-        (0, 0),
-        (47, 0),
+        Pos(0, 0, config_file),
+        Pos(47, 0, config_file),
         id="batch-minimal",
         workspace=workspace,
         kind=ast.Kind.BATCH,
         title="Global title",
         images={
             "image_a": ast.Image(
-                _start=(4, 4),
-                _end=(11, 0),
-                ref=StrExpr("image:banana"),
-                context=OptLocalPathExpr("dir"),
-                dockerfile=OptLocalPathExpr("dir/Dockerfile"),
-                build_args=[StrExpr("--arg1"), StrExpr("val1"), StrExpr("--arg2=val2")],
+                _start=Pos(4, 4, config_file),
+                _end=Pos(11, 0, config_file),
+                ref=StrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "image:banana"
+                ),
+                context=OptLocalPathExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "dir"
+                ),
+                dockerfile=OptLocalPathExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "dir/Dockerfile"
+                ),
+                build_args=[
+                    StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "--arg1"),
+                    StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "val1"),
+                    StrExpr(
+                        Pos(0, 0, config_file), Pos(0, 0, config_file), "--arg2=val2"
+                    ),
+                ],
             )
         },
         volumes={
             "volume_a": ast.Volume(
-                _start=(13, 4),
-                _end=(17, 2),
-                remote=URIExpr("storage:dir"),
-                mount=RemotePathExpr("/var/dir"),
-                local=OptLocalPathExpr("dir"),
-                read_only=OptBoolExpr("True"),
+                _start=Pos(13, 4, config_file),
+                _end=Pos(17, 2, config_file),
+                remote=URIExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "storage:dir"
+                ),
+                mount=RemotePathExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "/var/dir"
+                ),
+                local=OptLocalPathExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "dir"
+                ),
+                read_only=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "True"
+                ),
             ),
             "volume_b": ast.Volume(
-                _start=(18, 4),
-                _end=(20, 0),
-                remote=URIExpr("storage:other"),
-                mount=RemotePathExpr("/var/other"),
-                local=OptLocalPathExpr(None),
-                read_only=OptBoolExpr(None),
+                _start=Pos(18, 4, config_file),
+                _end=Pos(20, 0, config_file),
+                remote=URIExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "storage:other"
+                ),
+                mount=RemotePathExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "/var/other"
+                ),
+                local=OptLocalPathExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                read_only=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
             ),
         },
         defaults=ast.FlowDefaults(
-            _start=(21, 2),
-            _end=(28, 0),
-            tags=[StrExpr("tag-a"), StrExpr("tag-b")],
-            env={"global_a": StrExpr("val-a"), "global_b": StrExpr("val-b")},
-            workdir=OptRemotePathExpr("/global/dir"),
-            life_span=OptLifeSpanExpr("1d4h"),
-            preset=OptStrExpr("cpu-large"),
+            _start=Pos(21, 2, config_file),
+            _end=Pos(28, 0, config_file),
+            tags=[
+                StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "tag-a"),
+                StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "tag-b"),
+            ],
+            env={
+                "global_a": StrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "val-a"
+                ),
+                "global_b": StrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "val-b"
+                ),
+            },
+            workdir=OptRemotePathExpr(
+                Pos(0, 0, config_file), Pos(0, 0, config_file), "/global/dir"
+            ),
+            life_span=OptLifeSpanExpr(
+                Pos(0, 0, config_file), Pos(0, 0, config_file), "1d4h"
+            ),
+            preset=OptStrExpr(
+                Pos(0, 0, config_file), Pos(0, 0, config_file), "cpu-large"
+            ),
         ),
         tasks=[
             ast.Task(
-                _start=(29, 4),
-                _end=(47, 0),
-                id=OptIdExpr("test_a"),
-                title=OptStrExpr("Batch title"),
+                _start=Pos(29, 4, config_file),
+                _end=Pos(47, 0, config_file),
+                id=OptIdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "test_a"),
+                title=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "Batch title"
+                ),
                 needs=None,
-                name=OptStrExpr("job-name"),
-                image=StrExpr("${{ images.image_a.ref }}"),
-                preset=OptStrExpr("cpu-small"),
-                entrypoint=OptStrExpr("bash"),
-                cmd=OptStrExpr("echo abc"),
-                workdir=OptRemotePathExpr("/local/dir"),
-                env={"local_a": StrExpr("val-1"), "local_b": StrExpr("val-2")},
+                name=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "job-name"
+                ),
+                image=StrExpr(
+                    Pos(0, 0, config_file),
+                    Pos(0, 0, config_file),
+                    "${{ images.image_a.ref }}",
+                ),
+                preset=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "cpu-small"
+                ),
+                entrypoint=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "bash"
+                ),
+                cmd=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "echo abc"
+                ),
+                workdir=OptRemotePathExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "/local/dir"
+                ),
+                env={
+                    "local_a": StrExpr(
+                        Pos(0, 0, config_file), Pos(0, 0, config_file), "val-1"
+                    ),
+                    "local_b": StrExpr(
+                        Pos(0, 0, config_file), Pos(0, 0, config_file), "val-2"
+                    ),
+                },
                 volumes=[
-                    StrExpr("${{ volumes.volume_a.ref }}"),
-                    StrExpr("storage:dir:/var/dir:ro"),
+                    StrExpr(
+                        Pos(0, 0, config_file),
+                        Pos(0, 0, config_file),
+                        "${{ volumes.volume_a.ref }}",
+                    ),
+                    StrExpr(
+                        Pos(0, 0, config_file),
+                        Pos(0, 0, config_file),
+                        "storage:dir:/var/dir:ro",
+                    ),
                 ],
-                tags=[StrExpr("tag-1"), StrExpr("tag-2")],
-                life_span=OptLifeSpanExpr("2h55m"),
-                http_port=OptIntExpr("8080"),
-                http_auth=OptBoolExpr("False"),
+                tags=[
+                    StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "tag-1"),
+                    StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "tag-2"),
+                ],
+                life_span=OptLifeSpanExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "2h55m"
+                ),
+                http_port=OptIntExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "8080"
+                ),
+                http_auth=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "False"
+                ),
                 strategy=None,
             )
         ],
@@ -99,8 +184,8 @@ def test_parse_seq(assets: pathlib.Path) -> None:
     config_file = workspace / "batch-seq.yml"
     flow = parse_batch(workspace, config_file)
     assert flow == ast.BatchFlow(
-        (0, 0),
-        (9, 0),
+        Pos(0, 0, config_file),
+        Pos(9, 0, config_file),
         id="batch-seq",
         workspace=workspace,
         kind=ast.Kind.BATCH,
@@ -110,43 +195,71 @@ def test_parse_seq(assets: pathlib.Path) -> None:
         defaults=None,
         tasks=[
             ast.Task(
-                _start=(2, 4),
-                _end=(6, 2),
-                id=OptIdExpr(None),
-                title=OptStrExpr(None),
+                _start=Pos(2, 4, config_file),
+                _end=Pos(6, 2, config_file),
+                id=OptIdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 needs=None,
-                name=OptStrExpr(None),
-                image=StrExpr("ubuntu"),
-                preset=OptStrExpr("cpu-small"),
-                entrypoint=OptStrExpr(None),
-                cmd=OptBashExpr("echo abc"),
-                workdir=OptRemotePathExpr(None),
+                name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
+                preset=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "cpu-small"
+                ),
+                entrypoint=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                cmd=OptBashExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "echo abc"
+                ),
+                workdir=OptRemotePathExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
                 env=None,
                 volumes=None,
                 tags=None,
-                life_span=OptLifeSpanExpr(None),
-                http_port=OptIntExpr(None),
-                http_auth=OptBoolExpr(None),
+                life_span=OptLifeSpanExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                http_port=OptIntExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                http_auth=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
                 strategy=None,
             ),
             ast.Task(
-                _start=(6, 4),
-                _end=(9, 0),
-                id=OptIdExpr(None),
-                title=OptStrExpr(None),
+                _start=Pos(6, 4, config_file),
+                _end=Pos(9, 0, config_file),
+                id=OptIdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 needs=None,
-                name=OptStrExpr(None),
-                image=StrExpr("ubuntu"),
-                preset=OptStrExpr("cpu-small"),
-                entrypoint=OptStrExpr(None),
-                cmd=OptBashExpr("echo def"),
-                workdir=OptRemotePathExpr(None),
+                name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
+                preset=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "cpu-small"
+                ),
+                entrypoint=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                cmd=OptBashExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "echo def"
+                ),
+                workdir=OptRemotePathExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
                 env=None,
                 volumes=None,
                 tags=None,
-                life_span=OptLifeSpanExpr(None),
-                http_port=OptIntExpr(None),
-                http_auth=OptBoolExpr(None),
+                life_span=OptLifeSpanExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                http_port=OptIntExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                http_auth=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
                 strategy=None,
             ),
         ],
@@ -158,8 +271,8 @@ def test_parse_needs(assets: pathlib.Path) -> None:
     config_file = workspace / "batch-needs.yml"
     flow = parse_batch(workspace, config_file)
     assert flow == ast.BatchFlow(
-        (0, 0),
-        (11, 0),
+        Pos(0, 0, config_file),
+        Pos(11, 0, config_file),
         id="batch-needs",
         workspace=workspace,
         kind=ast.Kind.BATCH,
@@ -169,43 +282,73 @@ def test_parse_needs(assets: pathlib.Path) -> None:
         defaults=None,
         tasks=[
             ast.Task(
-                _start=(2, 4),
-                _end=(7, 2),
-                id=OptIdExpr("batch_a"),
-                title=OptStrExpr(None),
+                _start=Pos(2, 4, config_file),
+                _end=Pos(7, 2, config_file),
+                id=OptIdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "batch_a"),
+                title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 needs=None,
-                name=OptStrExpr(None),
-                image=StrExpr("ubuntu"),
-                preset=OptStrExpr("cpu-small"),
-                entrypoint=OptStrExpr(None),
-                cmd=OptBashExpr("echo abc"),
-                workdir=OptRemotePathExpr(None),
+                name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
+                preset=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "cpu-small"
+                ),
+                entrypoint=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                cmd=OptBashExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "echo abc"
+                ),
+                workdir=OptRemotePathExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
                 env=None,
                 volumes=None,
                 tags=None,
-                life_span=OptLifeSpanExpr(None),
-                http_port=OptIntExpr(None),
-                http_auth=OptBoolExpr(None),
+                life_span=OptLifeSpanExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                http_port=OptIntExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                http_auth=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
                 strategy=None,
             ),
             ast.Task(
-                _start=(7, 4),
-                _end=(11, 0),
-                id=OptIdExpr(None),
-                title=OptStrExpr(None),
-                needs=[IdExpr("batch_a")],
-                name=OptStrExpr(None),
-                image=StrExpr("ubuntu"),
-                preset=OptStrExpr("cpu-small"),
-                entrypoint=OptStrExpr(None),
-                cmd=OptBashExpr("echo def"),
-                workdir=OptRemotePathExpr(None),
+                _start=Pos(7, 4, config_file),
+                _end=Pos(11, 0, config_file),
+                id=OptIdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                needs=[
+                    IdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "batch_a")
+                ],
+                name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
+                preset=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "cpu-small"
+                ),
+                entrypoint=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                cmd=OptBashExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "echo def"
+                ),
+                workdir=OptRemotePathExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
                 env=None,
                 volumes=None,
                 tags=None,
-                life_span=OptLifeSpanExpr(None),
-                http_port=OptIntExpr(None),
-                http_auth=OptBoolExpr(None),
+                life_span=OptLifeSpanExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                http_port=OptIntExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                http_auth=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
                 strategy=None,
             ),
         ],
@@ -217,8 +360,8 @@ def test_parse_matrix(assets: pathlib.Path) -> None:
     config_file = workspace / "batch-matrix.yml"
     flow = parse_batch(workspace, config_file)
     assert flow == ast.BatchFlow(
-        (0, 0),
-        (15, 0),
+        Pos(0, 0, config_file),
+        Pos(15, 0, config_file),
         id="batch-matrix",
         workspace=workspace,
         kind=ast.Kind.BATCH,
@@ -228,44 +371,89 @@ def test_parse_matrix(assets: pathlib.Path) -> None:
         defaults=None,
         tasks=[
             ast.Task(
-                _start=(2, 4),
-                _end=(15, 0),
-                title=OptStrExpr(None),
-                name=OptStrExpr(None),
-                image=StrExpr("ubuntu"),
-                preset=OptStrExpr(None),
-                entrypoint=OptStrExpr(None),
-                cmd=OptStrExpr("echo abc"),
-                workdir=OptRemotePathExpr(None),
+                _start=Pos(2, 4, config_file),
+                _end=Pos(15, 0, config_file),
+                title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
+                preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                entrypoint=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                cmd=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "echo abc"
+                ),
+                workdir=OptRemotePathExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
                 env=None,
                 volumes=None,
                 tags=None,
-                life_span=OptLifeSpanExpr(None),
-                http_port=OptIntExpr(None),
-                http_auth=OptBoolExpr(None),
-                id=OptIdExpr(None),
+                life_span=OptLifeSpanExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                http_port=OptIntExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                http_auth=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                id=OptIdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 needs=None,
                 strategy=ast.Strategy(
-                    _start=(3, 6),
-                    _end=(13, 4),
+                    _start=Pos(3, 6, config_file),
+                    _end=Pos(13, 4, config_file),
                     matrix=ast.Matrix(
-                        _start=(4, 8),
-                        _end=(13, 4),
+                        _start=Pos(4, 8, config_file),
+                        _end=Pos(13, 4, config_file),
                         products={
-                            "one": [StrExpr("o1"), StrExpr("o2")],
-                            "two": [StrExpr("t1"), StrExpr("t2")],
+                            "one": [
+                                StrExpr(
+                                    Pos(0, 0, config_file), Pos(0, 0, config_file), "o1"
+                                ),
+                                StrExpr(
+                                    Pos(0, 0, config_file), Pos(0, 0, config_file), "o2"
+                                ),
+                            ],
+                            "two": [
+                                StrExpr(
+                                    Pos(0, 0, config_file), Pos(0, 0, config_file), "t1"
+                                ),
+                                StrExpr(
+                                    Pos(0, 0, config_file), Pos(0, 0, config_file), "t2"
+                                ),
+                            ],
                         },
-                        exclude=[{"one": StrExpr("o1"), "two": StrExpr("t2")}],
+                        exclude=[
+                            {
+                                "one": StrExpr(
+                                    Pos(0, 0, config_file), Pos(0, 0, config_file), "o1"
+                                ),
+                                "two": StrExpr(
+                                    Pos(0, 0, config_file), Pos(0, 0, config_file), "t2"
+                                ),
+                            }
+                        ],
                         include=[
                             {
-                                "one": StrExpr("o3"),
-                                "two": StrExpr("t3"),
-                                "extra": StrExpr("e3"),
+                                "one": StrExpr(
+                                    Pos(0, 0, config_file), Pos(0, 0, config_file), "o3"
+                                ),
+                                "two": StrExpr(
+                                    Pos(0, 0, config_file), Pos(0, 0, config_file), "t3"
+                                ),
+                                "extra": StrExpr(
+                                    Pos(0, 0, config_file), Pos(0, 0, config_file), "e3"
+                                ),
                             }
                         ],
                     ),
-                    fail_fast=OptBoolExpr(None),
-                    max_parallel=OptIntExpr(None),
+                    fail_fast=OptBoolExpr(
+                        Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                    ),
+                    max_parallel=OptIntExpr(
+                        Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                    ),
                 ),
             )
         ],
@@ -277,8 +465,8 @@ def test_parse_matrix_with_strategy(assets: pathlib.Path) -> None:
     config_file = workspace / "batch-matrix-with-strategy.yml"
     flow = parse_batch(workspace, config_file)
     assert flow == ast.BatchFlow(
-        (0, 0),
-        (17, 0),
+        Pos(0, 0, config_file),
+        Pos(17, 0, config_file),
         id="batch-matrix-with-strategy",
         workspace=workspace,
         kind=ast.Kind.BATCH,
@@ -288,44 +476,89 @@ def test_parse_matrix_with_strategy(assets: pathlib.Path) -> None:
         defaults=None,
         tasks=[
             ast.Task(
-                _start=(2, 4),
-                _end=(17, 0),
-                title=OptStrExpr(None),
-                name=OptStrExpr(None),
-                image=StrExpr("ubuntu"),
-                preset=OptStrExpr(None),
-                entrypoint=OptStrExpr(None),
-                cmd=OptStrExpr("echo abc"),
-                workdir=OptRemotePathExpr(None),
+                _start=Pos(2, 4, config_file),
+                _end=Pos(17, 0, config_file),
+                title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
+                preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                entrypoint=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                cmd=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "echo abc"
+                ),
+                workdir=OptRemotePathExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
                 env=None,
                 volumes=None,
                 tags=None,
-                life_span=OptLifeSpanExpr(None),
-                http_port=OptIntExpr(None),
-                http_auth=OptBoolExpr(None),
-                id=OptIdExpr(None),
+                life_span=OptLifeSpanExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                http_port=OptIntExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                http_auth=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                id=OptIdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 needs=None,
                 strategy=ast.Strategy(
-                    _start=(3, 6),
-                    _end=(15, 4),
+                    _start=Pos(3, 6, config_file),
+                    _end=Pos(15, 4, config_file),
                     matrix=ast.Matrix(
-                        _start=(4, 8),
-                        _end=(13, 6),
+                        _start=Pos(4, 8, config_file),
+                        _end=Pos(13, 6, config_file),
                         products={
-                            "one": [StrExpr("o1"), StrExpr("o2")],
-                            "two": [StrExpr("t1"), StrExpr("t2")],
+                            "one": [
+                                StrExpr(
+                                    Pos(0, 0, config_file), Pos(0, 0, config_file), "o1"
+                                ),
+                                StrExpr(
+                                    Pos(0, 0, config_file), Pos(0, 0, config_file), "o2"
+                                ),
+                            ],
+                            "two": [
+                                StrExpr(
+                                    Pos(0, 0, config_file), Pos(0, 0, config_file), "t1"
+                                ),
+                                StrExpr(
+                                    Pos(0, 0, config_file), Pos(0, 0, config_file), "t2"
+                                ),
+                            ],
                         },
-                        exclude=[{"one": StrExpr("o1"), "two": StrExpr("t2")}],
+                        exclude=[
+                            {
+                                "one": StrExpr(
+                                    Pos(0, 0, config_file), Pos(0, 0, config_file), "o1"
+                                ),
+                                "two": StrExpr(
+                                    Pos(0, 0, config_file), Pos(0, 0, config_file), "t2"
+                                ),
+                            }
+                        ],
                         include=[
                             {
-                                "one": StrExpr("o3"),
-                                "two": StrExpr("t3"),
-                                "extra": StrExpr("e3"),
+                                "one": StrExpr(
+                                    Pos(0, 0, config_file), Pos(0, 0, config_file), "o3"
+                                ),
+                                "two": StrExpr(
+                                    Pos(0, 0, config_file), Pos(0, 0, config_file), "t3"
+                                ),
+                                "extra": StrExpr(
+                                    Pos(0, 0, config_file), Pos(0, 0, config_file), "e3"
+                                ),
                             }
                         ],
                     ),
-                    fail_fast=OptBoolExpr("True"),
-                    max_parallel=OptIntExpr("5"),
+                    fail_fast=OptBoolExpr(
+                        Pos(0, 0, config_file), Pos(0, 0, config_file), "True"
+                    ),
+                    max_parallel=OptIntExpr(
+                        Pos(0, 0, config_file), Pos(0, 0, config_file), "5"
+                    ),
                 ),
             )
         ],
