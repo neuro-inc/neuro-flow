@@ -514,7 +514,7 @@ class OptURIExpr(URIExprMixin, Expr[URL]):
 class BoolExprMixin:
     @classmethod
     def convert(cls, arg: str) -> bool:
-        tmp = parse_literal(arg, "a bool")
+        tmp = parse_literal(arg, "a boolean")
         return bool(tmp)
 
 
@@ -529,7 +529,7 @@ class OptBoolExpr(BoolExprMixin, Expr[bool]):
 class IntExprMixin:
     @classmethod
     def convert(cls, arg: str) -> int:
-        tmp = parse_literal(arg, "an int")
+        tmp = parse_literal(arg, "an integer")
         return int(tmp)  # type: ignore[arg-type]
 
 

@@ -147,7 +147,7 @@ async def test_bad_expr_type_after_eval(assets: pathlib.Path) -> None:
         await ctx.with_job("test")
     assert str(cm.value) == dedent(
         """\
-        'abc def' is not an int
+        'abc def' is not an integer
           in line 5, column 19"""
     )
 
