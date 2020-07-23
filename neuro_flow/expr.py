@@ -36,7 +36,7 @@ from typing import (
     Union,
     cast,
 )
-from typing_extensions import Protocol, runtime_checkable
+from typing_extensions import Final, Protocol, runtime_checkable
 from yarl import URL
 
 from .tokenizer import Pos, Token, tokenize
@@ -312,51 +312,49 @@ def a(value: str) -> Parser:
     return some(lambda t: t.value == value).named(f'(a "{value}")')
 
 
-UNUSED_POS = Pos(0, 0, LocalPath("<unused>"))
+DOT: Final = skip(a("."))
+COMMA: Final = skip(a(","))
 
-DOT = skip(a("."))
-COMMA = skip(a(","))
+OPEN_TMPL: Final = skip(a("${{"))
+CLOSE_TMPL: Final = skip(a("}}"))
 
-OPEN_TMPL = skip(a("${{"))
-CLOSE_TMPL = skip(a("}}"))
-
-LPAR = skip(a("("))
+LPAR: Final = skip(a("("))
 RPAR = skip(a(")"))
 
-LSQB = skip(a("["))
+LSQB: Final = skip(a("["))
 RSQB = skip(a("]"))
 
-REAL = literal("REAL") | literal("EXP")
+REAL: Final = literal("REAL") | literal("EXP")
 
-INT = literal("INT") | literal("HEX") | literal("OCT") | literal("BIN")
+INT: Final = literal("INT") | literal("HEX") | literal("OCT") | literal("BIN")
 
-BOOL = literal("BOOL")
+BOOL: Final = literal("BOOL")
 
-STR = literal("STR")
+STR: Final = literal("STR")
 
-NONE = literal("NONE")
+NONE: Final = literal("NONE")
 
-LITERAL = NONE | BOOL | REAL | INT | STR
+LITERAL: Final = NONE | BOOL | REAL | INT | STR
 
-NAME = some(lambda tok: tok.type == "NAME")
+NAME: Final = some(lambda tok: tok.type == "NAME")
 
-ATOM = LITERAL  # | list-make | dict-maker
+ATOM: Final = LITERAL  # | list-make | dict-maker
 
-EXPR = forward_decl()
+EXPR: Final = forward_decl()
 
-ATOM_EXPR = forward_decl()
+ATOM_EXPR: Final = forward_decl()
 
-LOOKUP_ATTR = DOT + NAME >> lookup_attr
+LOOKUP_ATTR: Final = DOT + NAME >> lookup_attr
 
-LOOKUP_ITEM = LSQB + EXPR + RSQB >> lookup_item
+LOOKUP_ITEM: Final = LSQB + EXPR + RSQB >> lookup_item
 
-TRAILER = many(LOOKUP_ATTR | LOOKUP_ITEM)
+TRAILER: Final = many(LOOKUP_ATTR | LOOKUP_ITEM)
 
-LOOKUP = NAME + TRAILER >> make_lookup
+LOOKUP: Final = NAME + TRAILER >> make_lookup
 
-FUNC_ARGS = maybe(EXPR + many(COMMA + EXPR)) >> make_args
+FUNC_ARGS: Final = maybe(EXPR + many(COMMA + EXPR)) >> make_args
 
-FUNC_CALL = (NAME + LPAR + FUNC_ARGS + RPAR + TRAILER) >> make_call
+FUNC_CALL: Final = (NAME + LPAR + FUNC_ARGS + RPAR + TRAILER) >> make_call
 
 
 ATOM_EXPR.define(ATOM | FUNC_CALL | LOOKUP)
@@ -365,11 +363,11 @@ ATOM_EXPR.define(ATOM | FUNC_CALL | LOOKUP)
 EXPR.define(ATOM_EXPR)
 
 
-TMPL = OPEN_TMPL + EXPR + CLOSE_TMPL
+TMPL: Final = OPEN_TMPL + EXPR + CLOSE_TMPL
 
-TEXT = some(lambda tok: tok.type == "TEXT") >> make_text
+TEXT: Final = some(lambda tok: tok.type == "TEXT") >> make_text
 
-PARSER = oneplus(TMPL | TEXT) + skip(finished)
+PARSER: Final = oneplus(TMPL | TEXT) + skip(finished)
 
 
 class Expr(Generic[_T]):
