@@ -140,7 +140,7 @@ class SimpleSeq(SimpleCompound[_T, Sequence[_T]]):
             # check if scalar
             if val is not None:
                 val = str(val)
-            tmp = self._factory(val, start=mark2pos(child.start_mark))  # type: ignore
+            tmp = self._factory(val, start=mark2pos(child.start_mark), end=mark2pos(child.end_mark))  # type: ignore
             ret.append(tmp)
         return ret
 
@@ -162,7 +162,7 @@ class SimpleMapping(SimpleCompound[_T, Mapping[str, _T]]):
             tmp = ctor.construct_object(v)  # type: ignore[no-untyped-call]
             if tmp is not None:
                 tmp = str(tmp)
-            value = self._factory(tmp, start=mark2pos(v.start_mark))  # type: ignore
+            value = self._factory(tmp, start=mark2pos(v.start_mark), end=mark2pos(v.end_mark))  # type: ignore
             ret[key] = value
         return ret
 
@@ -184,7 +184,7 @@ class IdMapping(SimpleCompound[_T, Mapping[str, _T]]):
             tmp = ctor.construct_object(v)  # type: ignore[no-untyped-call]
             if tmp is not None:
                 tmp = str(tmp)
-            value = self._factory(tmp, start=mark2pos(v.start_mark))  # type: ignore
+            value = self._factory(tmp, start=mark2pos(v.start_mark), end=mark2pos(v.end_mark))  # type: ignore
             ret[key] = value
         return ret
 
@@ -268,7 +268,9 @@ def parse_dict(
             value = str(ctor.construct_object(v))  # type: ignore[no-untyped-call]
         elif isinstance(item_ctor, type) and issubclass(item_ctor, Expr):
             tmp = str(ctor.construct_object(v))  # type: ignore[no-untyped-call]
-            value = item_ctor(tmp, start=mark2pos(v.start_mark))
+            value = item_ctor(
+                tmp, start=mark2pos(v.start_mark), end=mark2pos(v.end_mark)
+            )
         else:
             raise ConstructorError(
                 f"while constructing a {ret_name}",

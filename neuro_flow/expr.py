@@ -77,23 +77,23 @@ class RootABC(abc.ABC):
         pass
 
 
-class EvalErrorMixin:
+class EvalError(ValueError):
     def __init__(self, msg: str, start: Pos, end: Pos) -> None:
         super().__init__(msg)  # type: ignore  # call exception class constructor
         self.start = start
         self.end = end
 
-
-class EvalTypeError(EvalErrorMixin, TypeError):
-    pass
-
-
-class EvalValueError(EvalErrorMixin, ValueError):
-    pass
+    def __str__(self) -> str:
+        line = self.start[0] + 1
+        col = self.start[1] + 1
+        return self.args[0] + f"\n  in line {line}, column {col}"
 
 
-class EvalLookupError(EvalErrorMixin, LookupError):
-    pass
+def parse_literal(arg: str, err_msg: str) -> LiteralT:
+    try:
+        return literal_eval(arg)
+    except (ValueError, SyntaxError):
+        raise ValueError(f"'{arg}' is not " + err_msg)
 
 
 class Tokenizer:
@@ -284,14 +284,14 @@ class AttrGetter(Getter):
             try:
                 return cast(TypeT, getattr(obj, name))
             except AttributeError:
-                raise EvalLookupError(f"No attribute {self.name}", start, self.end)
+                raise EvalError(f"No attribute {self.name}", start, self.end)
         elif isinstance(obj, MappingT):
             try:
                 return obj[self.name]
             except KeyError:
-                raise EvalLookupError(f"No attribute {self.name}", start, self.end)
+                raise EvalError(f"No attribute {self.name}", start, self.end)
         else:
-            raise EvalTypeError(
+            raise EvalError(
                 f"Is not an object with attributes accessible by a dot.",
                 start,
                 self.end,
@@ -314,7 +314,7 @@ class ItemGetter(Getter):
         try:
             return obj[key]
         except LookupError:
-            raise EvalLookupError(f"No item {self.key}", start, self.end)
+            raise EvalError(f"No item {self.key}", start, self.end)
 
 
 def lookup_item(key: Item) -> Any:
@@ -458,7 +458,9 @@ class Expr(Generic[_T]):
         # implementation for StrExpr and OptStrExpr
         return cast(_T, arg)
 
-    def __init__(self, pattern: Optional[str], *, start: Pos = (0, 0)) -> None:
+    def __init__(
+        self, pattern: Optional[str], *, start: Pos = (0, 0), end: Pos = (0, 0)
+    ) -> None:
         self._pattern = pattern
         # precalculated value for constant string, allows raising errors earlier
         self._ret: Optional[_T] = None
@@ -469,11 +471,14 @@ class Expr(Generic[_T]):
             self._parsed: Optional[Sequence[Item]] = PARSER.parse(tokens)
             assert self._parsed is not None
             if len(self._parsed) == 1 and type(self._parsed[0]) == Text:
-                self._ret = self.convert(cast(Text, self._parsed[0]).arg)
+                try:
+                    self._ret = self.convert(cast(Text, self._parsed[0]).arg)
+                except (TypeError, ValueError) as exc:
+                    raise EvalError(str(exc), start, end)
         elif self.allow_none:
             self._parsed = None
         else:
-            raise TypeError("None is not allowed")
+            raise EvalError("None is not allowed", start, end)
 
     @property
     def pattern(self) -> Optional[str]:
@@ -569,7 +574,8 @@ class OptURIExpr(URIExprMixin, Expr[URL]):
 class BoolExprMixin:
     @classmethod
     def convert(cls, arg: str) -> bool:
-        return bool(literal_eval(arg))
+        tmp = parse_literal(arg, "a bool")
+        return bool(tmp)
 
 
 class BoolExpr(BoolExprMixin, StrictExpr[bool]):
@@ -583,7 +589,8 @@ class OptBoolExpr(BoolExprMixin, Expr[bool]):
 class IntExprMixin:
     @classmethod
     def convert(cls, arg: str) -> int:
-        return int(literal_eval(arg))
+        tmp = parse_literal(arg, "an int")
+        return int(tmp)
 
 
 class IntExpr(IntExprMixin, StrictExpr[int]):
@@ -597,7 +604,8 @@ class OptIntExpr(IntExprMixin, Expr[int]):
 class FloatExprMixin:
     @classmethod
     def convert(cls, arg: str) -> float:
-        return float(literal_eval(arg))
+        tmp = parse_literal(arg, "a float")
+        return float(tmp)
 
 
 class FloatExpr(FloatExprMixin, StrictExpr[float]):

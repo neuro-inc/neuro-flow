@@ -1,6 +1,7 @@
 import pathlib
 import pytest
 import yaml
+from textwrap import dedent
 
 from neuro_flow import ast
 from neuro_flow.expr import (
@@ -16,6 +17,7 @@ from neuro_flow.expr import (
     RemotePathExpr,
     StrExpr,
     URIExpr,
+    EvalError,
 )
 from neuro_flow.parser import parse_live
 
@@ -247,3 +249,15 @@ def test_bad_volume_name(assets: pathlib.Path) -> None:
         parse_live(workspace, config_file)
     assert ctx.value.problem == "volume-a is not an identifier"
     assert str(ctx.value.problem_mark) == f'  in "{config_file}", line 3, column 3'
+
+
+def test_bad_expr_type_before_eval(assets: pathlib.Path) -> None:
+    workspace = assets
+    config_file = workspace / "live-bad-expr-type-before-eval.yml"
+    with pytest.raises(EvalError) as ctx:
+        parse_live(workspace, config_file)
+    assert str(ctx.value) == dedent(
+        """\
+        'abc def' is not an int
+          in line 6, column 16"""
+    )
