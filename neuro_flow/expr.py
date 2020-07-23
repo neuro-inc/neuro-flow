@@ -461,10 +461,10 @@ class IdExprMixin:
     @classmethod
     def convert(cls, arg: str) -> str:
         if not arg.isidentifier():
-            raise ValueError(f"{arg} is not identifier")
+            raise ValueError(f"{arg!r} is not identifier")
         if arg == arg.upper():
             raise ValueError(
-                f"{arg} is invalid identifier, "
+                f"{arg!r} is invalid identifier, "
                 "uppercase names are reserved for internal usage"
             )
         return arg
@@ -547,7 +547,7 @@ class OptLifeSpanExpr(OptFloatExpr):
         except (ValueError, SyntaxError):
             match = cls.RE.match(arg)
             if match is None:
-                raise ValueError(f"{arg} is not a life span")
+                raise ValueError(f"{arg!r} is not a life span")
             td = datetime.timedelta(
                 days=int(match.group("d") or 0),
                 hours=int(match.group("h") or 0),
@@ -606,5 +606,5 @@ class PortPairExpr(StrExpr):
     def convert(cls, arg: str) -> str:
         match = cls.RE.match(arg)
         if match is None:
-            raise ValueError(f"{arg} is not a LOCAL:REMOTE ports pair")
+            raise ValueError(f"{arg!r} is not a LOCAL:REMOTE ports pair")
         return arg
