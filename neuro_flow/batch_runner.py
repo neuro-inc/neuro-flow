@@ -6,27 +6,20 @@ from typing_extensions import AsyncContextManager
 
 from . import ast
 from .context import BatchContext, ImageCtx, UnknownJob, VolumeCtx
-from .parser import parse_batch
+from .parser import ConfigDir, parse_batch
+from .storage import BatchStorage
 from .types import LocalPath
 
 
 class BatchRunner(AsyncContextManager["BatchRunner"]):
-    def __init__(self, workspace: LocalPath, config_file: LocalPath) -> None:
-        self._workspace = workspace
-        self._config_file = config_file
-        self._ctx: Optional[BatchContext] = None
-
-    async def post_init(self) -> None:
-        if self._ctx is not None:
-            return
-        flow = parse_batch(self._workspace, self._config_file)
-        self._ctx = await BatchContext.create(flow)
+    def __init__(self, config_dir: ConfigDir, storage: BatchStorage) -> None:
+        self._config_dir = config_dir
+        self._storage = storage
 
     async def close(self) -> None:
         pass
 
     async def __aenter__(self) -> "BatchRunner":
-        await self.post_init()
         return self
 
     async def __aexit__(
@@ -36,11 +29,6 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         exc_tb: Optional[TracebackType],
     ) -> None:
         await self.close()
-
-    @property
-    def ctx(self) -> BatchContext:
-        assert self._ctx is not None
-        return self._ctx
 
     async def run_subproc(self, exe: str, *args: str) -> None:
         proc = await asyncio.create_subprocess_exec(exe, *args)
@@ -55,8 +43,29 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                 proc.kill()
                 await proc.wait()
 
-    async def bake(self, batch: str) -> None:
-        # burn is another option
+    async def bake(self, batch_name: str) -> None:
+        # batch_name is a name of yaml config inside self._workspace / .neuro
+        # folder without the file extension
+        config_file = (self._config_dir.config_dir / (batch_name + ".yml")).resolve()
+
+        # Check that the yaml is parseable
+        flow = parse_batch(self._config_dir.workspace, config_file)
+        ctx = await BatchContext.create(flow)
+        for volume in ctx.volumes.values():
+            if volume.local is not None:
+                # TODO: sync volumes if needed
+                pass
+
+        config_content = config_file.read_text()
+
+        bake_id = await self._storage.create_bake(batch_name, config_content)
+        # TODO: run this function in a job
+        await self.process(bake_id)
+
+    async def process(self, bake_id: str) -> None:
+        attempt = await self._storage.find_last_attempt(bake_id)
+        
+        # bake_id is a string used for
         if not exists():
             init()
         else:

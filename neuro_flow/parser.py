@@ -58,6 +58,12 @@ _Cont = TypeVar("_Cont")
 
 
 @dataclasses.dataclass
+class ConfigDir:
+    workspace: LocalPath
+    config_dir: LocalPath
+
+
+@dataclasses.dataclass
 class ConfigPath:
     workspace: LocalPath
     config_file: LocalPath
@@ -642,16 +648,7 @@ def parse_batch(
             loader.dispose()  # type: ignore[no-untyped-call]
 
 
-def find_live_config(path: Optional[Union[Path, str]]) -> ConfigPath:
-    # Find live config file, starting from path.
-    # Return a project root folder and a path to config file.
-    #
-    # If path is a file -- it is used as is.
-    # If path is a directory -- it is used as starting point, Path.cwd() otherwise.
-    # The lookup searches bottom-top from path dir up to the root folder,
-    # looking for .neuro folder and ./neuro/live.yml
-    # If the config file not found -- raise an exception.
-
+def find_workspace(path: Optional[Union[Path, str]]) -> ConfigDir:
     if path is not None:
         if not isinstance(path, Path):
             path = Path(path)
@@ -671,9 +668,24 @@ def find_live_config(path: Optional[Union[Path, str]]) -> ConfigPath:
             break
         path = path.parent
 
-    ret = path / ".neuro" / "live.yml"
+    return ConfigDir(path, path / ".neuro")
+
+
+def find_live_config(path: Optional[Union[Path, str]]) -> ConfigPath:
+    # Find live config file, starting from path.
+    # Return a project root folder and a path to config file.
+    #
+    # If path is a file -- it is used as is.
+    # If path is a directory -- it is used as starting point, Path.cwd() otherwise.
+    # The lookup searches bottom-top from path dir up to the root folder,
+    # looking for .neuro folder and ./neuro/live.yml
+    # If the config file not found -- raise an exception.
+
+    ws = find_workspace(path)
+
+    ret = ws.config_dir / "live.yml"
     if not ret.exists():
         raise ValueError(f"{ret} does not exist")
     if not ret.is_file():
         raise ValueError(f"{ret} is not a file")
-    return ConfigPath(path, ret)
+    return ConfigPath(ws.workspace, ret)
