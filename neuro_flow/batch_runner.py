@@ -64,7 +64,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
 
     async def process(self, bake_id: str) -> None:
         attempt = await self._storage.find_last_attempt(bake_id)
-        
+
         # bake_id is a string used for
         if not exists():
             init()

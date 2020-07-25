@@ -93,6 +93,6 @@ class BatchFSStorage(BatchStorage):
 
     async def _write_json(self, url: URL, data: Dict[str, Any]) -> None:
         now = datetime.datetime.now(datetime.timezone.utc)
-        data["when"] = now.isoformat(timespec="seconds"),
+        data["when"] = (now.isoformat(timespec="seconds"),)
 
         await self._write_file(url, json.dumps(data))
