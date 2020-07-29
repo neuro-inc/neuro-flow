@@ -1,5 +1,6 @@
 import asyncio
-from neuromation.api import Client, Factory, JobDescription, JobStatus, ResourceNotFound
+import tempfile
+from neuromation.api import Client, JobDescription, JobStatus, ResourceNotFound
 from types import TracebackType
 from typing import AbstractSet, List, Optional, Tuple, Type
 from typing_extensions import AsyncContextManager
@@ -12,8 +13,11 @@ from .types import LocalPath
 
 
 class BatchRunner(AsyncContextManager["BatchRunner"]):
-    def __init__(self, config_dir: ConfigDir, storage: BatchStorage) -> None:
+    def __init__(
+        self, config_dir: ConfigDir, client: Client, storage: BatchStorage
+    ) -> None:
         self._config_dir = config_dir
+        self._client = client
         self._storage = storage
 
     async def close(self) -> None:
@@ -58,24 +62,40 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
 
         config_content = config_file.read_text()
 
-        bake_id = await self._storage.create_bake(batch_name, config_content)
+        bake_id = await self._storage.create_bake(
+            batch_name, config_file.name, config_content
+        )
+        await self._storage.create_attempt(bake_id, 1, ctx.cardinality)
         # TODO: run this function in a job
         await self.process(bake_id)
 
     async def process(self, bake_id: str) -> None:
+        config_dir = LocalPath(tempfile.mkdtemp(prefix=bake_id))
+        bake_init = await self._storage.fetch_bake_init(bake_id)
+        config_content = await self._storage.fetch_config(bake_init.config_file.name)
+        config_file = config_dir / bake_init.config_file.name
+        config_file.write_text(config_content)
+
+        flow = parse_batch(None, config_file)
+        ctx = await BatchContext.create(flow)
+
         attempt = await self._storage.find_last_attempt(bake_id)
+        finished, started = await self._storage.fetch_attempt(
+            bake_id, attempt, ctx.cardinality
+        )
+        while True:
+            for task in started:
+                status = await self._client.jobs.status(task.raw_id)
+                if status.status in (JobStatus.FAILED, JobStatus.SUCCEEDED):
+                    finished.add(
+                        await self._storage.finish_task(task.id, status.history)
+                    )
 
-        # bake_id is a string used for
-        if not exists():
-            init()
-        else:
-            checkpoints = read_checkpoints()
-            for ch in checkpoints:
-                if await get_status(ch.raw_id) in (
-                    JobStatus.SUCCEEDED,
-                    JobStatus.FAILED,
-                ):
-                    self.process_result(ch.raw_id)
+                if len(finished) == ctx.cardinality:
+                    self._storage.finish_attempt(bake_id, accumulate_result)
 
-    async def start_task(self, task_ctx) -> None:
+                for task_ctx in self.ready_to_start(ctx, finished, started):
+                    started.add(await self.start_task(task_ctx))
+
+    async def start_task(self, task_ctx: BatchContext) -> None:
         pass

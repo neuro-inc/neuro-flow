@@ -529,6 +529,10 @@ class BatchContext(BaseContext):
         assert self._order is not None
         return self._order
 
+    @property
+    def cardinality(self) -> int:
+        return len(self._prep_tasks)
+
     def get_dep_ids(self, real_id: str) -> AbstractSet[str]:
         assert self._prep_tasks is not None
         prep_task = self._prep_tasks[real_id]
