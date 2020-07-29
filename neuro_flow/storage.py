@@ -2,12 +2,14 @@ import dataclasses
 
 import abc
 import datetime
+import enum
 import json
+import re
 import secrets
 import sys
-from neuromation.api import Client, JobStatus, get as api_get
-from types import TracebackType
-from typing import Any, Dict, Optional, Set, Tuple, Type
+from neuromation.api import Client, JobDescription, JobStatus
+from typing import Any, Dict, Tuple
+from typing_extensions import Final
 from yarl import URL
 
 
@@ -15,6 +17,18 @@ if sys.version_info < (3, 7):
     from backports.datetime_fromisoformat import MonkeyPatch
 
     MonkeyPatch.patch_fromisoformat()
+
+
+STARTED_RE: Final = re.compile(r"\A\d+\.(?P<id>[a-zA-Z][a-zA-Z0-9_\-]*).started.json\Z")
+FINISHED_RE: Final = re.compile(
+    r"\A\d+\.(?P<id>[a-zA-Z][a-zA-Z0-9_\-]*).finished.json\Z"
+)
+
+
+class TaskResult(str, enum.Enum):
+    SUCCEDED = "succeded"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
 
 
 @dataclasses.dataclass(frozen=True)
@@ -88,7 +102,7 @@ class BatchFSStorage(BatchStorage):
     def __init__(self, client: Client) -> None:
         self._client = client
 
-    def now(self) -> str:
+    def _now(self) -> str:
         dt = datetime.datetime.now(datetime.timezone.utc)
         return dt.isoformat(timespec="seconds")
 
@@ -99,7 +113,7 @@ class BatchFSStorage(BatchStorage):
         self, batch_name: str, config_name: str, config_content: str, cardinality: int
     ) -> str:
         # Return bake_id
-        bake_id = "_".join([batch_name, self.now(), secrets.token_hex(3)])
+        bake_id = "_".join([batch_name, self._now(), secrets.token_hex(3)])
         bake_uri = self._mk_bake_uri(bake_id)
         await self._client.storage.mkdir(bake_uri, parents=True)
         config_uri = bake_uri / config_name
@@ -148,13 +162,132 @@ class BatchFSStorage(BatchStorage):
 
     async def fetch_attempt(
         self, bake_id: str, attempt_no: int, cardinality: int
-    ) -> Tuple[Set[FinishedTask], Set[StartedTask]]:
+    ) -> Tuple[Dict[str, FinishedTask], Dict[str, StartedTask]]:
         bake_uri = self._mk_bake_uri(bake_id)
         attempt_url = bake_uri / f"{attempt_no:2d}attempt"
         digits = cardinality // 10 + 1
         pre = "0".zfill(digits)
-        data = await self._read_json(attempt_url / f"{pre.init.json}")
+        init_name = f"{pre.init.json}"
+        data = await self._read_json(attempt_url / init_name)
         assert data["cardinality"] == cardinality
+        started = {}
+        finished = {}
+        async for fs in self._client.storage.ls(attempt_url):
+            if fs.name == init_name:
+                continue
+            match = STARTED_RE.match(fs.name)
+            if match:
+                data = self._read_json(attempt_url / fs.name)
+                assert match.group("id") == data["id"]
+                started[data["id"]] = StartedTask(
+                    data["id"],
+                    data["raw_id"],
+                    datetime.datetime.fromisoformat(data["created_at"]),
+                    datetime.datetime.fromisoformat(data["when"]),
+                )
+                continue
+            match = FINISHED_RE.match(fs.name)
+            if match:
+                data = self._read_json(attempt_url / fs.name)
+                assert match.group("id") == data["id"]
+                finished[data["id"]] = FinishedTask(
+                    data["id"],
+                    data["raw_id"],
+                    datetime.datetime.fromisoformat(data["when"]),
+                    JobStatus(data["status"]),
+                    data["exit_code"],
+                    datetime.datetime.fromisoformat(data["created_at"]),
+                    datetime.datetime.fromisoformat(data["started_at"]),
+                    datetime.datetime.fromisoformat(data["finished_at"]),
+                    finish_reason=data["finish_reason"],
+                    finish_description=data["finish_description"],
+                )
+                continue
+            raise ValueError(f"Unexpected name {attempt_url / fs.name}")
+        assert finished.keys() < started.keys()
+        return finished, started
+
+    async def finish_attempt(
+        self, bake_id: str, attempt_no: int, cardinality: int, result: TaskResult
+    ) -> None:
+        bake_uri = self._mk_bake_uri(bake_id)
+        attempt_url = bake_uri / f"{attempt_no:2d}attempt"
+        digits = cardinality // 10 + 1
+        pre = "9" * digits
+        data = {"result": str(result)}
+        await self._write_json(attempt_url / f"{pre}.result.json", data)
+
+    async def start_task(
+        self,
+        bake_id: str,
+        attempt_no: int,
+        task_no: int,
+        cardinality: int,
+        task_id: str,
+        descr: JobDescription,
+    ) -> StartedTask:
+        bake_uri = self._mk_bake_uri(bake_id)
+        attempt_url = bake_uri / f"{attempt_no:2d}attempt"
+        digits = cardinality // 10 + 1
+        pre = str(task_no + 1).zfill(digits)
+        ret = StartedTask(
+            id=task_id,
+            raw_id=descr.id,
+            when=self._now(),
+            created_at=descr.history.created_at,
+        )
+
+        data = {
+            "id": ret.id,
+            "raw_id": ret.raw_id,
+            "when": ret.when.isoformat(timespec="seconds"),
+            "created_at": ret.created_at.isoformat(timespec="seconds"),
+        }
+        await self._write_json(attempt_url / f"{pre}.{ret.id}.started.json", data)
+        return ret
+
+    async def finish_task(
+        self,
+        bake_id: str,
+        attempt_no: int,
+        task_no: int,
+        cardinality: int,
+        task: StartedTask,
+        descr: JobDescription,
+    ) -> FinishedTask:
+        assert task.raw_id == descr.id
+        assert task.created_at == descr.history.created_at
+        bake_uri = self._mk_bake_uri(bake_id)
+        attempt_url = bake_uri / f"{attempt_no:2d}attempt"
+        digits = cardinality // 10 + 1
+        pre = str(task_no + 1).zfill(digits)
+        ret = FinishedTask(
+            id=task.id,
+            raw_id=task.raw_id,
+            when=self._now(),
+            status=descr.history.status,
+            exit_code=descr.history.exit_code,
+            created_at=descr.history.created_at,
+            started_at=descr.history.started_at,
+            finished_at=descr.history.finished_at,
+            finish_reason=descr.history.reason,
+            finish_description=descr.history.finish_description,
+        )
+
+        data = {
+            "id": ret.id,
+            "raw_id": ret.raw_id,
+            "when": ret.when.isoformat(timespec="seconds"),
+            "status": str(ret.status),
+            "exit_code": ret.exit_code,
+            "created_at": ret.created_at.isoformat(timespec="seconds"),
+            "started_at": ret.started_at.isoformat(timespec="seconds"),
+            "finished_at": ret.finished_at.isoformat(timespec="seconds"),
+            "finish_reason": ret.finish_reason,
+            "finish_description": ret.finish_description,
+        }
+        await self._write_json(attempt_url / f"{pre}.{task.id}.finished.json", data)
+        return ret
 
     async def _read_file(self, url: URL) -> str:
         ret = []
@@ -182,6 +315,7 @@ class BatchFSStorage(BatchStorage):
         await self._client.storage.create(url, body.encode("utf-8"))
 
     async def _write_json(self, url: URL, data: Dict[str, Any]) -> None:
-        data["when"] = self.now()
+        if not data.get("when"):
+            data["when"] = self._now()
 
         await self._write_file(url, json.dumps(data))

@@ -1,14 +1,14 @@
 import asyncio
 import tempfile
-from neuromation.api import Client, JobDescription, JobStatus, ResourceNotFound
+from neuromation.api import Client, JobStatus
 from types import TracebackType
-from typing import AbstractSet, List, Optional, Tuple, Type
+from typing import AsyncIterator, Dict, Iterable, Optional, Type
 from typing_extensions import AsyncContextManager
 
 from . import ast
-from .context import BatchContext, ImageCtx, UnknownJob, VolumeCtx
+from .context import BatchContext
 from .parser import ConfigDir, parse_batch
-from .storage import BatchStorage
+from .storage import BatchStorage, FinishedTask, StartedTask, TaskResult
 from .types import LocalPath
 
 
@@ -54,6 +54,8 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
 
         # Check that the yaml is parseable
         flow = parse_batch(self._config_dir.workspace, config_file)
+        assert isinstance(flow, ast.BatchFlow)
+
         ctx = await BatchContext.create(flow)
         for volume in ctx.volumes.values():
             if volume.local is not None:
@@ -77,6 +79,8 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         config_file.write_text(config_content)
 
         flow = parse_batch(None, config_file)
+        assert isinstance(flow, ast.BatchFlow)
+
         ctx = await BatchContext.create(flow)
 
         attempt = await self._storage.find_last_attempt(bake_id)
@@ -84,18 +88,45 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             bake_id, attempt, ctx.cardinality
         )
         while True:
-            for task in started:
-                status = await self._client.jobs.status(task.raw_id)
+            for t1 in started.values():
+                if t1.id in finished:
+                    continue
+                status = await self._client.jobs.status(t1.raw_id)
                 if status.status in (JobStatus.FAILED, JobStatus.SUCCEEDED):
-                    finished.add(
-                        await self._storage.finish_task(task.id, status.history)
+                    finished[t1.id] = await self._storage.finish_task(
+                        bake_id,
+                        attempt,
+                        len(started) + len(finished),
+                        ctx.cardinality,
+                        t1,
+                        status,
                     )
 
-                if len(finished) == ctx.cardinality:
-                    self._storage.finish_attempt(bake_id, accumulate_result)
+            if len(finished) == ctx.cardinality:
+                self._storage.finish_attempt(bake_id, self.accumulate_result(finished))
+                return
 
-                for task_ctx in self.ready_to_start(ctx, finished, started):
-                    started.add(await self.start_task(task_ctx))
+            async for task_ctx in self.ready_to_start(ctx, started, finished):
+                t2 = await self.start_task(task_ctx)
+                finished[t2.id] = t2
+
+            await asyncio.sleep(3)
+
+    def accumulate_result(self, finished: Iterable[FinishedTask]) -> TaskResult:
+        # TODO: handle cancelled tasks
+        for task in finished:
+            if task.status == JobStatus.FAILED:
+                return TaskResult.FAILURE
+        else:
+            return TaskResult.SUCCESS
+
+    async def ready_to_start(
+        self,
+        ctx: BatchContext,
+        started: Dict[str, StartedTask],
+        finished: Dict[str, FinishedTask],
+    ) -> AsyncIterator[BatchContext]:
+        pass
 
     async def start_task(self, task_ctx: BatchContext) -> None:
         pass
