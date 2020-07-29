@@ -5,7 +5,7 @@ import datetime
 import json
 import secrets
 import sys
-from neuromation.api import Client, get as api_get, JobStatus
+from neuromation.api import Client, JobStatus, get as api_get
 from types import TracebackType
 from typing import Any, Dict, Optional, Set, Tuple, Type
 from yarl import URL
@@ -45,6 +45,7 @@ class FinishedTask:
     finished_at: datetime.datetime
     finish_reason: str
     finish_description: str
+
 
 # A storage abstraction
 #
@@ -153,7 +154,7 @@ class BatchFSStorage(BatchStorage):
         digits = cardinality // 10 + 1
         pre = "0".zfill(digits)
         data = await self._read_json(attempt_url / f"{pre.init.json}")
-        assert data['cardinality'] == cardinality
+        assert data["cardinality"] == cardinality
 
     async def _read_file(self, url: URL) -> str:
         ret = []
