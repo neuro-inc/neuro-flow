@@ -532,6 +532,7 @@ class BatchContext(BaseContext):
     @property
     def cardinality(self) -> int:
         # 1 slot for started task and another one for finished
+        assert self._prep_tasks is not None
         return len(self._prep_tasks) * 2
 
     def get_dep_ids(self, real_id: str) -> AbstractSet[str]:
