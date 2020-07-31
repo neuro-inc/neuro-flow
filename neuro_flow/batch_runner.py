@@ -82,54 +82,59 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         await self.process(bake_id)
 
     async def process(self, bake_id: str) -> None:
-        config_dir = LocalPath(tempfile.mkdtemp(prefix=bake_id))
-        bake_init = await self._storage.fetch_bake(bake_id)
-        config_content = await self._storage.fetch_config(
-            bake_id, bake_init.config_file.name
-        )
-        config_file = config_dir / bake_init.config_file.name
-        config_file.write_text(config_content)
+        with tempfile.TemporaryDirectory(prefix=bake_id) as tmp:
+            root_dir = LocalPath(tmp)
+            config_dir = root_dir / ".neuro"
+            config_dir.mkdir()
+            workspace = config_dir / "workspace"
+            workspace.mkdir()
+            bake_init = await self._storage.fetch_bake(bake_id)
+            config_content = await self._storage.fetch_config(
+                bake_id, bake_init.config_file.name
+            )
+            config_file = config_dir / bake_init.config_file.name
+            config_file.write_text(config_content)
 
-        flow = parse_batch(None, config_file)
-        assert isinstance(flow, ast.BatchFlow)
+            flow = parse_batch(workspace, config_file)
+            assert isinstance(flow, ast.BatchFlow)
 
-        ctx = await BatchContext.create(flow)
+            ctx = await BatchContext.create(flow)
 
-        attempt = await self._storage.find_last_attempt(bake_id)
-        finished, started = await self._storage.fetch_attempt(
-            bake_id, attempt, ctx.cardinality
-        )
-        while True:
-            for t1 in started.values():
-                if t1.id in finished:
-                    continue
-                status = await self._client.jobs.status(t1.raw_id)
-                if status.status in (JobStatus.FAILED, JobStatus.SUCCEEDED):
-                    finished[t1.id] = await self._storage.finish_task(
+            attempt = await self._storage.find_last_attempt(bake_id)
+            finished, started = await self._storage.fetch_attempt(
+                bake_id, attempt, ctx.cardinality
+            )
+            while True:
+                for t1 in started.values():
+                    if t1.id in finished:
+                        continue
+                    status = await self._client.jobs.status(t1.raw_id)
+                    if status.status in (JobStatus.FAILED, JobStatus.SUCCEEDED):
+                        finished[t1.id] = await self._storage.finish_task(
+                            bake_id,
+                            attempt,
+                            len(started) + len(finished),
+                            ctx.cardinality,
+                            t1,
+                            status,
+                        )
+
+                if len(finished) == ctx.cardinality:
+                    self._storage.finish_attempt(
                         bake_id,
                         attempt,
-                        len(started) + len(finished),
                         ctx.cardinality,
-                        t1,
-                        status,
+                        self._accumulate_result(finished.values()),
                     )
+                    return
 
-            if len(finished) == ctx.cardinality:
-                self._storage.finish_attempt(
-                    bake_id,
-                    attempt,
-                    ctx.cardinality,
-                    self._accumulate_result(finished.values()),
-                )
-                return
+                async for task_ctx in self._ready_to_start(ctx, started, finished):
+                    t2 = await self._start_task(
+                        bake_id, attempt, len(started) + len(finished), task_ctx
+                    )
+                    started[t2.id] = t2
 
-            async for task_ctx in self._ready_to_start(ctx, started, finished):
-                t2 = await self._start_task(
-                    bake_id, attempt, len(started) + len(finished), task_ctx
-                )
-                started[t2.id] = t2
-
-            await asyncio.sleep(3)
+                await asyncio.sleep(3)
 
     def _accumulate_result(self, finished: Iterable[FinishedTask]) -> TaskResult:
         # TODO: handle cancelled tasks
