@@ -1,9 +1,11 @@
 import asyncio
+import sys
 import tempfile
 from neuromation.api import (
     Client,
     Container,
     HTTPPort,
+    JobDescription,
     JobStatus,
     Resources,
     SecretFile,
@@ -11,7 +13,7 @@ from neuromation.api import (
 )
 from neuromation.api.url_utils import uri_from_cli
 from types import TracebackType
-from typing import AsyncIterator, Dict, Iterable, Optional, Set, Type
+from typing import Dict, Iterable, Optional, Set, Type
 from typing_extensions import AsyncContextManager
 from yarl import URL
 
@@ -20,6 +22,12 @@ from .context import BatchContext
 from .parser import ConfigDir, parse_batch
 from .storage import BatchStorage, FinishedTask, StartedTask, TaskResult
 from .types import LocalPath
+
+
+if sys.version_info >= (3, 9):
+    import graphlib
+else:
+    from . import backport_graphlib as graphlib
 
 
 class BatchRunner(AsyncContextManager["BatchRunner"]):
@@ -72,6 +80,10 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                 # TODO: sync volumes if needed
                 pass
 
+        toposorter = graphlib.TopologicalSorter(ctx.graph)
+        # check fast for the graph cycle error
+        toposorter.prepare()
+
         config_content = config_file.read_text()
 
         bake_id = await self._storage.create_bake(
@@ -88,6 +100,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             config_dir.mkdir()
             workspace = config_dir / "workspace"
             workspace.mkdir()
+
             bake_init = await self._storage.fetch_bake(bake_id)
             config_content = await self._storage.fetch_config(
                 bake_id, bake_init.config_file.name
@@ -104,20 +117,37 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             finished, started = await self._storage.fetch_attempt(
                 bake_id, attempt, ctx.cardinality
             )
+
+            toposorter = graphlib.TopologicalSorter(ctx.graph)
+            toposorter.prepare()
+            for tid in finished:
+                toposorter.done(tid)
+
             while True:
-                for t1 in started.values():
-                    if t1.id in finished:
+                for tid in toposorter.get_ready():
+                    if tid in started:
                         continue
-                    status = await self._client.jobs.status(t1.raw_id)
+                    # TODO: Calculate needs context
+                    task_ctx = await ctx.with_task(tid, needs={})
+                    st = await self._start_task(
+                        bake_id, attempt, len(started) + len(finished), task_ctx
+                    )
+                    started[st.id] = st
+
+                for st in started.values():
+                    if st.id in finished:
+                        continue
+                    status = await self._client.jobs.status(st.raw_id)
                     if status.status in (JobStatus.FAILED, JobStatus.SUCCEEDED):
-                        finished[t1.id] = await self._storage.finish_task(
+                        finished[st.id] = await self._finish_task(
                             bake_id,
                             attempt,
                             len(started) + len(finished),
                             ctx.cardinality,
-                            t1,
+                            st,
                             status,
                         )
+                        toposorter.done(st.id)
 
                 if len(finished) == ctx.cardinality:
                     self._storage.finish_attempt(
@@ -128,12 +158,6 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                     )
                     return
 
-                async for task_ctx in self._ready_to_start(ctx, started, finished):
-                    t2 = await self._start_task(
-                        bake_id, attempt, len(started) + len(finished), task_ctx
-                    )
-                    started[t2.id] = t2
-
                 await asyncio.sleep(3)
 
     def _accumulate_result(self, finished: Iterable[FinishedTask]) -> TaskResult:
@@ -143,14 +167,6 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                 return TaskResult.FAILED
 
         return TaskResult.SUCCEEDED
-
-    async def _ready_to_start(
-        self,
-        ctx: BatchContext,
-        started: Dict[str, StartedTask],
-        finished: Dict[str, FinishedTask],
-    ) -> AsyncIterator[BatchContext]:
-        yield ctx
 
     async def _start_task(
         self, bake_id: str, attempt: int, task_no: int, task_ctx: BatchContext
@@ -242,3 +258,16 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             )
             secret_files.add(SecretFile(secret_uri, container_path))
         return secret_files
+
+    async def _finish_task(
+        self,
+        bake_id: str,
+        attempt_no: int,
+        task_no: int,
+        cardinality: int,
+        task: StartedTask,
+        descr: JobDescription,
+    ) -> FinishedTask:
+        return await self._storage.finish_task(
+            bake_id, attempt_no, task_no, cardinality, task, descr
+        )
