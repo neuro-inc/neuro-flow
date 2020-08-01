@@ -1,6 +1,6 @@
-from setuptools import find_packages, setup
-import re
 import pathlib
+import re
+from setuptools import find_packages, setup
 
 
 here = pathlib.Path(__file__).parent
