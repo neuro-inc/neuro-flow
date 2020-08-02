@@ -20,8 +20,8 @@ publish-lint:
 	twine check dist/*
 
 
-.PHONY: format
-format:
+.PHONY: fmt format
+fmt format:
 	isort $(ISORT_DIRS)
 	black $(BLACK_DIRS)
 
