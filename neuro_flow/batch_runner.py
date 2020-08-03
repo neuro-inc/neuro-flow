@@ -176,9 +176,9 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                         )
                         toposorter.done(st.id)
 
-                if len(finished) == ctx.cardinality:
-                    log.info("Attempt %d finished", tid)
-                    self._storage.finish_attempt(
+                if len(finished) == ctx.cardinality // 2:
+                    log.info("Attempt %d finished", attempt)
+                    await self._storage.finish_attempt(
                         bake_id,
                         attempt,
                         ctx.cardinality,
@@ -186,7 +186,11 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                     )
                     return
 
-                await asyncio.sleep(3)
+                # have no idea what timeout is better;
+                # too short value bombards servers,
+                # too long timeout makes the waiting longer than expected
+                # The missing events subsystem would be great for this task :)
+                await asyncio.sleep(1)
 
     def _accumulate_result(self, finished: Iterable[FinishedTask]) -> Result:
         # TODO: handle cancelled tasks
