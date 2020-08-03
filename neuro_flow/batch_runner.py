@@ -146,7 +146,6 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                 for tid in toposorter.get_ready():
                     if tid in started:
                         continue
-                    # TODO: Calculate needs context
                     deps = ctx.graph[tid]
                     needs = {}
                     for dep_id in deps:
