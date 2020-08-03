@@ -8,7 +8,8 @@ import re
 import secrets
 import sys
 from neuromation.api import Client, JobDescription, JobStatus
-from typing import Any, Dict, Tuple
+from types import TracebackType
+from typing import Any, Dict, Optional, Tuple, Type
 from typing_extensions import Final
 from yarl import URL
 
@@ -67,6 +68,21 @@ class FinishedTask:
 
 
 class BatchStorage(abc.ABC):
+    async def __aenter__(self) -> "BatchStorage":
+        return self
+
+    async def __aexit__(
+        self,
+        exc_typ: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -> None:
+        await self.close()
+
+    @abc.abstractmethod
+    async def close(self) -> None:
+        pass
+
     @abc.abstractmethod
     async def create_bake(
         self, batch_name: str, config_name: str, config_content: str, cardinality: int,
@@ -164,6 +180,9 @@ class BatchFSStorage(BatchStorage):
 
     def _mk_bake_uri(self, bake_id: str) -> URL:
         return URL("storage:.flow") / bake_id
+
+    async def close(self) -> None:
+        pass
 
     async def create_bake(
         self, batch_name: str, config_name: str, config_content: str, cardinality: int

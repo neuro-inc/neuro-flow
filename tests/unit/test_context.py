@@ -166,7 +166,7 @@ async def test_pipeline_minimal_ctx(assets: pathlib.Path) -> None:
     assert ctx2.task.tags == {"tag-1", "tag-2", "tag-a", "tag-b"}
     assert ctx2.task.life_span == 10500.0
 
-    assert ctx.graph == {'test_a': set()}
+    assert ctx.graph == {"test_a": set()}
     assert ctx2.matrix == {}
     assert ctx2.strategy.max_parallel == 10
     assert not ctx2.strategy.fail_fast
@@ -224,7 +224,7 @@ async def test_pipeline_needs(assets: pathlib.Path) -> None:
     assert ctx2.task.tags == {"flow:batch-needs", "batch:batch-2"}
     assert ctx2.task.life_span is None
 
-    assert ctx.graph == {'batch-2': {'batch_a'}, 'batch_a': set()}
+    assert ctx.graph == {"batch-2": {"batch_a"}, "batch_a": set()}
     assert ctx2.matrix == {}
     assert ctx2.strategy.max_parallel == 10
     assert not ctx2.strategy.fail_fast

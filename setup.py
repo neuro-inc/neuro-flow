@@ -17,6 +17,7 @@ setup(
         'dataclasses>=0.5; python_version<"3.7"',
         "humanize>=0.5.1",
         'backports-datetime-fromisoformat>=1.0.0; python_version<"3.7"',
+        'async_exit_stack>=1.0.1; python_version<"3.7"',
     ],
     packages=find_packages(),
     classifiers=[

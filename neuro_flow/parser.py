@@ -671,7 +671,7 @@ def find_workspace(path: Optional[Union[Path, str]]) -> ConfigDir:
     return ConfigDir(path, path / ".neuro")
 
 
-def find_live_config(path: Optional[Union[Path, str]]) -> ConfigPath:
+def find_live_config(workspace: ConfigDir) -> ConfigPath:
     # Find live config file, starting from path.
     # Return a project root folder and a path to config file.
     #
@@ -681,11 +681,9 @@ def find_live_config(path: Optional[Union[Path, str]]) -> ConfigPath:
     # looking for .neuro folder and ./neuro/live.yml
     # If the config file not found -- raise an exception.
 
-    ws = find_workspace(path)
-
-    ret = ws.config_dir / "live.yml"
+    ret = workspace.config_dir / "live.yml"
     if not ret.exists():
         raise ValueError(f"{ret} does not exist")
     if not ret.is_file():
         raise ValueError(f"{ret} is not a file")
-    return ConfigPath(ws.workspace, ret)
+    return ConfigPath(workspace.workspace, ret)
