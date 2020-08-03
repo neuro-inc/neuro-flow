@@ -87,8 +87,8 @@ class Neuro:
 
 
 class Result(str, enum.Enum):
-    SUCCESS = "success"
-    FAILURE = "failure"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
     CANCELLED = "cancelled"
 
 

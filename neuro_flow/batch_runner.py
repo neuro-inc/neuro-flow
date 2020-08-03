@@ -1,6 +1,7 @@
 import asyncio
 import sys
 import tempfile
+from logging import getLogger
 from neuromation.api import (
     Client,
     Container,
@@ -18,9 +19,9 @@ from typing_extensions import AsyncContextManager
 from yarl import URL
 
 from . import ast
-from .context import BatchContext
+from .context import BatchContext, DepCtx, Result
 from .parser import ConfigDir, parse_batch
-from .storage import BatchStorage, FinishedTask, StartedTask, TaskResult
+from .storage import BatchStorage, FinishedTask, StartedTask
 from .types import LocalPath
 
 
@@ -28,6 +29,9 @@ if sys.version_info >= (3, 9):
     import graphlib
 else:
     from . import backport_graphlib as graphlib
+
+
+log = getLogger(__name__)
 
 
 class BatchRunner(AsyncContextManager["BatchRunner"]):
@@ -70,6 +74,9 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         # folder without the file extension
         config_file = (self._config_dir.config_dir / (batch_name + ".yml")).resolve()
 
+        log.info("Use config file %s", config_file)
+
+        log.info("Check config")
         # Check that the yaml is parseable
         flow = parse_batch(self._config_dir.workspace, config_file)
         assert isinstance(flow, ast.BatchFlow)
@@ -84,36 +91,48 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         # check fast for the graph cycle error
         toposorter.prepare()
 
+        log.info("Config is correct")
+
         config_content = config_file.read_text()
 
+        log.info("Create bake")
         bake_id = await self._storage.create_bake(
             batch_name, config_file.name, config_content, ctx.cardinality
         )
+        log.info("Bake %s created", bake_id)
         await self._storage.create_attempt(bake_id, 1, ctx.cardinality)
+        log.info("Start attempt %d", 1)
         # TODO: run this function in a job
         await self.process(bake_id)
 
     async def process(self, bake_id: str) -> None:
+        log.info("Process %s", bake_id)
         with tempfile.TemporaryDirectory(prefix=bake_id) as tmp:
             root_dir = LocalPath(tmp)
+            log.info("Root dir %s", root_dir)
             config_dir = root_dir / ".neuro"
             config_dir.mkdir()
             workspace = config_dir / "workspace"
             workspace.mkdir()
 
+            log.info("Fetch bake init")
             bake_init = await self._storage.fetch_bake(bake_id)
+            log.info("Fetch baked config")
             config_content = await self._storage.fetch_config(
                 bake_id, bake_init.config_file.name
             )
             config_file = config_dir / bake_init.config_file.name
             config_file.write_text(config_content)
 
+            log.info("Parse baked config")
             flow = parse_batch(workspace, config_file)
             assert isinstance(flow, ast.BatchFlow)
 
             ctx = await BatchContext.create(flow)
 
+            log.info("Find last attempt")
             attempt = await self._storage.find_last_attempt(bake_id)
+            log.info("Fetch attempt %d", attempt)
             finished, started = await self._storage.fetch_attempt(
                 bake_id, attempt, ctx.cardinality
             )
@@ -128,7 +147,14 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                     if tid in started:
                         continue
                     # TODO: Calculate needs context
-                    task_ctx = await ctx.with_task(tid, needs={})
+                    deps = ctx.graph[tid]
+                    needs = {}
+                    for dep_id in deps:
+                        dep = finished.get(dep_id)
+                        assert dep is not None
+                        needs[dep_id] = DepCtx(dep.result, {})
+                    task_ctx = await ctx.with_task(tid, needs=needs)
+                    log.info("Task %s started", tid)
                     st = await self._start_task(
                         bake_id, attempt, len(started) + len(finished), task_ctx
                     )
@@ -139,6 +165,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                         continue
                     status = await self._client.jobs.status(st.raw_id)
                     if status.status in (JobStatus.FAILED, JobStatus.SUCCEEDED):
+                        log.info("Task %s finished", tid)
                         finished[st.id] = await self._finish_task(
                             bake_id,
                             attempt,
@@ -150,6 +177,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                         toposorter.done(st.id)
 
                 if len(finished) == ctx.cardinality:
+                    log.info("Attempt %d finished", tid)
                     self._storage.finish_attempt(
                         bake_id,
                         attempt,
@@ -160,13 +188,13 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
 
                 await asyncio.sleep(3)
 
-    def _accumulate_result(self, finished: Iterable[FinishedTask]) -> TaskResult:
+    def _accumulate_result(self, finished: Iterable[FinishedTask]) -> Result:
         # TODO: handle cancelled tasks
         for task in finished:
             if task.status == JobStatus.FAILED:
-                return TaskResult.FAILED
+                return Result.FAILED
 
-        return TaskResult.SUCCEEDED
+        return Result.SUCCEEDED
 
     async def _start_task(
         self, bake_id: str, attempt: int, task_no: int, task_ctx: BatchContext

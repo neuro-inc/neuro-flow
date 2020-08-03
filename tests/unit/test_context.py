@@ -178,7 +178,9 @@ async def test_pipeline_seq(assets: pathlib.Path) -> None:
     flow = parse_batch(workspace, config_file)
     ctx = await BatchContext.create(flow)
 
-    ctx2 = await ctx.with_task("batch-2", needs={"batch-1": DepCtx(Result.SUCCESS, {})})
+    ctx2 = await ctx.with_task(
+        "batch-2", needs={"batch-1": DepCtx(Result.SUCCEEDED, {})}
+    )
     assert ctx2.task.id is None
     assert ctx2.task.real_id == "batch-2"
     assert ctx2.task.needs == {"batch-1"}
@@ -207,7 +209,9 @@ async def test_pipeline_needs(assets: pathlib.Path) -> None:
     flow = parse_batch(workspace, config_file)
     ctx = await BatchContext.create(flow)
 
-    ctx2 = await ctx.with_task("batch-2", needs={"batch_a": DepCtx(Result.SUCCESS, {})})
+    ctx2 = await ctx.with_task(
+        "batch-2", needs={"batch_a": DepCtx(Result.SUCCEEDED, {})}
+    )
     assert ctx2.task.id is None
     assert ctx2.task.real_id == "batch-2"
     assert ctx2.task.needs == {"batch_a"}

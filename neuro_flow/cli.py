@@ -1,6 +1,7 @@
 import click
 import functools
 import inspect
+import logging
 import sys
 from neuromation.api import get as api_get
 from neuromation.cli.asyncio_utils import Runner
@@ -48,6 +49,7 @@ def wrap_async(callback: Callable[..., Awaitable[_T]],) -> Callable[..., _T]:
 )
 @click.pass_context
 def main(ctx: click.Context, config: Optional[str]) -> None:
+    logging.basicConfig(level=logging.INFO)
     config_dir = find_workspace(config)
     ctx.obj = config_dir
 
