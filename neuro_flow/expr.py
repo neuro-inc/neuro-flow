@@ -4,6 +4,7 @@
 import dataclasses
 
 import abc
+import asyncio
 import datetime
 import inspect
 import json
@@ -11,10 +12,8 @@ import re
 import shlex
 from ast import literal_eval
 from collections.abc import Sized
-from funcparserlib.lexer import LexerError, Token
 from funcparserlib.parser import (
     Parser,
-    a,
     finished,
     forward_decl,
     many,
@@ -23,14 +22,12 @@ from funcparserlib.parser import (
     skip,
     some,
 )
-from pathlib import Path, PurePosixPath
 from typing import (
     Any,
     Awaitable,
     Callable,
     Dict,
     Generic,
-    Iterator,
     List,
     Mapping,
     Optional,
@@ -40,13 +37,15 @@ from typing import (
     Union,
     cast,
 )
-from typing_extensions import Protocol, runtime_checkable
+from typing_extensions import Final, Protocol, runtime_checkable
 from yarl import URL
+
+from .tokenizer import Pos, Token, tokenize
+from .types import LocalPath, RemotePath
 
 
 _T = TypeVar("_T")
 
-Pos = Tuple[int, int]
 
 LiteralT = Union[None, bool, int, float, str]
 
@@ -77,109 +76,23 @@ class RootABC(abc.ABC):
         pass
 
 
-class EvalErrorMixin:
+class EvalError(Exception):
     def __init__(self, msg: str, start: Pos, end: Pos) -> None:
-        super().__init__(msg)  # type: ignore  # call exception class constructor
+        super().__init__(msg)
         self.start = start
         self.end = end
 
-
-class EvalTypeError(EvalErrorMixin, TypeError):
-    pass
-
-
-class EvalValueError(EvalErrorMixin, ValueError):
-    pass
+    def __str__(self) -> str:
+        line = self.start.line
+        col = self.start.col
+        return str(self.args[0]) + f"\n  in line {line}, column {col}"
 
 
-class EvalLookupError(EvalErrorMixin, LookupError):
-    pass
-
-
-class Tokenizer:
-
-    TOKENS = [
-        ("LTMPL", r"\$\{\{"),
-        ("RTMPL", r"\}\}"),
-        ("SPACE", r"[ \t]+"),
-        ("NONE", r"None"),
-        ("BOOL", r"True|False"),
-        ("REAL", r"-?[0-9]+\.[0-9]*([Ee][+\-]?[0-9]+)*"),
-        ("EXP", r"-?[0-9]+\.[0-9]*([Ee][+\-]?[0-9]+)*[+\-]?e[0-9]+"),
-        ("HEX", r"0[xX][0-9a-fA-F_]+"),
-        ("OCT", r"0[oO][0-7_]+"),
-        ("BIN", r"0[bB][0-1_]+"),
-        ("INT", r"-?[0-9][0-9_]*"),
-        ("STR", r"'[^']*'|" r'"[^"]*"'),
-        ("NAME", r"[A-Za-z][A-Za-z_0-9]*"),
-        ("DOT", r"\."),
-        ("COMMA", r","),
-        ("LPAR", r"\("),
-        ("RPAR", r"\)"),
-        ("LSQB", r"\["),
-        ("RSQB", r"\]"),
-    ]
-    TOKENS_RE = re.compile("|".join(f"(?P<{typ}>{regexp})" for typ, regexp in TOKENS))
-
-    def make_token(self, typ: str, value: str, line: int, pos: int) -> Token:
-        nls = value.count("\n")
-        n_line = line + nls
-        if nls == 0:
-            n_pos = pos + len(value)
-        else:
-            n_pos = len(value) - value.rfind("\n") - 1
-        return Token(typ, value, (line, pos), (n_line, n_pos))
-
-    def match_specs(self, s: str, i: int, start: Pos, position: Pos) -> Token:
-        line, pos = position
-        m = self.TOKENS_RE.match(s, i)
-        if m is not None:
-            assert m.lastgroup
-            return self.make_token(m.lastgroup, m.group(), line, pos)
-        else:
-            errline = s.splitlines()[line - start[0]]
-            raise LexerError((line + 1, pos + 1), " " * start[1] + errline)
-
-    def match_text(self, s: str, i: int, start: Pos, position: Pos) -> Token:
-        ltmpl = s.find("${{", i)
-        if ltmpl == i:
-            return None
-        if ltmpl == -1:
-            # LTMPL not found, use the whole string
-            substr = s[i:]
-        else:
-            substr = s[i:ltmpl]
-        line, pos = position
-        err_pos = substr.find("}}")
-        if err_pos != -1:
-            t = self.make_token("TEXT", substr[:err_pos], line, pos)
-            line, pos = t.end
-            errline = s.splitlines()[line - start[0]]
-            raise LexerError((line + 1, pos + 1), " " * start[1] + errline)
-        return self.make_token("TEXT", substr, line, pos)
-
-    def __call__(self, s: str, *, start: Pos = (0, 0)) -> Iterator[Token]:
-        in_expr = False
-        length = len(s)
-        line, pos = start
-        i = 0
-        while i < length:
-            if in_expr:
-                t = self.match_specs(s, i, start, (line, pos))
-                if t.type == "RTMPL":
-                    in_expr = False
-            else:
-                t = self.match_text(s, i, start, (line, pos))
-                if not t:
-                    in_expr = True
-                    t = self.match_specs(s, i, start, (line, pos))
-            if t.type != "SPACE":
-                yield t
-            line, pos = t.end
-            i += len(t.value)
-
-
-tokenize = Tokenizer()
+def parse_literal(arg: str, err_msg: str) -> LiteralT:
+    try:
+        return cast(LiteralT, literal_eval(arg))
+    except (ValueError, SyntaxError):
+        raise ValueError(f"'{arg}' is not " + err_msg)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -284,14 +197,14 @@ class AttrGetter(Getter):
             try:
                 return cast(TypeT, getattr(obj, name))
             except AttributeError:
-                raise EvalLookupError(f"No attribute {self.name}", start, self.end)
+                raise EvalError(f"No attribute {self.name}", start, self.end)
         elif isinstance(obj, MappingT):
             try:
                 return obj[self.name]
             except KeyError:
-                raise EvalLookupError(f"No attribute {self.name}", start, self.end)
+                raise EvalError(f"No attribute {self.name}", start, self.end)
         else:
-            raise EvalTypeError(
+            raise EvalError(
                 f"Is not an object with attributes accessible by a dot.",
                 start,
                 self.end,
@@ -314,7 +227,7 @@ class ItemGetter(Getter):
         try:
             return obj[key]
         except LookupError:
-            raise EvalLookupError(f"No item {self.key}", start, self.end)
+            raise EvalError(f"No item {self.key}", start, self.end)
 
 
 def lookup_item(key: Item) -> Any:
@@ -355,7 +268,14 @@ class Call(Item):
 
     async def eval(self, root: RootABC) -> TypeT:
         args = [await a.eval(root) for a in self.args]
-        tmp = await self.func.call(root, *args)  # type: ignore
+        try:
+            tmp = await self.func.call(root, *args)  # type: ignore
+        except asyncio.CancelledError:
+            raise
+        except EvalError:
+            raise
+        except Exception as exc:
+            raise EvalError(str(exc), self.start, self.end)
         ret = cast(TypeT, tmp)
         start = self.start
         for op in self.trailer:
@@ -392,49 +312,57 @@ def make_text(arg: Token) -> Text:
     return Text(arg.start, arg.end, arg.value)
 
 
-DOT = skip(a(Token("DOT", ".")))
-COMMA = skip(a(Token("COMMA", ",")))
+def a(value: str) -> Parser:
+    """Eq(a) -> Parser(a, a)
 
-OPEN_TMPL = skip(a(Token("LTMPL", "${{")))
-CLOSE_TMPL = skip(a(Token("RTMPL", "}}")))
+    Returns a parser that parses a token that is equal to the value value.
+    """
+    return some(lambda t: t.value == value).named(f'(a "{value}")')
 
-LPAR = skip(a(Token("LPAR", "(")))
-RPAR = skip(a(Token("RPAR", ")")))
 
-LSQB = skip(a(Token("LSQB", "[")))
-RSQB = skip(a(Token("RSQB", "]")))
+DOT: Final = skip(a("."))
+COMMA: Final = skip(a(","))
 
-REAL = literal("REAL") | literal("EXP")
+OPEN_TMPL: Final = skip(a("${{"))
+CLOSE_TMPL: Final = skip(a("}}"))
 
-INT = literal("INT") | literal("HEX") | literal("OCT") | literal("BIN")
+LPAR: Final = skip(a("("))
+RPAR = skip(a(")"))
 
-BOOL = literal("BOOL")
+LSQB: Final = skip(a("["))
+RSQB = skip(a("]"))
 
-STR = literal("STR")
+REAL: Final = literal("REAL") | literal("EXP")
 
-NONE = literal("NONE")
+INT: Final = literal("INT") | literal("HEX") | literal("OCT") | literal("BIN")
 
-LITERAL = NONE | BOOL | REAL | INT | STR
+BOOL: Final = literal("BOOL")
 
-NAME = some(lambda tok: tok.type == "NAME")
+STR: Final = literal("STR")
 
-ATOM = LITERAL  # | list-make | dict-maker
+NONE: Final = literal("NONE")
 
-EXPR = forward_decl()
+LITERAL: Final = NONE | BOOL | REAL | INT | STR
 
-ATOM_EXPR = forward_decl()
+NAME: Final = some(lambda tok: tok.type == "NAME")
 
-LOOKUP_ATTR = DOT + NAME >> lookup_attr
+ATOM: Final = LITERAL  # | list-make | dict-maker
 
-LOOKUP_ITEM = LSQB + EXPR + RSQB >> lookup_item
+EXPR: Final = forward_decl()
 
-TRAILER = many(LOOKUP_ATTR | LOOKUP_ITEM)
+ATOM_EXPR: Final = forward_decl()
 
-LOOKUP = NAME + TRAILER >> make_lookup
+LOOKUP_ATTR: Final = DOT + NAME >> lookup_attr
 
-FUNC_ARGS = maybe(EXPR + many(COMMA + EXPR)) >> make_args
+LOOKUP_ITEM: Final = LSQB + EXPR + RSQB >> lookup_item
 
-FUNC_CALL = (NAME + LPAR + FUNC_ARGS + RPAR + TRAILER) >> make_call
+TRAILER: Final = many(LOOKUP_ATTR | LOOKUP_ITEM)
+
+LOOKUP: Final = NAME + TRAILER >> make_lookup
+
+FUNC_ARGS: Final = maybe(EXPR + many(COMMA + EXPR)) >> make_args
+
+FUNC_CALL: Final = (NAME + LPAR + FUNC_ARGS + RPAR + TRAILER) >> make_call
 
 
 ATOM_EXPR.define(ATOM | FUNC_CALL | LOOKUP)
@@ -443,11 +371,11 @@ ATOM_EXPR.define(ATOM | FUNC_CALL | LOOKUP)
 EXPR.define(ATOM_EXPR)
 
 
-TMPL = OPEN_TMPL + EXPR + CLOSE_TMPL
+TMPL: Final = OPEN_TMPL + EXPR + CLOSE_TMPL
 
-TEXT = some(lambda tok: tok.type == "TEXT") >> make_text
+TEXT: Final = some(lambda tok: tok.type == "TEXT") >> make_text
 
-PARSER = oneplus(TMPL | TEXT) + skip(finished)
+PARSER: Final = oneplus(TMPL | TEXT) + skip(finished)
 
 
 class Expr(Generic[_T]):
@@ -458,22 +386,25 @@ class Expr(Generic[_T]):
         # implementation for StrExpr and OptStrExpr
         return cast(_T, arg)
 
-    def __init__(self, pattern: Optional[str], *, start: Pos = (0, 0)) -> None:
+    def __init__(self, start: Pos, end: Pos, pattern: Optional[str]) -> None:
         self._pattern = pattern
         # precalculated value for constant string, allows raising errors earlier
         self._ret: Optional[_T] = None
         if pattern is not None:
             if not isinstance(pattern, str):
-                raise TypeError(f"str is expected, got {type(pattern)}")
+                raise EvalError(f"str is expected, got {type(pattern)}", start, end)
             tokens = list(tokenize(pattern, start=start))
             self._parsed: Optional[Sequence[Item]] = PARSER.parse(tokens)
             assert self._parsed is not None
             if len(self._parsed) == 1 and type(self._parsed[0]) == Text:
-                self._ret = self.convert(cast(Text, self._parsed[0]).arg)
+                try:
+                    self._ret = self.convert(cast(Text, self._parsed[0]).arg)
+                except (TypeError, ValueError) as exc:
+                    raise EvalError(str(exc), start, end)
         elif self.allow_none:
             self._parsed = None
         else:
-            raise TypeError("None is not allowed")
+            raise EvalError("None is not allowed", start, end)
 
     @property
     def pattern(self) -> Optional[str]:
@@ -485,17 +416,31 @@ class Expr(Generic[_T]):
         if self._parsed is not None:
             ret: List[str] = []
             for part in self._parsed:
-                val = await part.eval(root)
+                try:
+                    val = await part.eval(root)
+                except asyncio.CancelledError:
+                    raise
+                except EvalError:
+                    raise
+                except Exception as exc:
+                    raise EvalError(str(exc), part.start, part.end)
                 # TODO: add str() function, raise an explicit error if
                 # an expresion evaluates non-str type
                 # assert isinstance(val, str), repr(val)
                 ret.append(str(val))
-            return self.convert("".join(ret))
+            try:
+                return self.convert("".join(ret))
+            except asyncio.CancelledError:
+                raise
+            except EvalError:
+                raise
+            except Exception as exc:
+                raise EvalError(str(exc), self._parsed[0].start, self._parsed[-1].end)
         else:
-            if not self.allow_none:
-                # Dead code, a error for None is raised by __init__()
-                # The check is present for better readability.
-                raise ValueError("Expression is calculated to None")
+            # __init__() makes sure that the pattern is not None if
+            # self.allow_none is False, the check is present here
+            # for better readability.
+            assert self.allow_none
             return None
 
     def __repr__(self) -> str:
@@ -511,7 +456,7 @@ class Expr(Generic[_T]):
         return hash((self.__class__.__name__, self._pattern))
 
 
-class StrictExpr(Expr[Optional[_T]]):
+class StrictExpr(Expr[_T]):
     allow_none = False
 
     async def eval(self, root: RootABC) -> _T:
@@ -535,10 +480,10 @@ class IdExprMixin:
     @classmethod
     def convert(cls, arg: str) -> str:
         if not arg.isidentifier():
-            raise ValueError(f"{arg} is not identifier")
+            raise ValueError(f"{arg!r} is not identifier")
         if arg == arg.upper():
             raise ValueError(
-                f"{arg} is invalid identifier, "
+                f"{arg!r} is invalid identifier, "
                 "uppercase names are reserved for internal usage"
             )
         return arg
@@ -569,7 +514,8 @@ class OptURIExpr(URIExprMixin, Expr[URL]):
 class BoolExprMixin:
     @classmethod
     def convert(cls, arg: str) -> bool:
-        return bool(literal_eval(arg))
+        tmp = parse_literal(arg, "a boolean")
+        return bool(tmp)
 
 
 class BoolExpr(BoolExprMixin, StrictExpr[bool]):
@@ -583,7 +529,8 @@ class OptBoolExpr(BoolExprMixin, Expr[bool]):
 class IntExprMixin:
     @classmethod
     def convert(cls, arg: str) -> int:
-        return int(literal_eval(arg))
+        tmp = parse_literal(arg, "an integer")
+        return int(tmp)  # type: ignore[arg-type]
 
 
 class IntExpr(IntExprMixin, StrictExpr[int]):
@@ -597,7 +544,8 @@ class OptIntExpr(IntExprMixin, Expr[int]):
 class FloatExprMixin:
     @classmethod
     def convert(cls, arg: str) -> float:
-        return float(literal_eval(arg))
+        tmp = parse_literal(arg, "a float")
+        return float(tmp)  # type: ignore[arg-type]
 
 
 class FloatExpr(FloatExprMixin, StrictExpr[float]):
@@ -618,7 +566,7 @@ class OptLifeSpanExpr(OptFloatExpr):
         except (ValueError, SyntaxError):
             match = cls.RE.match(arg)
             if match is None:
-                raise ValueError(f"{arg} is not a life span")
+                raise ValueError(f"{arg!r} is not a life span")
             td = datetime.timedelta(
                 days=int(match.group("d") or 0),
                 hours=int(match.group("h") or 0),
@@ -630,29 +578,29 @@ class OptLifeSpanExpr(OptFloatExpr):
 
 class LocalPathMixin:
     @classmethod
-    def convert(cls, arg: str) -> Path:
-        return Path(arg)
+    def convert(cls, arg: str) -> LocalPath:
+        return LocalPath(arg)
 
 
-class LocalPathExpr(LocalPathMixin, StrictExpr[Path]):
+class LocalPathExpr(LocalPathMixin, StrictExpr[LocalPath]):
     pass
 
 
-class OptLocalPathExpr(LocalPathMixin, Expr[Path]):
+class OptLocalPathExpr(LocalPathMixin, Expr[LocalPath]):
     pass
 
 
 class RemotePathMixin:
     @classmethod
-    def convert(cls, arg: str) -> PurePosixPath:
-        return PurePosixPath(arg)
+    def convert(cls, arg: str) -> RemotePath:
+        return RemotePath(arg)
 
 
-class RemotePathExpr(RemotePathMixin, StrictExpr[PurePosixPath]):
+class RemotePathExpr(RemotePathMixin, StrictExpr[RemotePath]):
     pass
 
 
-class OptRemotePathExpr(RemotePathMixin, Expr[PurePosixPath]):
+class OptRemotePathExpr(RemotePathMixin, Expr[RemotePath]):
     pass
 
 
@@ -677,5 +625,5 @@ class PortPairExpr(StrExpr):
     def convert(cls, arg: str) -> str:
         match = cls.RE.match(arg)
         if match is None:
-            raise ValueError(f"{arg} is not a LOCAL:REMOTE ports pair")
+            raise ValueError(f"{arg!r} is not a LOCAL:REMOTE ports pair")
         return arg

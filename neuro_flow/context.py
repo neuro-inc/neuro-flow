@@ -456,6 +456,11 @@ class BatchContext(BaseContext):
                 strategy = default_strategy  # default
                 matrix = [{}]  # dummy
 
+            if len(matrix) > 256:
+                raise ValueError(
+                    f"The matrix size for task #{num} exceeds the limit of 256"
+                )
+
             real_ids = set()
             for row in matrix:
                 # make prep patch(es)

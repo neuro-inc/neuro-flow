@@ -14,11 +14,11 @@ from .expr import (
     OptRemotePathExpr,
     OptStrExpr,
     PortPairExpr,
-    Pos,
     RemotePathExpr,
     StrExpr,
     URIExpr,
 )
+from .tokenizer import Pos
 from .types import LocalPath
 
 

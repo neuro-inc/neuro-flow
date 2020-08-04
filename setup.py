@@ -1,8 +1,21 @@
+import pathlib
+import re
 from setuptools import find_packages, setup
 
 
+here = pathlib.Path(__file__).parent
+fname = here / "neuro_flow" / "__init__.py"
+
+
+with fname.open(encoding="utf8") as fp:
+    try:
+        version = re.findall(r'^__version__ = "([^"]+)"$', fp.read(), re.M)[0]
+    except IndexError:
+        raise RuntimeError("Unable to determine version.")
+
 setup(
     name="neuro-flow",
+    version=version,
     description="Pipelines system for neu.ro",
     author="Neuromation Team",
     author_email="pypi@neuromation.io",  # TODO: change this email

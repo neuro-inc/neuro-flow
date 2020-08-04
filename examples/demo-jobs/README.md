@@ -15,7 +15,7 @@ neuro-flow mkvolumes
 
 4. Upload data to storage:
 ```
-neuro-flow upload-all
+neuro-flow upload ALL
 ```
 
 5. Run jobs

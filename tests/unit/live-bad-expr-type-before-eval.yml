@@ -1,0 +1,6 @@
+kind: live
+jobs:
+  test:
+    cmd: echo abc
+    image: ubuntu
+    http_port: abc def  # <-- not int
