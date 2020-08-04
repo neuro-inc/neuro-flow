@@ -3,21 +3,21 @@ import socket
 import sys
 from pathlib import Path
 
-from neuro_flow.parser import ConfigPath, find_live_config
+from neuro_flow.parser import ConfigPath, find_live_config, find_workspace
 
 
 def test_not_exists(tmp_path: Path) -> None:
     d = tmp_path / ".neuro"
     d.mkdir()
     with pytest.raises(ValueError, match=".+ does not exist"):
-        find_live_config(d)
+        find_live_config(find_workspace(d))
 
 
 def test_neuro_not_found(tmp_path: Path) -> None:
     with pytest.raises(
         ValueError, match=r"\.neuro folder was not found in lookup for .+"
     ):
-        find_live_config(tmp_path)
+        find_workspace(tmp_path)
 
 
 @pytest.mark.skipif(  # type: ignore
@@ -32,7 +32,7 @@ def test_not_a_file_explicit(tmp_path: Path) -> None:
     s.bind(str(f))
 
     with pytest.raises(ValueError, match=r".+ should be a directory"):
-        find_live_config(f)
+        find_workspace(f)
 
 
 @pytest.mark.skipif(  # type: ignore
@@ -49,7 +49,7 @@ def test_not_a_file_implicit(tmp_path: Path) -> None:
     s.bind(str(f))
 
     with pytest.raises(ValueError, match=r".+ is not a file"):
-        find_live_config(d)
+        find_live_config(find_workspace(d))
 
 
 def test_explicit_file(tmp_path: Path) -> None:
@@ -57,7 +57,7 @@ def test_explicit_file(tmp_path: Path) -> None:
     f.touch()
 
     with pytest.raises(ValueError, match=r".+ should be a directory"):
-        find_live_config(f)
+        find_workspace(f)
 
 
 def test_found(tmp_path: Path) -> None:
@@ -66,4 +66,4 @@ def test_found(tmp_path: Path) -> None:
     f = d / "live.yml"
     f.touch()
 
-    assert ConfigPath(tmp_path, f) == find_live_config(d)
+    assert ConfigPath(tmp_path, f) == find_live_config(find_workspace(d))

@@ -3,7 +3,6 @@ from dataclasses import dataclass, field, replace
 
 import enum
 import itertools
-from toposort import toposort
 from typing import (
     AbstractSet,
     ClassVar,
@@ -88,8 +87,8 @@ class Neuro:
 
 
 class Result(str, enum.Enum):
-    SUCCESS = "success"
-    FAILURE = "failure"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
     CANCELLED = "cancelled"
 
 
@@ -424,7 +423,7 @@ class BatchContext(BaseContext):
     _task: Optional[TaskCtx] = None
     _needs: Optional[NeedsCtx] = None
     _prep_tasks: Optional[Mapping[str, PreparedTaskCtx]] = None
-    _order: Optional[Sequence[AbstractSet[str]]] = None
+    _graph: Optional[Mapping[str, AbstractSet[str]]] = None
     _matrix: Optional[MatrixCtx] = None
     _strategy: Optional[StrategyCtx] = None
 
@@ -494,13 +493,12 @@ class BatchContext(BaseContext):
 
             last_needs = real_ids
 
-        to_sort: Dict[str, AbstractSet[str]] = {}
+        graph: Dict[str, AbstractSet[str]] = {}
         for key, val in prep_tasks.items():
-            to_sort[key] = val.needs
-        order = list(toposort(to_sort))
+            graph[key] = val.needs
 
         return replace(  # type: ignore[return-value]
-            ctx, _prep_tasks=prep_tasks, _order=order
+            ctx, _prep_tasks=prep_tasks, _graph=graph
         )
 
     @property
@@ -528,11 +526,17 @@ class BatchContext(BaseContext):
         return self._strategy
 
     @property
-    def order(self) -> Sequence[AbstractSet[str]]:
+    def graph(self) -> Mapping[str, AbstractSet[str]]:
         # Batch names, sorted by the execution order.
         # Batches from each set in the list can be executed concurrently.
-        assert self._order is not None
-        return self._order
+        assert self._graph is not None
+        return self._graph
+
+    @property
+    def cardinality(self) -> int:
+        # 1 slot for started task and another one for finished
+        assert self._prep_tasks is not None
+        return len(self._prep_tasks) * 2
 
     def get_dep_ids(self, real_id: str) -> AbstractSet[str]:
         assert self._prep_tasks is not None
@@ -547,7 +551,7 @@ class BatchContext(BaseContext):
             )
         return replace(self, _matrix=matrix)
 
-    async def with_task(self, real_id: str, *, needs: NeedsCtx,) -> "BatchContext":
+    async def with_task(self, real_id: str, *, needs: NeedsCtx) -> "BatchContext":
         # real_id -- the task's real id
         #
         # outputs -- real_id -> (output_name -> value) mapping for all task ids

@@ -184,7 +184,7 @@ async def test_pipeline_minimal_ctx(assets: pathlib.Path) -> None:
     assert ctx2.task.tags == {"tag-1", "tag-2", "tag-a", "tag-b"}
     assert ctx2.task.life_span == 10500.0
 
-    assert ctx.order == [{"test_a"}]
+    assert ctx.graph == {"test_a": set()}
     assert ctx2.matrix == {}
     assert ctx2.strategy.max_parallel == 10
     assert not ctx2.strategy.fail_fast
@@ -196,7 +196,9 @@ async def test_pipeline_seq(assets: pathlib.Path) -> None:
     flow = parse_batch(workspace, config_file)
     ctx = await BatchContext.create(flow)
 
-    ctx2 = await ctx.with_task("batch-2", needs={"batch-1": DepCtx(Result.SUCCESS, {})})
+    ctx2 = await ctx.with_task(
+        "batch-2", needs={"batch-1": DepCtx(Result.SUCCEEDED, {})}
+    )
     assert ctx2.task.id is None
     assert ctx2.task.real_id == "batch-2"
     assert ctx2.task.needs == {"batch-1"}
@@ -213,7 +215,7 @@ async def test_pipeline_seq(assets: pathlib.Path) -> None:
     assert ctx2.task.tags == {"flow:batch-seq", "batch:batch-2"}
     assert ctx2.task.life_span is None
 
-    assert ctx.order == [{"batch-1"}, {"batch-2"}]
+    assert ctx.graph == {"batch-2": {"batch-1"}, "batch-1": set()}
     assert ctx2.matrix == {}
     assert ctx2.strategy.max_parallel == 10
     assert not ctx2.strategy.fail_fast
@@ -225,7 +227,9 @@ async def test_pipeline_needs(assets: pathlib.Path) -> None:
     flow = parse_batch(workspace, config_file)
     ctx = await BatchContext.create(flow)
 
-    ctx2 = await ctx.with_task("batch-2", needs={"batch_a": DepCtx(Result.SUCCESS, {})})
+    ctx2 = await ctx.with_task(
+        "batch-2", needs={"batch_a": DepCtx(Result.SUCCEEDED, {})}
+    )
     assert ctx2.task.id is None
     assert ctx2.task.real_id == "batch-2"
     assert ctx2.task.needs == {"batch_a"}
@@ -242,7 +246,7 @@ async def test_pipeline_needs(assets: pathlib.Path) -> None:
     assert ctx2.task.tags == {"flow:batch-needs", "batch:batch-2"}
     assert ctx2.task.life_span is None
 
-    assert ctx.order == [{"batch_a"}, {"batch-2"}]
+    assert ctx.graph == {"batch-2": {"batch_a"}, "batch_a": set()}
     assert ctx2.matrix == {}
     assert ctx2.strategy.max_parallel == 10
     assert not ctx2.strategy.fail_fast
@@ -254,9 +258,12 @@ async def test_pipeline_matrix(assets: pathlib.Path) -> None:
     flow = parse_batch(workspace, config_file)
     ctx = await BatchContext.create(flow)
 
-    assert ctx.order == [
-        {"batch-1-o2-t1", "batch-1-o2-t2", "batch-1-o1-t1", "batch-1-e3-o3-t3"}
-    ]
+    assert ctx.graph == {
+        "batch-1-e3-o3-t3": set(),
+        "batch-1-o1-t1": set(),
+        "batch-1-o2-t1": set(),
+        "batch-1-o2-t2": set(),
+    }
 
     ctx2 = await ctx.with_task("batch-1-o2-t2", needs={})
     assert ctx2.task.id is None
@@ -286,9 +293,12 @@ async def test_pipeline_matrix_with_strategy(assets: pathlib.Path) -> None:
     flow = parse_batch(workspace, config_file)
     ctx = await BatchContext.create(flow)
 
-    assert ctx.order == [
-        {"batch-1-o2-t1", "batch-1-o2-t2", "batch-1-o1-t1", "batch-1-e3-o3-t3"}
-    ]
+    assert ctx.graph == {
+        "batch-1-e3-o3-t3": set(),
+        "batch-1-o1-t1": set(),
+        "batch-1-o2-t1": set(),
+        "batch-1-o2-t2": set(),
+    }
 
     ctx2 = await ctx.with_task("batch-1-e3-o3-t3", needs={})
     assert ctx2.task.id is None
