@@ -356,7 +356,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
                 volume_ctx = await self.find_volume(volume.id)
                 click.echo(f"Create volume {click.style(volume.id, bold=True)}")
                 await self.run_subproc(
-                    "neuro" "mkdir", "--parents", str(volume_ctx.remote),
+                    "neuro", "mkdir", "--parents", str(volume_ctx.remote),
                 )
 
     # images subsystem

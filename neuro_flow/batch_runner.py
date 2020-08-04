@@ -85,7 +85,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         for volume in ctx.volumes.values():
             if volume.local is not None:
                 # TODO: sync volumes if needed
-                pass
+                raise NotImplementedError("Volumes sync is not supported")
 
         toposorter = graphlib.TopologicalSorter(ctx.graph)
         # check fast for the graph cycle error
@@ -185,7 +185,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                     )
                     return
 
-                # have no idea what timeout is better;
+                # AS: I have no idea what timeout is better;
                 # too short value bombards servers,
                 # too long timeout makes the waiting longer than expected
                 # The missing events subsystem would be great for this task :)
