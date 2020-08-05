@@ -31,6 +31,7 @@ setup(
         "humanize>=0.5.1",
         'backports-datetime-fromisoformat>=1.0.0; python_version<"3.7"',
         'async_exit_stack>=1.0.1; python_version<"3.7"',
+        "neuro-extras>=20.8.5a0",
     ],
     packages=find_packages(),
     classifiers=[
