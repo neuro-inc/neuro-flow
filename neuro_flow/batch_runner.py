@@ -19,6 +19,7 @@ from typing_extensions import AsyncContextManager
 from yarl import URL
 
 from . import ast
+from .commands import CmdProcessor
 from .context import BatchContext, DepCtx, Result
 from .parser import ConfigDir, parse_batch
 from .storage import BatchStorage, FinishedTask, StartedTask
@@ -299,6 +300,18 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         task: StartedTask,
         descr: JobDescription,
     ) -> FinishedTask:
+        async with CmdProcessor() as proc:
+            buf = bytearray()
+            async for chunk in self._client.jobs.monitor(task.raw_id):
+                buf.extend(chunk)
+                if b"\n" in buf:
+                    blines = buf.splitlines(keepends=True)
+                    buf = blines.pop(-1)
+                    for bline in blines:
+                        line = bline.decode("utf-8", "replace")
+                        await proc.feed(line)
+            line = buf.decode("utf-8", "replace")
+            await proc.feed(line)
         return await self._storage.finish_task(
             bake_id, attempt_no, task_no, cardinality, task, descr
         )
