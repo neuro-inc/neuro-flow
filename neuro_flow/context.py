@@ -7,6 +7,7 @@ from typing import (
     AbstractSet,
     ClassVar,
     Dict,
+    List,
     Mapping,
     Optional,
     Sequence,
@@ -132,6 +133,7 @@ class JobCtx(ExecUnitCtx):
     detach: bool
     browse: bool
     port_forward: Sequence[str]
+    multi: bool
 
 
 @dataclass(frozen=True)
@@ -353,6 +355,11 @@ class LiveContext(BaseContext):
             raise NotAvailable("job")
         return self._job
 
+    @property
+    def job_ids(self) -> List[str]:
+        assert isinstance(self._ast_flow, self.FLOW_TYPE)
+        return sorted(self._ast_flow.jobs)
+
     async def with_job(self, job_id: str) -> "LiveContext":
         if self._job is not None:
             raise TypeError(
@@ -392,6 +399,8 @@ class LiveContext(BaseContext):
         if job.port_forward is not None:
             port_forward = [await val.eval(self) for val in job.port_forward]
 
+        multi = bool(await job.multi.eval(self))
+
         job_ctx = JobCtx(
             id=job_id,
             detach=bool(await job.detach.eval(self)),
@@ -409,8 +418,9 @@ class LiveContext(BaseContext):
             http_port=await job.http_port.eval(self),
             http_auth=await job.http_auth.eval(self),
             port_forward=port_forward,
+            multi=multi,
         )
-        return replace(self, _job=job_ctx, _env=env,)
+        return replace(self, _job=job_ctx, _env=env)
 
 
 @dataclass(frozen=True)

@@ -473,6 +473,7 @@ JOB = {
     "detach": OptBoolExpr,
     "browse": OptBoolExpr,
     "port_forward": SimpleSeq(PortPairExpr),
+    "multi": OptBoolExpr,
     **EXEC_UNIT,
 }
 

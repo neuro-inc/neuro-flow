@@ -93,6 +93,7 @@ class Job(ExecUnit):
     detach: OptBoolExpr
     browse: OptBoolExpr
     port_forward: Optional[Sequence[PortPairExpr]]
+    multi: OptBoolExpr
 
 
 @dataclass(frozen=True)
