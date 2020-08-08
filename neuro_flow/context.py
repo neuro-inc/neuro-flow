@@ -1,5 +1,6 @@
 # Contexts
 from dataclasses import dataclass, field, replace
+import secrets
 
 import enum
 import itertools
@@ -134,6 +135,22 @@ class JobCtx(ExecUnitCtx):
     browse: bool
     port_forward: Sequence[str]
     multi: bool
+
+
+@dataclass(frozen=True)
+class MultiCtx:
+    args: str
+    suffix: str
+
+
+@dataclass(frozen=True)
+class JobMetaCtx(ExecUnitCtx):
+    # Metadata used for jobs lookup
+    id: str
+    multi: bool
+    title: Optional[str]
+    name: Optional[str]
+    tags: AbstractSet[str]
 
 
 @dataclass(frozen=True)
@@ -345,9 +362,10 @@ class BaseContext(RootABC):
 class LiveContext(BaseContext):
     FLOW_TYPE: ClassVar[Type[ast.LiveFlow]] = field(init=False, default=ast.LiveFlow)
     LOOKUP_KEYS: ClassVar[Tuple[str, ...]] = field(
-        init=False, default=BaseContext.LOOKUP_KEYS + ("job",)
+        init=False, default=BaseContext.LOOKUP_KEYS + ("job", "multi")
     )
     _job: Optional[JobCtx] = None
+    _multi: Optional[MultiCtx] = None
 
     @property
     def job(self) -> JobCtx:
@@ -356,14 +374,38 @@ class LiveContext(BaseContext):
         return self._job
 
     @property
+    def multi(self) -> JobCtx:
+        if self._multi is None:
+            raise NotAvailable("multi")
+        return self._multi
+
+    @property
     def job_ids(self) -> List[str]:
         assert isinstance(self._ast_flow, self.FLOW_TYPE)
         return sorted(self._ast_flow.jobs)
 
+    def is_multi(self, job_id: str) -> bool:
+        try:
+            job = self._ast_flow.jobs[job_id]
+        except KeyError:
+            raise UnknownJob(job_id)
+        return bool(job.multi)  # None is False
+
+    async def with_multi(self, suffix: Optional[str], args: Sequence[str]) -> "LiveContext":
+        if self._multi is not None:
+            raise TypeError(
+                "Cannot enter into the multi context, "
+                "if the multi is already initialized"
+            )
+        assert isinstance(self._ast_flow, self.FLOW_TYPE)
+        if suffix is None:
+            suffix = secrets.token_hex(5)
+        return replace(self, _multi=MultiCtx(suffix))
+
     async def with_job(self, job_id: str) -> "LiveContext":
         if self._job is not None:
             raise TypeError(
-                "Cannot enter into the job context, if job is already initialized"
+                "Cannot enter into the job context, if the job is already initialized"
             )
         assert isinstance(self._ast_flow, self.FLOW_TYPE)
 
@@ -371,6 +413,8 @@ class LiveContext(BaseContext):
             job = self._ast_flow.jobs[job_id]
         except KeyError:
             raise UnknownJob(job_id)
+
+        multi = bool(job.multi)  # None is False
 
         tags = set()
         if job.tags is not None:
@@ -399,14 +443,12 @@ class LiveContext(BaseContext):
         if job.port_forward is not None:
             port_forward = [await val.eval(self) for val in job.port_forward]
 
-        multi = bool(await job.multi.eval(self))
-
         job_ctx = JobCtx(
             id=job_id,
             detach=bool(await job.detach.eval(self)),
             browse=bool(await job.browse.eval(self)),
             title=title,
-            name=(await job.name.eval(self)),
+            name=await job.name.eval(self),
             image=await job.image.eval(self),
             preset=preset,
             entrypoint=await job.entrypoint.eval(self),

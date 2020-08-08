@@ -4,6 +4,7 @@ import asyncio
 import click
 import datetime
 import humanize
+import secrets
 import shlex
 import sys
 from neuromation.api import Client, Factory, JobDescription, JobStatus, ResourceNotFound
@@ -175,70 +176,92 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
             click.echo(f"Job {click.style(job_id, bold=True)} is not running")
             sys.exit(1)
 
-    async def run(self, job_id: str) -> None:
+    async def run(
+        self, job_id: str, suffix: Optional[str], args: Optional[Tuple[str]]
+    ) -> None:
         """Run a named job"""
+
         job_ctx = await self.ensure_job(job_id)
         job = job_ctx.job
 
-        try:
-            descr = await self.resolve_job_by_name(job.name, job.tags)
-            if descr.status == JobStatus.PENDING:
-                click.echo(
-                    f"Job {click.style(job_id, bold=True)} is pending, try again later"
+        if not job.multi:
+            if suffix is not None:
+                raise ValueError("Job suffixes are supported by multi-jobs only")
+            if args is not None:
+                raise ValueError(
+                    "Additional job arguments are supported " "by multi-jobs only"
                 )
-                sys.exit(2)
-            if descr.status == JobStatus.RUNNING:
-                click.echo(
-                    f"Job {click.style(job_id, bold=True)} is running, connecting..."
-                )
-                # attach to job if needed, browse first
-                if job.browse:
-                    await self.run_subproc("neuro", "job", "browse", descr.id)
-                if not job.detach:
-                    await self.run_subproc("neuro", "attach", descr.id)
-                return
-            # Here the status is SUCCEDED or FAILED, restart
-        except ResourceNotFound:
-            # Job does not exist, run it
-            pass
+            try:
+                descr = await self.resolve_job_by_name(job.name, job.tags)
+                if descr.status == JobStatus.PENDING:
+                    click.echo(
+                        f"Job {click.style(job_id, bold=True)} is pending, "
+                        "try again later"
+                    )
+                    sys.exit(2)
+                if descr.status == JobStatus.RUNNING:
+                    click.echo(
+                        f"Job {click.style(job_id, bold=True)} is running, "
+                        "connecting..."
+                    )
+                    # attach to job if needed, browse first
+                    if job.browse:
+                        await self.run_subproc("neuro", "job", "browse", descr.id)
+                    if not job.detach:
+                        await self.run_subproc("neuro", "attach", descr.id)
+                    return
+                # Here the status is SUCCEDED or FAILED, restart
+            except ResourceNotFound:
+                # Job does not exist, run it
+                pass
+        else:
+            if suffix is None:
+                suffix = secrets.token_hex(5)
 
-        args = ["run"]
+        run_args = ["run"]
         if job.title:
-            args.append(f"--description={job.title}")
+            run_args.append(f"--description={job.title}")
         if job.name:
-            args.append(f"--name={job.name}")
+            run_args.append(f"--name={job.name}")
         if job.preset is not None:
-            args.append(f"--preset={job.preset}")
+            run_args.append(f"--preset={job.preset}")
         if job.http_port is not None:
-            args.append(f"--http={job.http_port}")
+            run_args.append(f"--http={job.http_port}")
         if job.http_auth is not None:
             if job.http_auth:
-                args.append(f"--http-auth")
+                run_args.append(f"--http-auth")
             else:
-                args.append(f"--no-http-auth")
+                run_args.append(f"--no-http-auth")
         if job.entrypoint:
-            args.append(f"--entrypoint={job.entrypoint}")
+            run_args.append(f"--entrypoint={job.entrypoint}")
         if job.workdir is not None:
             raise NotImplementedError("workdir is not supported")
         for k, v in job_ctx.env.items():
-            args.append(f"--env={k}={v}")
+            run_args.append(f"--env={k}={v}")
         for v in job.volumes:
-            args.append(f"--volume={v}")
+            run_args.append(f"--volume={v}")
         for t in job.tags:
-            args.append(f"--tag={t}")
+            run_args.append(f"--tag={t}")
         if job.life_span is not None:
-            args.append(f"--life-span={int(job.life_span)}s")
+            run_args.append(f"--life-span={int(job.life_span)}s")
         if job.browse:
-            args.append(f"--browse")
+            run_args.append(f"--browse")
         if job.detach:
-            args.append(f"--detach")
+            run_args.append(f"--detach")
         for pf in job.port_forward:
-            args.append(f"--port-forward={pf}")
+            run_args.append(f"--port-forward={pf}")
 
-        args.append(job.image)
+        if job.multi:
+            run_args.append(f"--tag=multi:{suffix}")
+
+        run_args.append(job.image)
         if job.cmd:
-            args.extend(shlex.split(job.cmd))
-        await self.run_subproc("neuro", *args)
+            run_args.extend(shlex.split(job.cmd))
+
+        if job.multi and args:
+            run_args.extend(args)
+
+        await self.run_subproc("neuro", *run_args)
 
     async def logs(self, job_id: str) -> None:
         """Return job logs"""

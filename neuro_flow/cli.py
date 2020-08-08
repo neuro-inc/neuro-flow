@@ -68,17 +68,24 @@ async def ps(config_dir: ConfigDir) -> None:
 
 
 @main.command()
+@click.option("--suff", help="Optional suffix for multi-jobs")
 @click.argument("job-id")
+@click.argument("args", nargs=-1)
 @wrap_async
-async def run(config_dir: ConfigDir, job_id: str) -> None:
+async def run(
+    config_dir: ConfigDir, job_id: str, suff: Optional[str], args: Optional[Tuple[str]]
+) -> None:
     """Run a job.
 
     RUN job JOB-ID or ATTACH to it if the job is already running
+
+    For multi-jobs an explicit job suffix can be used with explicit job arguments.
     """
     config_path = find_live_config(config_dir)
     flow = parse_live(config_path.workspace, config_path.config_file)
+    breakpoint()
     async with LiveRunner(flow) as runner:
-        await runner.run(job_id)
+        await runner.run(job_id, suff, args)
 
 
 @main.command()
