@@ -5,7 +5,7 @@ import logging
 import sys
 from neuromation.api import get as api_get
 from neuromation.cli.asyncio_utils import Runner
-from typing import Any, Awaitable, Callable, Optional, TypeVar
+from typing import Any, Awaitable, Callable, Optional, Tuple, TypeVar
 
 from .batch_runner import BatchRunner
 from .live_runner import LiveRunner
@@ -83,7 +83,6 @@ async def run(
     """
     config_path = find_live_config(config_dir)
     flow = parse_live(config_path.workspace, config_path.config_file)
-    breakpoint()
     async with LiveRunner(flow) as runner:
         await runner.run(job_id, suff, args)
 

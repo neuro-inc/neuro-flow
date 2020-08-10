@@ -73,7 +73,7 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
                 port_forward=None,
-                multi=OptBoolExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                multi=None,
             )
         },
     )
@@ -242,7 +242,7 @@ def test_parse_full(assets: pathlib.Path) -> None:
                         Pos(0, 0, config_file), Pos(0, 0, config_file), "2211:22"
                     )
                 ],
-                multi=OptBoolExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                multi=None,
             )
         },
     )
@@ -300,7 +300,7 @@ def test_parse_bash(assets: pathlib.Path) -> None:
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
                 port_forward=None,
-                multi=OptBoolExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                multi=None,
             )
         },
     )
@@ -358,7 +358,7 @@ def test_parse_python(assets: pathlib.Path) -> None:
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
                 port_forward=None,
-                multi=OptBoolExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                multi=None,
             )
         },
     )
@@ -462,9 +462,7 @@ def test_parse_multi(assets: pathlib.Path) -> None:
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
                 port_forward=None,
-                multi=OptBoolExpr(
-                    Pos(0, 0, config_file), Pos(0, 0, config_file), "True"
-                ),
+                multi=True,
             )
         },
     )

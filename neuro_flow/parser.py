@@ -471,7 +471,7 @@ EXEC_UNIT = {
 
 
 def parse_bool(ctor: ConfigConstructor, node: yaml.MappingNode) -> bool:
-    return ctor.construct_yaml_bool(node)  # type: ignore[no-untyped-call]
+    return ctor.construct_yaml_bool(node)  # type: ignore[no-untyped-call,no-any-return]
 
 
 Loader.add_path_resolver(  # type: ignore

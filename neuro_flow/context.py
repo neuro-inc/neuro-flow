@@ -1,9 +1,10 @@
 # Contexts
 from dataclasses import dataclass, field, replace
-import secrets
 
 import enum
 import itertools
+import secrets
+import shlex
 from typing import (
     AbstractSet,
     ClassVar,
@@ -144,12 +145,10 @@ class MultiCtx:
 
 
 @dataclass(frozen=True)
-class JobMetaCtx(ExecUnitCtx):
+class JobMetaCtx:
     # Metadata used for jobs lookup
     id: str
     multi: bool
-    title: Optional[str]
-    name: Optional[str]
     tags: AbstractSet[str]
 
 
@@ -285,8 +284,7 @@ class BaseContext(RootABC):
             life_span = None
             preset = None
 
-        if not tags:
-            tags = {f"flow:{flow.id}"}
+        tags.add(f"flow:{flow.id}")
 
         defaults = DefaultsCtx(
             tags=tags, workdir=workdir, life_span=life_span, preset=preset,
@@ -362,9 +360,10 @@ class BaseContext(RootABC):
 class LiveContext(BaseContext):
     FLOW_TYPE: ClassVar[Type[ast.LiveFlow]] = field(init=False, default=ast.LiveFlow)
     LOOKUP_KEYS: ClassVar[Tuple[str, ...]] = field(
-        init=False, default=BaseContext.LOOKUP_KEYS + ("job", "multi")
+        init=False, default=BaseContext.LOOKUP_KEYS + ("job", "multi", "meta")
     )
     _job: Optional[JobCtx] = None
+    _meta: Optional[JobMetaCtx] = None
     _multi: Optional[MultiCtx] = None
 
     @property
@@ -374,10 +373,16 @@ class LiveContext(BaseContext):
         return self._job
 
     @property
-    def multi(self) -> JobCtx:
+    def multi(self) -> MultiCtx:
         if self._multi is None:
             raise NotAvailable("multi")
         return self._multi
+
+    @property
+    def meta(self) -> JobMetaCtx:
+        if self._meta is None:
+            raise NotAvailable("meta")
+        return self._meta
 
     @property
     def job_ids(self) -> List[str]:
@@ -385,13 +390,16 @@ class LiveContext(BaseContext):
         return sorted(self._ast_flow.jobs)
 
     def is_multi(self, job_id: str) -> bool:
+        assert isinstance(self._ast_flow, self.FLOW_TYPE)
         try:
             job = self._ast_flow.jobs[job_id]
         except KeyError:
             raise UnknownJob(job_id)
         return bool(job.multi)  # None is False
 
-    async def with_multi(self, suffix: Optional[str], args: Sequence[str]) -> "LiveContext":
+    async def with_multi(
+        self, suffix: Optional[str], args: Sequence[str]
+    ) -> "LiveContext":
         if self._multi is not None:
             raise TypeError(
                 "Cannot enter into the multi context, "
@@ -400,7 +408,31 @@ class LiveContext(BaseContext):
         assert isinstance(self._ast_flow, self.FLOW_TYPE)
         if suffix is None:
             suffix = secrets.token_hex(5)
-        return replace(self, _multi=MultiCtx(suffix))
+        return replace(
+            self,
+            _multi=MultiCtx(
+                suffix=suffix, args=" ".join(shlex.quote(arg) for arg in args)
+            ),
+        )
+
+    async def with_meta(self, job_id: str) -> "LiveContext":
+        if self._meta is not None:
+            raise TypeError(
+                "Cannot enter into the meta context, "
+                "if the meta is already initialized"
+            )
+        assert isinstance(self._ast_flow, self.FLOW_TYPE)
+        try:
+            job = self._ast_flow.jobs[job_id]
+        except KeyError:
+            raise UnknownJob(job_id)
+
+        tags = set(self.defaults.tags)
+        tags.add(f"job:{job_id}")
+
+        return replace(
+            self, _meta=JobMetaCtx(id=job_id, multi=bool(job.multi), tags=tags)
+        )
 
     async def with_job(self, job_id: str) -> "LiveContext":
         if self._job is not None:
@@ -409,18 +441,16 @@ class LiveContext(BaseContext):
             )
         assert isinstance(self._ast_flow, self.FLOW_TYPE)
 
-        try:
-            job = self._ast_flow.jobs[job_id]
-        except KeyError:
-            raise UnknownJob(job_id)
+        tags = set(self.meta.tags)
 
-        multi = bool(job.multi)  # None is False
+        if self.meta.multi:
+            tags.add(f"suffix:{self.multi.suffix}")
 
-        tags = set()
+        # Always exists since the meta context is previously creted
+        job = self._ast_flow.jobs[job_id]
+
         if job.tags is not None:
-            tags = {await v.eval(self) for v in job.tags}
-        if not tags:
-            tags = {f"job:{job_id}"}
+            tags |= {await v.eval(self) for v in job.tags}
 
         env = dict(self.env)
         if job.env is not None:
@@ -460,7 +490,7 @@ class LiveContext(BaseContext):
             http_port=await job.http_port.eval(self),
             http_auth=await job.http_auth.eval(self),
             port_forward=port_forward,
-            multi=multi,
+            multi=self.meta.multi,
         )
         return replace(self, _job=job_ctx, _env=env)
 
