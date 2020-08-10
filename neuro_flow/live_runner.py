@@ -92,7 +92,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
 
     async def ensure_job_meta(self, job_id: str) -> LiveContext:
         try:
-            return await self.ctx.with_job_meta(job_id)
+            return await self.ctx.with_meta(job_id)
         except UnknownJob:
             click.secho(f"Unknown job {click.style(job_id, bold=True)}", fg="red")
             jobs = sorted([job for job in self._flow.jobs.keys()])
