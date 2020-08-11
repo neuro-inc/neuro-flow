@@ -38,6 +38,7 @@ async def test_env_from_job(assets: pathlib.Path) -> None:
     config_file = workspace / "live-full.yml"
     flow = parse_live(workspace, config_file, id=config_file.stem)
     ctx = await LiveContext.create(flow)
+    ctx = await ctx.with_meta("test_a")
     ctx2 = await ctx.with_job("test_a")
     assert ctx2.env == {
         "global_a": "val-a",
@@ -96,7 +97,7 @@ async def test_defaults(assets: pathlib.Path) -> None:
     config_file = workspace / "live-full.yml"
     flow = parse_live(workspace, config_file, id=config_file.stem)
     ctx = await LiveContext.create(flow)
-    assert ctx.defaults.tags == {"tag-a", "tag-b"}
+    assert ctx.defaults.tags == {"tag-a", "tag-b", "flow:live-full"}
     assert ctx.defaults.workdir == RemotePath("/global/dir")
     assert ctx.defaults.life_span == 100800.0
     assert ctx.defaults.preset == "cpu-large"
@@ -116,6 +117,7 @@ async def test_job(assets: pathlib.Path) -> None:
     config_file = workspace / "live-full.yml"
     flow = parse_live(workspace, config_file, id=config_file.stem)
     ctx = await LiveContext.create(flow)
+    ctx = await ctx.with_meta("test_a")
 
     ctx2 = await ctx.with_job("test_a")
     assert ctx2.job.id == "test_a"
@@ -129,7 +131,14 @@ async def test_job(assets: pathlib.Path) -> None:
     assert ctx2.job.cmd == "echo abc"
     assert ctx2.job.workdir == RemotePath("/local/dir")
     assert ctx2.job.volumes == ["storage:dir:/var/dir:ro", "storage:dir:/var/dir:ro"]
-    assert ctx2.job.tags == {"tag-1", "tag-2", "tag-a", "tag-b"}
+    assert ctx2.job.tags == {
+        "tag-1",
+        "tag-2",
+        "tag-a",
+        "tag-b",
+        "flow:live-full",
+        "job:test_a",
+    }
     assert ctx2.job.life_span == 10500.0
     assert ctx2.job.port_forward == ["2211:22"]
     assert ctx2.job.detach
@@ -142,6 +151,7 @@ async def test_bad_expr_type_after_eval(assets: pathlib.Path) -> None:
 
     flow = parse_live(workspace, config_file, id=config_file.stem)
     ctx = await LiveContext.create(flow)
+    ctx = await ctx.with_meta("test")
 
     with pytest.raises(EvalError) as cm:
         await ctx.with_job("test")
@@ -181,7 +191,7 @@ async def test_pipeline_minimal_ctx(assets: pathlib.Path) -> None:
     assert ctx2.task.cmd == "echo abc"
     assert ctx2.task.workdir == RemotePath("/local/dir")
     assert ctx2.task.volumes == ["storage:dir:/var/dir:ro", "storage:dir:/var/dir:ro"]
-    assert ctx2.task.tags == {"tag-1", "tag-2", "tag-a", "tag-b"}
+    assert ctx2.task.tags == {"tag-1", "tag-2", "tag-a", "tag-b", "flow:batch-minimal"}
     assert ctx2.task.life_span == 10500.0
 
     assert ctx.graph == {"test_a": set()}
