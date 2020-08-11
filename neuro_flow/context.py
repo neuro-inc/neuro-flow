@@ -398,7 +398,7 @@ class LiveContext(BaseContext):
         return bool(job.multi)  # None is False
 
     async def with_multi(
-        self, suffix: Optional[str], args: Sequence[str]
+        self, *, suffix: Optional[str], args: Optional[Sequence[str]]
     ) -> "LiveContext":
         if self._multi is not None:
             raise TypeError(
@@ -408,12 +408,11 @@ class LiveContext(BaseContext):
         assert isinstance(self._ast_flow, self.FLOW_TYPE)
         if suffix is None:
             suffix = secrets.token_hex(5)
-        return replace(
-            self,
-            _multi=MultiCtx(
-                suffix=suffix, args=" ".join(shlex.quote(arg) for arg in args)
-            ),
-        )
+        if args is None:
+            args_str = ""
+        else:
+            args_str = " ".join(shlex.quote(arg) for arg in args)
+        return replace(self, _multi=MultiCtx(suffix=suffix, args=args_str),)
 
     async def with_meta(self, job_id: str) -> "LiveContext":
         if self._meta is not None:

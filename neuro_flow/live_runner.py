@@ -10,7 +10,7 @@ import sys
 from neuromation.api import Client, Factory, JobDescription, JobStatus, ResourceNotFound
 from neuromation.cli.formatters import ftable  # TODO: extract into a separate library
 from types import TracebackType
-from typing import AbstractSet, AsyncIterator, List, Optional, Tuple, Type
+from typing import AsyncIterator, Iterable, List, Optional, Tuple, Type
 from typing_extensions import AsyncContextManager
 
 from . import ast
@@ -35,7 +35,7 @@ class JobInfo:
     id: str
     status: JobStatus
     raw_id: Optional[str]  # low-level job id, None for never runned jobs
-    tags: AbstractSet[str]
+    tags: Iterable[str]
     when: Optional[datetime.datetime]
 
 
@@ -77,7 +77,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
         assert self._client is not None
         return self._client
 
-    async def run_subproc(self, exe: str, *args: str) -> None:
+    async def _run_subproc(self, exe: str, *args: str) -> None:
         proc = await asyncio.create_subprocess_exec(exe, *args)
         try:
             retcode = await proc.wait()
@@ -90,45 +90,68 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
                 proc.kill()
                 await proc.wait()
 
-    async def ensure_job_meta(self, job_id: str) -> LiveContext:
+    async def _ensure_meta(
+        self, job_id: str, suffix: Optional[str], *, skip_check: bool = False
+    ) -> LiveContext:
         try:
-            return await self.ctx.with_meta(job_id)
+            ctx = await self.ctx.with_meta(job_id)
+            if ctx.multi:
+                if suffix is None:
+                    if not skip_check:
+                        raise click.BadArgumentUsage(
+                            "Please provide a suffix for multi-job"
+                        )
+            else:
+                if suffix is not None:
+                    raise click.BadArgumentUsage(
+                        "Suffix is not allowed for non-multijob"
+                    )
+            return ctx
         except UnknownJob:
             click.secho(f"Unknown job {click.style(job_id, bold=True)}", fg="red")
-            jobs = sorted([job for job in self._flow.jobs.keys()])
-            jobs_str = ",".join(jobs)
+            jobs_str = ",".join(self.ctx.job_ids)
             click.secho(f"Existing jobs: {jobs_str}", dim=True)
             sys.exit(1)
 
-    async def resolve_jobs(
-        self, name: Optional[str], tags: AbstractSet[str]
+    async def _resolve_jobs(
+        self, meta_ctx: LiveContext
     ) -> AsyncIterator[JobDescription]:
+        meta = meta_ctx.meta
         found = False
-        async for job in self.client.jobs.list(
-            name=name or "",
-            tags=tags,
-            reverse=True,
-            limit=100,  # fixme: limit should be 1 but it doesn't work
-        ):
-            found = True
-            yield job
+        if meta.multi:
+            async for job in self.client.jobs.list(
+                tags=meta.tags, reverse=True,
+            ):
+                found = True
+                yield job
+        else:
+            async for job in self.client.jobs.list(
+                tags=meta.tags,
+                reverse=True,
+                limit=100,  # fixme: limit should be 1 but it doesn't work
+            ):
+                found = True
+                yield job
         if not found:
             raise ResourceNotFound
 
-    async def job_status(self, job_id: str) -> JobInfo:
-        job_ctx = await self.ensure_job(job_id)
-        job = job_ctx.job
+    async def _job_status(self, job_id: str) -> List[JobInfo]:
+        meta_ctx = await self._ensure_meta(job_id, None, skip_check=True)
+        ret = []
         try:
-            descr = await self.resolve_jobs(job.name, job.tags)
-            if descr.status == JobStatus.PENDING:
-                when = descr.history.created_at
-            elif descr.status == JobStatus.RUNNING:
-                when = descr.history.started_at
-            else:
-                when = descr.history.finished_at
-            return JobInfo(job_id, descr.status, descr.id, job.tags, when)
+            async for descr in self._resolve_jobs(meta_ctx):
+                if descr.status == JobStatus.PENDING:
+                    when = descr.history.created_at
+                elif descr.status == JobStatus.RUNNING:
+                    when = descr.history.started_at
+                else:
+                    when = descr.history.finished_at
+                ret.append(JobInfo(job_id, descr.status, descr.id, descr.tags, when))
         except ResourceNotFound:
-            return JobInfo(job_id, JobStatus.UNKNOWN, None, job.tags, None)
+            ret.append(
+                JobInfo(job_id, JobStatus.UNKNOWN, None, meta_ctx.meta.tags, None)
+            )
+        return ret
 
     async def ps(self) -> None:
         """Return statuses for all jobs from the flow"""
@@ -145,36 +168,36 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
             ]
         )
         tasks = []
-        for job_id in sorted(self._flow.jobs):
-            tasks.append(loop.create_task(self.job_status(job_id)))
+        for job_id in self.ctx.job_ids:
+            tasks.append(loop.create_task(self._job_status(job_id)))
 
-        for info in await asyncio.gather(*tasks):
-            if info.when is None:
-                when_humanized = "N/A"
-            else:
-                delta = datetime.datetime.now(datetime.timezone.utc) - info.when
-                if delta < datetime.timedelta(days=1):
-                    when_humanized = humanize.naturaltime(delta)
+        for bulk in await asyncio.gather(*tasks):
+            async for info in bulk:
+                if info.when is None:
+                    when_humanized = "N/A"
                 else:
-                    when_humanized = humanize.naturaldate(info.when.astimezone())
-            rows.append(
-                [
-                    info.id,
-                    format_job_status(info.status),
-                    info.raw_id or "N/A",
-                    when_humanized,
-                ]
-            )
+                    delta = datetime.datetime.now(datetime.timezone.utc) - info.when
+                    if delta < datetime.timedelta(days=1):
+                        when_humanized = humanize.naturaltime(delta)
+                    else:
+                        when_humanized = humanize.naturaldate(info.when.astimezone())
+                rows.append(
+                    [
+                        info.id,
+                        format_job_status(info.status),
+                        info.raw_id or "N/A",
+                        when_humanized,
+                    ]
+                )
 
         for line in ftable.table(rows):
             click.echo(line)
 
-    async def status(self, job_id: str) -> None:
-        job_ctx = await self.ensure_job_meta(job_id)
-        job = job_ctx.job
+    async def status(self, job_id: str, suffix: Optional[str]) -> None:
+        meta_ctx = await self._ensure_meta(job_id, suffix)
         try:
-            descr = await self.resolve_jobs(job.name, job.tags)
-            await self.run_subproc("neuro", "status", descr.id)
+            async for descr in self._resolve_jobs(meta_ctx):
+                await self._run_subproc("neuro", "status", descr.id)
         except ResourceNotFound:
             click.echo(f"Job {click.style(job_id, bold=True)} is not running")
             sys.exit(1)
@@ -184,18 +207,16 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
     ) -> None:
         """Run a named job"""
 
-        job_ctx = await self.ensure_job(job_id)
-        job = job_ctx.job
-
-        if not job.multi:
-            if suffix is not None:
-                raise ValueError("Job suffixes are supported by multi-jobs only")
+        if not self.ctx.is_multi(job_id):
+            meta_ctx = await self._ensure_meta(job_id, suffix)
             if args is not None:
                 raise ValueError(
                     "Additional job arguments are supported " "by multi-jobs only"
                 )
             try:
-                descr = await self.resolve_jobs(job.name, job.tags)
+                async for descr in self._resolve_jobs(meta_ctx):
+                    # There is the only job for non-multi mode
+                    pass
                 if descr.status == JobStatus.PENDING:
                     click.echo(
                         f"Job {click.style(job_id, bold=True)} is pending, "
@@ -207,20 +228,27 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
                         f"Job {click.style(job_id, bold=True)} is running, "
                         "connecting..."
                     )
+                    job_ctx = await meta_ctx.with_job(job_id)
+                    job = job_ctx.job
                     # attach to job if needed, browse first
                     if job.browse:
-                        await self.run_subproc("neuro", "job", "browse", descr.id)
+                        await self._run_subproc("neuro", "job", "browse", descr.id)
                     if not job.detach:
-                        await self.run_subproc("neuro", "attach", descr.id)
+                        await self._run_subproc("neuro", "attach", descr.id)
                     return
                 # Here the status is SUCCEDED or FAILED, restart
             except ResourceNotFound:
                 # Job does not exist, run it
                 pass
+            job_ctx = await meta_ctx.with_job(job_id)
         else:
             if suffix is None:
                 suffix = secrets.token_hex(5)
+            meta_ctx = await self._ensure_meta(job_id, suffix)
+            multi_ctx = await meta_ctx.with_multi(suffix=suffix, args=args)
+            job_ctx = await multi_ctx.with_job(job_id)
 
+        job = job_ctx.job
         run_args = ["run"]
         if job.title:
             run_args.append(f"--description={job.title}")
@@ -264,40 +292,38 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
         if job.multi and args:
             run_args.extend(args)
 
-        await self.run_subproc("neuro", *run_args)
+        await self._run_subproc("neuro", *run_args)
 
-    async def logs(self, job_id: str) -> None:
+    async def logs(self, job_id: str, suffix: Optional[str]) -> None:
         """Return job logs"""
-        job_ctx = await self.ensure_job_meta(job_id)
-        job = job_ctx.job
+        meta_ctx = await self._ensure_meta(job_id, suffix)
         try:
-            descr = await self.resolve_jobs(job.name, job.tags)
-            await self.run_subproc("neuro", "logs", descr.id)
+            async for descr in self._resolve_jobs(meta_ctx):
+                await self._run_subproc("neuro", "logs", descr.id)
         except ResourceNotFound:
             click.echo(f"Job {click.style(job_id, bold=True)} is not running")
             sys.exit(1)
 
-    async def kill_job(self, job_id: str) -> bool:
+    async def kill_job(self, job_id: str, suffix: Optional[str]) -> bool:
         """Kill named job"""
-        job_ctx = await self.ensure_job_meta(job_id)
-        job = job_ctx.job
+        meta_ctx = await self._ensure_meta(job_id, suffix)
 
         try:
-            descr = await self.resolve_jobs(job.name, job.tags)
-            if descr.status in (JobStatus.PENDING, JobStatus.RUNNING):
-                await self.client.jobs.kill(descr.id)
-                descr = await self.client.jobs.status(descr.id)
-                while descr.status not in (JobStatus.SUCCEEDED, JobStatus.FAILED):
-                    await asyncio.sleep(0.2)
+            async for descr in self._resolve_jobs(meta_ctx):
+                if descr.status in (JobStatus.PENDING, JobStatus.RUNNING):
+                    await self.client.jobs.kill(descr.id)
                     descr = await self.client.jobs.status(descr.id)
-                return True
+                    while descr.status not in (JobStatus.SUCCEEDED, JobStatus.FAILED):
+                        await asyncio.sleep(0.2)
+                        descr = await self.client.jobs.status(descr.id)
+                    return True
         except ResourceNotFound:
             pass
         return False
 
-    async def kill(self, job_id: str) -> None:
+    async def kill(self, job_id: str, suffix: Optional[str]) -> None:
         """Kill named job"""
-        if await self.kill_job(job_id):
+        if await self.kill_job(job_id, suffix):
             click.echo(f"Killed job {click.style(job_id, bold=True)}")
         else:
             click.echo(f"Job {click.style(job_id, bold=True)} is not running")
@@ -307,17 +333,34 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
         tasks = []
         loop = asyncio.get_event_loop()
 
-        async def kill(job_id: str) -> Tuple[str, bool]:
-            return job_id, await self.kill_job(job_id)
+        async def kill(descr: JobDescription) -> str:
+            tag_dct = {}
+            for tag in descr.tags:
+                key, sep, val = tag.partition(":")
+                if sep:
+                    tag_dct[key] = val
+            job_id = tag_dct["job"]
+            suffix = tag_dct.get("suffix")
+            await self.client.jobs.kill(descr.id)
+            try:
+                descr = await self.client.jobs.status(descr.id)
+                while descr.status not in (JobStatus.SUCCEEDED, JobStatus.FAILED):
+                    await asyncio.sleep(0.2)
+                    descr = await self.client.jobs.status(descr.id)
+            except ResourceNotFound:
+                pass
+            if suffix:
+                return f"{job_id}[{suffix}]"
+            else:
+                return job_id
 
-        for job_id in sorted(self._flow.jobs):
-            tasks.append(loop.create_task(kill(job_id)))
+        async for descr in self.client.jobs.list(
+            tags=self.ctx.defaults.tags, statuses=(JobStatus.PENDING, JobStatus.RUNNING)
+        ):
+            tasks.append(loop.create_task(kill(descr)))
 
         for job_id, ret in await asyncio.gather(*tasks):
-            if ret:
-                click.echo(f"Killed job {click.style(job_id, bold=True)}")
-            else:
-                click.echo(f"Job {click.style(job_id, bold=True)} is not running")
+            click.echo(f"Killed job {click.style(job_id, bold=True)}")
 
     # volumes subsystem
 
@@ -336,7 +379,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
 
     async def upload(self, volume: str) -> None:
         volume_ctx = await self.find_volume(volume)
-        await self.run_subproc(
+        await self._run_subproc(
             "neuro",
             "cp",
             "--recursive",
@@ -348,7 +391,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
 
     async def download(self, volume: str) -> None:
         volume_ctx = await self.find_volume(volume)
-        await self.run_subproc(
+        await self._run_subproc(
             "neuro" "cp",
             "--recursive",
             "--update",
@@ -359,7 +402,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
 
     async def clean(self, volume: str) -> None:
         volume_ctx = await self.find_volume(volume)
-        await self.run_subproc("neuro", "rm", "--recursive", str(volume_ctx.remote))
+        await self._run_subproc("neuro", "rm", "--recursive", str(volume_ctx.remote))
 
     async def upload_all(self) -> None:
         for volume in self.ctx.volumes.values():
@@ -381,7 +424,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
             if volume.local is not None:
                 volume_ctx = await self.find_volume(volume.id)
                 click.echo(f"Create volume {click.style(volume.id, bold=True)}")
-                await self.run_subproc(
+                await self._run_subproc(
                     "neuro", "mkdir", "--parents", str(volume_ctx.remote),
                 )
 
@@ -418,4 +461,4 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
             cmd.append(f"--build-arg=arg")
         cmd.append(str(image_ctx.full_context_path))
         cmd.append(str(image_ctx.ref))
-        await self.run_subproc("neuro-extras", "image", "build", *cmd)
+        await self._run_subproc("neuro-extras", "image", "build", *cmd)
