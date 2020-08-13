@@ -3,7 +3,6 @@ from dataclasses import dataclass, field, replace
 
 import enum
 import itertools
-import secrets
 import shlex
 from typing import (
     AbstractSet,
@@ -398,7 +397,7 @@ class LiveContext(BaseContext):
         return bool(job.multi)  # None is False
 
     async def with_multi(
-        self, *, suffix: Optional[str], args: Optional[Sequence[str]]
+        self, *, suffix: str, args: Optional[Sequence[str]]
     ) -> "LiveContext":
         if self._multi is not None:
             raise TypeError(
@@ -406,8 +405,6 @@ class LiveContext(BaseContext):
                 "if the multi is already initialized"
             )
         assert isinstance(self._ast_flow, self.FLOW_TYPE)
-        if suffix is None:
-            suffix = secrets.token_hex(5)
         if args is None:
             args_str = ""
         else:
