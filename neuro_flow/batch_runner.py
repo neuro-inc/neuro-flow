@@ -301,17 +301,8 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         descr: JobDescription,
     ) -> FinishedTask:
         async with CmdProcessor() as proc:
-            buf = bytearray()
             async for chunk in self._client.jobs.monitor(task.raw_id):
-                buf.extend(chunk)
-                if b"\n" in buf:
-                    blines = buf.splitlines(keepends=True)
-                    buf = blines.pop(-1)
-                    for bline in blines:
-                        line = bline.decode("utf-8", "replace")
-                        await proc.feed(line)
-            line = buf.decode("utf-8", "replace")
-            await proc.feed(line)
+                await proc.feed_chunk(chunk)
         return await self._storage.finish_task(
-            bake_id, attempt_no, task_no, cardinality, task, descr
+            bake_id, attempt_no, task_no, cardinality, task, descr, proc.outputs
         )
