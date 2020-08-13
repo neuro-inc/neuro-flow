@@ -586,6 +586,7 @@ def parse_str(ctor: ConfigConstructor, node: yaml.MappingNode) -> str:
 
 
 Loader.add_path_resolver("flow:str", [(dict, "title")])  # type: ignore
+Loader.add_path_resolver("flow:str", [(dict, "id")])  # type: ignore
 Loader.add_constructor("flow:str", parse_str)  # type: ignore
 
 
@@ -616,14 +617,17 @@ def find_res_type(
 
 
 def parse_main(ctor: ConfigConstructor, node: yaml.MappingNode) -> ast.BaseFlow:
-    return parse_dict(
+    ret = parse_dict(
         ctor,
         node,
         FLOW,
         ast.BaseFlow,
         find_res_type=find_res_type,
-        extra={"id": ctor._id, "workspace": ctor._workspace},
+        extra={"workspace": ctor._workspace},
     )
+    if ret.id is None:
+        ret = dataclasses.replace(ret, id=ctor._id)
+    return ret
 
 
 Loader.add_path_resolver("flow:main", [])  # type: ignore
