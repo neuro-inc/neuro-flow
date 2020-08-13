@@ -81,6 +81,23 @@ jobs:
         cd ${{ volumes.project.mount }}
         python ${{ volumes.code.mount }}/train.py --data ${{ volumes.data.mount }}
 
+  multitrain:
+    image: ${{ images.img.ref }}
+    detach: True
+    life_span: 10d
+    volumes:
+      - ${{ volumes.data.ref_ro }}
+      - ${{ volumes.code.ref_rw }}
+      - ${{ volumes.config.ref_ro }}
+      - ${{ volumes.results.ref_rw }}
+    env:
+      EXPOSE_SSH: "yes"
+      PYTHONPATH: ${{ volumes.code.mount }}
+    multi: true
+    bash: |
+        cd ${{ volumes.project.mount }}
+        python ${{ volumes.code.mount }}/train.py --data ${{ volumes.data.mount }} ${{ multi.args }}
+
   jupyter:
     http_port: 8888
     browse: True

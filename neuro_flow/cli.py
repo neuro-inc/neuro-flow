@@ -5,7 +5,7 @@ import logging
 import sys
 from neuromation.api import get as api_get
 from neuromation.cli.asyncio_utils import Runner
-from typing import Any, Awaitable, Callable, Optional, TypeVar
+from typing import Any, Awaitable, Callable, Optional, Tuple, TypeVar
 
 from .batch_runner import BatchRunner
 from .live_runner import LiveRunner
@@ -68,23 +68,33 @@ async def ps(config_dir: ConfigDir) -> None:
 
 
 @main.command()
+@click.option("-s", "--suffix", help="Optional suffix for multi-jobs")
 @click.argument("job-id")
+@click.argument("args", nargs=-1)
 @wrap_async
-async def run(config_dir: ConfigDir, job_id: str) -> None:
+async def run(
+    config_dir: ConfigDir,
+    job_id: str,
+    suffix: Optional[str],
+    args: Optional[Tuple[str]],
+) -> None:
     """Run a job.
 
     RUN job JOB-ID or ATTACH to it if the job is already running
+
+    For multi-jobs an explicit job suffix can be used with explicit job arguments.
     """
     config_path = find_live_config(config_dir)
     flow = parse_live(config_path.workspace, config_path.config_file)
     async with LiveRunner(flow) as runner:
-        await runner.run(job_id)
+        await runner.run(job_id, suffix, args)
 
 
 @main.command()
 @click.argument("job-id")
+@click.argument("suffix", required=False)
 @wrap_async
-async def logs(config_dir: ConfigDir, job_id: str) -> None:
+async def logs(config_dir: ConfigDir, job_id: str, suffix: Optional[str]) -> None:
     """Print logs.
 
     Displys logs for JOB-ID
@@ -92,13 +102,14 @@ async def logs(config_dir: ConfigDir, job_id: str) -> None:
     config_path = find_live_config(config_dir)
     flow = parse_live(config_path.workspace, config_path.config_file)
     async with LiveRunner(flow) as runner:
-        await runner.logs(job_id)
+        await runner.logs(job_id, suffix)
 
 
 @main.command()
 @click.argument("job-id")
+@click.argument("suffix", required=False)
 @wrap_async
-async def status(config_dir: ConfigDir, job_id: str) -> None:
+async def status(config_dir: ConfigDir, job_id: str, suffix: Optional[str]) -> None:
     """Show job status.
 
     Print status for JOB-ID
@@ -106,13 +117,14 @@ async def status(config_dir: ConfigDir, job_id: str) -> None:
     config_path = find_live_config(config_dir)
     flow = parse_live(config_path.workspace, config_path.config_file)
     async with LiveRunner(flow) as runner:
-        await runner.status(job_id)
+        await runner.status(job_id, suffix)
 
 
 @main.command()
 @click.argument("job-id")
+@click.argument("suffix", required=False)
 @wrap_async
-async def kill(config_dir: ConfigDir, job_id: str) -> None:
+async def kill(config_dir: ConfigDir, job_id: str, suffix: Optional[str]) -> None:
     """Kill a job.
 
     Kill JOB-ID, use `kill ALL` for killing all jobs."""
@@ -120,8 +132,12 @@ async def kill(config_dir: ConfigDir, job_id: str) -> None:
     flow = parse_live(config_path.workspace, config_path.config_file)
     async with LiveRunner(flow) as runner:
         if job_id != "ALL":
-            await runner.kill(job_id)
+            await runner.kill(job_id, suffix)
         else:
+            if suffix is not None:
+                raise click.BadArgumentUsage(
+                    "Suffix is not supported when killing ALL jobs"
+                )
             await runner.kill_all()
 
 
@@ -203,7 +219,10 @@ async def build(config_dir: ConfigDir, image: str) -> None:
     config_path = find_live_config(config_dir)
     flow = parse_live(config_path.workspace, config_path.config_file)
     async with LiveRunner(flow) as runner:
-        await runner.build(image)
+        if image == "ALL":
+            await runner.build_all()
+        else:
+            await runner.build(image)
 
 
 # #### pipeline commands ####

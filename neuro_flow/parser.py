@@ -469,10 +469,22 @@ EXEC_UNIT = {
     "http_auth": OptBoolExpr,
 }
 
+
+def parse_bool(ctor: ConfigConstructor, node: yaml.MappingNode) -> bool:
+    return ctor.construct_yaml_bool(node)  # type: ignore[no-untyped-call,no-any-return]
+
+
+Loader.add_path_resolver(  # type: ignore
+    "flow:bool", [(dict, "jobs"), (dict, None), (dict, "multi")]
+)
+Loader.add_constructor("flow:bool", parse_bool)  # type: ignore
+
+
 JOB = {
     "detach": OptBoolExpr,
     "browse": OptBoolExpr,
     "port_forward": SimpleSeq(PortPairExpr),
+    "multi": None,
     **EXEC_UNIT,
 }
 
@@ -569,12 +581,12 @@ FLOW = {
 }
 
 
-def parse_opt_str(ctor: ConfigConstructor, node: yaml.MappingNode) -> str:
+def parse_str(ctor: ConfigConstructor, node: yaml.MappingNode) -> str:
     return str(ctor.construct_scalar(node))  # type: ignore[no-untyped-call]
 
 
-Loader.add_path_resolver("flow:opt_str", [(dict, "title")])  # type: ignore
-Loader.add_constructor("flow:opt_str", parse_opt_str)  # type: ignore
+Loader.add_path_resolver("flow:str", [(dict, "title")])  # type: ignore
+Loader.add_constructor("flow:str", parse_str)  # type: ignore
 
 
 def select_kind(ctor: ConfigConstructor, dct: Dict[str, Any]) -> Dict[str, Any]:

@@ -73,6 +73,7 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
                 port_forward=None,
+                multi=None,
             )
         },
     )
@@ -241,6 +242,7 @@ def test_parse_full(assets: pathlib.Path) -> None:
                         Pos(0, 0, config_file), Pos(0, 0, config_file), "2211:22"
                     )
                 ],
+                multi=None,
             )
         },
     )
@@ -298,6 +300,7 @@ def test_parse_bash(assets: pathlib.Path) -> None:
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
                 port_forward=None,
+                multi=None,
             )
         },
     )
@@ -355,6 +358,7 @@ def test_parse_python(assets: pathlib.Path) -> None:
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
                 port_forward=None,
+                multi=None,
             )
         },
     )
@@ -405,4 +409,60 @@ def test_bad_expr_type_before_eval(assets: pathlib.Path) -> None:
         """\
         'abc def' is not an integer
           in line 5, column 15"""
+    )
+
+
+def test_parse_multi(assets: pathlib.Path) -> None:
+    workspace = assets
+    config_file = workspace / "live-multi.yml"
+    flow = parse_live(workspace, config_file, id=config_file.stem)
+    assert flow == ast.LiveFlow(
+        Pos(0, 0, config_file),
+        Pos(6, 0, config_file),
+        id="live-multi",
+        workspace=workspace,
+        kind=ast.Kind.LIVE,
+        title=None,
+        images=None,
+        volumes=None,
+        defaults=None,
+        jobs={
+            "test": ast.Job(
+                Pos(3, 4, config_file),
+                Pos(6, 0, config_file),
+                name=OptStrExpr(Pos(3, 4, config_file), Pos(5, 0, config_file), None),
+                image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
+                preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                entrypoint=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                cmd=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "echo abc"
+                ),
+                workdir=OptRemotePathExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                env=None,
+                volumes=None,
+                tags=None,
+                life_span=OptLifeSpanExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                detach=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                browse=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                http_port=OptIntExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                http_auth=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                port_forward=None,
+                multi=True,
+            )
+        },
     )
