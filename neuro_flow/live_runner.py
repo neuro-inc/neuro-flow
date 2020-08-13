@@ -99,12 +99,12 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
                 if suffix is None:
                     if not skip_check:
                         raise click.BadArgumentUsage(
-                            "Please provide a suffix for multi-job"
+                            f"Please provide a suffix for multi-job {job_id}"
                         )
             else:
                 if suffix is not None:
                     raise click.BadArgumentUsage(
-                        "Suffix is not allowed for non-multijob"
+                        f"Suffix is not allowed for non-multijob {job_id}"
                     )
             return ctx
         except UnknownJob:
@@ -229,9 +229,9 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
 
         if not self.ctx.is_multi(job_id):
             meta_ctx = await self._ensure_meta(job_id, suffix)
-            if args is not None:
-                raise ValueError(
-                    "Additional job arguments are supported " "by multi-jobs only"
+            if args:
+                raise click.BadArgumentUsage(
+                    "Additional job arguments are supported by multi-jobs only"
                 )
             try:
                 async for descr in self._resolve_jobs(meta_ctx, suffix):
@@ -267,6 +267,10 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
             meta_ctx = await self._ensure_meta(job_id, suffix)
             multi_ctx = await meta_ctx.with_multi(suffix=suffix, args=args)
             job_ctx = await multi_ctx.with_job(job_id)
+            if not job.detach:
+                raise RuntimeError(
+                    f"Multi-job {job_id} should use `detach: true` in config file"
+                )
 
         job = job_ctx.job
         run_args = ["run"]
@@ -409,7 +413,8 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
     async def download(self, volume: str) -> None:
         volume_ctx = await self.find_volume(volume)
         await self._run_subproc(
-            "neuro" "cp",
+            "neuro",
+            "cp",
             "--recursive",
             "--update",
             "--no-target-directory",
