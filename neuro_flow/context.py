@@ -443,7 +443,7 @@ class LiveContext(BaseContext):
         tags = set(self.meta.tags)
 
         if self.meta.multi:
-            tags.add(f"suffix:{self.multi.suffix}")
+            tags.add(f"multi:{self.multi.suffix}")
 
         # Always exists since the meta context is previously creted
         job = self._ast_flow.jobs[job_id]

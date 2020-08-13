@@ -95,7 +95,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
     ) -> LiveContext:
         try:
             ctx = await self.ctx.with_meta(job_id)
-            if ctx.multi:
+            if ctx.meta.multi:
                 if suffix is None:
                     if not skip_check:
                         raise click.BadArgumentUsage(
@@ -114,39 +114,59 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
             sys.exit(1)
 
     async def _resolve_jobs(
-        self, meta_ctx: LiveContext
+        self, meta_ctx: LiveContext, suffix: Optional[str]
     ) -> AsyncIterator[JobDescription]:
         meta = meta_ctx.meta
         found = False
-        if meta.multi:
+        if meta.multi and not suffix:
             async for job in self.client.jobs.list(
                 tags=meta.tags, reverse=True,
             ):
                 found = True
                 yield job
         else:
+            tags = list(meta.tags)
+            if meta.multi and suffix:
+                tags.append(f"multi:{suffix}")
             async for job in self.client.jobs.list(
-                tags=meta.tags,
+                tags=tags,
                 reverse=True,
                 limit=100,  # fixme: limit should be 1 but it doesn't work
             ):
                 found = True
                 yield job
+                return
         if not found:
             raise ResourceNotFound
 
     async def _job_status(self, job_id: str) -> List[JobInfo]:
         meta_ctx = await self._ensure_meta(job_id, None, skip_check=True)
         ret = []
+        found_suffixes = set()
         try:
-            async for descr in self._resolve_jobs(meta_ctx):
+            async for descr in self._resolve_jobs(meta_ctx, None):
                 if descr.status == JobStatus.PENDING:
                     when = descr.history.created_at
                 elif descr.status == JobStatus.RUNNING:
                     when = descr.history.started_at
                 else:
                     when = descr.history.finished_at
-                ret.append(JobInfo(job_id, descr.status, descr.id, descr.tags, when))
+                real_id: Optional[str] = None
+                for tag in descr.tags:
+                    key, sep, val = tag.partition(":")
+                    if sep and key == "multi":
+                        if val in found_suffixes:
+                            break
+                        else:
+                            found_suffixes.add(val)
+                        real_id = f"{job_id} {val}"
+                        break
+                else:
+                    real_id = job_id
+                if real_id is not None:
+                    ret.append(
+                        JobInfo(real_id, descr.status, descr.id, descr.tags, when)
+                    )
         except ResourceNotFound:
             ret.append(
                 JobInfo(job_id, JobStatus.UNKNOWN, None, meta_ctx.meta.tags, None)
@@ -172,7 +192,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
             tasks.append(loop.create_task(self._job_status(job_id)))
 
         for bulk in await asyncio.gather(*tasks):
-            async for info in bulk:
+            for info in bulk:
                 if info.when is None:
                     when_humanized = "N/A"
                 else:
@@ -196,7 +216,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
     async def status(self, job_id: str, suffix: Optional[str]) -> None:
         meta_ctx = await self._ensure_meta(job_id, suffix)
         try:
-            async for descr in self._resolve_jobs(meta_ctx):
+            async for descr in self._resolve_jobs(meta_ctx, suffix):
                 await self._run_subproc("neuro", "status", descr.id)
         except ResourceNotFound:
             click.echo(f"Job {click.style(job_id, bold=True)} is not running")
@@ -214,7 +234,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
                     "Additional job arguments are supported " "by multi-jobs only"
                 )
             try:
-                async for descr in self._resolve_jobs(meta_ctx):
+                async for descr in self._resolve_jobs(meta_ctx, suffix):
                     # There is the only job for non-multi mode
                     pass
                 if descr.status == JobStatus.PENDING:
@@ -282,9 +302,6 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
         for pf in job.port_forward:
             run_args.append(f"--port-forward={pf}")
 
-        if job.multi:
-            run_args.append(f"--tag=multi:{suffix}")
-
         run_args.append(job.image)
         if job.cmd:
             run_args.extend(shlex.split(job.cmd))
@@ -298,7 +315,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
         """Return job logs"""
         meta_ctx = await self._ensure_meta(job_id, suffix)
         try:
-            async for descr in self._resolve_jobs(meta_ctx):
+            async for descr in self._resolve_jobs(meta_ctx, suffix):
                 await self._run_subproc("neuro", "logs", descr.id)
         except ResourceNotFound:
             click.echo(f"Job {click.style(job_id, bold=True)} is not running")
@@ -309,7 +326,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
         meta_ctx = await self._ensure_meta(job_id, suffix)
 
         try:
-            async for descr in self._resolve_jobs(meta_ctx):
+            async for descr in self._resolve_jobs(meta_ctx, suffix):
                 if descr.status in (JobStatus.PENDING, JobStatus.RUNNING):
                     await self.client.jobs.kill(descr.id)
                     descr = await self.client.jobs.status(descr.id)
@@ -340,7 +357,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
                 if sep:
                     tag_dct[key] = val
             job_id = tag_dct["job"]
-            suffix = tag_dct.get("suffix")
+            suffix = tag_dct.get("multi")
             await self.client.jobs.kill(descr.id)
             try:
                 descr = await self.client.jobs.status(descr.id)
@@ -350,7 +367,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
             except ResourceNotFound:
                 pass
             if suffix:
-                return f"{job_id}[{suffix}]"
+                return f"{job_id} {suffix}"
             else:
                 return job_id
 
@@ -462,3 +479,8 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
         cmd.append(str(image_ctx.full_context_path))
         cmd.append(str(image_ctx.ref))
         await self._run_subproc("neuro-extras", "image", "build", *cmd)
+
+    async def build_all(self) -> None:
+        for image, image_ctx in self.ctx.images.items():
+            if image_ctx.context is not None:
+                await self.build(image)

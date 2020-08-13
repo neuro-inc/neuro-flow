@@ -68,7 +68,7 @@ async def ps(config_dir: ConfigDir) -> None:
 
 
 @main.command()
-@click.option("-s/--suffix", help="Optional suffix for multi-jobs")
+@click.option("-s", "--suffix", help="Optional suffix for multi-jobs")
 @click.argument("job-id")
 @click.argument("args", nargs=-1)
 @wrap_async
@@ -219,7 +219,10 @@ async def build(config_dir: ConfigDir, image: str) -> None:
     config_path = find_live_config(config_dir)
     flow = parse_live(config_path.workspace, config_path.config_file)
     async with LiveRunner(flow) as runner:
-        await runner.build(image)
+        if image == "ALL":
+            await runner.build_all()
+        else:
+            await runner.build(image)
 
 
 # #### pipeline commands ####
