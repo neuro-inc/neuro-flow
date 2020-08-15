@@ -152,7 +152,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                     for dep_id in deps:
                         dep = finished.get(dep_id)
                         assert dep is not None
-                        needs[dep_id] = DepCtx(dep.result, {})
+                        needs[dep_id] = dep
                     task_ctx = await ctx.with_task(tid, needs=needs)
                     log.info("Task %s started", tid)
                     st = await self._start_task(
