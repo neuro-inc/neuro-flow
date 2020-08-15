@@ -13,25 +13,22 @@ from typing import AsyncContextManager, Dict, List, Mapping, Optional, Tuple, Ty
 log = logging.getLogger(__name__)
 
 
-def _compile(commands: List[Tuple[str, str]]) -> "re.Pattern[str]":
-    parts = []
+def _compile(commands: List[Tuple[str, str]]) -> Dict[str, "re.Pattern[str]"]:
+    ret = {}
     for cmd, regexp in commands:
         cmd2 = cmd.replace("-", "_")
-        pre = cmd2 + "_"
         if regexp:
-            inner = r"\s+" + regexp.format(pre=pre)
+            inner = r"\s+" + regexp
         else:
             inner = ""
-        part = rf"(?P<{cmd2}>::\s*{cmd}{inner}\s*::(?P<{pre}value>.+)\Z)"
-        parts.append(part)
-    return re.compile("|".join(parts))
+        ret[cmd2] = re.compile(rf"\A\s*::\s*{cmd}{inner}\s*::(?P<value>.+)\Z")
+    return ret
 
 
 class CmdProcessor(AsyncContextManager["CmdProcessor"]):
     COMMANDS = [
-        ("set-env", r"name\s*=\s*(?P<{pre}name>[a-zA-Z][a-zA-Z0-9_]*)"),
-        ("set-output", r"name\s*=\s*(?P<{pre}name>[a-zA-Z][a-zA-Z0-9_]*)"),
-        ("save-state", r"name\s*=\s*(?P<{pre}name>[a-zA-Z][a-zA-Z0-9_]*)"),
+        ("set-output", r"name\s*=\s*(?P<name>[a-zA-Z][a-zA-Z0-9_]*)"),
+        ("save-state", r"name\s*=\s*(?P<name>[a-zA-Z][a-zA-Z0-9_]*)"),
         ("stop-commands", ""),
     ]
 
@@ -40,7 +37,6 @@ class CmdProcessor(AsyncContextManager["CmdProcessor"]):
     def __init__(self) -> None:
         self._buf = bytearray()
         self._outputs: Dict[str, str] = {}
-        self._envs: Dict[str, str] = {}
         self._states: Dict[str, str] = {}
         self._stop_commands: Optional[str] = None
 
@@ -82,35 +78,32 @@ class CmdProcessor(AsyncContextManager["CmdProcessor"]):
         if not line.startswith("::"):
             return
         if self._stop_commands is not None:
-            if "::" + self._stop_commands + "::" == line:
+            if self._stop_commands == line:
                 self._stop_commands = None
             return
-        match = self.COMMANDS_RE.match(line)
-        if match is None:
-            log.warning("Unknown command %r", line)
+        for cmd, pattern in self.COMMANDS_RE.items():
+            match = pattern.match(line)
+            if match is None:
+                continue
+            handler = getattr(self.__class__, cmd)
+            await handler(self, match)
             return
-        cmd = match.group("cmd")
-        handler = getattr(self.__class__, cmd)
-        await handler(self, match)
-
-    async def set_env(self, match: re.Match) -> None:
-        name = match.group("set_env_name")
-        value = match.group("set_env_value")
-        self._envs[name] = value
+        else:
+            log.warning("Unknown command %r", line)
 
     async def set_output(self, match: re.Match) -> None:
-        name = match.group("set_output_name")
-        value = match.group("set_output_value")
+        name = match.group("name")
+        value = match.group("value")
         self._outputs[name] = value
 
     async def save_state(self, match: re.Match) -> None:
-        name = match.group("save_state_name")
-        value = match.group("save_state_value")
+        name = match.group("name")
+        value = match.group("value")
         self._states[name] = value
 
     async def stop_commands(self, match: re.Match) -> None:
-        value = match.group("stop_commands_value")
-        self._stop_commands = value
+        value = match.group("value")
+        self._stop_commands = "::" + value + "::"
 
 
 def _check_commands():
