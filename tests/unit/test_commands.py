@@ -1,7 +1,7 @@
 from neuro_flow.commands import CmdProcessor
 
 
-async def test_empty():
+async def test_empty() -> None:
     async with CmdProcessor() as proc:
         pass
 
@@ -9,7 +9,7 @@ async def test_empty():
     assert proc.states == {}
 
 
-async def test_no_commands():
+async def test_no_commands() -> None:
     async with CmdProcessor() as proc:
         await proc.feed_chunk(b"123\n34")
         await proc.feed_chunk(b"56\n78")
@@ -18,7 +18,7 @@ async def test_no_commands():
     assert proc.states == {}
 
 
-async def test_set_output1():
+async def test_set_output1() -> None:
     async with CmdProcessor() as proc:
         await proc.feed_chunk(b"::set-output name=key1::value1\n")
         await proc.feed_chunk(b"Just a line\n")
@@ -28,7 +28,7 @@ async def test_set_output1():
     assert proc.states == {}
 
 
-async def test_set_output2():
+async def test_set_output2() -> None:
     async with CmdProcessor() as proc:
         await proc.feed_chunk(b"::set-")
         await proc.feed_chunk(b"output name=key1::value1\n")
@@ -38,7 +38,7 @@ async def test_set_output2():
     assert proc.states == {}
 
 
-async def test_set_output3():
+async def test_set_output3() -> None:
     async with CmdProcessor() as proc:
         await proc.feed_chunk(b"::set-")
         await proc.feed_chunk(b"output name=key1::value1\n")
@@ -48,7 +48,7 @@ async def test_set_output3():
     assert proc.states == {}
 
 
-async def test_save_state():
+async def test_save_state() -> None:
     async with CmdProcessor() as proc:
         await proc.feed_chunk(b"::save-state name=key1::value1\n")
         await proc.feed_chunk(b"Just a line\n")
@@ -58,7 +58,7 @@ async def test_save_state():
     assert proc.states == {"key1": "value1", "key2": "value2"}
 
 
-async def test_stop_commands():
+async def test_stop_commands() -> None:
     async with CmdProcessor() as proc:
         await proc.feed_chunk(b"::stop-commands::resume\n")
         await proc.feed_chunk(b"::save-state name=key1::value1\n")

@@ -13,7 +13,7 @@ from typing import AsyncContextManager, Dict, List, Mapping, Optional, Tuple, Ty
 log = logging.getLogger(__name__)
 
 
-def _compile(commands: List[Tuple[str, str]]) -> Dict[str, "re.Pattern[str]"]:
+def _compile(commands: List[Tuple[str, str]]) -> Dict[str, "re.Pattern[bytes]"]:
     ret = {}
     for cmd, regexp in commands:
         cmd2 = cmd.replace("-", "_")
@@ -21,7 +21,9 @@ def _compile(commands: List[Tuple[str, str]]) -> Dict[str, "re.Pattern[str]"]:
             inner = r"\s+" + regexp
         else:
             inner = ""
-        ret[cmd2] = re.compile(rf"\A\s*::\s*{cmd}{inner}\s*::(?P<value>.+)\Z")
+        ret[cmd2] = re.compile(
+            rf"\A\s*::\s*{cmd}{inner}\s*::(?P<value>.+)\Z".encode("ascii")
+        )
     return ret
 
 
@@ -38,15 +40,11 @@ class CmdProcessor(AsyncContextManager["CmdProcessor"]):
         self._buf = bytearray()
         self._outputs: Dict[str, str] = {}
         self._states: Dict[str, str] = {}
-        self._stop_commands: Optional[str] = None
+        self._stop_commands: Optional[bytes] = None
 
     @property
     def outputs(self) -> Mapping[str, str]:
         return self._outputs
-
-    @property
-    def envs(self) -> Mapping[str, str]:
-        return self._envs
 
     @property
     def states(self) -> Mapping[str, str]:
@@ -57,25 +55,23 @@ class CmdProcessor(AsyncContextManager["CmdProcessor"]):
 
     async def __aexit__(
         self,
-        exc_tp: Optional[Type[Exception]],
-        exc_val: Optional[Exception],
+        exc_tp: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
         exc_tb: Optional[TracebackType],
     ) -> None:
-        line = self._buf.decode("utf-8", "replace")
-        await self.feed_line(line)
+        await self.feed_line(self._buf)
 
     async def feed_chunk(self, chunk: bytes) -> None:
         self._buf.extend(chunk)
         if b"\n" in self._buf:
-            blines = self._buf.splitlines(keepends=True)
-            self._buf = blines.pop(-1)
-            for bline in blines:
-                line = bline.decode("utf-8", "replace")
+            lines = self._buf.splitlines(keepends=True)
+            self._buf = lines.pop(-1)
+            for line in lines:
                 await self.feed_line(line)
 
-    async def feed_line(self, line: str) -> None:
+    async def feed_line(self, line: bytes) -> None:
         line = line.strip()
-        if not line.startswith("::"):
+        if not line.startswith(b"::"):
             return
         if self._stop_commands is not None:
             if self._stop_commands == line:
@@ -89,24 +85,24 @@ class CmdProcessor(AsyncContextManager["CmdProcessor"]):
             await handler(self, match)
             return
         else:
-            log.warning("Unknown command %r", line)
+            log.warning("Unknown command %r", line.decode("utf-8", "replace"))
 
-    async def set_output(self, match: re.Match) -> None:
-        name = match.group("name")
-        value = match.group("value")
+    async def set_output(self, match: "re.Match[bytes]") -> None:
+        name = match.group("name").decode("utf-8", "replace")
+        value = match.group("value").decode("utf-8", "replace")
         self._outputs[name] = value
 
-    async def save_state(self, match: re.Match) -> None:
-        name = match.group("name")
-        value = match.group("value")
+    async def save_state(self, match: "re.Match[bytes]") -> None:
+        name = match.group("name").decode("utf-8", "replace")
+        value = match.group("value").decode("utf-8", "replace")
         self._states[name] = value
 
-    async def stop_commands(self, match: re.Match) -> None:
+    async def stop_commands(self, match: "re.Match[bytes]") -> None:
         value = match.group("value")
-        self._stop_commands = "::" + value + "::"
+        self._stop_commands = b"::" + value + b"::"
 
 
-def _check_commands():
+def _check_commands() -> None:
     for cmd, _ in CmdProcessor.COMMANDS:
         handler = getattr(CmdProcessor, cmd.replace("-", "_"), None)
         assert handler is not None, f"Command {cmd} has no handler"
@@ -114,3 +110,4 @@ def _check_commands():
 
 _check_commands()
 del _check_commands
+del _compile
