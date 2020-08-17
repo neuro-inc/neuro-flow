@@ -1,6 +1,6 @@
 kind: batch
 tasks:
-  - id: batch_a
+  - id: task_a
     image: ubuntu
     preset: cpu-small
     bash: echo abc
@@ -8,4 +8,4 @@ tasks:
   - image: ubuntu
     preset: cpu-small
     bash: echo def
-    needs: [batch_a]
+    needs: [task_a]

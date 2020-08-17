@@ -242,7 +242,6 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             secret_files=list(secret_files),
             tty=False,
         )
-
         job = await self._client.jobs.run(
             container,
             is_preemptible=preset.is_preemptible,
