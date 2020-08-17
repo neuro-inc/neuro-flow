@@ -283,7 +283,7 @@ class BaseContext(RootABC):
             life_span = None
             preset = None
 
-        tags.add(f"flow:{flow.id.replace('_', '-')}")
+        tags.add(f"flow:{flow.id.replace('_', '-').lower()}")
 
         defaults = DefaultsCtx(
             tags=tags, workdir=workdir, life_span=life_span, preset=preset,
@@ -424,7 +424,7 @@ class LiveContext(BaseContext):
             raise UnknownJob(job_id)
 
         tags = set(self.defaults.tags)
-        tags.add(f"job:{job_id.replace('_', '-')}")
+        tags.add(f"job:{job_id.replace('_', '-').lower()}")
 
         return replace(
             self, _meta=JobMetaCtx(id=job_id, multi=bool(job.multi), tags=tags)
@@ -674,7 +674,7 @@ class BatchContext(BaseContext):
         if prep_task.ast.tags is not None:
             tags = {await v.eval(ctx) for v in prep_task.ast.tags}
         if not tags:
-            tags = {f"task:{real_id.replace('_', '-')}"}
+            tags = {f"task:{real_id.replace('_', '-').lower()}"}
 
         workdir = (await prep_task.ast.workdir.eval(ctx)) or ctx.defaults.workdir
 
