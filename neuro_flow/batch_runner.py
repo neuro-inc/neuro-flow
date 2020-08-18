@@ -152,12 +152,12 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                     for dep_id in deps:
                         dep = finished.get(dep_id)
                         assert dep is not None
-                        needs[dep_id] = DepCtx(dep.result, {})
+                        needs[dep_id] = DepCtx(dep.result, dep.outputs)
                     task_ctx = await ctx.with_task(tid, needs=needs)
-                    log.info("Task %s started", tid)
                     st = await self._start_task(
                         bake_id, attempt, len(started) + len(finished), task_ctx
                     )
+                    log.info("Task %s [%s] started", st.id, st.raw_id)
                     started[st.id] = st
 
                 for st in started.values():
@@ -165,7 +165,6 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                         continue
                     status = await self._client.jobs.status(st.raw_id)
                     if status.status in (JobStatus.FAILED, JobStatus.SUCCEEDED):
-                        log.info("Task %s finished", tid)
                         finished[st.id] = await self._finish_task(
                             bake_id,
                             attempt,
@@ -174,6 +173,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                             st,
                             status,
                         )
+                        log.info("Task %s [%s] finished", st.id, st.raw_id)
                         toposorter.done(st.id)
 
                 if len(finished) == ctx.cardinality // 2:
@@ -242,7 +242,6 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             secret_files=list(secret_files),
             tty=False,
         )
-
         job = await self._client.jobs.run(
             container,
             is_preemptible=preset.is_preemptible,
@@ -301,17 +300,8 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         descr: JobDescription,
     ) -> FinishedTask:
         async with CmdProcessor() as proc:
-            buf = bytearray()
             async for chunk in self._client.jobs.monitor(task.raw_id):
-                buf.extend(chunk)
-                if b"\n" in buf:
-                    blines = buf.splitlines(keepends=True)
-                    buf = blines.pop(-1)
-                    for bline in blines:
-                        line = bline.decode("utf-8", "replace")
-                        await proc.feed(line)
-            line = buf.decode("utf-8", "replace")
-            await proc.feed(line)
+                await proc.feed_chunk(chunk)
         return await self._storage.finish_task(
-            bake_id, attempt_no, task_no, cardinality, task, descr
+            bake_id, attempt_no, task_no, cardinality, task, descr, proc.outputs
         )

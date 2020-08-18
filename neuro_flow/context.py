@@ -283,7 +283,7 @@ class BaseContext(RootABC):
             life_span = None
             preset = None
 
-        tags.add(f"flow:{flow.id}")
+        tags.add(f"flow:{flow.id.replace('_', '-').lower()}")
 
         defaults = DefaultsCtx(
             tags=tags, workdir=workdir, life_span=life_span, preset=preset,
@@ -424,7 +424,7 @@ class LiveContext(BaseContext):
             raise UnknownJob(job_id)
 
         tags = set(self.defaults.tags)
-        tags.add(f"job:{job_id}")
+        tags.add(f"job:{job_id.replace('_', '-').lower()}")
 
         return replace(
             self, _meta=JobMetaCtx(id=job_id, multi=bool(job.multi), tags=tags)
@@ -548,7 +548,7 @@ class BatchContext(BaseContext):
                     # Dash is not allowed in identifier, so the generated read id
                     # never clamps with user_provided one.
                     suffix = [str(row[k]) for k in sorted(row)]
-                    real_id = "-".join(["batch", str(num), *suffix])
+                    real_id = "-".join(["task", str(num), *suffix])
                 else:
                     real_id = task_id
                 if real_id in prep_tasks:
@@ -635,7 +635,7 @@ class BatchContext(BaseContext):
         # outputs -- real_id -> (output_name -> value) mapping for all task ids
         # enumerated in needs.
         #
-        # TODO: multi-state batches require 'state' mapping (state_name -> value)
+        # TODO: multi-state tasks require 'state' mapping (state_name -> value)
         assert self._prep_tasks is not None
 
         if self._task is not None:
@@ -659,6 +659,7 @@ class BatchContext(BaseContext):
             raise ValueError(" ".join(err))
 
         ctx = await self.with_matrix(prep_task.matrix)
+        ctx = replace(ctx, _needs=needs, _strategy=prep_task.strategy)
 
         env = dict(ctx.env)
         if prep_task.ast.env is not None:
@@ -673,7 +674,7 @@ class BatchContext(BaseContext):
         if prep_task.ast.tags is not None:
             tags = {await v.eval(ctx) for v in prep_task.ast.tags}
         if not tags:
-            tags = {f"batch:{real_id}"}
+            tags = {f"task:{real_id.replace('_', '-').lower()}"}
 
         workdir = (await prep_task.ast.workdir.eval(ctx)) or ctx.defaults.workdir
 
@@ -702,9 +703,7 @@ class BatchContext(BaseContext):
             http_port=await prep_task.ast.http_port.eval(ctx),
             http_auth=await prep_task.ast.http_auth.eval(ctx),
         )
-        return replace(
-            ctx, _task=task_ctx, _env=env, _needs=needs, _strategy=prep_task.strategy
-        )
+        return replace(ctx, _task=task_ctx, _env=env,)
 
     async def _build_matrix(self, strategy: ast.Strategy) -> Sequence[MatrixCtx]:
         assert strategy.matrix is not None

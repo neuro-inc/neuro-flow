@@ -8,7 +8,7 @@ import secrets
 import sys
 from neuromation.api import Client, JobDescription, JobStatus
 from types import TracebackType
-from typing import Any, Dict, Optional, Tuple, Type
+from typing import Any, Dict, Mapping, Optional, Tuple, Type
 from typing_extensions import Final
 from yarl import URL
 
@@ -55,6 +55,7 @@ class FinishedTask:
     finished_at: datetime.datetime
     finish_reason: str
     finish_description: str
+    outputs: Mapping[str, str]
 
     @property
     def result(self) -> Result:
@@ -142,6 +143,7 @@ class BatchStorage(abc.ABC):
         cardinality: int,
         task: StartedTask,
         descr: JobDescription,
+        outputs: Mapping[str, str],
     ) -> FinishedTask:
         pass
 
@@ -281,6 +283,7 @@ class BatchFSStorage(BatchStorage):
                     datetime.datetime.fromisoformat(data["finished_at"]),
                     finish_reason=data["finish_reason"],
                     finish_description=data["finish_description"],
+                    outputs=data["outputs"],
                 )
                 continue
             raise ValueError(f"Unexpected name {attempt_url / fs.name}")
@@ -335,6 +338,7 @@ class BatchFSStorage(BatchStorage):
         cardinality: int,
         task: StartedTask,
         descr: JobDescription,
+        outputs: Mapping[str, str],
     ) -> FinishedTask:
         assert task.raw_id == descr.id
         assert task.created_at == descr.history.created_at
@@ -356,6 +360,7 @@ class BatchFSStorage(BatchStorage):
             finished_at=descr.history.finished_at,
             finish_reason=descr.history.reason,
             finish_description=descr.history.description,
+            outputs=outputs,
         )
 
         data = {
@@ -369,6 +374,7 @@ class BatchFSStorage(BatchStorage):
             "finished_at": ret.finished_at.isoformat(timespec="seconds"),
             "finish_reason": ret.finish_reason,
             "finish_description": ret.finish_description,
+            "outputs": ret.outputs,
         }
         await self._write_json(attempt_url / f"{pre}.{task.id}.finished.json", data)
         return ret

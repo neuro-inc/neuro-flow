@@ -1,9 +1,15 @@
 kind: batch
 tasks:
-  - image: ubuntu
+  - id: task_a
+    image: ubuntu
     preset: cpu-small
-    bash: echo abc
+    bash: |
+      echo "Task A"
+      echo ::set-output name=name::value a
 
-  - image: ubuntu
+  - needs: [task_a]
+    image: ubuntu
     preset: cpu-small
-    bash: echo def
+    bash: |
+      echo "Task B"
+      echo ${{ needs.task_a.outputs.name }}

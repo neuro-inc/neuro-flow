@@ -284,7 +284,7 @@ def test_parse_needs(assets: pathlib.Path) -> None:
             ast.Task(
                 _start=Pos(2, 4, config_file),
                 _end=Pos(7, 2, config_file),
-                id=OptIdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "batch_a"),
+                id=OptIdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "task_a"),
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 needs=None,
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
@@ -321,7 +321,7 @@ def test_parse_needs(assets: pathlib.Path) -> None:
                 id=OptIdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 needs=[
-                    IdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "batch_a")
+                    IdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "task_a")
                 ],
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),

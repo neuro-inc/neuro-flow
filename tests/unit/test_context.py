@@ -137,7 +137,7 @@ async def test_job(assets: pathlib.Path) -> None:
         "tag-a",
         "tag-b",
         "flow:live-full",
-        "job:test_a",
+        "job:test-a",
     }
     assert ctx2.job.life_span == 10500.0
     assert ctx2.job.port_forward == ["2211:22"]
@@ -206,12 +206,10 @@ async def test_pipeline_seq(assets: pathlib.Path) -> None:
     flow = parse_batch(workspace, config_file)
     ctx = await BatchContext.create(flow)
 
-    ctx2 = await ctx.with_task(
-        "batch-2", needs={"batch-1": DepCtx(Result.SUCCEEDED, {})}
-    )
+    ctx2 = await ctx.with_task("task-2", needs={"task-1": DepCtx(Result.SUCCEEDED, {})})
     assert ctx2.task.id is None
-    assert ctx2.task.real_id == "batch-2"
-    assert ctx2.task.needs == {"batch-1"}
+    assert ctx2.task.real_id == "task-2"
+    assert ctx2.task.needs == {"task-1"}
     assert ctx2.task.title is None
     assert ctx2.task.name is None
     assert ctx2.task.image == "ubuntu"
@@ -222,10 +220,10 @@ async def test_pipeline_seq(assets: pathlib.Path) -> None:
     assert ctx2.task.cmd == "bash -euxo pipefail -c 'echo def'"
     assert ctx2.task.workdir is None
     assert ctx2.task.volumes == []
-    assert ctx2.task.tags == {"flow:batch-seq", "batch:batch-2"}
+    assert ctx2.task.tags == {"flow:batch-seq", "task:task-2"}
     assert ctx2.task.life_span is None
 
-    assert ctx.graph == {"batch-2": {"batch-1"}, "batch-1": set()}
+    assert ctx.graph == {"task-2": {"task-1"}, "task-1": set()}
     assert ctx2.matrix == {}
     assert ctx2.strategy.max_parallel == 10
     assert not ctx2.strategy.fail_fast
@@ -237,12 +235,10 @@ async def test_pipeline_needs(assets: pathlib.Path) -> None:
     flow = parse_batch(workspace, config_file)
     ctx = await BatchContext.create(flow)
 
-    ctx2 = await ctx.with_task(
-        "batch-2", needs={"batch_a": DepCtx(Result.SUCCEEDED, {})}
-    )
+    ctx2 = await ctx.with_task("task-2", needs={"task_a": DepCtx(Result.SUCCEEDED, {})})
     assert ctx2.task.id is None
-    assert ctx2.task.real_id == "batch-2"
-    assert ctx2.task.needs == {"batch_a"}
+    assert ctx2.task.real_id == "task-2"
+    assert ctx2.task.needs == {"task_a"}
     assert ctx2.task.title is None
     assert ctx2.task.name is None
     assert ctx2.task.image == "ubuntu"
@@ -253,10 +249,10 @@ async def test_pipeline_needs(assets: pathlib.Path) -> None:
     assert ctx2.task.cmd == "bash -euxo pipefail -c 'echo def'"
     assert ctx2.task.workdir is None
     assert ctx2.task.volumes == []
-    assert ctx2.task.tags == {"flow:batch-needs", "batch:batch-2"}
+    assert ctx2.task.tags == {"flow:batch-needs", "task:task-2"}
     assert ctx2.task.life_span is None
 
-    assert ctx.graph == {"batch-2": {"batch_a"}, "batch_a": set()}
+    assert ctx.graph == {"task-2": {"task_a"}, "task_a": set()}
     assert ctx2.matrix == {}
     assert ctx2.strategy.max_parallel == 10
     assert not ctx2.strategy.fail_fast
@@ -269,15 +265,15 @@ async def test_pipeline_matrix(assets: pathlib.Path) -> None:
     ctx = await BatchContext.create(flow)
 
     assert ctx.graph == {
-        "batch-1-e3-o3-t3": set(),
-        "batch-1-o1-t1": set(),
-        "batch-1-o2-t1": set(),
-        "batch-1-o2-t2": set(),
+        "task-1-e3-o3-t3": set(),
+        "task-1-o1-t1": set(),
+        "task-1-o2-t1": set(),
+        "task-1-o2-t2": set(),
     }
 
-    ctx2 = await ctx.with_task("batch-1-o2-t2", needs={})
+    ctx2 = await ctx.with_task("task-1-o2-t2", needs={})
     assert ctx2.task.id is None
-    assert ctx2.task.real_id == "batch-1-o2-t2"
+    assert ctx2.task.real_id == "task-1-o2-t2"
     assert ctx2.task.needs == set()
     assert ctx2.task.title is None
     assert ctx2.task.name is None
@@ -289,7 +285,7 @@ async def test_pipeline_matrix(assets: pathlib.Path) -> None:
     assert ctx2.task.cmd == "echo abc"
     assert ctx2.task.workdir is None
     assert ctx2.task.volumes == []
-    assert ctx2.task.tags == {"flow:batch-matrix", "batch:batch-1-o2-t2"}
+    assert ctx2.task.tags == {"flow:batch-matrix", "task:task-1-o2-t2"}
     assert ctx2.task.life_span is None
 
     assert ctx2.matrix == {"one": "o2", "two": "t2"}
@@ -304,15 +300,15 @@ async def test_pipeline_matrix_with_strategy(assets: pathlib.Path) -> None:
     ctx = await BatchContext.create(flow)
 
     assert ctx.graph == {
-        "batch-1-e3-o3-t3": set(),
-        "batch-1-o1-t1": set(),
-        "batch-1-o2-t1": set(),
-        "batch-1-o2-t2": set(),
+        "task-1-e3-o3-t3": set(),
+        "task-1-o1-t1": set(),
+        "task-1-o2-t1": set(),
+        "task-1-o2-t2": set(),
     }
 
-    ctx2 = await ctx.with_task("batch-1-e3-o3-t3", needs={})
+    ctx2 = await ctx.with_task("task-1-e3-o3-t3", needs={})
     assert ctx2.task.id is None
-    assert ctx2.task.real_id == "batch-1-e3-o3-t3"
+    assert ctx2.task.real_id == "task-1-e3-o3-t3"
     assert ctx2.task.needs == set()
     assert ctx2.task.title is None
     assert ctx2.task.name is None
@@ -326,7 +322,7 @@ async def test_pipeline_matrix_with_strategy(assets: pathlib.Path) -> None:
     assert ctx2.task.volumes == []
     assert ctx2.task.tags == {
         "flow:batch-matrix-with-strategy",
-        "batch:batch-1-e3-o3-t3",
+        "task:task-1-e3-o3-t3",
     }
     assert ctx2.task.life_span is None
 

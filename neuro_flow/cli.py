@@ -231,10 +231,10 @@ async def build(config_dir: ConfigDir, image: str) -> None:
 @main.command()
 @click.argument("batch")
 @wrap_async
-async def start(config_dir: ConfigDir, batch: str) -> None:
-    """Start a pipeline.
+async def bake(config_dir: ConfigDir, batch: str) -> None:
+    """Start a batch.
 
-    Run BATCH remotely on the cluster.
+    Run BATCH pipeline remotely on the cluster.
     """
     async with AsyncExitStack() as stack:
         client = await stack.enter_async_context(api_get())
