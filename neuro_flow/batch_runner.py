@@ -98,11 +98,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
 
         log.info("Create bake")
         bake_id = await self._storage.create_bake(
-            self._config_dir.workspace.name,
-            batch_name,
-            config_file.name,
-            config_content,
-            ctx.cardinality,
+            batch_name, config_file.name, config_content, ctx.cardinality,
         )
         log.info("Bake %s created", bake_id)
         await self._storage.create_attempt(bake_id, 1, ctx.cardinality)
@@ -112,7 +108,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
 
     async def process(self, bake_id: str) -> None:
         log.info("Process %s", bake_id)
-        with tempfile.TemporaryDirectory(prefix=bake_id.replace("/", "_")) as tmp:
+        with tempfile.TemporaryDirectory(prefix=bake_id) as tmp:
             root_dir = LocalPath(tmp)
             log.info("Root dir %s", root_dir)
             config_dir = root_dir / ".neuro"

@@ -13,6 +13,7 @@ from typing_extensions import Final
 from yarl import URL
 
 from .context import Result
+from .parser import ConfigDir
 
 
 if sys.version_info < (3, 7):
@@ -88,12 +89,7 @@ class BatchStorage(abc.ABC):
 
     @abc.abstractmethod
     async def create_bake(
-        self,
-        project_name: str,
-        batch_name: str,
-        config_name: str,
-        config_content: str,
-        cardinality: int,
+        self, batch_name: str, config_name: str, config_content: str, cardinality: int,
     ) -> str:
         pass
 
@@ -180,30 +176,25 @@ class BatchFSStorage(BatchStorage):
     #         +-- 002.<task_id>.finished.json
     #         +-- 999.result.json
 
-    def __init__(self, client: Client) -> None:
+    def __init__(self, client: Client, config_dir: ConfigDir) -> None:
         self._client = client
+        self._config_dir = config_dir
 
     def _now(self) -> str:
         dt = datetime.datetime.now(datetime.timezone.utc)
         return dt.isoformat(timespec="seconds")
 
     def _mk_bake_uri(self, bake_id: str) -> URL:
-        return URL("storage:.flow") / bake_id
+        return URL("storage:.flow") / self._config_dir.workspace.name / bake_id
 
     async def close(self) -> None:
         pass
 
     async def create_bake(
-        self,
-        project_name: str,
-        batch_name: str,
-        config_name: str,
-        config_content: str,
-        cardinality: int,
+        self, batch_name: str, config_name: str, config_content: str, cardinality: int,
     ) -> str:
         # Return bake_id
-        folder = "_".join([batch_name, self._now(), secrets.token_hex(3)])
-        bake_id = f"{project_name}/{folder}"
+        bake_id = "_".join([batch_name, self._now(), secrets.token_hex(3)])
         bake_uri = self._mk_bake_uri(bake_id)
         await self._client.storage.mkdir(bake_uri, parents=True)
         config_uri = bake_uri / config_name
