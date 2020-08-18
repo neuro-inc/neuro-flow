@@ -291,7 +291,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
         if job.entrypoint:
             run_args.append(f"--entrypoint={job.entrypoint}")
         if job.workdir is not None:
-            raise NotImplementedError("workdir is not supported")
+            run_args.append(f"--workdir={job.workdir}")
         for k, v in job_ctx.env.items():
             run_args.append(f"--env={k}={v}")
         for v in job.volumes:

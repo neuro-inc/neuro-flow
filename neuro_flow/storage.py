@@ -88,7 +88,12 @@ class BatchStorage(abc.ABC):
 
     @abc.abstractmethod
     async def create_bake(
-        self, batch_name: str, config_name: str, config_content: str, cardinality: int,
+        self,
+        project_name: str,
+        batch_name: str,
+        config_name: str,
+        config_content: str,
+        cardinality: int,
     ) -> str:
         pass
 
@@ -189,10 +194,16 @@ class BatchFSStorage(BatchStorage):
         pass
 
     async def create_bake(
-        self, batch_name: str, config_name: str, config_content: str, cardinality: int
+        self,
+        project_name: str,
+        batch_name: str,
+        config_name: str,
+        config_content: str,
+        cardinality: int,
     ) -> str:
         # Return bake_id
-        bake_id = "_".join([batch_name, self._now(), secrets.token_hex(3)])
+        folder = "_".join([batch_name, self._now(), secrets.token_hex(3)])
+        bake_id = f"{project_name}/{folder}"
         bake_uri = self._mk_bake_uri(bake_id)
         await self._client.storage.mkdir(bake_uri, parents=True)
         config_uri = bake_uri / config_name
