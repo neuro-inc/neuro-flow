@@ -1,16 +1,14 @@
 # Example of interactive jobs config
 
-1. Make sure that the `neuro-extras` package is installed: clone https://github.com/neuromation/neuro-extras and `pip install -e .` from that project's root.
+1. Make sure that the `neuro-flow` package is installed: `pip install -U neuro-flow`.
 
-2. Make sure that the `neuro-flow` package is installed: `pip install -e .` from this project's root.
-
-3. Change current dir to this or any nested folder:
+2. Change current dir to this or any nested folder:
 
 ```
 cd examples/demo-jobs
 ```
 
-4. Create remote directories:
+3. Create remote directories:
 ```
 neuro-flow mkvolumes
 ```
@@ -37,6 +35,13 @@ Train:
 neuro-flow run train
 ```
 
+Multitrain (several instances of this job can be executed on parallel):
+```
+neuro-flow run multitrain -s bert -- --model bert 
+```
+* Use `-s` to provide a custom suffix (otherwise a generated suffix is assigned).
+* Pass additional parameters after `--`.
+
 7. List jobs
 
 ```
@@ -53,6 +58,7 @@ neuro-flow kill jupyter
 
 ```
 neuro-flow logs jupyter
+neuro-flow logs multitrain bert
 ```
 
 
