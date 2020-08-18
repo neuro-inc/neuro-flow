@@ -245,3 +245,22 @@ async def bake(config_dir: ConfigDir, batch: str) -> None:
             BatchRunner(config_dir, client, storage)
         )
         await runner.bake(batch)
+
+
+@main.command()
+@click.argument("batch")
+@wrap_async
+async def bakes(config_dir: ConfigDir, batch: str) -> None:
+    """Start a batch.
+
+    Run BATCH pipeline remotely on the cluster.
+    """
+    async with AsyncExitStack() as stack:
+        client = await stack.enter_async_context(api_get())
+        storage: BatchStorage = await stack.enter_async_context(
+            BatchFSStorage(client, config_dir)
+        )
+        runner = await stack.enter_async_context(
+            BatchRunner(config_dir, client, storage)
+        )
+        await runner.list_bakes()
