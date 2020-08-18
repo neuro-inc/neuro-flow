@@ -238,9 +238,7 @@ async def bake(config_dir: ConfigDir, batch: str) -> None:
     """
     async with AsyncExitStack() as stack:
         client = await stack.enter_async_context(api_get())
-        storage: BatchStorage = await stack.enter_async_context(
-            BatchFSStorage(client, config_dir)
-        )
+        storage: BatchStorage = await stack.enter_async_context(BatchFSStorage(client))
         runner = await stack.enter_async_context(
             BatchRunner(config_dir, client, storage)
         )
@@ -257,9 +255,7 @@ async def bakes(config_dir: ConfigDir, batch: str) -> None:
     """
     async with AsyncExitStack() as stack:
         client = await stack.enter_async_context(api_get())
-        storage: BatchStorage = await stack.enter_async_context(
-            BatchFSStorage(client, config_dir)
-        )
+        storage: BatchStorage = await stack.enter_async_context(BatchFSStorage(client))
         runner = await stack.enter_async_context(
             BatchRunner(config_dir, client, storage)
         )

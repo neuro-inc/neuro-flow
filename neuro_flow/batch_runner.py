@@ -1,4 +1,5 @@
 import asyncio
+import datetime
 import sys
 import tempfile
 from logging import getLogger
@@ -22,7 +23,7 @@ from . import ast
 from .commands import CmdProcessor
 from .context import BatchContext, DepCtx, Result
 from .parser import ConfigDir, parse_batch
-from .storage import AttemptId, BakeId, BatchStorage, FinishedTask, StartedTask
+from .storage import Attempt, BatchStorage, FinishedTask, StartedTask
 from .types import LocalPath
 
 
@@ -97,20 +98,23 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         config_content = config_file.read_text()
 
         log.info("Create bake")
-        bake_init = await self._storage.create_bake(
-            batch_name, config_file.name, config_content, ctx.cardinality,
+        bake = await self._storage.create_bake(
+            self._config_dir.workspace.name,
+            batch_name,
+            config_file.name,
+            config_content,
+            ctx.cardinality,
         )
-        log.info("Bake %s created", bake_init)
-        await self._storage.create_attempt(bake_init, 1)
+        log.info("Bake %s created", bake)
+        await self._storage.create_attempt(bake, 1)
         log.info("Start attempt %d", 1)
         # TODO: run this function in a job
-        await self.process(bake_init)
+        await self.process(bake.project, bake.batch, bake.when, bake.suffix)
 
-    async def process(self, bake: BakeId) -> None:
-        log.info("Process %s", bake)
-        with tempfile.TemporaryDirectory(
-            prefix=bake.batch + "_" + str(bake.when)
-        ) as tmp:
+    async def process(
+        self, project: str, batch: str, when: datetime.datetime, suffix: str
+    ) -> None:
+        with tempfile.TemporaryDirectory(prefix="bake") as tmp:
             root_dir = LocalPath(tmp)
             log.info("Root dir %s", root_dir)
             config_dir = root_dir / ".neuro"
@@ -119,12 +123,11 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             workspace.mkdir()
 
             log.info("Fetch bake init")
-            bake_init = await self._storage.fetch_bake(bake)
+            bake = await self._storage.fetch_bake(project, batch, when, suffix)
+            log.info("Process %s", bake)
             log.info("Fetch baked config")
-            config_content = await self._storage.fetch_config(
-                bake, bake_init.config_name
-            )
-            config_file = config_dir / bake_init.config_name
+            config_content = await self._storage.fetch_config(bake)
+            config_file = config_dir / bake.config_name
             config_file.write_text(config_content)
 
             log.info("Parse baked config")
@@ -135,7 +138,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
 
             log.info("Find last attempt")
             attempt = await self._storage.find_last_attempt(bake)
-            log.info("Fetch attempt #%d", attempt.attempt)
+            log.info("Fetch attempt #%d", attempt.number)
             finished, started = await self._storage.fetch_attempt(attempt)
 
             toposorter = graphlib.TopologicalSorter(ctx.graph)
@@ -172,7 +175,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                         toposorter.done(st.id)
 
                 if len(finished) == ctx.cardinality // 2:
-                    log.info("Attempt #%d finished", attempt.attempt)
+                    log.info("Attempt #%d finished", attempt.number)
                     await self._storage.finish_attempt(
                         attempt, self._accumulate_result(finished.values()),
                     )
@@ -193,7 +196,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         return Result.SUCCEEDED
 
     async def _start_task(
-        self, attempt: AttemptId, task_no: int, task_ctx: BatchContext
+        self, attempt: Attempt, task_no: int, task_ctx: BatchContext
     ) -> StartedTask:
         task = task_ctx.task
 
@@ -281,11 +284,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         return secret_files
 
     async def _finish_task(
-        self,
-        attempt: AttemptId,
-        task_no: int,
-        task: StartedTask,
-        descr: JobDescription,
+        self, attempt: Attempt, task_no: int, task: StartedTask, descr: JobDescription,
     ) -> FinishedTask:
         async with CmdProcessor() as proc:
             async for chunk in self._client.jobs.monitor(task.raw_id):

@@ -13,7 +13,6 @@ from typing_extensions import Final
 from yarl import URL
 
 from .context import Result
-from .parser import ConfigDir
 
 
 if sys.version_info < (3, 7):
@@ -29,7 +28,7 @@ FINISHED_RE: Final = re.compile(
 
 
 @dataclasses.dataclass(frozen=True)
-class BakeId:
+class Bake:
     project: str
     batch: str
     when: datetime.datetime
@@ -43,19 +42,19 @@ class BakeId:
 
 
 @dataclasses.dataclass(frozen=True)
-class AttemptId:
-    bake: BakeId
+class Attempt:
+    bake: Bake
     when: datetime.datetime
-    attempt: int
+    number: int
 
     def __str__(self) -> str:
         folder = "_".join([self.bake.batch, _dt2str(self.bake.when), self.bake.suffix])
-        return f"{self.bake.project} {folder} #{self.attempt}"
+        return f"{self.bake.project} {folder} #{self.number}"
 
 
 @dataclasses.dataclass(frozen=True)
 class StartedTask:
-    attempt: AttemptId
+    attempt: Attempt
     id: str
     raw_id: str
     created_at: datetime.datetime
@@ -64,7 +63,7 @@ class StartedTask:
 
 @dataclasses.dataclass(frozen=True)
 class FinishedTask:
-    attempt: AttemptId
+    attempt: Attempt
     id: str
     raw_id: str
     when: datetime.datetime
@@ -107,51 +106,58 @@ class BatchStorage(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def list_bakes(self) -> AsyncIterator[BakeId]:
+    async def list_bakes(self) -> AsyncIterator[Bake]:
         pass
 
     @abc.abstractmethod
     async def create_bake(
-        self, batch: str, config_name: str, config_content: str, cardinality: int,
-    ) -> BakeId:
+        self,
+        project: str,
+        batch: str,
+        config_name: str,
+        config_content: str,
+        cardinality: int,
+    ) -> Bake:
         pass
 
     @abc.abstractmethod
-    async def fetch_bake(self, bake: BakeId) -> BakeId:
+    async def fetch_bake(
+        self, project: str, batch: str, when: datetime.datetime, suffix: str
+    ) -> Bake:
         pass
 
     @abc.abstractmethod
-    async def fetch_config(self, bake: BakeId, config_name: str) -> str:
+    async def fetch_config(self, bake: Bake) -> str:
         pass
 
     @abc.abstractmethod
-    async def create_attempt(self, bake: BakeId, attempt_no: int) -> AttemptId:
+    async def create_attempt(self, bake: Bake, attempt_no: int) -> Attempt:
         pass
 
     @abc.abstractmethod
-    async def find_last_attempt(self, bake: BakeId) -> AttemptId:
+    async def find_last_attempt(self, bake: Bake) -> Attempt:
         pass
 
     @abc.abstractmethod
     async def fetch_attempt(
-        self, attempt: AttemptId
+        self, attempt: Attempt
     ) -> Tuple[Dict[str, FinishedTask], Dict[str, StartedTask]]:
         pass
 
     @abc.abstractmethod
-    async def finish_attempt(self, attempt: AttemptId, result: Result) -> None:
+    async def finish_attempt(self, attempt: Attempt, result: Result) -> None:
         pass
 
     @abc.abstractmethod
     async def start_task(
-        self, attempt: AttemptId, task_no: int, task_id: str, descr: JobDescription,
+        self, attempt: Attempt, task_no: int, task_id: str, descr: JobDescription,
     ) -> StartedTask:
         pass
 
     @abc.abstractmethod
     async def finish_task(
         self,
-        attempt: AttemptId,
+        attempt: Attempt,
         task_no: int,
         task: StartedTask,
         descr: JobDescription,
@@ -187,22 +193,26 @@ class BatchFSStorage(BatchStorage):
     #         +-- 002.<task_id>.finished.json
     #         +-- 999.result.json
 
-    def __init__(self, client: Client, config_dir: ConfigDir) -> None:
+    def __init__(self, client: Client) -> None:
         self._client = client
-        self._config_dir = config_dir
 
     async def close(self) -> None:
         pass
 
-    async def list_bakes(self) -> AsyncIterator[BakeId]:
+    async def list_bakes(self) -> AsyncIterator[Bake]:
         pass
 
     async def create_bake(
-        self, batch: str, config_name: str, config_content: str, cardinality: int,
-    ) -> BakeId:
+        self,
+        project: str,
+        batch: str,
+        config_name: str,
+        config_content: str,
+        cardinality: int,
+    ) -> Bake:
         when = _now()
-        bake = BakeId(
-            project=self._config_dir.workspace.name,
+        bake = Bake(
+            project=project,
             batch=batch,
             when=when,
             suffix=secrets.token_hex(3),
@@ -214,7 +224,7 @@ class BatchFSStorage(BatchStorage):
         config_uri = bake_uri / config_name
         await self._write_file(config_uri, config_content)
 
-        ret = BakeId(
+        ret = Bake(
             project=bake.project,
             batch=bake.batch,
             when=bake.when,
@@ -226,14 +236,18 @@ class BatchFSStorage(BatchStorage):
         await self._write_json(bake_uri / "00.init.json", _bake_to_json(ret))
         return ret
 
-    async def fetch_bake(self, bake: BakeId) -> BakeId:
-        data = await self._read_json(_mk_bake_uri(bake) / "00.init.json")
+    async def fetch_bake(
+        self, project: str, batch: str, when: datetime.datetime, suffix: str
+    ) -> Bake:
+        data = await self._read_json(
+            _mk_bake_uri_from_id(project, batch, when, suffix) / "00.init.json"
+        )
         return _bake_from_json(data)
 
-    async def fetch_config(self, bake: BakeId, config_name: str) -> str:
-        return await self._read_file(_mk_bake_uri(bake) / config_name)
+    async def fetch_config(self, bake: Bake) -> str:
+        return await self._read_file(_mk_bake_uri(bake) / bake.config_name)
 
-    async def create_attempt(self, bake: BakeId, attempt_no: int) -> AttemptId:
+    async def create_attempt(self, bake: Bake, attempt_no: int) -> Attempt:
         assert 0 < attempt_no < 100, attempt_no
         bake_uri = _mk_bake_uri(bake)
         attempt_uri = bake_uri / f"{attempt_no:02d}.attempt"
@@ -241,13 +255,11 @@ class BatchFSStorage(BatchStorage):
         digits = bake.cardinality // 10 + 1
         pre = "0".zfill(digits)
         when = _now()
-        await self._write_json(
-            attempt_uri / f"{pre}.init.json",
-            {"bake": _bake_to_json(bake), "when": _dt2str(when)},
-        )
-        return AttemptId(bake=bake, when=bake.when, attempt=attempt_no,)
+        ret = Attempt(bake=bake, when=when, number=attempt_no)
+        await self._write_json(attempt_uri / f"{pre}.init.json", _attempt_to_json(ret))
+        return ret
 
-    async def find_last_attempt(self, bake: BakeId) -> AttemptId:
+    async def find_last_attempt(self, bake: Bake) -> Attempt:
         bake_uri = _mk_bake_uri(bake)
         files = set()
         async for fi in self._client.storage.ls(bake_uri):
@@ -261,18 +273,14 @@ class BatchFSStorage(BatchStorage):
                 pre = "0".zfill(digits)
                 init_name = f"{pre}.init.json"
                 data = await self._read_json(bake_uri / fname / init_name)
-                return AttemptId(
-                    bake=_bake_from_json(data["bake"]),
-                    when=datetime.datetime.fromisoformat(data["when"]),
-                    attempt=attempt_no,
-                )
+                return _attempt_from_json(data)
         assert False, "unreachable"
 
     async def fetch_attempt(
-        self, attempt: AttemptId
+        self, attempt: Attempt
     ) -> Tuple[Dict[str, FinishedTask], Dict[str, StartedTask]]:
         bake_uri = _mk_bake_uri(attempt.bake)
-        attempt_url = bake_uri / f"{attempt.attempt:02d}.attempt"
+        attempt_url = bake_uri / f"{attempt.number:02d}.attempt"
         digits = attempt.bake.cardinality // 10 + 1
         pre = "0".zfill(digits)
         init_name = f"{pre}.init.json"
@@ -317,19 +325,19 @@ class BatchFSStorage(BatchStorage):
         assert finished.keys() <= started.keys()
         return finished, started
 
-    async def finish_attempt(self, attempt: AttemptId, result: Result) -> None:
+    async def finish_attempt(self, attempt: Attempt, result: Result) -> None:
         bake_uri = _mk_bake_uri(attempt.bake)
-        attempt_url = bake_uri / f"{attempt.attempt:02d}.attempt"
+        attempt_url = bake_uri / f"{attempt.number:02d}.attempt"
         digits = attempt.bake.cardinality // 10 + 1
         pre = "9" * digits
         data = {"result": str(result)}
         await self._write_json(attempt_url / f"{pre}.result.json", data)
 
     async def start_task(
-        self, attempt: AttemptId, task_no: int, task_id: str, descr: JobDescription,
+        self, attempt: Attempt, task_no: int, task_id: str, descr: JobDescription,
     ) -> StartedTask:
         bake_uri = _mk_bake_uri(attempt.bake)
-        attempt_url = bake_uri / f"{attempt.attempt:02d}.attempt"
+        attempt_url = bake_uri / f"{attempt.number:02d}.attempt"
         digits = attempt.bake.cardinality // 10 + 1
         pre = str(task_no + 1).zfill(digits)
         assert descr.history.created_at is not None
@@ -352,7 +360,7 @@ class BatchFSStorage(BatchStorage):
 
     async def finish_task(
         self,
-        attempt: AttemptId,
+        attempt: Attempt,
         task_no: int,
         task: StartedTask,
         descr: JobDescription,
@@ -361,7 +369,7 @@ class BatchFSStorage(BatchStorage):
         assert task.raw_id == descr.id
         assert task.created_at == descr.history.created_at
         bake_uri = _mk_bake_uri(attempt.bake)
-        attempt_url = bake_uri / f"{attempt.attempt:02d}.attempt"
+        attempt_url = bake_uri / f"{attempt.number:02d}.attempt"
         digits = attempt.bake.cardinality // 10 + 1
         pre = str(task_no + 1).zfill(digits)
         assert descr.history.created_at is not None
@@ -437,12 +445,18 @@ def _dt2str(dt: datetime.datetime) -> str:
     return dt.isoformat(timespec="seconds")
 
 
-def _mk_bake_uri(bake: BakeId) -> URL:
-    folder = "_".join([bake.batch, _dt2str(bake.when), bake.suffix])
-    return URL("storage:.flow") / bake.project / folder
+def _mk_bake_uri_from_id(
+    project: str, batch: str, when: datetime.datetime, suffix: str
+) -> URL:
+    bake_id = "_".join([batch, _dt2str(when), suffix])
+    return URL("storage:.flow") / project / bake_id
 
 
-def _bake_to_json(bake: BakeId) -> Dict[str, Any]:
+def _mk_bake_uri(bake: Bake) -> URL:
+    return _mk_bake_uri_from_id(bake.project, bake.batch, bake.when, bake.suffix)
+
+
+def _bake_to_json(bake: Bake) -> Dict[str, Any]:
     return {
         "project": bake.project,
         "batch": bake.batch,
@@ -453,12 +467,28 @@ def _bake_to_json(bake: BakeId) -> Dict[str, Any]:
     }
 
 
-def _bake_from_json(data: Dict[str, Any]) -> BakeId:
-    return BakeId(
+def _bake_from_json(data: Dict[str, Any]) -> Bake:
+    return Bake(
         project=data["project"],
         batch=data["batch"],
         when=datetime.datetime.fromisoformat(data["when"]),
         suffix=data["suffix"],
         config_name=data["config_name"],
         cardinality=data["cardinality"],
+    )
+
+
+def _attempt_to_json(attempt: Attempt) -> Dict[str, Any]:
+    return {
+        "number": attempt.number,
+        "bake": _bake_to_json(attempt.bake),
+        "when": _dt2str(attempt.when),
+    }
+
+
+def _attempt_from_json(data: Dict[str, Any]) -> Attempt:
+    return Attempt(
+        bake=_bake_from_json(data["bake"]),
+        when=datetime.datetime.fromisoformat(data["when"]),
+        number=data["number"],
     )
