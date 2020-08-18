@@ -261,18 +261,19 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
                 # Job does not exist, run it
                 pass
             job_ctx = await meta_ctx.with_job(job_id)
+            job = job_ctx.job
         else:
             if suffix is None:
                 suffix = secrets.token_hex(5)
             meta_ctx = await self._ensure_meta(job_id, suffix)
             multi_ctx = await meta_ctx.with_multi(suffix=suffix, args=args)
             job_ctx = await multi_ctx.with_job(job_id)
+            job = job_ctx.job
             if not job.detach:
                 raise RuntimeError(
                     f"Multi-job {job_id} should use `detach: true` in config file"
                 )
 
-        job = job_ctx.job
         run_args = ["run"]
         if job.title:
             run_args.append(f"--description={job.title}")
