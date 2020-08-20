@@ -27,6 +27,7 @@ from .context import BatchContext, DepCtx, Result
 from .parser import ConfigDir, parse_batch
 from .storage import Attempt, BatchStorage, FinishedTask, StartedTask
 from .types import LocalPath
+from .utils import format_job_status
 
 
 if sys.version_info >= (3, 9):
@@ -105,7 +106,12 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
 
         log.info("Create bake")
         bake = await self._storage.create_bake(
-            self.project, batch_name, config_file.name, config_content, ctx.cardinality,
+            self.project,
+            batch_name,
+            config_file.name,
+            config_content,
+            ctx.cardinality,
+            ctx.graph,
         )
         log.info("Bake %s created", bake)
         await self._storage.create_attempt(bake, 1)
@@ -306,13 +312,22 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
 
     async def inspect(self, bake_id: str, attempt_no: int = -1) -> None:
         rows: List[List[str]] = []
-        rows.append([click.style("ID", bold=True)])
+        rows.append([click.style("ID", bold=True), click.style("Status", bold=True)])
 
         bake = await self._storage.fetch_bake_by_id(self.project, bake_id)
         attempt = await self._storage.find_attempt(bake, attempt_no)
 
+        click.secho(f"Attempt #{attempt.number}", bold=True)
+
         started, finished = await self._storage.fetch_attempt(attempt)
-        rows.append([bake.bake_id])
+        for task_id in bake.graph:
+            if task_id in finished:
+                rows.append([task_id, format_job_status(finished[task_id].status)])
+            elif task_id in started:
+                info = await self._client.jobs.status(started[task_id].raw_id)
+                rows.append([task_id, format_job_status(info.status.value)])
+            else:
+                rows.append([task_id, format_job_status(JobStatus.UNKNOWN)])
 
         for line in ftable.table(rows):
             click.echo(line)

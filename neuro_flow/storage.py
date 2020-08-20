@@ -9,7 +9,7 @@ import secrets
 import sys
 from neuromation.api import Client, JobDescription, JobStatus
 from types import TracebackType
-from typing import Any, AsyncIterator, Dict, Mapping, Optional, Tuple, Type
+from typing import AbstractSet, Any, AsyncIterator, Dict, Mapping, Optional, Tuple, Type
 from typing_extensions import Final
 from yarl import URL
 
@@ -38,6 +38,7 @@ class Bake:
     suffix: str
     config_name: str
     cardinality: int
+    graph: Mapping[str, AbstractSet[str]]
 
     def __str__(self) -> str:
         folder = "_".join([self.batch, _dt2str(self.when), self.suffix])
@@ -226,7 +227,7 @@ class BatchFSStorage(BatchStorage):
                 yield _bake_from_json(data)
             except (ValueError, LookupError):
                 # Not a bake folder, happens by incident
-                log.warning("Invalid bake_id record %s", url / fs.name)
+                log.warning("Invalid record %s", url / fs.name)
                 continue
 
     async def create_bake(
@@ -236,6 +237,7 @@ class BatchFSStorage(BatchStorage):
         config_name: str,
         config_content: str,
         cardinality: int,
+        graph: Mapping[str, AbstractSet[str]],
     ) -> Bake:
         when = _now()
         bake = Bake(
@@ -245,23 +247,15 @@ class BatchFSStorage(BatchStorage):
             suffix=secrets.token_hex(3),
             config_name=config_name,
             cardinality=cardinality,
+            graph=graph,
         )
         bake_uri = _mk_bake_uri(bake)
         await self._client.storage.mkdir(bake_uri, parents=True)
         config_uri = bake_uri / config_name
         await self._write_file(config_uri, config_content)
 
-        ret = Bake(
-            project=bake.project,
-            batch=bake.batch,
-            when=bake.when,
-            suffix=bake.suffix,
-            config_name=config_name,
-            cardinality=cardinality,
-        )
-
-        await self._write_json(bake_uri / "00.init.json", _bake_to_json(ret))
-        return ret
+        await self._write_json(bake_uri / "00.init.json", _bake_to_json(bake))
+        return bake
 
     async def fetch_bake(
         self, project: str, batch: str, when: datetime.datetime, suffix: str
@@ -319,11 +313,15 @@ class BatchFSStorage(BatchStorage):
         digits = attempt.bake.cardinality // 10 + 1
         pre = "0".zfill(digits)
         init_name = f"{pre}.init.json"
+        pre = "9" * digits
+        finish_name = f"{pre}.result.json"
         data = await self._read_json(attempt_url / init_name)
         started = {}
         finished = {}
         async for fs in self._client.storage.ls(attempt_url):
             if fs.name == init_name:
+                continue
+            if fs.name == finish_name:
                 continue
             match = STARTED_RE.match(fs.name)
             if match:
@@ -429,7 +427,7 @@ class BatchFSStorage(BatchStorage):
             "id": ret.id,
             "raw_id": ret.raw_id,
             "when": ret.when.isoformat(timespec="seconds"),
-            "status": str(ret.status),
+            "status": ret.status.value,
             "exit_code": ret.exit_code,
             "created_at": ret.created_at.isoformat(timespec="seconds"),
             "started_at": ret.started_at.isoformat(timespec="seconds"),
@@ -499,6 +497,7 @@ def _bake_to_json(bake: Bake) -> Dict[str, Any]:
         "suffix": bake.suffix,
         "config_name": bake.config_name,
         "cardinality": bake.cardinality,
+        "graph": [[k, sorted(v)] for k, v in bake.graph.items()],
     }
 
 
@@ -510,6 +509,7 @@ def _bake_from_json(data: Dict[str, Any]) -> Bake:
         suffix=data["suffix"],
         config_name=data["config_name"],
         cardinality=data["cardinality"],
+        graph={i[0]: set(i[1]) for i in data["graph"]},
     )
 
 

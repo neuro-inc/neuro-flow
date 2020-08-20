@@ -371,4 +371,4 @@ async def test_pipeline_matrix_2(assets: pathlib.Path) -> None:
     }
     assert ctx2.task.life_span is None
 
-    assert ctx2.matrix == {'arg1': 'a', 'arg2': '1'}
+    assert ctx2.matrix == {"arg1": "a", "arg2": "1"}
