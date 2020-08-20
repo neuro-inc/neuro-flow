@@ -3,7 +3,6 @@ import click
 import datetime
 import sys
 import tempfile
-from logging import getLogger
 from neuromation.api import (
     Client,
     Container,
@@ -34,9 +33,6 @@ if sys.version_info >= (3, 9):
     import graphlib
 else:
     from . import backport_graphlib as graphlib
-
-
-log = getLogger(__name__)
 
 
 class BatchRunner(AsyncContextManager["BatchRunner"]):
@@ -83,9 +79,9 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         # folder without the file extension
         config_file = (self._config_dir.config_dir / (batch_name + ".yml")).resolve()
 
-        log.info("Use config file %s", config_file)
+        click.echo(f"Use config file {config_file}")
 
-        log.info("Check config")
+        click.echo("Check config")
         # Check that the yaml is parseable
         flow = parse_batch(self._config_dir.workspace, config_file)
         assert isinstance(flow, ast.BatchFlow)
@@ -100,11 +96,11 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         # check fast for the graph cycle error
         toposorter.prepare()
 
-        log.info("Config is correct")
+        click.echo("Config is correct")
 
         config_content = config_file.read_text()
 
-        log.info("Create bake")
+        click.echo("Create bake")
         bake = await self._storage.create_bake(
             self.project,
             batch_name,
@@ -113,9 +109,9 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             ctx.cardinality,
             ctx.graph,
         )
-        log.info("Bake %s created", bake)
+        click.echo(f"Bake {bake} created")
         await self._storage.create_attempt(bake, 1)
-        log.info("Start attempt %d", 1)
+        click.echo("Start attempt #1")
         # TODO: run this function in a job
         await self.process(bake.project, bake.batch, bake.when, bake.suffix)
 
@@ -124,29 +120,29 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
     ) -> None:
         with tempfile.TemporaryDirectory(prefix="bake") as tmp:
             root_dir = LocalPath(tmp)
-            log.info("Root dir %s", root_dir)
+            click.echo(f"Root dir {root_dir}")
             config_dir = root_dir / ".neuro"
             config_dir.mkdir()
             workspace = config_dir / "workspace"
             workspace.mkdir()
 
-            log.info("Fetch bake init")
+            click.echo("Fetch bake init")
             bake = await self._storage.fetch_bake(project, batch, when, suffix)
-            log.info("Process %s", bake)
-            log.info("Fetch baked config")
+            ("Process %s", bake)
+            click.echo("Fetch baked config")
             config_content = await self._storage.fetch_config(bake)
             config_file = config_dir / bake.config_name
             config_file.write_text(config_content)
 
-            log.info("Parse baked config")
+            click.echo("Parse baked config")
             flow = parse_batch(workspace, config_file)
             assert isinstance(flow, ast.BatchFlow)
 
             ctx = await BatchContext.create(flow)
 
-            log.info("Find last attempt")
+            click.echo("Find last attempt")
             attempt = await self._storage.find_attempt(bake)
-            log.info("Fetch attempt #%d", attempt.number)
+            click.echo(f"Fetch attempt #{attempt.number}")
             started, finished = await self._storage.fetch_attempt(attempt)
 
             toposorter = graphlib.TopologicalSorter(ctx.graph)
@@ -168,7 +164,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                     st = await self._start_task(
                         attempt, len(started) + len(finished), task_ctx
                     )
-                    log.info("Task %s [%s] started", st.id, st.raw_id)
+                    click.echo(f"Task {st.id} [{st.raw_id}] started")
                     started[st.id] = st
 
                 for st in started.values():
@@ -179,11 +175,11 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                         finished[st.id] = await self._finish_task(
                             attempt, len(started) + len(finished), st, status,
                         )
-                        log.info("Task %s [%s] finished", st.id, st.raw_id)
+                        click.echo(f"Task {st.id} [{st.raw_id}] finished")
                         toposorter.done(st.id)
 
                 if len(finished) == ctx.cardinality // 2:
-                    log.info("Attempt #%d finished", attempt.number)
+                    click.echo(f"Attempt #{attempt.number} finished")
                     await self._storage.finish_attempt(
                         attempt, self._accumulate_result(finished.values()),
                     )
