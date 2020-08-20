@@ -54,6 +54,7 @@ class Attempt:
     bake: Bake
     when: datetime.datetime
     number: int
+    # result: Result
 
     def __str__(self) -> str:
         folder = "_".join([self.bake.batch, _dt2str(self.bake.when), self.bake.suffix])
@@ -115,7 +116,16 @@ class BatchStorage(abc.ABC):
 
     @abc.abstractmethod
     async def list_bakes(self, project: str) -> AsyncIterator[Bake]:
-        pass
+        bake = Bake(
+            project="project",
+            batch="batch",
+            when=datetime.datetime.now(),
+            suffix="suffix",
+            config_name="config_name",
+            cardinality=1,
+            graph={},
+        )
+        yield bake
 
     @abc.abstractmethod
     async def create_bake(
@@ -125,6 +135,7 @@ class BatchStorage(abc.ABC):
         config_name: str,
         config_content: str,
         cardinality: int,
+        graph: Mapping[str, AbstractSet[str]],
     ) -> Bake:
         pass
 
