@@ -1,8 +1,8 @@
 import click
 import functools
-import inspect
 import logging
 import sys
+from inspect import iscoroutinefunction
 from neuromation.api import get as api_get
 from neuromation.cli.asyncio_utils import Runner
 from typing import Any, Awaitable, Callable, Optional, Tuple, TypeVar
@@ -23,7 +23,7 @@ _T = TypeVar("_T")
 
 
 def wrap_async(callback: Callable[..., Awaitable[_T]],) -> Callable[..., _T]:
-    assert inspect.iscoroutinefunction(callback)
+    assert iscoroutinefunction(callback)
 
     # N.B. the decorator implies @click.pass_obj
     @click.pass_obj
@@ -246,12 +246,9 @@ async def bake(config_dir: ConfigDir, batch: str) -> None:
 
 
 @main.command()
-@click.argument("batch")
 @wrap_async
-async def bakes(config_dir: ConfigDir, batch: str) -> None:
-    """Start a batch.
-
-    Run BATCH pipeline remotely on the cluster.
+async def bakes(config_dir: ConfigDir) -> None:
+    """List existing bakes.
     """
     async with AsyncExitStack() as stack:
         client = await stack.enter_async_context(api_get())
@@ -260,3 +257,21 @@ async def bakes(config_dir: ConfigDir, batch: str) -> None:
             BatchRunner(config_dir, client, storage)
         )
         await runner.list_bakes()
+
+
+@main.command()
+@click.argument("bake_id")
+@click.argument("attempt", type=int, default=-1)
+@wrap_async
+async def inspect(config_dir: ConfigDir, bake_id: str, attempt: int) -> None:
+    """Inspect a bake.
+
+    Display a list of started/finished tasks of BAKE-ID.
+    """
+    async with AsyncExitStack() as stack:
+        client = await stack.enter_async_context(api_get())
+        storage: BatchStorage = await stack.enter_async_context(BatchFSStorage(client))
+        runner = await stack.enter_async_context(
+            BatchRunner(config_dir, client, storage)
+        )
+        await runner.inspect(bake_id, attempt)

@@ -3,6 +3,7 @@ import dataclasses
 import abc
 import datetime
 import json
+import logging
 import re
 import secrets
 import sys
@@ -20,6 +21,8 @@ if sys.version_info < (3, 7):
 
     MonkeyPatch.patch_fromisoformat()
 
+
+log = logging.getLogger(__name__)
 
 STARTED_RE: Final = re.compile(r"\A\d+\.(?P<id>[a-zA-Z][a-zA-Z0-9_\-]*).started.json\Z")
 FINISHED_RE: Final = re.compile(
@@ -39,6 +42,10 @@ class Bake:
     def __str__(self) -> str:
         folder = "_".join([self.batch, _dt2str(self.when), self.suffix])
         return f"{self.project} {folder}"
+
+    @property
+    def bake_id(self) -> str:
+        return "_".join([self.batch, _dt2str(self.when), self.suffix])
 
 
 @dataclasses.dataclass(frozen=True)
@@ -106,7 +113,7 @@ class BatchStorage(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def list_bakes(self) -> AsyncIterator[Bake]:
+    async def list_bakes(self, project: str) -> AsyncIterator[Bake]:
         pass
 
     @abc.abstractmethod
@@ -127,6 +134,10 @@ class BatchStorage(abc.ABC):
         pass
 
     @abc.abstractmethod
+    async def fetch_bake_by_id(self, project: str, bake_id: str) -> Bake:
+        pass
+
+    @abc.abstractmethod
     async def fetch_config(self, bake: Bake) -> str:
         pass
 
@@ -135,13 +146,13 @@ class BatchStorage(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def find_last_attempt(self, bake: Bake) -> Attempt:
+    async def find_attempt(self, bake: Bake, attempt_no: int = -1) -> Attempt:
         pass
 
     @abc.abstractmethod
     async def fetch_attempt(
         self, attempt: Attempt
-    ) -> Tuple[Dict[str, FinishedTask], Dict[str, StartedTask]]:
+    ) -> Tuple[Dict[str, StartedTask], Dict[str, FinishedTask]]:
         pass
 
     @abc.abstractmethod
@@ -199,8 +210,24 @@ class BatchFSStorage(BatchStorage):
     async def close(self) -> None:
         pass
 
-    async def list_bakes(self) -> AsyncIterator[Bake]:
-        pass
+    async def list_bakes(self, project: str) -> AsyncIterator[Bake]:
+        url = URL(f"storage:.flow") / project
+        try:
+            fs = await self._client.storage.stat(url)
+            if not fs.is_dir():
+                raise ValueError(f"{url} is not a directory")
+        except ValueError:
+            raise ValueError(f"Cannot find remote project {url}")
+
+        async for fs in self._client.storage.ls(url):
+            name = fs.name
+            try:
+                data = await self._read_json(url / name / "00.init.json")
+                yield _bake_from_json(data)
+            except (ValueError, LookupError):
+                # Not a bake folder, happens by incident
+                log.warning("Invalid bake_id record %s", url / fs.name)
+                continue
 
     async def create_bake(
         self,
@@ -244,6 +271,11 @@ class BatchFSStorage(BatchStorage):
         )
         return _bake_from_json(data)
 
+    async def fetch_bake_by_id(self, project: str, bake_id: str) -> Bake:
+        url = URL(f"storage:.flow") / project / bake_id
+        data = await self._read_json(url / "00.init.json")
+        return _bake_from_json(data)
+
     async def fetch_config(self, bake: Bake) -> str:
         return await self._read_file(_mk_bake_uri(bake) / bake.config_name)
 
@@ -259,26 +291,29 @@ class BatchFSStorage(BatchStorage):
         await self._write_json(attempt_uri / f"{pre}.init.json", _attempt_to_json(ret))
         return ret
 
-    async def find_last_attempt(self, bake: Bake) -> Attempt:
+    async def find_attempt(self, bake: Bake, attempt_no: int = -1) -> Attempt:
         bake_uri = _mk_bake_uri(bake)
-        files = set()
-        async for fi in self._client.storage.ls(bake_uri):
-            files.add(fi.name)
-        if "00.init.json" not in files:
-            raise ValueError("The batch is not initialized properly")
-        for attempt_no in range(99, 0, -1):
+        if attempt_no == -1:
+            files = set()
+            async for fi in self._client.storage.ls(bake_uri):
+                files.add(fi.name)
+            for attempt_no in range(99, 0, -1):
+                fname = f"{attempt_no:02d}.attempt"
+                if fname in files:
+                    return await self.find_attempt(bake, attempt_no)
+            assert False, "unreachable"
+        else:
+            assert 0 < attempt_no < 99
             fname = f"{attempt_no:02d}.attempt"
-            if fname in files:
-                digits = bake.cardinality // 10 + 1
-                pre = "0".zfill(digits)
-                init_name = f"{pre}.init.json"
-                data = await self._read_json(bake_uri / fname / init_name)
-                return _attempt_from_json(data)
-        assert False, "unreachable"
+            digits = bake.cardinality // 10 + 1
+            pre = "0".zfill(digits)
+            init_name = f"{pre}.init.json"
+            data = await self._read_json(bake_uri / fname / init_name)
+            return _attempt_from_json(data)
 
     async def fetch_attempt(
         self, attempt: Attempt
-    ) -> Tuple[Dict[str, FinishedTask], Dict[str, StartedTask]]:
+    ) -> Tuple[Dict[str, StartedTask], Dict[str, FinishedTask]]:
         bake_uri = _mk_bake_uri(attempt.bake)
         attempt_url = bake_uri / f"{attempt.number:02d}.attempt"
         digits = attempt.bake.cardinality // 10 + 1
@@ -323,7 +358,7 @@ class BatchFSStorage(BatchStorage):
                 continue
             raise ValueError(f"Unexpected name {attempt_url / fs.name}")
         assert finished.keys() <= started.keys()
-        return finished, started
+        return started, finished
 
     async def finish_attempt(self, attempt: Attempt, result: Result) -> None:
         bake_uri = _mk_bake_uri(attempt.bake)

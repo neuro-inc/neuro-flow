@@ -1,4 +1,5 @@
 import asyncio
+import click
 import datetime
 import sys
 import tempfile
@@ -14,8 +15,9 @@ from neuromation.api import (
     Volume,
 )
 from neuromation.api.url_utils import uri_from_cli
+from neuromation.cli.formatters import ftable  # TODO: extract into a separate library
 from types import TracebackType
-from typing import Dict, Iterable, Optional, Set, Type
+from typing import Dict, Iterable, List, Optional, Set, Type
 from typing_extensions import AsyncContextManager
 from yarl import URL
 
@@ -43,6 +45,10 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         self._config_dir = config_dir
         self._client = client
         self._storage = storage
+
+    @property
+    def project(self) -> str:
+        return self._config_dir.workspace.name
 
     async def close(self) -> None:
         pass
@@ -99,11 +105,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
 
         log.info("Create bake")
         bake = await self._storage.create_bake(
-            self._config_dir.workspace.name,
-            batch_name,
-            config_file.name,
-            config_content,
-            ctx.cardinality,
+            self.project, batch_name, config_file.name, config_content, ctx.cardinality,
         )
         log.info("Bake %s created", bake)
         await self._storage.create_attempt(bake, 1)
@@ -137,9 +139,9 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             ctx = await BatchContext.create(flow)
 
             log.info("Find last attempt")
-            attempt = await self._storage.find_last_attempt(bake)
+            attempt = await self._storage.find_attempt(bake)
             log.info("Fetch attempt #%d", attempt.number)
-            finished, started = await self._storage.fetch_attempt(attempt)
+            started, finished = await self._storage.fetch_attempt(attempt)
 
             toposorter = graphlib.TopologicalSorter(ctx.graph)
             toposorter.prepare()
@@ -294,4 +296,23 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         )
 
     async def list_bakes(self) -> None:
-        pass
+        rows: List[List[str]] = []
+        rows.append([click.style("ID", bold=True)])
+        async for bake in self._storage.list_bakes(self.project):
+            rows.append([bake.bake_id])
+
+        for line in ftable.table(rows):
+            click.echo(line)
+
+    async def inspect(self, bake_id: str, attempt_no: int = -1) -> None:
+        rows: List[List[str]] = []
+        rows.append([click.style("ID", bold=True)])
+
+        bake = await self._storage.fetch_bake_by_id(self.project, bake_id)
+        attempt = await self._storage.find_attempt(bake, attempt_no)
+
+        started, finished = await self._storage.fetch_attempt(attempt)
+        rows.append([bake.bake_id])
+
+        for line in ftable.table(rows):
+            click.echo(line)

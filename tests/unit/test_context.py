@@ -329,3 +329,46 @@ async def test_pipeline_matrix_with_strategy(assets: pathlib.Path) -> None:
     assert ctx2.matrix == {"extra": "e3", "one": "o3", "two": "t3"}
     assert ctx2.strategy.max_parallel == 5
     assert ctx2.strategy.fail_fast
+
+
+async def test_pipeline_matrix_2(assets: pathlib.Path) -> None:
+    workspace = assets
+    config_file = workspace / "batch-matrix-with-deps.yml"
+    flow = parse_batch(workspace, config_file)
+    ctx = await BatchContext.create(flow)
+
+    assert ctx.graph == {
+        "task-2-a-1": {"task_a"},
+        "task-2-a-2": {"task_a"},
+        "task-2-b-1": {"task_a"},
+        "task-2-b-2": {"task_a"},
+        "task-2-c-1": {"task_a"},
+        "task-2-c-2": {"task_a"},
+        "task_a": set(),
+    }
+
+    ctx2 = await ctx.with_task(
+        "task-2-a-1", needs={"task_a": DepCtx(Result.SUCCEEDED, {"name": "value"})}
+    )
+    assert ctx2.task.id is None
+    assert ctx2.task.real_id == "task-2-a-1"
+    assert ctx2.task.needs == {"task_a"}
+    assert ctx2.task.title is None
+    assert ctx2.task.name is None
+    assert ctx2.task.image == "ubuntu"
+    assert ctx2.task.preset == "cpu-small"
+    assert ctx2.task.http_port is None
+    assert not ctx2.task.http_auth
+    assert ctx2.task.entrypoint is None
+    assert ctx2.task.cmd == (
+        """bash -euxo pipefail -c \'echo "Task B a 1"\necho value\n\'"""
+    )
+    assert ctx2.task.workdir is None
+    assert ctx2.task.volumes == []
+    assert ctx2.task.tags == {
+        "flow:batch-matrix-with-deps",
+        "task:task-2-a-1",
+    }
+    assert ctx2.task.life_span is None
+
+    assert ctx2.matrix == {'arg1': 'a', 'arg2': '1'}

@@ -1,0 +1,19 @@
+kind: batch
+tasks:
+  - id: task_a
+    image: ubuntu
+    preset: cpu-small
+    bash: |
+      echo "Task A"
+      echo ::set-output name=name::value a
+
+  - needs: [task_a]
+    strategy:
+      matrix:
+        arg1: ['a', 'b', 'c']
+        arg2: [1, 2]
+    image: ubuntu
+    preset: cpu-small
+    bash: |
+      echo "Task B ${{ matrix.arg1}} ${{ matrix.arg2}}"
+      echo ${{ needs.task_a.outputs.name }}

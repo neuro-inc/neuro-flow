@@ -523,7 +523,7 @@ class BatchContext(BaseContext):
                 max_parallel = await ast_task.strategy.max_parallel.eval(ctx)
                 if max_parallel is None:
                     max_parallel = default_strategy.max_parallel
-                strategy = StrategyCtx(fail_fast=fail_fast, max_parallel=max_parallel,)
+                strategy = StrategyCtx(fail_fast=fail_fast, max_parallel=max_parallel)
                 if ast_task.strategy.matrix is not None:
                     matrix = await ctx._build_matrix(ast_task.strategy)
                     matrix = await ctx._exclude(ast_task.strategy, matrix)
@@ -728,14 +728,18 @@ class BatchContext(BaseContext):
             exclude.append({k: await v.eval(self) for k, v in dct.items()})
         ret = []
         for row in matrix:
+            include = True
             for exc in exclude:
                 match = True
                 for k, v in exc.items():
                     if row[k] != v:
                         match = False
                         break
-                if not match:
-                    ret.append(row)
+                if match:
+                    include = False
+                    break
+            if include:
+                ret.append(row)
         return ret
 
     async def _include(
