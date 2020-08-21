@@ -13,8 +13,6 @@ from typing import AbstractSet, Any, AsyncIterator, Dict, Mapping, Optional, Tup
 from typing_extensions import Final
 from yarl import URL
 
-from .context import Result
-
 
 if sys.version_info < (3, 7):
     from backports.datetime_fromisoformat import MonkeyPatch
@@ -54,7 +52,7 @@ class Attempt:
     bake: Bake
     when: datetime.datetime
     number: int
-    # result: Result
+    result: JobStatus
 
     def __str__(self) -> str:
         folder = "_".join([self.bake.batch, _dt2str(self.bake.when), self.bake.suffix])
@@ -84,13 +82,6 @@ class FinishedTask:
     finish_reason: str
     finish_description: str
     outputs: Mapping[str, str]
-
-    @property
-    def result(self) -> Result:
-        if self.status == JobStatus.SUCCEEDED:
-            return Result.SUCCEEDED
-        else:
-            return Result.FAILED
 
 
 # A storage abstraction
@@ -168,7 +159,7 @@ class BatchStorage(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def finish_attempt(self, attempt: Attempt, result: Result) -> None:
+    async def finish_attempt(self, attempt: Attempt, result: JobStatus) -> None:
         pass
 
     @abc.abstractmethod
@@ -266,6 +257,12 @@ class BatchFSStorage(BatchStorage):
         await self._write_file(config_uri, config_content)
 
         await self._write_json(bake_uri / "00.init.json", _bake_to_json(bake))
+        # TODO: make the bake and the first attempt creation atomic to avoid
+        # a (very short) state when a bake exists but an attempt does not.
+        # To solve it, create a temporary folder for bake on storage, fill it with
+        # 00.init.json and 01.attempt folder with 000.init.json inside,
+        # rename the folder to <bake_id>
+        await self.create_attempt(bake, 1)
         return bake
 
     async def fetch_bake(
@@ -292,7 +289,7 @@ class BatchFSStorage(BatchStorage):
         digits = bake.cardinality // 10 + 1
         pre = "0".zfill(digits)
         when = _now()
-        ret = Attempt(bake=bake, when=when, number=attempt_no)
+        ret = Attempt(bake=bake, when=when, number=attempt_no, result=JobStatus.PENDING)
         await self._write_json(attempt_uri / f"{pre}.init.json", _attempt_to_json(ret))
         return ret
 
@@ -313,8 +310,14 @@ class BatchFSStorage(BatchStorage):
             digits = bake.cardinality // 10 + 1
             pre = "0".zfill(digits)
             init_name = f"{pre}.init.json"
-            data = await self._read_json(bake_uri / fname / init_name)
-            return _attempt_from_json(data)
+            init_data = await self._read_json(bake_uri / fname / init_name)
+            pre = "9" * digits
+            result_name = f"{pre}.result.json"
+            try:
+                result_data = await self._read_json(bake_uri / fname / result_name)
+            except ValueError:
+                result_data = None
+            return _attempt_from_json(init_data, result_data)
 
     async def fetch_attempt(
         self, attempt: Attempt
@@ -325,14 +328,14 @@ class BatchFSStorage(BatchStorage):
         pre = "0".zfill(digits)
         init_name = f"{pre}.init.json"
         pre = "9" * digits
-        finish_name = f"{pre}.result.json"
+        result_name = f"{pre}.result.json"
         data = await self._read_json(attempt_url / init_name)
         started = {}
         finished = {}
         async for fs in self._client.storage.ls(attempt_url):
             if fs.name == init_name:
                 continue
-            if fs.name == finish_name:
+            if fs.name == result_name:
                 continue
             match = STARTED_RE.match(fs.name)
             if match:
@@ -369,12 +372,12 @@ class BatchFSStorage(BatchStorage):
         assert finished.keys() <= started.keys()
         return started, finished
 
-    async def finish_attempt(self, attempt: Attempt, result: Result) -> None:
+    async def finish_attempt(self, attempt: Attempt, result: JobStatus) -> None:
         bake_uri = _mk_bake_uri(attempt.bake)
         attempt_url = bake_uri / f"{attempt.number:02d}.attempt"
         digits = attempt.bake.cardinality // 10 + 1
         pre = "9" * digits
-        data = {"result": str(result)}
+        data = {"result": result.value}
         await self._write_json(attempt_url / f"{pre}.result.json", data)
 
     async def start_task(
@@ -532,9 +535,16 @@ def _attempt_to_json(attempt: Attempt) -> Dict[str, Any]:
     }
 
 
-def _attempt_from_json(data: Dict[str, Any]) -> Attempt:
+def _attempt_from_json(
+    init_data: Dict[str, Any], result_data: Optional[Dict[str, Any]]
+) -> Attempt:
+    if result_data is not None:
+        result = JobStatus(result_data["result"])
+    else:
+        result = JobStatus.RUNNING
     return Attempt(
-        bake=_bake_from_json(data["bake"]),
-        when=datetime.datetime.fromisoformat(data["when"]),
-        number=data["number"],
+        bake=_bake_from_json(init_data["bake"]),
+        when=datetime.datetime.fromisoformat(init_data["when"]),
+        number=init_data["number"],
+        result=result,
     )

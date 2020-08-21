@@ -22,7 +22,7 @@ from yarl import URL
 
 from . import ast
 from .commands import CmdProcessor
-from .context import BatchContext, DepCtx, Result
+from .context import BatchContext, DepCtx
 from .parser import ConfigDir, parse_batch
 from .storage import Attempt, BatchStorage, FinishedTask, StartedTask
 from .types import LocalPath
@@ -110,8 +110,6 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             ctx.graph,
         )
         click.echo(f"Bake {bake} created")
-        await self._storage.create_attempt(bake, 1)
-        click.echo("Start attempt #1")
         # TODO: run this function in a job
         await self.process(bake.project, bake.batch, bake.when, bake.suffix)
 
@@ -159,7 +157,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                     for dep_id in deps:
                         dep = finished.get(dep_id)
                         assert dep is not None
-                        needs[dep_id] = DepCtx(dep.result, dep.outputs)
+                        needs[dep_id] = DepCtx(dep.status, dep.outputs)
                     task_ctx = await ctx.with_task(tid, needs=needs)
                     st = await self._start_task(
                         attempt, len(started) + len(finished), task_ctx
@@ -191,13 +189,13 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                 # The missing events subsystem would be great for this task :)
                 await asyncio.sleep(1)
 
-    def _accumulate_result(self, finished: Iterable[FinishedTask]) -> Result:
+    def _accumulate_result(self, finished: Iterable[FinishedTask]) -> JobStatus:
         # TODO: handle cancelled tasks
         for task in finished:
             if task.status == JobStatus.FAILED:
-                return Result.FAILED
+                return JobStatus.FAILED
 
-        return Result.SUCCEEDED
+        return JobStatus.SUCCEEDED
 
     async def _start_task(
         self, attempt: Attempt, task_no: int, task_ctx: BatchContext
@@ -299,9 +297,10 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
 
     async def list_bakes(self) -> None:
         rows: List[List[str]] = []
-        rows.append([click.style("ID", bold=True)])
+        rows.append([click.style("ID", bold=True), click.style("Status", bold=True)])
         async for bake in self._storage.list_bakes(self.project):
-            rows.append([bake.bake_id])
+            attempt = await self._storage.find_attempt(bake)
+            rows.append([bake.bake_id, format_job_status(attempt.result)])
 
         for line in ftable.table(rows):
             click.echo(line)
@@ -313,7 +312,14 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         bake = await self._storage.fetch_bake_by_id(self.project, bake_id)
         attempt = await self._storage.find_attempt(bake, attempt_no)
 
-        click.secho(f"Attempt #{attempt.number}", bold=True)
+        click.echo(
+            " ".join(
+                [
+                    click.style(f"Attempt #{attempt.number}", bold=True),
+                    format_job_status(attempt.result),
+                ]
+            )
+        )
 
         started, finished = await self._storage.fetch_attempt(attempt)
         for task_id in bake.graph:

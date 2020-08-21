@@ -1,9 +1,10 @@
 import pathlib
 import pytest
+from neuromation.api import JobStatus
 from textwrap import dedent
 from yarl import URL
 
-from neuro_flow.context import BatchContext, DepCtx, LiveContext, NotAvailable, Result
+from neuro_flow.context import BatchContext, DepCtx, LiveContext, NotAvailable
 from neuro_flow.expr import EvalError
 from neuro_flow.parser import parse_batch, parse_live
 from neuro_flow.types import LocalPath, RemotePath
@@ -206,7 +207,9 @@ async def test_pipeline_seq(assets: pathlib.Path) -> None:
     flow = parse_batch(workspace, config_file)
     ctx = await BatchContext.create(flow)
 
-    ctx2 = await ctx.with_task("task-2", needs={"task-1": DepCtx(Result.SUCCEEDED, {})})
+    ctx2 = await ctx.with_task(
+        "task-2", needs={"task-1": DepCtx(JobStatus.SUCCEEDED, {})}
+    )
     assert ctx2.task.id is None
     assert ctx2.task.real_id == "task-2"
     assert ctx2.task.needs == {"task-1"}
@@ -235,7 +238,9 @@ async def test_pipeline_needs(assets: pathlib.Path) -> None:
     flow = parse_batch(workspace, config_file)
     ctx = await BatchContext.create(flow)
 
-    ctx2 = await ctx.with_task("task-2", needs={"task_a": DepCtx(Result.SUCCEEDED, {})})
+    ctx2 = await ctx.with_task(
+        "task-2", needs={"task_a": DepCtx(JobStatus.SUCCEEDED, {})}
+    )
     assert ctx2.task.id is None
     assert ctx2.task.real_id == "task-2"
     assert ctx2.task.needs == {"task_a"}
@@ -348,7 +353,7 @@ async def test_pipeline_matrix_2(assets: pathlib.Path) -> None:
     }
 
     ctx2 = await ctx.with_task(
-        "task-2-a-1", needs={"task_a": DepCtx(Result.SUCCEEDED, {"name": "value"})}
+        "task-2-a-1", needs={"task_a": DepCtx(JobStatus.SUCCEEDED, {"name": "value"})}
     )
     assert ctx2.task.id is None
     assert ctx2.task.real_id == "task-2-a-1"

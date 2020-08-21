@@ -1,9 +1,9 @@
 # Contexts
 from dataclasses import dataclass, field, replace
 
-import enum
 import itertools
 import shlex
+from neuromation.api import JobStatus
 from typing import (
     AbstractSet,
     ClassVar,
@@ -88,15 +88,9 @@ class Neuro:
     pass
 
 
-class Result(str, enum.Enum):
-    SUCCEEDED = "succeeded"
-    FAILED = "failed"
-    CANCELLED = "cancelled"
-
-
 @dataclass(frozen=True)
 class DepCtx:
-    result: Result
+    result: JobStatus
     outputs: Mapping[str, str]
 
 
