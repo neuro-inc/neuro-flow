@@ -97,7 +97,7 @@ async def run(
 async def logs(config_dir: ConfigDir, job_id: str, suffix: Optional[str]) -> None:
     """Print logs.
 
-    Displys logs for JOB-ID
+    Display logs for JOB-ID
     """
     config_path = find_live_config(config_dir)
     flow = parse_live(config_path.workspace, config_path.config_file)
