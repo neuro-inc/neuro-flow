@@ -290,7 +290,10 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
     ) -> FinishedTask:
         async with CmdProcessor() as proc:
             async for chunk in self._client.jobs.monitor(task.raw_id):
-                await proc.feed_chunk(chunk)
+                async for line in proc.feed_chunk(chunk):
+                    pass
+            async for line in proc.feed_eof():
+                pass
         return await self._storage.finish_task(
             attempt, task_no, task, descr, proc.outputs
         )
@@ -305,7 +308,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         for line in ftable.table(rows):
             click.echo(line)
 
-    async def inspect(self, bake_id: str, attempt_no: int = -1) -> None:
+    async def inspect(self, bake_id: str, *, attempt_no: int = -1) -> None:
         rows: List[List[str]] = []
         rows.append([click.style("ID", bold=True), click.style("Status", bold=True)])
 
@@ -333,3 +336,45 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
 
         for line in ftable.table(rows):
             click.echo(line)
+
+    async def logs(
+        self, bake_id: str, task_id: str, *, attempt_no: int = -1, raw: bool = False
+    ) -> None:
+        bake = await self._storage.fetch_bake_by_id(self.project, bake_id)
+        attempt = await self._storage.find_attempt(bake, attempt_no)
+        started, finished = await self._storage.fetch_attempt(attempt)
+        if task_id not in finished:
+            if task_id not in started:
+                raise click.BadArgumentUsage(f"Unknown task {task_id}")
+            else:
+                raise click.BadArgumentUsage(f"Task {task_id} is not finished")
+        else:
+            task = finished[task_id]
+
+        click.echo(
+            " ".join(
+                [
+                    click.style(f"Attempt #{attempt.number}", bold=True),
+                    format_job_status(attempt.result),
+                ]
+            )
+        )
+        click.echo(
+            " ".join(
+                [
+                    click.style(f"Task {task_id}", bold=True),
+                    format_job_status(task.status),
+                ]
+            )
+        )
+
+        if raw:
+            async for chunk in self._client.jobs.monitor(task.raw_id):
+                click.echo(chunk.decode("utf-8", "replace"), nl=False)
+        else:
+            async with CmdProcessor() as proc:
+                async for chunk in self._client.jobs.monitor(task.raw_id):
+                    async for line in proc.feed_chunk(chunk):
+                        click.echo(line.decode("utf-8", "replace"), nl=False)
+                async for line in proc.feed_eof():
+                    click.echo(line.decode("utf-8", "replace"), nl=False)

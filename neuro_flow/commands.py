@@ -7,7 +7,16 @@
 import logging
 import re
 from types import TracebackType
-from typing import AsyncContextManager, Dict, List, Mapping, Optional, Tuple, Type
+from typing import (
+    AsyncContextManager,
+    AsyncIterator,
+    Dict,
+    List,
+    Mapping,
+    Optional,
+    Tuple,
+    Type,
+)
 
 
 log = logging.getLogger(__name__)
@@ -59,33 +68,44 @@ class CmdProcessor(AsyncContextManager["CmdProcessor"]):
         exc_val: Optional[BaseException],
         exc_tb: Optional[TracebackType],
     ) -> None:
-        await self.feed_line(self._buf)
+        assert not self._buf, "Missed call feed_eof()"
 
-    async def feed_chunk(self, chunk: bytes) -> None:
+    async def feed_chunk(self, chunk: bytes) -> AsyncIterator[bytes]:
         self._buf.extend(chunk)
         if b"\n" in self._buf:
             lines = self._buf.splitlines(keepends=True)
             self._buf = lines.pop(-1)
             for line in lines:
-                await self.feed_line(line)
+                ret = await self.feed_line(line)
+                if ret is not None:
+                    yield ret
 
-    async def feed_line(self, line: bytes) -> None:
-        line = line.strip()
+    async def feed_eof(self) -> AsyncIterator[bytes]:
+        ret = await self.feed_line(self._buf)
+        if ret is not None:
+            yield ret
+        self._buf = bytearray()
+
+    async def feed_line(self, origin_line: bytes) -> Optional[bytes]:
+        line = origin_line.strip()
         if not line.startswith(b"::"):
-            return
+            return origin_line
         if self._stop_commands is not None:
             if self._stop_commands == line:
                 self._stop_commands = None
-            return
+                return None
+            else:
+                return origin_line
         for cmd, pattern in self.COMMANDS_RE.items():
             match = pattern.match(line)
             if match is None:
                 continue
             handler = getattr(self.__class__, cmd)
             await handler(self, match)
-            return
+            return None
         else:
             log.warning("Unknown command %r", line.decode("utf-8", "replace"))
+        return None
 
     async def set_output(self, match: "re.Match[bytes]") -> None:
         name = match.group("name").decode("utf-8", "replace")

@@ -261,12 +261,18 @@ async def bakes(config_dir: ConfigDir) -> None:
 
 @main.command()
 @click.argument("bake_id")
-@click.argument("attempt", type=int, default=-1)
+@click.option(
+    "-a",
+    "--attempt",
+    type=int,
+    default=-1,
+    help="Attempt number, the last attempt by default",
+)
 @wrap_async
 async def inspect(config_dir: ConfigDir, bake_id: str, attempt: int) -> None:
     """Inspect a bake.
 
-    Display a list of started/finished tasks of BAKE-ID.
+    Display a list of started/finished tasks of BAKE_ID.
     """
     async with AsyncExitStack() as stack:
         client = await stack.enter_async_context(api_get())
@@ -274,4 +280,40 @@ async def inspect(config_dir: ConfigDir, bake_id: str, attempt: int) -> None:
         runner = await stack.enter_async_context(
             BatchRunner(config_dir, client, storage)
         )
-        await runner.inspect(bake_id, attempt)
+        await runner.inspect(bake_id, attempt_no=attempt)
+
+
+@main.command()
+@click.argument("bake_id")
+@click.argument("task_id")
+@click.option(
+    "-a",
+    "--attempt",
+    type=int,
+    default=-1,
+    help="Attempt number, the last attempt by default",
+)
+@click.option(
+    "-r/-R",
+    "--raw/--no-raw",
+    default=False,
+    help=(
+        "Raw mode disables the output postprocessing "
+        "(the output is processed by default)"
+    ),
+)
+@wrap_async
+async def show(
+    config_dir: ConfigDir, bake_id: str, attempt: int, task_id: str, raw: bool
+) -> None:
+    """Show output of baked task.
+
+    Display a logged output of TASK_ID from BAKE_ID.
+    """
+    async with AsyncExitStack() as stack:
+        client = await stack.enter_async_context(api_get())
+        storage: BatchStorage = await stack.enter_async_context(BatchFSStorage(client))
+        runner = await stack.enter_async_context(
+            BatchRunner(config_dir, client, storage)
+        )
+        await runner.logs(bake_id, task_id, attempt_no=attempt, raw=raw)
