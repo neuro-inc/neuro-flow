@@ -154,3 +154,50 @@ class LiveFlow(BaseFlow):
 class BatchFlow(BaseFlow):
     # self.kind == Kind.Batch
     tasks: Sequence[Task]
+
+
+@dataclass(frozen=True)
+class Input(Base):
+    description: str
+    required: bool
+    default: Optional[str]
+
+
+@dataclass(frozen=True)
+class Output(Base):
+    description: str
+    value: OptStrExpr
+
+
+@dataclass(frozen=True)
+class BaseRuns(Base):
+    using: str
+
+
+@dataclass(frozen=True)
+class JobRuns(BaseRuns):
+    jobs: Sequence[Job]
+
+
+@dataclass(frozen=True)
+class TaskRuns(BaseRuns):
+    tasks: Sequence[Task]
+
+
+@dataclass(frozen=True)
+class StatefulRuns(BaseRuns):
+    pre: Optional[ExecUnit]
+    pre_if: OptBoolExpr
+    main: ExecUnit
+    post: Optional[ExecUnit]
+    post_if: OptBoolExpr
+
+
+@dataclass(frozen=True)
+class Action(Base):
+    name: str
+    author: Optional[str]
+    description: str
+    inputs: Optional[Mapping[str, Input]]
+    outputs: Optional[Mapping[str, Input]]
+    runs: BaseRuns
