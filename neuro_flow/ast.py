@@ -158,46 +158,42 @@ class BatchFlow(BaseFlow):
 
 @dataclass(frozen=True)
 class Input(Base):
-    description: str
+    descr: str
     required: bool
     default: Optional[str]
 
 
 @dataclass(frozen=True)
 class Output(Base):
-    description: str
-    value: OptStrExpr
+    descr: str
+    value: OptStrExpr  # valid for composite actions only
 
 
 @dataclass(frozen=True)
-class BaseRuns(Base):
+class BaseAction(Base):
+    name: str
+    author: Optional[str]
+    descr: str
+    inputs: Optional[Mapping[str, Input]]
+    outputs: Optional[Mapping[str, Input]]
+
     using: str
 
 
 @dataclass(frozen=True)
-class JobRuns(BaseRuns):
+class JobCompositeAction(BaseAction):
     jobs: Sequence[Job]
 
 
 @dataclass(frozen=True)
-class TaskRuns(BaseRuns):
+class TaskCompositeAction(BaseAction):
     tasks: Sequence[Task]
 
 
 @dataclass(frozen=True)
-class StatefulRuns(BaseRuns):
+class StatefulAction(BaseAction):
     pre: Optional[ExecUnit]
     pre_if: OptBoolExpr
     main: ExecUnit
     post: Optional[ExecUnit]
     post_if: OptBoolExpr
-
-
-@dataclass(frozen=True)
-class Action(Base):
-    name: str
-    author: Optional[str]
-    description: str
-    inputs: Optional[Mapping[str, Input]]
-    outputs: Optional[Mapping[str, Input]]
-    runs: BaseRuns
