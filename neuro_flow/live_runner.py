@@ -108,7 +108,8 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
         found = False
         if meta.multi and not suffix:
             async for job in self.client.jobs.list(
-                tags=meta.tags, reverse=True,
+                tags=meta.tags,
+                reverse=True,
             ):
                 found = True
                 yield job
@@ -436,7 +437,10 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
                 volume_ctx = await self.find_volume(volume.id)
                 click.echo(f"Create volume {click.style(volume.id, bold=True)}")
                 await self._run_subproc(
-                    "neuro", "mkdir", "--parents", str(volume_ctx.remote),
+                    "neuro",
+                    "mkdir",
+                    "--parents",
+                    str(volume_ctx.remote),
                 )
 
     # images subsystem

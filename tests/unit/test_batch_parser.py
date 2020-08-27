@@ -584,13 +584,25 @@ def test_parse_args(assets: pathlib.Path) -> None:
         args={
             "arg1": ast.Arg(
                 _start=Pos(2, 8, config_file),
-                _end=Pos(2, 12, config_file,),
+                _end=Pos(
+                    2,
+                    12,
+                    config_file,
+                ),
                 default="val1",
                 descr=None,
             ),
             "arg2": ast.Arg(
-                _start=Pos(4, 4, config_file,),
-                _end=Pos(6, 0, config_file,),
+                _start=Pos(
+                    4,
+                    4,
+                    config_file,
+                ),
+                _end=Pos(
+                    6,
+                    0,
+                    config_file,
+                ),
                 default="val2",
                 descr="descr2",
             ),
@@ -619,8 +631,16 @@ def test_parse_args(assets: pathlib.Path) -> None:
         ),
         tasks=[
             ast.Task(
-                _start=Pos(11, 4, config_file,),
-                _end=Pos(13, 0, config_file,),
+                _start=Pos(
+                    11,
+                    4,
+                    config_file,
+                ),
+                _end=Pos(
+                    13,
+                    0,
+                    config_file,
+                ),
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),

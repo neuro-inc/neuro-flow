@@ -493,7 +493,9 @@ def test_parse_explicit_flow_id(assets: pathlib.Path) -> None:
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
                 cmd=OptStrExpr(
-                    Pos(0, 0, config_file), Pos(0, 0, config_file), "echo abc",
+                    Pos(0, 0, config_file),
+                    Pos(0, 0, config_file),
+                    "echo abc",
                 ),
                 workdir=OptRemotePathExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None

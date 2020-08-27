@@ -22,7 +22,9 @@ else:
 _T = TypeVar("_T")
 
 
-def wrap_async(callback: Callable[..., Awaitable[_T]],) -> Callable[..., _T]:
+def wrap_async(
+    callback: Callable[..., Awaitable[_T]],
+) -> Callable[..., _T]:
     assert iscoroutinefunction(callback)
 
     # N.B. the decorator implies @click.pass_obj
@@ -248,8 +250,7 @@ async def bake(config_dir: ConfigDir, batch: str) -> None:
 @main.command()
 @wrap_async
 async def bakes(config_dir: ConfigDir) -> None:
-    """List existing bakes.
-    """
+    """List existing bakes."""
     async with AsyncExitStack() as stack:
         client = await stack.enter_async_context(api_get())
         storage: BatchStorage = await stack.enter_async_context(BatchFSStorage(client))

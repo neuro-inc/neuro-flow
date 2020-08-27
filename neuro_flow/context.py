@@ -232,7 +232,15 @@ class BaseContext(RootABC):
     FLOW_TYPE: ClassVar[Type[ast.BaseFlow]] = field(init=False)
     LOOKUP_KEYS: ClassVar[Tuple[str, ...]] = field(
         init=False,
-        default=("flow", "defaults", "volumes", "images", "env", "job", "batch",),
+        default=(
+            "flow",
+            "defaults",
+            "volumes",
+            "images",
+            "env",
+            "job",
+            "batch",
+        ),
     )
 
     _ast_flow: ast.BaseFlow
@@ -281,7 +289,10 @@ class BaseContext(RootABC):
         tags.add(f"flow:{flow.id.replace('_', '-').lower()}")
 
         defaults = DefaultsCtx(
-            tags=tags, workdir=workdir, life_span=life_span, preset=preset,
+            tags=tags,
+            workdir=workdir,
+            life_span=life_span,
+            preset=preset,
         )
         ctx = replace(ctx, _defaults=defaults, _env=env)
 
@@ -408,7 +419,10 @@ class LiveContext(BaseContext):
             args_str = ""
         else:
             args_str = " ".join(shlex.quote(arg) for arg in args)
-        return replace(self, _multi=MultiCtx(suffix=suffix, args=args_str),)
+        return replace(
+            self,
+            _multi=MultiCtx(suffix=suffix, args=args_str),
+        )
 
     async def with_meta(self, job_id: str) -> "LiveContext":
         if self._meta is not None:
@@ -727,7 +741,11 @@ class BatchContext(BaseContext):
             http_port=await prep_task.ast.http_port.eval(ctx),
             http_auth=await prep_task.ast.http_auth.eval(ctx),
         )
-        return replace(ctx, _task=task_ctx, _env=env,)
+        return replace(
+            ctx,
+            _task=task_ctx,
+            _env=env,
+        )
 
     async def _build_matrix(self, strategy: ast.Strategy) -> Sequence[MatrixCtx]:
         assert strategy.matrix is not None
