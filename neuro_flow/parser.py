@@ -588,6 +588,7 @@ FLOW = {
     "images": None,
     "volumes": None,
     "defaults": None,
+    "args": None,
     "jobs": None,
     "tasks": None,
 }
@@ -602,11 +603,46 @@ Loader.add_path_resolver("flow:str", [(dict, "id")])  # type: ignore
 Loader.add_constructor("flow:str", parse_str)  # type: ignore
 
 
+Loader.add_path_resolver(  # type: ignore
+    "flow:str", [(dict, "args"), (dict, "default")]
+)
+Loader.add_path_resolver("flow:str", [(dict, "args"), (dict, "descr")])  # type: ignore
+
+
+def parse_arg(ctor: ConfigConstructor, node: yaml.MappingNode) -> ast.Arg:
+    return parse_dict(ctor, node, {"default": None, "descr": None}, ast.Arg)
+
+
+def parse_args(ctor: ConfigConstructor, node: yaml.MappingNode) -> Dict[str, ast.Arg]:
+    ret = {}
+    for k, v in node.value:
+        key = ctor.construct_id(k)
+        if isinstance(v, yaml.ScalarNode):
+            default = ctor.construct_object(v)  # type: ignore[no-untyped-call]
+            ret[key] = ast.Arg(
+                _start=mark2pos(v.start_mark),
+                _end=mark2pos(v.end_mark),
+                default=str(default) if default is not None else None,
+                descr=None,
+            )
+        else:
+            arg = parse_arg(ctor, v)
+            ret[key] = arg
+    return ret
+
+
+Loader.add_path_resolver("flow:args", [(dict, "args")])  # type: ignore
+Loader.add_constructor("flow:args", parse_args)  # type: ignore
+
+
 def select_kind(ctor: ConfigConstructor, dct: Dict[str, Any]) -> Dict[str, Any]:
     if dct["kind"] == ast.Kind.LIVE:
-        tasks = dct.pop("tass", None)
+        tasks = dct.pop("tasks", None)
         if tasks is not None:
             raise ValueError("flow of kind={dct['kind']} cannot have tasks")
+        args = dct.pop("args", None)
+        if args is not None:
+            raise ValueError("flow of kind={dct['kind']} cannot have args")
     elif dct["kind"] == ast.Kind.BATCH:
         jobs = dct.pop("jobs", None)
         if jobs is not None:
