@@ -151,6 +151,20 @@ class LiveFlow(BaseFlow):
 
 
 @dataclass(frozen=True)
+class Arg(Base):
+    # Possible args in yaml:
+    # args:
+    #  name: ~
+    #  name: value
+    #  name:
+    #    default: value
+    #    descr: description
+    default: Optional[str]
+    descr: Optional[str]
+
+
+@dataclass(frozen=True)
 class BatchFlow(BaseFlow):
     # self.kind == Kind.Batch
+    args: Optional[Mapping[str, Arg]]
     tasks: Sequence[Task]

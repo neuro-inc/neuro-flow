@@ -377,3 +377,12 @@ async def test_pipeline_matrix_2(assets: pathlib.Path) -> None:
     assert ctx2.task.life_span is None
 
     assert ctx2.matrix == {"arg1": "a", "arg2": "1"}
+
+
+async def test_pipeline_args(assets: pathlib.Path) -> None:
+    workspace = assets
+    config_file = workspace / "batch-args.yml"
+    flow = parse_batch(workspace, config_file)
+    ctx = await BatchContext.create(flow)
+
+    assert ctx.args == {"arg1": "val1", "arg2": "val2"}

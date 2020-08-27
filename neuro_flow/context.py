@@ -21,7 +21,7 @@ from typing import (
 from yarl import URL
 
 from . import ast
-from .expr import LiteralT, RootABC, TypeT
+from .expr import EvalError, LiteralT, RootABC, TypeT
 from .types import LocalPath, RemotePath
 
 
@@ -254,7 +254,8 @@ class BaseContext(RootABC):
             title=ast_flow.title or ast_flow.id,
         )
 
-        ctx = cls(_ast_flow=ast_flow, flow=flow,)
+        ctx = cls(_ast_flow=ast_flow, flow=flow)
+        ctx = await ctx._with_args()
 
         ast_defaults = ast_flow.defaults
         if ast_defaults is not None:
@@ -347,6 +348,10 @@ class BaseContext(RootABC):
         if self._images is None:
             raise NotAvailable("images")
         return self._images
+
+    async def _with_args(self: _CtxT) -> _CtxT:
+        # Calculate batch args context early, no-op for live mode
+        return self
 
 
 @dataclass(frozen=True)
@@ -490,8 +495,10 @@ class BatchContext(BaseContext):
     FLOW_TYPE: ClassVar[Type[ast.BatchFlow]] = field(init=False, default=ast.BatchFlow)
     LOOKUP_KEYS: ClassVar[Tuple[str, ...]] = field(
         init=False,
-        default=BaseContext.LOOKUP_KEYS + ("batch", "needs", "matrix", "strategy"),
+        default=BaseContext.LOOKUP_KEYS
+        + ("args", "batch", "needs", "matrix", "strategy"),
     )
+    _args: Optional[Mapping[str, str]] = None
     _task: Optional[TaskCtx] = None
     _needs: Optional[NeedsCtx] = None
     _prep_tasks: Optional[Mapping[str, PreparedTaskCtx]] = None
@@ -522,16 +529,18 @@ class BatchContext(BaseContext):
                     matrix = await ctx._build_matrix(ast_task.strategy)
                     matrix = await ctx._exclude(ast_task.strategy, matrix)
                     matrix = await ctx._include(ast_task.strategy, matrix)
+
+                    if len(matrix) > 256:
+                        raise EvalError(
+                            f"The matrix size for task #{num} exceeds the limit of 256",
+                            ast_task.strategy.matrix._start,
+                            ast_task.strategy.matrix._end,
+                        )
                 else:
                     matrix = [{}]  # dummy
             else:
                 strategy = default_strategy  # default
                 matrix = [{}]  # dummy
-
-            if len(matrix) > 256:
-                raise ValueError(
-                    f"The matrix size for task #{num} exceeds the limit of 256"
-                )
 
             real_ids = set()
             for row in matrix:
@@ -572,6 +581,27 @@ class BatchContext(BaseContext):
         return replace(  # type: ignore[return-value]
             ctx, _prep_tasks=prep_tasks, _graph=graph
         )
+
+    async def _with_args(self: _CtxT) -> _CtxT:
+        # Calculate batch args context early, no-op for live mode
+        assert isinstance(self._ast_flow, ast.BatchFlow)
+        args = {}
+        if self._ast_flow.args is not None:
+            for k, v in self._ast_flow.args.items():
+                if v.default is None:
+                    raise EvalError(
+                        f"Arg {k} is not initialized and has no default value",
+                        v._start,
+                        v._end,
+                    )
+                args[k] = v.default
+        return replace(self, _args=args)
+
+    @property
+    def args(self) -> Mapping[str, str]:
+        if self._args is None:
+            raise NotAvailable("args")
+        return self._args
 
     @property
     def task(self) -> TaskCtx:
