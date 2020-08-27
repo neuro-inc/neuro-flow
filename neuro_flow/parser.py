@@ -202,10 +202,18 @@ class IdMapping(SimpleCompound[_T, Mapping[str, Expr[_T]]]):
 
 
 KeyT = Union[
-    None, Type[Expr[Any]], SimpleCompound[Any, Any], Type[ast.Kind],
+    None,
+    Type[Expr[Any]],
+    SimpleCompound[Any, Any],
+    Type[ast.Kind],
 ]
 VarT = Union[
-    None, Expr[Any], Mapping[str, Any], Sequence[Any], ast.Base, ast.Kind,
+    None,
+    Expr[Any],
+    Mapping[str, Any],
+    Sequence[Any],
+    ast.Base,
+    ast.Kind,
 ]
 
 _AstType = TypeVar("_AstType", bound=ast.Base)
@@ -312,7 +320,11 @@ def parse_dict(
                     node.start_mark,
                 )
     return res_type(  # type: ignore[call-arg]
-        _start=node_start, _end=node_end, **extra, **data, **optional_fields,
+        _start=node_start,
+        _end=node_end,
+        **extra,
+        **data,
+        **optional_fields,
     )
 
 

@@ -171,7 +171,10 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                     status = await self._client.jobs.status(st.raw_id)
                     if status.status in (JobStatus.FAILED, JobStatus.SUCCEEDED):
                         finished[st.id] = await self._finish_task(
-                            attempt, len(started) + len(finished), st, status,
+                            attempt,
+                            len(started) + len(finished),
+                            st,
+                            status,
                         )
                         click.echo(f"Task {st.id} [{st.raw_id}] finished")
                         toposorter.done(st.id)
@@ -179,7 +182,8 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                 if len(finished) == ctx.cardinality // 2:
                     click.echo(f"Attempt #{attempt.number} finished")
                     await self._storage.finish_attempt(
-                        attempt, self._accumulate_result(finished.values()),
+                        attempt,
+                        self._accumulate_result(finished.values()),
                     )
                     return
 
@@ -286,7 +290,11 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         return secret_files
 
     async def _finish_task(
-        self, attempt: Attempt, task_no: int, task: StartedTask, descr: JobDescription,
+        self,
+        attempt: Attempt,
+        task_no: int,
+        task: StartedTask,
+        descr: JobDescription,
     ) -> FinishedTask:
         async with CmdProcessor() as proc:
             async for chunk in self._client.jobs.monitor(task.raw_id):
