@@ -32,6 +32,7 @@ class Base:
 class Project(Base):
     id: str
 
+
 # There are 'batch' for pipelined mode and 'live' for interactive one
 # (while 'batches' are technically just non-interactive jobs.
 
