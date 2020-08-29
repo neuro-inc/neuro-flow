@@ -69,10 +69,6 @@ class ConfigPath:
     config_file: LocalPath
 
 
-class FlowResolver(BaseResolver):
-    pass
-
-
 class BaseConstructor(SafeConstructor):
     def construct_id(self, node: yaml.Node) -> str:
         val = self.construct_object(node)  # type: ignore[no-untyped-call]
@@ -332,6 +328,53 @@ def parse_dict(
     )
 
 
+# #### Project parser ####
+
+
+class ProjectLoader(Reader, Scanner, Parser, Composer, BaseConstructor, BaseResolver):
+    def __init__(self, stream: TextIO) -> None:
+        Reader.__init__(self, stream)
+        Scanner.__init__(self)
+        Parser.__init__(self)
+        Composer.__init__(self)
+        BaseConstructor.__init__(self)
+        BaseResolver.__init__(self)
+
+
+PROJECT = {
+    "id": None,
+}
+
+
+def parse_project_main(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Project:
+    ret = parse_dict(
+        ctor,
+        node,
+        PROJECT,
+        ast.Project,
+    )
+    if ret.id is None:
+        ret = dataclasses.replace(ret, id=ctor._id)
+    return ret
+
+
+ProjectLoader.add_path_resolver("project:main", [])  # type: ignore
+ProjectLoader.add_constructor("project:main", parse_project_main)  # type: ignore
+
+
+def parse_project(workspace: Path, config_file: Path) -> ast.Project:
+    # Parse project config file
+    with config_file.open() as f:
+        loader = ProjectLoader(f)
+        try:
+            ret = loader.get_single_data()  # type: ignore[no-untyped-call]
+            assert isinstance(ret, ast.BatchFlow)
+            assert ret.kind == ast.Kind.BATCH
+            return ret
+        finally:
+            loader.dispose()  # type: ignore[no-untyped-call]
+
+
 # #### Flow parser ####
 
 
@@ -342,14 +385,14 @@ class FlowConstructor(BaseConstructor):
         self._workspace = workspace
 
 
-class FlowLoader(Reader, Scanner, Parser, Composer, FlowConstructor, FlowResolver):
+class FlowLoader(Reader, Scanner, Parser, Composer, FlowConstructor, BaseResolver):
     def __init__(self, stream: TextIO, id: str, workspace: LocalPath) -> None:
         Reader.__init__(self, stream)
         Scanner.__init__(self)
         Parser.__init__(self)
         Composer.__init__(self)
         FlowConstructor.__init__(self, id, workspace)
-        FlowResolver.__init__(self)
+        BaseResolver.__init__(self)
 
 
 def parse_volume(ctor: FlowConstructor, node: yaml.MappingNode) -> ast.Volume:
@@ -377,8 +420,8 @@ def parse_volumes(
     return ret
 
 
-FlowResolver.add_path_resolver("flow:volumes", [(dict, "volumes")])  # type: ignore
-FlowConstructor.add_constructor("flow:volumes", parse_volumes)  # type: ignore
+FlowLoader.add_path_resolver("flow:volumes", [(dict, "volumes")])  # type: ignore
+FlowLoader.add_constructor("flow:volumes", parse_volumes)  # type: ignore
 
 
 def parse_image(ctor: FlowConstructor, node: yaml.MappingNode) -> ast.Image:
@@ -404,8 +447,8 @@ def parse_images(ctor: FlowConstructor, node: yaml.MappingNode) -> Dict[str, ast
     return ret
 
 
-FlowResolver.add_path_resolver("flow:images", [(dict, "images")])  # type: ignore
-FlowConstructor.add_constructor("flow:images", parse_images)  # type: ignore
+FlowLoader.add_path_resolver("flow:images", [(dict, "images")])  # type: ignore
+FlowLoader.add_constructor("flow:images", parse_images)  # type: ignore
 
 
 def parse_exc_inc(
@@ -456,11 +499,11 @@ def parse_matrix(ctor: FlowConstructor, node: yaml.MappingNode) -> ast.Matrix:
     )
 
 
-FlowResolver.add_path_resolver(  # type: ignore
+FlowLoader.add_path_resolver(  # type: ignore
     "flow:matrix",
     [(dict, "tasks"), (list, None), (dict, "strategy"), (dict, "matrix")],
 )
-FlowConstructor.add_constructor("flow:matrix", parse_matrix)  # type: ignore
+FlowLoader.add_constructor("flow:matrix", parse_matrix)  # type: ignore
 
 
 STRATEGY = {
@@ -479,10 +522,10 @@ def parse_strategy(ctor: FlowConstructor, node: yaml.MappingNode) -> ast.Strateg
     )
 
 
-FlowResolver.add_path_resolver(  # type: ignore
+FlowLoader.add_path_resolver(  # type: ignore
     "flow:strategy", [(dict, "tasks"), (list, None), (dict, "strategy")]
 )
-FlowConstructor.add_constructor("flow:strategy", parse_strategy)  # type: ignore
+FlowLoader.add_constructor("flow:strategy", parse_strategy)  # type: ignore
 
 
 EXEC_UNIT = {
@@ -504,7 +547,7 @@ EXEC_UNIT = {
 }
 
 
-FlowResolver.add_path_resolver(  # type: ignore
+FlowLoader.add_path_resolver(  # type: ignore
     "flow:bool", [(dict, "jobs"), (dict, None), (dict, "multi")]
 )
 
@@ -549,8 +592,8 @@ def parse_jobs(ctor: FlowConstructor, node: yaml.MappingNode) -> Dict[str, ast.J
     return ret
 
 
-FlowResolver.add_path_resolver("flow:jobs", [(dict, "jobs")])  # type: ignore
-FlowConstructor.add_constructor("flow:jobs", parse_jobs)  # type: ignore
+FlowLoader.add_path_resolver("flow:jobs", [(dict, "jobs")])  # type: ignore
+FlowLoader.add_constructor("flow:jobs", parse_jobs)  # type: ignore
 
 
 TASK = {
@@ -567,16 +610,14 @@ def parse_task(ctor: FlowConstructor, node: yaml.MappingNode) -> ast.Task:
     )
 
 
-FlowResolver.add_path_resolver(  # type: ignore[no-untyped-call]
+FlowLoader.add_path_resolver(  # type: ignore[no-untyped-call]
     "flow:task", [(dict, "tasks"), (list, None)]
 )
-FlowConstructor.add_constructor("flow:task", parse_task)  # type: ignore
+FlowLoader.add_constructor("flow:task", parse_task)  # type: ignore
 
 
-FlowResolver.add_path_resolver("flow:tasks", [(dict, "tasks")])  # type: ignore
-FlowConstructor.add_constructor(  # type: ignore
-    "flow:tasks", FlowLoader.construct_sequence
-)
+FlowLoader.add_path_resolver("flow:tasks", [(dict, "tasks")])  # type: ignore
+FlowLoader.add_constructor("flow:tasks", FlowLoader.construct_sequence)  # type: ignore
 
 
 def parse_flow_defaults(
@@ -596,8 +637,8 @@ def parse_flow_defaults(
     )
 
 
-FlowResolver.add_path_resolver("flow:defaults", [(dict, "defaults")])  # type: ignore
-FlowConstructor.add_constructor("flow:defaults", parse_flow_defaults)  # type: ignore
+FlowLoader.add_path_resolver("flow:defaults", [(dict, "defaults")])  # type: ignore
+FlowLoader.add_constructor("flow:defaults", parse_flow_defaults)  # type: ignore
 
 
 FLOW = {
@@ -613,14 +654,14 @@ FLOW = {
 }
 
 
-FlowResolver.add_path_resolver("flow:str", [(dict, "title")])  # type: ignore
-FlowResolver.add_path_resolver("flow:str", [(dict, "id")])  # type: ignore
+FlowLoader.add_path_resolver("flow:str", [(dict, "title")])  # type: ignore
+FlowLoader.add_path_resolver("flow:str", [(dict, "id")])  # type: ignore
 
 
-FlowResolver.add_path_resolver(  # type: ignore
+FlowLoader.add_path_resolver(  # type: ignore
     "flow:str", [(dict, "args"), (dict, "default")]
 )
-FlowResolver.add_path_resolver(  # type: ignore
+FlowLoader.add_path_resolver(  # type: ignore
     "flow:str", [(dict, "args"), (dict, "descr")]
 )
 
@@ -647,8 +688,8 @@ def parse_args(ctor: FlowConstructor, node: yaml.MappingNode) -> Dict[str, ast.A
     return ret
 
 
-FlowResolver.add_path_resolver("flow:args", [(dict, "args")])  # type: ignore
-FlowConstructor.add_constructor("flow:args", parse_args)  # type: ignore
+FlowLoader.add_path_resolver("flow:args", [(dict, "args")])  # type: ignore
+FlowLoader.add_constructor("flow:args", parse_args)  # type: ignore
 
 
 def select_kind(ctor: FlowConstructor, dct: Dict[str, Any]) -> Dict[str, Any]:
@@ -680,7 +721,7 @@ def find_res_type(
         raise ValueError(f"Unknown kind {arg['kind']} of the flow")
 
 
-def parse_main(ctor: FlowConstructor, node: yaml.MappingNode) -> ast.BaseFlow:
+def parse_flow_main(ctor: FlowConstructor, node: yaml.MappingNode) -> ast.BaseFlow:
     ret = parse_dict(
         ctor,
         node,
@@ -694,8 +735,8 @@ def parse_main(ctor: FlowConstructor, node: yaml.MappingNode) -> ast.BaseFlow:
     return ret
 
 
-FlowResolver.add_path_resolver("flow:main", [])  # type: ignore
-FlowConstructor.add_constructor("flow:main", parse_main)  # type: ignore
+FlowLoader.add_path_resolver("flow:main", [])  # type: ignore
+FlowLoader.add_constructor("flow:main", parse_flow_main)  # type: ignore
 
 
 def parse_live(
