@@ -331,13 +331,21 @@ def parse_dict(
 # #### Project parser ####
 
 
-class ProjectLoader(Reader, Scanner, Parser, Composer, BaseConstructor, BaseResolver):
-    def __init__(self, stream: TextIO) -> None:
+class ProjectConstructor(BaseConstructor):
+    def __init__(self, id: str) -> None:
+        super().__init__()
+        self._id = id
+
+
+class ProjectLoader(
+    Reader, Scanner, Parser, Composer, ProjectConstructor, BaseResolver
+):
+    def __init__(self, stream: TextIO, id: str) -> None:
         Reader.__init__(self, stream)
         Scanner.__init__(self)
         Parser.__init__(self)
         Composer.__init__(self)
-        BaseConstructor.__init__(self)
+        ProjectConstructor.__init__(self, id)
         BaseResolver.__init__(self)
 
 
@@ -346,7 +354,7 @@ PROJECT = {
 }
 
 
-def parse_project_main(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Project:
+def parse_project_main(ctor: ProjectConstructor, node: yaml.MappingNode) -> ast.Project:
     ret = parse_dict(
         ctor,
         node,
@@ -362,14 +370,17 @@ ProjectLoader.add_path_resolver("project:main", [])  # type: ignore
 ProjectLoader.add_constructor("project:main", parse_project_main)  # type: ignore
 
 
-def parse_project(workspace: Path, config_file: Path) -> ast.Project:
+def parse_project(
+    workspace: Path, config_file: Path, *, id: Optional[str] = None
+) -> ast.Project:
     # Parse project config file
+    if id is None:
+        id = workspace.stem
     with config_file.open() as f:
-        loader = ProjectLoader(f)
+        loader = ProjectLoader(f, id)
         try:
             ret = loader.get_single_data()  # type: ignore[no-untyped-call]
-            assert isinstance(ret, ast.BatchFlow)
-            assert ret.kind == ast.Kind.BATCH
+            assert isinstance(ret, ast.Project)
             return ret
         finally:
             loader.dispose()  # type: ignore[no-untyped-call]
