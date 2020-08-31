@@ -21,10 +21,10 @@ async def test_ctx_flow(assets: pathlib.Path) -> None:
     config_file = workspace / "live-minimal.yml"
     flow = parse_live(workspace, config_file)
     ctx = await LiveContext.create(flow, workspace, config_file)
-    assert ctx.flow.flow_id == "live-minimal"
+    assert ctx.flow.flow_id == "live_minimal"
     assert ctx.flow.project_id == "unit"
     assert ctx.flow.workspace == workspace
-    assert ctx.flow.title == "live-minimal"
+    assert ctx.flow.title == "live_minimal"
 
 
 async def test_env_defaults(assets: pathlib.Path) -> None:
