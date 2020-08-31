@@ -3,6 +3,7 @@ from dataclasses import dataclass, field, replace
 
 import itertools
 import shlex
+import warnings
 from neuromation.api import JobStatus
 from typing import (
     AbstractSet,
@@ -22,6 +23,7 @@ from yarl import URL
 
 from . import ast
 from .expr import EvalError, LiteralT, RootABC, TypeT
+from .parser import parse_project
 from .types import LocalPath, RemotePath
 
 
@@ -224,6 +226,15 @@ class FlowCtx:
     workspace: LocalPath
     title: str
 
+    @property
+    def id(self) -> str:
+        warnings.warn(
+            "flow.id attribute is deprecated, use flow.flow_id instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.flow_id
+
 
 _CtxT = TypeVar("_CtxT", bound="BaseContext")
 
@@ -260,16 +271,14 @@ class BaseContext(RootABC):
         ast_flow: ast.BaseFlow,
         workspace: LocalPath,
         config_file: LocalPath,
-        project: Optional[ast.Project] = None,
     ) -> _CtxT:
         assert isinstance(ast_flow, cls.FLOW_TYPE)
         flow_id = ast_flow.id
         if flow_id is None:
-            flow_id = config_file.stem
-        if project is not None:
-            project_id = project.id
-        else:
-            project_id = workspace.stem
+            flow_id = config_file.stem.replace("-", "_")
+
+        project = parse_project(workspace)
+        project_id = project.id
 
         flow = FlowCtx(
             flow_id=flow_id,
@@ -543,11 +552,8 @@ class BatchContext(BaseContext):
         ast_flow: ast.BaseFlow,
         workspace: LocalPath,
         config_file: LocalPath,
-        project: Optional[ast.Project] = None,
     ) -> _CtxT:
-        ctx = await super(cls, BatchContext).create(
-            ast_flow, workspace, config_file, project
-        )
+        ctx = await super(cls, BatchContext).create(ast_flow, workspace, config_file)
         assert isinstance(ctx._ast_flow, ast.BatchFlow)
         prep_tasks = {}
         last_needs: Set[str] = set()

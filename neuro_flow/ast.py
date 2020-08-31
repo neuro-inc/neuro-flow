@@ -19,7 +19,6 @@ from .expr import (
     URIExpr,
 )
 from .tokenizer import Pos
-from .types import LocalPath
 
 
 @dataclass(frozen=True)

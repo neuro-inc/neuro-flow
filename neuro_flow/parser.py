@@ -9,7 +9,6 @@ import dataclasses
 
 import abc
 import yaml
-from pathlib import Path
 from typing import (
     Any,
     Callable,
@@ -33,6 +32,7 @@ from yaml.scanner import Scanner
 
 from . import ast
 from .expr import (
+    EvalError,
     Expr,
     IdExpr,
     OptBashExpr,
@@ -360,16 +360,37 @@ ProjectLoader.add_path_resolver("project:main", [])  # type: ignore
 ProjectLoader.add_constructor("project:main", parse_project_main)  # type: ignore
 
 
-def parse_project(workspace: Path, config_file: Path) -> ast.Project:
+def parse_project(
+    workspace: LocalPath, *, filename: str = "project.yml"
+) -> ast.Project:
     # Parse project config file
-    with config_file.open() as f:
-        loader = ProjectLoader(f)
-        try:
-            ret = loader.get_single_data()  # type: ignore[no-untyped-call]
-            assert isinstance(ret, ast.Project)
-            return ret
-        finally:
-            loader.dispose()  # type: ignore[no-untyped-call]
+    ret: ast.Project
+    config_file = workspace / filename
+    try:
+        with config_file.open() as f:
+            loader = ProjectLoader(f)
+            try:
+                ret = loader.get_single_data()  # type: ignore[no-untyped-call]
+                assert isinstance(ret, ast.Project)
+                if not ret.id.isidentifier():
+                    raise EvalError(
+                        f"{ret.id!r} is not identifier", ret._start, ret._end
+                    )
+            finally:
+                loader.dispose()  # type: ignore[no-untyped-call]
+    except FileNotFoundError:
+        ret = ast.Project(
+            _start=Pos(0, 0, LocalPath("<default>")),
+            _end=Pos(0, 0, LocalPath("<default>")),
+            id=workspace.stem.replace("-", "_"),
+        )
+        if not ret.id.isidentifier():
+            raise ValueError(
+                f"{ret.id!r} is not identifier, "
+                "please rename the project folder or "
+                "specify id in project.yml"
+            )
+    return ret
 
 
 # #### Flow parser ####
@@ -726,7 +747,7 @@ FlowLoader.add_path_resolver("flow:main", [])  # type: ignore
 FlowLoader.add_constructor("flow:main", parse_flow_main)  # type: ignore
 
 
-def parse_live(workspace: Path, config_file: Path) -> ast.LiveFlow:
+def parse_live(workspace: LocalPath, config_file: LocalPath) -> ast.LiveFlow:
     # Parse live flow config file
     with config_file.open() as f:
         loader = FlowLoader(f)
@@ -739,7 +760,7 @@ def parse_live(workspace: Path, config_file: Path) -> ast.LiveFlow:
             loader.dispose()  # type: ignore[no-untyped-call]
 
 
-def parse_batch(workspace: Path, config_file: Path) -> ast.BatchFlow:
+def parse_batch(workspace: LocalPath, config_file: LocalPath) -> ast.BatchFlow:
     # Parse pipeline flow config file
     with config_file.open() as f:
         loader = FlowLoader(f)
@@ -752,16 +773,16 @@ def parse_batch(workspace: Path, config_file: Path) -> ast.BatchFlow:
             loader.dispose()  # type: ignore[no-untyped-call]
 
 
-def find_workspace(path: Optional[Union[Path, str]]) -> ConfigDir:
+def find_workspace(path: Optional[Union[LocalPath, str]]) -> ConfigDir:
     if path is not None:
-        if not isinstance(path, Path):
-            path = Path(path)
+        if not isinstance(path, LocalPath):
+            path = LocalPath(path)
         if not path.exists():
             raise ValueError(f"{path} does not exist")
         if not path.is_dir():
             raise ValueError(f"{path} should be a directory")
     else:
-        path = Path.cwd()
+        path = LocalPath.cwd()
 
     orig_path = path
 
@@ -780,7 +801,7 @@ def find_live_config(workspace: ConfigDir) -> ConfigPath:
     # Return a project root folder and a path to config file.
     #
     # If path is a file -- it is used as is.
-    # If path is a directory -- it is used as starting point, Path.cwd() otherwise.
+    # If path is a directory -- it is used as starting point, LocalPath.cwd() otherwise.
     # The lookup searches bottom-top from path dir up to the root folder,
     # looking for .neuro folder and ./neuro/live.yml
     # If the config file not found -- raise an exception.
