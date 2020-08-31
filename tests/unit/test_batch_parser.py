@@ -26,8 +26,7 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
     assert flow == ast.BatchFlow(
         Pos(0, 0, config_file),
         Pos(47, 0, config_file),
-        id="batch-minimal",
-        workspace=workspace,
+        id=None,
         kind=ast.Kind.BATCH,
         title="Global title",
         args=None,
@@ -187,8 +186,7 @@ def test_parse_seq(assets: pathlib.Path) -> None:
     assert flow == ast.BatchFlow(
         Pos(0, 0, config_file),
         Pos(9, 0, config_file),
-        id="batch-seq",
-        workspace=workspace,
+        id=None,
         kind=ast.Kind.BATCH,
         title=None,
         args=None,
@@ -275,8 +273,7 @@ def test_parse_needs(assets: pathlib.Path) -> None:
     assert flow == ast.BatchFlow(
         Pos(0, 0, config_file),
         Pos(11, 0, config_file),
-        id="batch-needs",
-        workspace=workspace,
+        id=None,
         kind=ast.Kind.BATCH,
         title=None,
         args=None,
@@ -365,8 +362,7 @@ def test_parse_matrix(assets: pathlib.Path) -> None:
     assert flow == ast.BatchFlow(
         Pos(0, 0, config_file),
         Pos(15, 0, config_file),
-        id="batch-matrix",
-        workspace=workspace,
+        id=None,
         kind=ast.Kind.BATCH,
         title=None,
         args=None,
@@ -471,8 +467,7 @@ def test_parse_matrix_with_strategy(assets: pathlib.Path) -> None:
     assert flow == ast.BatchFlow(
         Pos(0, 0, config_file),
         Pos(17, 0, config_file),
-        id="batch-matrix-with-strategy",
-        workspace=workspace,
+        id=None,
         kind=ast.Kind.BATCH,
         title=None,
         args=None,
@@ -577,8 +572,7 @@ def test_parse_args(assets: pathlib.Path) -> None:
     assert flow == ast.BatchFlow(
         Pos(0, 0, config_file),
         Pos(13, 0, config_file),
-        id="batch-args",
-        workspace=workspace,
+        id=None,
         kind=ast.Kind.BATCH,
         title=None,
         args={
