@@ -13,3 +13,6 @@ COLORS = {
 
 def format_job_status(status: JobStatus) -> str:
     return click.style(status.value, fg=COLORS.get(status, "reset"))
+
+
+JOB_TAG_PATTERN = r"\A[a-z](?:[-.:/]?[a-z0-9]){0,255}\Z"

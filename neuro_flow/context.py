@@ -3,6 +3,7 @@ from dataclasses import dataclass, field, replace
 
 import itertools
 import shlex
+import warnings
 from neuromation.api import JobStatus
 from typing import (
     AbstractSet,
@@ -21,7 +22,8 @@ from typing import (
 from yarl import URL
 
 from . import ast
-from .expr import LiteralT, RootABC, TypeT
+from .expr import EvalError, LiteralT, RootABC, TypeT
+from .parser import parse_project
 from .types import LocalPath, RemotePath
 
 
@@ -219,9 +221,19 @@ class DefaultsCtx:
 
 @dataclass(frozen=True)
 class FlowCtx:
-    id: str
+    flow_id: str
+    project_id: str
     workspace: LocalPath
     title: str
+
+    @property
+    def id(self) -> str:
+        warnings.warn(
+            "flow.id attribute is deprecated, use flow.flow_id instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.flow_id
 
 
 _CtxT = TypeVar("_CtxT", bound="BaseContext")
@@ -232,7 +244,15 @@ class BaseContext(RootABC):
     FLOW_TYPE: ClassVar[Type[ast.BaseFlow]] = field(init=False)
     LOOKUP_KEYS: ClassVar[Tuple[str, ...]] = field(
         init=False,
-        default=("flow", "defaults", "volumes", "images", "env", "job", "batch",),
+        default=(
+            "flow",
+            "defaults",
+            "volumes",
+            "images",
+            "env",
+            "job",
+            "batch",
+        ),
     )
 
     _ast_flow: ast.BaseFlow
@@ -246,15 +266,29 @@ class BaseContext(RootABC):
     # Add a context with global flow info, e.g. ctx.flow.id maybe?
 
     @classmethod
-    async def create(cls: Type[_CtxT], ast_flow: ast.BaseFlow) -> _CtxT:
+    async def create(
+        cls: Type[_CtxT],
+        ast_flow: ast.BaseFlow,
+        workspace: LocalPath,
+        config_file: LocalPath,
+    ) -> _CtxT:
         assert isinstance(ast_flow, cls.FLOW_TYPE)
+        flow_id = ast_flow.id
+        if flow_id is None:
+            flow_id = config_file.stem.replace("-", "_")
+
+        project = parse_project(workspace)
+        project_id = project.id
+
         flow = FlowCtx(
-            id=ast_flow.id,
-            workspace=ast_flow.workspace.resolve(),
-            title=ast_flow.title or ast_flow.id,
+            flow_id=flow_id,
+            project_id=project_id,
+            workspace=workspace.resolve(),
+            title=ast_flow.title or flow_id,
         )
 
-        ctx = cls(_ast_flow=ast_flow, flow=flow,)
+        ctx = cls(_ast_flow=ast_flow, flow=flow)
+        ctx = await ctx._with_args()
 
         ast_defaults = ast_flow.defaults
         if ast_defaults is not None:
@@ -277,10 +311,14 @@ class BaseContext(RootABC):
             life_span = None
             preset = None
 
-        tags.add(f"flow:{flow.id.replace('_', '-').lower()}")
+        tags.add(f"project:{_id2tag(project_id)}")
+        tags.add(f"flow:{_id2tag(flow_id)}")
 
         defaults = DefaultsCtx(
-            tags=tags, workdir=workdir, life_span=life_span, preset=preset,
+            tags=tags,
+            workdir=workdir,
+            life_span=life_span,
+            preset=preset,
         )
         ctx = replace(ctx, _defaults=defaults, _env=env)
 
@@ -348,6 +386,10 @@ class BaseContext(RootABC):
             raise NotAvailable("images")
         return self._images
 
+    async def _with_args(self: _CtxT) -> _CtxT:
+        # Calculate batch args context early, no-op for live mode
+        return self
+
 
 @dataclass(frozen=True)
 class LiveContext(BaseContext):
@@ -403,7 +445,10 @@ class LiveContext(BaseContext):
             args_str = ""
         else:
             args_str = " ".join(shlex.quote(arg) for arg in args)
-        return replace(self, _multi=MultiCtx(suffix=suffix, args=args_str),)
+        return replace(
+            self,
+            _multi=MultiCtx(suffix=suffix, args=args_str),
+        )
 
     async def with_meta(self, job_id: str) -> "LiveContext":
         if self._meta is not None:
@@ -418,7 +463,7 @@ class LiveContext(BaseContext):
             raise UnknownJob(job_id)
 
         tags = set(self.defaults.tags)
-        tags.add(f"job:{job_id.replace('_', '-').lower()}")
+        tags.add(f"job:{_id2tag(job_id)}")
 
         return replace(
             self, _meta=JobMetaCtx(id=job_id, multi=bool(job.multi), tags=tags)
@@ -448,7 +493,7 @@ class LiveContext(BaseContext):
 
         title = await job.title.eval(self)
         if title is None:
-            title = f"{self.flow.id}.{job_id}"
+            title = f"{self.flow.flow_id}.{job_id}"
 
         workdir = (await job.workdir.eval(self)) or self.defaults.workdir
 
@@ -490,8 +535,10 @@ class BatchContext(BaseContext):
     FLOW_TYPE: ClassVar[Type[ast.BatchFlow]] = field(init=False, default=ast.BatchFlow)
     LOOKUP_KEYS: ClassVar[Tuple[str, ...]] = field(
         init=False,
-        default=BaseContext.LOOKUP_KEYS + ("batch", "needs", "matrix", "strategy"),
+        default=BaseContext.LOOKUP_KEYS
+        + ("args", "batch", "needs", "matrix", "strategy"),
     )
+    _args: Optional[Mapping[str, str]] = None
     _task: Optional[TaskCtx] = None
     _needs: Optional[NeedsCtx] = None
     _prep_tasks: Optional[Mapping[str, PreparedTaskCtx]] = None
@@ -500,8 +547,13 @@ class BatchContext(BaseContext):
     _strategy: Optional[StrategyCtx] = None
 
     @classmethod
-    async def create(cls: Type[_CtxT], ast_flow: ast.BaseFlow) -> _CtxT:
-        ctx = await super(cls, BatchContext).create(ast_flow)
+    async def create(
+        cls: Type[_CtxT],
+        ast_flow: ast.BaseFlow,
+        workspace: LocalPath,
+        config_file: LocalPath,
+    ) -> _CtxT:
+        ctx = await super(cls, BatchContext).create(ast_flow, workspace, config_file)
         assert isinstance(ctx._ast_flow, ast.BatchFlow)
         prep_tasks = {}
         last_needs: Set[str] = set()
@@ -522,16 +574,18 @@ class BatchContext(BaseContext):
                     matrix = await ctx._build_matrix(ast_task.strategy)
                     matrix = await ctx._exclude(ast_task.strategy, matrix)
                     matrix = await ctx._include(ast_task.strategy, matrix)
+
+                    if len(matrix) > 256:
+                        raise EvalError(
+                            f"The matrix size for task #{num} exceeds the limit of 256",
+                            ast_task.strategy.matrix._start,
+                            ast_task.strategy.matrix._end,
+                        )
                 else:
                     matrix = [{}]  # dummy
             else:
                 strategy = default_strategy  # default
                 matrix = [{}]  # dummy
-
-            if len(matrix) > 256:
-                raise ValueError(
-                    f"The matrix size for task #{num} exceeds the limit of 256"
-                )
 
             real_ids = set()
             for row in matrix:
@@ -572,6 +626,27 @@ class BatchContext(BaseContext):
         return replace(  # type: ignore[return-value]
             ctx, _prep_tasks=prep_tasks, _graph=graph
         )
+
+    async def _with_args(self: _CtxT) -> _CtxT:
+        # Calculate batch args context early, no-op for live mode
+        assert isinstance(self._ast_flow, ast.BatchFlow)
+        args = {}
+        if self._ast_flow.args is not None:
+            for k, v in self._ast_flow.args.items():
+                if v.default is None:
+                    raise EvalError(
+                        f"Arg {k} is not initialized and has no default value",
+                        v._start,
+                        v._end,
+                    )
+                args[k] = v.default
+        return replace(self, _args=args)
+
+    @property
+    def args(self) -> Mapping[str, str]:
+        if self._args is None:
+            raise NotAvailable("args")
+        return self._args
 
     @property
     def task(self) -> TaskCtx:
@@ -661,14 +736,14 @@ class BatchContext(BaseContext):
 
         title = await prep_task.ast.title.eval(ctx)
         if title is None:
-            title = f"{ctx.flow.id}.{real_id}"
+            title = f"{ctx.flow.flow_id}.{real_id}"
         title = await prep_task.ast.title.eval(ctx)
 
         tags = set()
         if prep_task.ast.tags is not None:
             tags = {await v.eval(ctx) for v in prep_task.ast.tags}
         if not tags:
-            tags = {f"task:{real_id.replace('_', '-').lower()}"}
+            tags = {f"task:{_id2tag(real_id)}"}
 
         workdir = (await prep_task.ast.workdir.eval(ctx)) or ctx.defaults.workdir
 
@@ -697,7 +772,11 @@ class BatchContext(BaseContext):
             http_port=await prep_task.ast.http_port.eval(ctx),
             http_auth=await prep_task.ast.http_auth.eval(ctx),
         )
-        return replace(ctx, _task=task_ctx, _env=env,)
+        return replace(
+            ctx,
+            _task=task_ctx,
+            _env=env,
+        )
 
     async def _build_matrix(self, strategy: ast.Strategy) -> Sequence[MatrixCtx]:
         assert strategy.matrix is not None
@@ -752,3 +831,7 @@ def calc_full_path(ctx: BaseContext, path: Optional[LocalPath]) -> Optional[Loca
     if path.is_absolute():
         return path
     return ctx.flow.workspace.joinpath(path).resolve()
+
+
+def _id2tag(id: str) -> str:
+    return id.replace("_", "-").lower()

@@ -9,7 +9,7 @@ from typing import Any, Awaitable, Callable, Optional, Tuple, TypeVar
 
 from .batch_runner import BatchRunner
 from .live_runner import LiveRunner
-from .parser import ConfigDir, find_live_config, find_workspace, parse_live
+from .parser import ConfigDir, find_live_config, find_workspace
 from .storage import BatchFSStorage, BatchStorage
 
 
@@ -22,7 +22,9 @@ else:
 _T = TypeVar("_T")
 
 
-def wrap_async(callback: Callable[..., Awaitable[_T]],) -> Callable[..., _T]:
+def wrap_async(
+    callback: Callable[..., Awaitable[_T]],
+) -> Callable[..., _T]:
     assert iscoroutinefunction(callback)
 
     # N.B. the decorator implies @click.pass_obj
@@ -62,8 +64,7 @@ def main(ctx: click.Context, config: Optional[str]) -> None:
 async def ps(config_dir: ConfigDir) -> None:
     """List all jobs"""
     config_path = find_live_config(config_dir)
-    flow = parse_live(config_path.workspace, config_path.config_file)
-    async with LiveRunner(flow) as runner:
+    async with LiveRunner(config_path.workspace, config_path.config_file) as runner:
         await runner.ps()
 
 
@@ -85,8 +86,7 @@ async def run(
     For multi-jobs an explicit job suffix can be used with explicit job arguments.
     """
     config_path = find_live_config(config_dir)
-    flow = parse_live(config_path.workspace, config_path.config_file)
-    async with LiveRunner(flow) as runner:
+    async with LiveRunner(config_path.workspace, config_path.config_file) as runner:
         await runner.run(job_id, suffix, args)
 
 
@@ -100,8 +100,7 @@ async def logs(config_dir: ConfigDir, job_id: str, suffix: Optional[str]) -> Non
     Display logs for JOB-ID
     """
     config_path = find_live_config(config_dir)
-    flow = parse_live(config_path.workspace, config_path.config_file)
-    async with LiveRunner(flow) as runner:
+    async with LiveRunner(config_path.workspace, config_path.config_file) as runner:
         await runner.logs(job_id, suffix)
 
 
@@ -115,8 +114,7 @@ async def status(config_dir: ConfigDir, job_id: str, suffix: Optional[str]) -> N
     Print status for JOB-ID
     """
     config_path = find_live_config(config_dir)
-    flow = parse_live(config_path.workspace, config_path.config_file)
-    async with LiveRunner(flow) as runner:
+    async with LiveRunner(config_path.workspace, config_path.config_file) as runner:
         await runner.status(job_id, suffix)
 
 
@@ -129,8 +127,7 @@ async def kill(config_dir: ConfigDir, job_id: str, suffix: Optional[str]) -> Non
 
     Kill JOB-ID, use `kill ALL` for killing all jobs."""
     config_path = find_live_config(config_dir)
-    flow = parse_live(config_path.workspace, config_path.config_file)
-    async with LiveRunner(flow) as runner:
+    async with LiveRunner(config_path.workspace, config_path.config_file) as runner:
         if job_id != "ALL":
             await runner.kill(job_id, suffix)
         else:
@@ -153,8 +150,7 @@ async def upload(config_dir: ConfigDir, volume: str) -> None:
     Upload local files to remote for VOLUME,
     use `upload ALL` for uploading all volumes."""
     config_path = find_live_config(config_dir)
-    flow = parse_live(config_path.workspace, config_path.config_file)
-    async with LiveRunner(flow) as runner:
+    async with LiveRunner(config_path.workspace, config_path.config_file) as runner:
         if volume != "ALL":
             await runner.upload(volume)
         else:
@@ -170,8 +166,7 @@ async def download(config_dir: ConfigDir, volume: str) -> None:
     Download remote files to local for VOLUME,
     use `download ALL` for downloading all volumes."""
     config_path = find_live_config(config_dir)
-    flow = parse_live(config_path.workspace, config_path.config_file)
-    async with LiveRunner(flow) as runner:
+    async with LiveRunner(config_path.workspace, config_path.config_file) as runner:
         if volume != "ALL":
             await runner.download(volume)
         else:
@@ -187,8 +182,7 @@ async def clean(config_dir: ConfigDir, volume: str) -> None:
     Clean remote files on VOLUME,
     use `clean ALL` for cleaning up all volumes."""
     config_path = find_live_config(config_dir)
-    flow = parse_live(config_path.workspace, config_path.config_file)
-    async with LiveRunner(flow) as runner:
+    async with LiveRunner(config_path.workspace, config_path.config_file) as runner:
         if volume != "ALL":
             await runner.clean(volume)
         else:
@@ -200,8 +194,7 @@ async def clean(config_dir: ConfigDir, volume: str) -> None:
 async def mkvolumes(config_dir: ConfigDir) -> None:
     """Create all remote folders for volumes."""
     config_path = find_live_config(config_dir)
-    flow = parse_live(config_path.workspace, config_path.config_file)
-    async with LiveRunner(flow) as runner:
+    async with LiveRunner(config_path.workspace, config_path.config_file) as runner:
         await runner.mkvolumes()
 
 
@@ -217,8 +210,7 @@ async def build(config_dir: ConfigDir, image: str) -> None:
     Assemble the IMAGE remotely and publish it.
     """
     config_path = find_live_config(config_dir)
-    flow = parse_live(config_path.workspace, config_path.config_file)
-    async with LiveRunner(flow) as runner:
+    async with LiveRunner(config_path.workspace, config_path.config_file) as runner:
         if image == "ALL":
             await runner.build_all()
         else:
@@ -248,8 +240,7 @@ async def bake(config_dir: ConfigDir, batch: str) -> None:
 @main.command()
 @wrap_async
 async def bakes(config_dir: ConfigDir) -> None:
-    """List existing bakes.
-    """
+    """List existing bakes."""
     async with AsyncExitStack() as stack:
         client = await stack.enter_async_context(api_get())
         storage: BatchStorage = await stack.enter_async_context(BatchFSStorage(client))

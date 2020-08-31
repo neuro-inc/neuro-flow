@@ -19,13 +19,17 @@ from .expr import (
     URIExpr,
 )
 from .tokenizer import Pos
-from .types import LocalPath
 
 
 @dataclass(frozen=True)
 class Base:
     _start: Pos
     _end: Pos
+
+
+@dataclass(frozen=True)
+class Project(Base):
+    id: str
 
 
 # There are 'batch' for pipelined mode and 'live' for interactive one
@@ -134,8 +138,7 @@ class FlowDefaults(Base):
 @dataclass(frozen=True)
 class BaseFlow(Base):
     kind: Kind
-    id: str  # autocalculated if not explicitly set
-    workspace: LocalPath
+    id: Optional[str]
 
     title: Optional[str]
 
@@ -151,8 +154,22 @@ class LiveFlow(BaseFlow):
 
 
 @dataclass(frozen=True)
+class Arg(Base):
+    # Possible args in yaml:
+    # args:
+    #  name: ~
+    #  name: value
+    #  name:
+    #    default: value
+    #    descr: description
+    default: Optional[str]
+    descr: Optional[str]
+
+
+@dataclass(frozen=True)
 class BatchFlow(BaseFlow):
     # self.kind == Kind.Batch
+    args: Optional[Mapping[str, Arg]]
     tasks: Sequence[Task]
 
 

@@ -26,10 +26,10 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
     assert flow == ast.BatchFlow(
         Pos(0, 0, config_file),
         Pos(47, 0, config_file),
-        id="batch-minimal",
-        workspace=workspace,
+        id=None,
         kind=ast.Kind.BATCH,
         title="Global title",
+        args=None,
         images={
             "image_a": ast.Image(
                 _start=Pos(4, 4, config_file),
@@ -186,10 +186,10 @@ def test_parse_seq(assets: pathlib.Path) -> None:
     assert flow == ast.BatchFlow(
         Pos(0, 0, config_file),
         Pos(9, 0, config_file),
-        id="batch-seq",
-        workspace=workspace,
+        id=None,
         kind=ast.Kind.BATCH,
         title=None,
+        args=None,
         images=None,
         volumes=None,
         defaults=None,
@@ -273,10 +273,10 @@ def test_parse_needs(assets: pathlib.Path) -> None:
     assert flow == ast.BatchFlow(
         Pos(0, 0, config_file),
         Pos(11, 0, config_file),
-        id="batch-needs",
-        workspace=workspace,
+        id=None,
         kind=ast.Kind.BATCH,
         title=None,
+        args=None,
         images=None,
         volumes=None,
         defaults=None,
@@ -362,10 +362,10 @@ def test_parse_matrix(assets: pathlib.Path) -> None:
     assert flow == ast.BatchFlow(
         Pos(0, 0, config_file),
         Pos(15, 0, config_file),
-        id="batch-matrix",
-        workspace=workspace,
+        id=None,
         kind=ast.Kind.BATCH,
         title=None,
+        args=None,
         images=None,
         volumes=None,
         defaults=None,
@@ -467,10 +467,10 @@ def test_parse_matrix_with_strategy(assets: pathlib.Path) -> None:
     assert flow == ast.BatchFlow(
         Pos(0, 0, config_file),
         Pos(17, 0, config_file),
-        id="batch-matrix-with-strategy",
-        workspace=workspace,
+        id=None,
         kind=ast.Kind.BATCH,
         title=None,
+        args=None,
         images=None,
         volumes=None,
         defaults=None,
@@ -560,6 +560,109 @@ def test_parse_matrix_with_strategy(assets: pathlib.Path) -> None:
                         Pos(0, 0, config_file), Pos(0, 0, config_file), "5"
                     ),
                 ),
+            )
+        ],
+    )
+
+
+def test_parse_args(assets: pathlib.Path) -> None:
+    workspace = assets
+    config_file = workspace / "batch-args.yml"
+    flow = parse_batch(workspace, config_file)
+    assert flow == ast.BatchFlow(
+        Pos(0, 0, config_file),
+        Pos(13, 0, config_file),
+        id=None,
+        kind=ast.Kind.BATCH,
+        title=None,
+        args={
+            "arg1": ast.Arg(
+                _start=Pos(2, 8, config_file),
+                _end=Pos(
+                    2,
+                    12,
+                    config_file,
+                ),
+                default="val1",
+                descr=None,
+            ),
+            "arg2": ast.Arg(
+                _start=Pos(
+                    4,
+                    4,
+                    config_file,
+                ),
+                _end=Pos(
+                    6,
+                    0,
+                    config_file,
+                ),
+                default="val2",
+                descr="descr2",
+            ),
+        },
+        images=None,
+        volumes=None,
+        defaults=ast.FlowDefaults(
+            _start=Pos(7, 2, config_file),
+            _end=Pos(10, 0, config_file),
+            tags=[
+                StrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "${{ args.arg1 }}"
+                ),
+                StrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "${{ args.arg2 }}"
+                ),
+            ],
+            env=None,
+            workdir=OptRemotePathExpr(
+                Pos(0, 0, config_file), Pos(0, 0, config_file), None
+            ),
+            life_span=OptLifeSpanExpr(
+                Pos(0, 0, config_file), Pos(0, 0, config_file), None
+            ),
+            preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+        ),
+        tasks=[
+            ast.Task(
+                _start=Pos(
+                    11,
+                    4,
+                    config_file,
+                ),
+                _end=Pos(
+                    13,
+                    0,
+                    config_file,
+                ),
+                title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
+                preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                entrypoint=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                cmd=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "echo abc"
+                ),
+                workdir=OptRemotePathExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                env=None,
+                volumes=None,
+                tags=None,
+                life_span=OptLifeSpanExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                http_port=OptIntExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                http_auth=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                id=OptIdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                needs=None,
+                strategy=None,
             )
         ],
     )

@@ -164,7 +164,11 @@ class BatchStorage(abc.ABC):
 
     @abc.abstractmethod
     async def start_task(
-        self, attempt: Attempt, task_no: int, task_id: str, descr: JobDescription,
+        self,
+        attempt: Attempt,
+        task_no: int,
+        task_id: str,
+        descr: JobDescription,
     ) -> StartedTask:
         pass
 
@@ -381,7 +385,11 @@ class BatchFSStorage(BatchStorage):
         await self._write_json(attempt_url / f"{pre}.result.json", data)
 
     async def start_task(
-        self, attempt: Attempt, task_no: int, task_id: str, descr: JobDescription,
+        self,
+        attempt: Attempt,
+        task_no: int,
+        task_id: str,
+        descr: JobDescription,
     ) -> StartedTask:
         bake_uri = _mk_bake_uri(attempt.bake)
         attempt_url = bake_uri / f"{attempt.number:02d}.attempt"

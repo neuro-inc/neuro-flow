@@ -19,26 +19,27 @@ def test_inavailable_context_ctor() -> None:
 async def test_ctx_flow(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "live-minimal.yml"
-    flow = parse_live(workspace, config_file, id=config_file.stem)
-    ctx = await LiveContext.create(flow)
-    assert ctx.flow.id == "live-minimal"
+    flow = parse_live(workspace, config_file)
+    ctx = await LiveContext.create(flow, workspace, config_file)
+    assert ctx.flow.flow_id == "live_minimal"
+    assert ctx.flow.project_id == "unit"
     assert ctx.flow.workspace == workspace
-    assert ctx.flow.title == "live-minimal"
+    assert ctx.flow.title == "live_minimal"
 
 
 async def test_env_defaults(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "live-full.yml"
-    flow = parse_live(workspace, config_file, id=config_file.stem)
-    ctx = await LiveContext.create(flow)
+    flow = parse_live(workspace, config_file)
+    ctx = await LiveContext.create(flow, workspace, config_file)
     assert ctx.env == {"global_a": "val-a", "global_b": "val-b"}
 
 
 async def test_env_from_job(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "live-full.yml"
-    flow = parse_live(workspace, config_file, id=config_file.stem)
-    ctx = await LiveContext.create(flow)
+    flow = parse_live(workspace, config_file)
+    ctx = await LiveContext.create(flow, workspace, config_file)
     ctx = await ctx.with_meta("test_a")
     ctx2 = await ctx.with_job("test_a")
     assert ctx2.env == {
@@ -52,8 +53,8 @@ async def test_env_from_job(assets: pathlib.Path) -> None:
 async def test_volumes(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "live-full.yml"
-    flow = parse_live(workspace, config_file, id=config_file.stem)
-    ctx = await LiveContext.create(flow)
+    flow = parse_live(workspace, config_file)
+    ctx = await LiveContext.create(flow, workspace, config_file)
     assert ctx.volumes.keys() == {"volume_a", "volume_b"}
 
     assert ctx.volumes["volume_a"].id == "volume_a"
@@ -80,8 +81,8 @@ async def test_volumes(assets: pathlib.Path) -> None:
 async def test_images(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "live-full.yml"
-    flow = parse_live(workspace, config_file, id=config_file.stem)
-    ctx = await LiveContext.create(flow)
+    flow = parse_live(workspace, config_file)
+    ctx = await LiveContext.create(flow, workspace, config_file)
     assert ctx.images.keys() == {"image_a"}
 
     assert ctx.images["image_a"].id == "image_a"
@@ -96,9 +97,9 @@ async def test_images(assets: pathlib.Path) -> None:
 async def test_defaults(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "live-full.yml"
-    flow = parse_live(workspace, config_file, id=config_file.stem)
-    ctx = await LiveContext.create(flow)
-    assert ctx.defaults.tags == {"tag-a", "tag-b", "flow:live-full"}
+    flow = parse_live(workspace, config_file)
+    ctx = await LiveContext.create(flow, workspace, config_file)
+    assert ctx.defaults.tags == {"tag-a", "tag-b", "project:unit", "flow:live-full"}
     assert ctx.defaults.workdir == RemotePath("/global/dir")
     assert ctx.defaults.life_span == 100800.0
     assert ctx.defaults.preset == "cpu-large"
@@ -107,8 +108,8 @@ async def test_defaults(assets: pathlib.Path) -> None:
 async def test_job_root_ctx(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "live-full.yml"
-    flow = parse_live(workspace, config_file, id=config_file.stem)
-    ctx = await LiveContext.create(flow)
+    flow = parse_live(workspace, config_file)
+    ctx = await LiveContext.create(flow, workspace, config_file)
     with pytest.raises(NotAvailable):
         ctx.job
 
@@ -116,8 +117,8 @@ async def test_job_root_ctx(assets: pathlib.Path) -> None:
 async def test_job(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "live-full.yml"
-    flow = parse_live(workspace, config_file, id=config_file.stem)
-    ctx = await LiveContext.create(flow)
+    flow = parse_live(workspace, config_file)
+    ctx = await LiveContext.create(flow, workspace, config_file)
     ctx = await ctx.with_meta("test_a")
 
     ctx2 = await ctx.with_job("test_a")
@@ -137,6 +138,7 @@ async def test_job(assets: pathlib.Path) -> None:
         "tag-2",
         "tag-a",
         "tag-b",
+        "project:unit",
         "flow:live-full",
         "job:test-a",
     }
@@ -150,8 +152,8 @@ async def test_bad_expr_type_after_eval(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "live-bad-expr-type-after-eval.yml"
 
-    flow = parse_live(workspace, config_file, id=config_file.stem)
-    ctx = await LiveContext.create(flow)
+    flow = parse_live(workspace, config_file)
+    ctx = await LiveContext.create(flow, workspace, config_file)
     ctx = await ctx.with_meta("test")
 
     with pytest.raises(EvalError) as cm:
@@ -167,7 +169,7 @@ async def test_pipline_root_ctx(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "batch-minimal.yml"
     flow = parse_batch(workspace, config_file)
-    ctx = await BatchContext.create(flow)
+    ctx = await BatchContext.create(flow, workspace, config_file)
     with pytest.raises(NotAvailable):
         ctx.task
 
@@ -176,7 +178,7 @@ async def test_pipeline_minimal_ctx(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "batch-minimal.yml"
     flow = parse_batch(workspace, config_file)
-    ctx = await BatchContext.create(flow)
+    ctx = await BatchContext.create(flow, workspace, config_file)
 
     ctx2 = await ctx.with_task("test_a", needs={})
     assert ctx2.task.id == "test_a"
@@ -192,7 +194,14 @@ async def test_pipeline_minimal_ctx(assets: pathlib.Path) -> None:
     assert ctx2.task.cmd == "echo abc"
     assert ctx2.task.workdir == RemotePath("/local/dir")
     assert ctx2.task.volumes == ["storage:dir:/var/dir:ro", "storage:dir:/var/dir:ro"]
-    assert ctx2.task.tags == {"tag-1", "tag-2", "tag-a", "tag-b", "flow:batch-minimal"}
+    assert ctx2.task.tags == {
+        "tag-1",
+        "tag-2",
+        "tag-a",
+        "tag-b",
+        "project:unit",
+        "flow:batch-minimal",
+    }
     assert ctx2.task.life_span == 10500.0
 
     assert ctx.graph == {"test_a": set()}
@@ -205,7 +214,7 @@ async def test_pipeline_seq(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "batch-seq.yml"
     flow = parse_batch(workspace, config_file)
-    ctx = await BatchContext.create(flow)
+    ctx = await BatchContext.create(flow, workspace, config_file)
 
     ctx2 = await ctx.with_task(
         "task-2", needs={"task-1": DepCtx(JobStatus.SUCCEEDED, {})}
@@ -223,7 +232,7 @@ async def test_pipeline_seq(assets: pathlib.Path) -> None:
     assert ctx2.task.cmd == "bash -euxo pipefail -c 'echo def'"
     assert ctx2.task.workdir is None
     assert ctx2.task.volumes == []
-    assert ctx2.task.tags == {"flow:batch-seq", "task:task-2"}
+    assert ctx2.task.tags == {"project:unit", "flow:batch-seq", "task:task-2"}
     assert ctx2.task.life_span is None
 
     assert ctx.graph == {"task-2": {"task-1"}, "task-1": set()}
@@ -236,7 +245,7 @@ async def test_pipeline_needs(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "batch-needs.yml"
     flow = parse_batch(workspace, config_file)
-    ctx = await BatchContext.create(flow)
+    ctx = await BatchContext.create(flow, workspace, config_file)
 
     ctx2 = await ctx.with_task(
         "task-2", needs={"task_a": DepCtx(JobStatus.SUCCEEDED, {})}
@@ -254,7 +263,7 @@ async def test_pipeline_needs(assets: pathlib.Path) -> None:
     assert ctx2.task.cmd == "bash -euxo pipefail -c 'echo def'"
     assert ctx2.task.workdir is None
     assert ctx2.task.volumes == []
-    assert ctx2.task.tags == {"flow:batch-needs", "task:task-2"}
+    assert ctx2.task.tags == {"project:unit", "flow:batch-needs", "task:task-2"}
     assert ctx2.task.life_span is None
 
     assert ctx.graph == {"task-2": {"task_a"}, "task_a": set()}
@@ -267,7 +276,7 @@ async def test_pipeline_matrix(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "batch-matrix.yml"
     flow = parse_batch(workspace, config_file)
-    ctx = await BatchContext.create(flow)
+    ctx = await BatchContext.create(flow, workspace, config_file)
 
     assert ctx.graph == {
         "task-1-e3-o3-t3": set(),
@@ -290,7 +299,7 @@ async def test_pipeline_matrix(assets: pathlib.Path) -> None:
     assert ctx2.task.cmd == "echo abc"
     assert ctx2.task.workdir is None
     assert ctx2.task.volumes == []
-    assert ctx2.task.tags == {"flow:batch-matrix", "task:task-1-o2-t2"}
+    assert ctx2.task.tags == {"project:unit", "flow:batch-matrix", "task:task-1-o2-t2"}
     assert ctx2.task.life_span is None
 
     assert ctx2.matrix == {"one": "o2", "two": "t2"}
@@ -302,7 +311,7 @@ async def test_pipeline_matrix_with_strategy(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "batch-matrix-with-strategy.yml"
     flow = parse_batch(workspace, config_file)
-    ctx = await BatchContext.create(flow)
+    ctx = await BatchContext.create(flow, workspace, config_file)
 
     assert ctx.graph == {
         "task-1-e3-o3-t3": set(),
@@ -326,6 +335,7 @@ async def test_pipeline_matrix_with_strategy(assets: pathlib.Path) -> None:
     assert ctx2.task.workdir is None
     assert ctx2.task.volumes == []
     assert ctx2.task.tags == {
+        "project:unit",
         "flow:batch-matrix-with-strategy",
         "task:task-1-e3-o3-t3",
     }
@@ -340,7 +350,7 @@ async def test_pipeline_matrix_2(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "batch-matrix-with-deps.yml"
     flow = parse_batch(workspace, config_file)
-    ctx = await BatchContext.create(flow)
+    ctx = await BatchContext.create(flow, workspace, config_file)
 
     assert ctx.graph == {
         "task-2-a-1": {"task_a"},
@@ -371,9 +381,19 @@ async def test_pipeline_matrix_2(assets: pathlib.Path) -> None:
     assert ctx2.task.workdir is None
     assert ctx2.task.volumes == []
     assert ctx2.task.tags == {
+        "project:unit",
         "flow:batch-matrix-with-deps",
         "task:task-2-a-1",
     }
     assert ctx2.task.life_span is None
 
     assert ctx2.matrix == {"arg1": "a", "arg2": "1"}
+
+
+async def test_pipeline_args(assets: pathlib.Path) -> None:
+    workspace = assets
+    config_file = workspace / "batch-args.yml"
+    flow = parse_batch(workspace, config_file)
+    ctx = await BatchContext.create(flow, workspace, config_file)
+
+    assert ctx.args == {"arg1": "val1", "arg2": "val2"}

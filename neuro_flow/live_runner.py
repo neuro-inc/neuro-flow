@@ -13,8 +13,9 @@ from types import TracebackType
 from typing import AsyncIterator, Iterable, List, Optional, Tuple, Type
 from typing_extensions import AsyncContextManager
 
-from . import ast
 from .context import ImageCtx, LiveContext, UnknownJob, VolumeCtx
+from .parser import parse_live
+from .types import LocalPath
 from .utils import format_job_status
 
 
@@ -28,15 +29,19 @@ class JobInfo:
 
 
 class LiveRunner(AsyncContextManager["LiveRunner"]):
-    def __init__(self, flow: ast.LiveFlow) -> None:
-        self._flow = flow
+    def __init__(self, workspace: LocalPath, config_file: LocalPath) -> None:
+        self._workspace = workspace
+        self._config_file = config_file
+        self._flow = parse_live(workspace, config_file)
         self._ctx: Optional[LiveContext] = None
         self._client: Optional[Client] = None
 
     async def post_init(self) -> None:
         if self._ctx is not None:
             return
-        self._ctx = await LiveContext.create(self._flow)
+        self._ctx = await LiveContext.create(
+            self._flow, self._workspace, self._config_file
+        )
         self._client = await Factory().get()
 
     async def close(self) -> None:
@@ -108,7 +113,8 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
         found = False
         if meta.multi and not suffix:
             async for job in self.client.jobs.list(
-                tags=meta.tags, reverse=True,
+                tags=meta.tags,
+                reverse=True,
             ):
                 found = True
                 yield job
@@ -436,7 +442,10 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
                 volume_ctx = await self.find_volume(volume.id)
                 click.echo(f"Create volume {click.style(volume.id, bold=True)}")
                 await self._run_subproc(
-                    "neuro", "mkdir", "--parents", str(volume_ctx.remote),
+                    "neuro",
+                    "mkdir",
+                    "--parents",
+                    str(volume_ctx.remote),
                 )
 
     # images subsystem
