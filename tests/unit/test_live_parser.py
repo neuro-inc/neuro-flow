@@ -26,12 +26,11 @@ from neuro_flow.tokenizer import Pos
 def test_parse_minimal(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "live-minimal.yml"
-    flow = parse_live(workspace, config_file, id=config_file.stem)
+    flow = parse_live(workspace, config_file)
     assert flow == ast.LiveFlow(
         Pos(0, 0, config_file),
         Pos(5, 0, config_file),
-        id="live-minimal",
-        workspace=workspace,
+        id=None,
         kind=ast.Kind.LIVE,
         title=None,
         images=None,
@@ -82,12 +81,11 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
 def test_parse_full(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "live-full.yml"
-    flow = parse_live(workspace, config_file, id=config_file.stem)
+    flow = parse_live(workspace, config_file)
     assert flow == ast.LiveFlow(
         Pos(0, 0, config_file),
         Pos(51, 0, config_file),
-        id="live-full",
-        workspace=workspace,
+        id=None,
         kind=ast.Kind.LIVE,
         title="Global title",
         images={
@@ -251,12 +249,11 @@ def test_parse_full(assets: pathlib.Path) -> None:
 def test_parse_bash(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "live-bash.yml"
-    flow = parse_live(workspace, config_file, id=config_file.stem)
+    flow = parse_live(workspace, config_file)
     assert flow == ast.LiveFlow(
         Pos(0, 0, config_file),
         Pos(7, 0, config_file),
-        id="live-bash",
-        workspace=workspace,
+        id=None,
         kind=ast.Kind.LIVE,
         title=None,
         images=None,
@@ -309,12 +306,11 @@ def test_parse_bash(assets: pathlib.Path) -> None:
 def test_parse_python(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "live-python.yml"
-    flow = parse_live(workspace, config_file, id=config_file.stem)
+    flow = parse_live(workspace, config_file)
     assert flow == ast.LiveFlow(
         Pos(0, 0, config_file),
         Pos(7, 0, config_file),
-        id="live-python",
-        workspace=workspace,
+        id=None,
         kind=ast.Kind.LIVE,
         title=None,
         images=None,
@@ -415,12 +411,11 @@ def test_bad_expr_type_before_eval(assets: pathlib.Path) -> None:
 def test_parse_multi(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "live-multi.yml"
-    flow = parse_live(workspace, config_file, id=config_file.stem)
+    flow = parse_live(workspace, config_file)
     assert flow == ast.LiveFlow(
         Pos(0, 0, config_file),
         Pos(6, 0, config_file),
-        id="live-multi",
-        workspace=workspace,
+        id=None,
         kind=ast.Kind.LIVE,
         title=None,
         images=None,
@@ -471,12 +466,11 @@ def test_parse_multi(assets: pathlib.Path) -> None:
 def test_parse_explicit_flow_id(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "live-flow-id.yml"
-    flow = parse_live(workspace, config_file, id=config_file.stem)
+    flow = parse_live(workspace, config_file)
     assert flow == ast.LiveFlow(
         Pos(0, 0, config_file),
         Pos(6, 0, config_file),
         id="explicit-id",
-        workspace=workspace,
         kind=ast.Kind.LIVE,
         title=None,
         images=None,

@@ -139,8 +139,7 @@ class FlowDefaults(Base):
 @dataclass(frozen=True)
 class BaseFlow(Base):
     kind: Kind
-    id: str  # autocalculated if not explicitly set
-    workspace: LocalPath
+    id: Optional[str]
 
     title: Optional[str]
 

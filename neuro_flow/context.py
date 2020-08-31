@@ -219,7 +219,8 @@ class DefaultsCtx:
 
 @dataclass(frozen=True)
 class FlowCtx:
-    id: str
+    flow_id: str
+    project_id: str
     workspace: LocalPath
     title: str
 
@@ -254,12 +255,27 @@ class BaseContext(RootABC):
     # Add a context with global flow info, e.g. ctx.flow.id maybe?
 
     @classmethod
-    async def create(cls: Type[_CtxT], ast_flow: ast.BaseFlow) -> _CtxT:
+    async def create(
+        cls: Type[_CtxT],
+        ast_flow: ast.BaseFlow,
+        workspace: LocalPath,
+        config_file: LocalPath,
+        project: Optional[ast.Project] = None,
+    ) -> _CtxT:
         assert isinstance(ast_flow, cls.FLOW_TYPE)
+        flow_id = ast_flow.id
+        if flow_id is None:
+            flow_id = config_file.stem
+        if project is not None:
+            project_id = project.id
+        else:
+            project_id = workspace.stem
+
         flow = FlowCtx(
-            id=ast_flow.id,
-            workspace=ast_flow.workspace.resolve(),
-            title=ast_flow.title or ast_flow.id,
+            flow_id=flow_id,
+            project_id=project_id,
+            workspace=workspace.resolve(),
+            title=ast_flow.title or flow_id,
         )
 
         ctx = cls(_ast_flow=ast_flow, flow=flow)
@@ -286,7 +302,8 @@ class BaseContext(RootABC):
             life_span = None
             preset = None
 
-        tags.add(f"flow:{flow.id.replace('_', '-').lower()}")
+        tags.add(f"project:{_id2tag(project_id)}")
+        tags.add(f"flow:{_id2tag(flow_id)}")
 
         defaults = DefaultsCtx(
             tags=tags,
@@ -437,7 +454,7 @@ class LiveContext(BaseContext):
             raise UnknownJob(job_id)
 
         tags = set(self.defaults.tags)
-        tags.add(f"job:{job_id.replace('_', '-').lower()}")
+        tags.add(f"job:{_id2tag(job_id)}")
 
         return replace(
             self, _meta=JobMetaCtx(id=job_id, multi=bool(job.multi), tags=tags)
@@ -467,7 +484,7 @@ class LiveContext(BaseContext):
 
         title = await job.title.eval(self)
         if title is None:
-            title = f"{self.flow.id}.{job_id}"
+            title = f"{self.flow.flow_id}.{job_id}"
 
         workdir = (await job.workdir.eval(self)) or self.defaults.workdir
 
@@ -521,8 +538,16 @@ class BatchContext(BaseContext):
     _strategy: Optional[StrategyCtx] = None
 
     @classmethod
-    async def create(cls: Type[_CtxT], ast_flow: ast.BaseFlow) -> _CtxT:
-        ctx = await super(cls, BatchContext).create(ast_flow)
+    async def create(
+        cls: Type[_CtxT],
+        ast_flow: ast.BaseFlow,
+        workspace: LocalPath,
+        config_file: LocalPath,
+        project: Optional[ast.Project] = None,
+    ) -> _CtxT:
+        ctx = await super(cls, BatchContext).create(
+            ast_flow, workspace, config_file, project
+        )
         assert isinstance(ctx._ast_flow, ast.BatchFlow)
         prep_tasks = {}
         last_needs: Set[str] = set()
@@ -705,14 +730,14 @@ class BatchContext(BaseContext):
 
         title = await prep_task.ast.title.eval(ctx)
         if title is None:
-            title = f"{ctx.flow.id}.{real_id}"
+            title = f"{ctx.flow.flow_id}.{real_id}"
         title = await prep_task.ast.title.eval(ctx)
 
         tags = set()
         if prep_task.ast.tags is not None:
             tags = {await v.eval(ctx) for v in prep_task.ast.tags}
         if not tags:
-            tags = {f"task:{real_id.replace('_', '-').lower()}"}
+            tags = {f"task:{_id2tag(real_id)}"}
 
         workdir = (await prep_task.ast.workdir.eval(ctx)) or ctx.defaults.workdir
 
@@ -800,3 +825,7 @@ def calc_full_path(ctx: BaseContext, path: Optional[LocalPath]) -> Optional[Loca
     if path.is_absolute():
         return path
     return ctx.flow.workspace.joinpath(path).resolve()
+
+
+def _id2tag(id: str) -> str:
+    return id.replace("_", "-").lower()

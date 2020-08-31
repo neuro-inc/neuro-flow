@@ -331,21 +331,13 @@ def parse_dict(
 # #### Project parser ####
 
 
-class ProjectConstructor(BaseConstructor):
-    def __init__(self, id: str) -> None:
-        super().__init__()
-        self._id = id
-
-
-class ProjectLoader(
-    Reader, Scanner, Parser, Composer, ProjectConstructor, BaseResolver
-):
-    def __init__(self, stream: TextIO, id: str) -> None:
+class ProjectLoader(Reader, Scanner, Parser, Composer, BaseConstructor, BaseResolver):
+    def __init__(self, stream: TextIO) -> None:
         Reader.__init__(self, stream)
         Scanner.__init__(self)
         Parser.__init__(self)
         Composer.__init__(self)
-        ProjectConstructor.__init__(self, id)
+        BaseConstructor.__init__(self)
         BaseResolver.__init__(self)
 
 
@@ -354,15 +346,13 @@ PROJECT = {
 }
 
 
-def parse_project_main(ctor: ProjectConstructor, node: yaml.MappingNode) -> ast.Project:
+def parse_project_main(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Project:
     ret = parse_dict(
         ctor,
         node,
         PROJECT,
         ast.Project,
     )
-    if ret.id is None:
-        ret = dataclasses.replace(ret, id=ctor._id)
     return ret
 
 
@@ -370,14 +360,10 @@ ProjectLoader.add_path_resolver("project:main", [])  # type: ignore
 ProjectLoader.add_constructor("project:main", parse_project_main)  # type: ignore
 
 
-def parse_project(
-    workspace: Path, config_file: Path, *, id: Optional[str] = None
-) -> ast.Project:
+def parse_project(workspace: Path, config_file: Path) -> ast.Project:
     # Parse project config file
-    if id is None:
-        id = workspace.stem
     with config_file.open() as f:
-        loader = ProjectLoader(f, id)
+        loader = ProjectLoader(f)
         try:
             ret = loader.get_single_data()  # type: ignore[no-untyped-call]
             assert isinstance(ret, ast.Project)
@@ -389,24 +375,17 @@ def parse_project(
 # #### Flow parser ####
 
 
-class FlowConstructor(BaseConstructor):
-    def __init__(self, id: str, workspace: LocalPath) -> None:
-        super().__init__()
-        self._id = id
-        self._workspace = workspace
-
-
-class FlowLoader(Reader, Scanner, Parser, Composer, FlowConstructor, BaseResolver):
-    def __init__(self, stream: TextIO, id: str, workspace: LocalPath) -> None:
+class FlowLoader(Reader, Scanner, Parser, Composer, BaseConstructor, BaseResolver):
+    def __init__(self, stream: TextIO) -> None:
         Reader.__init__(self, stream)
         Scanner.__init__(self)
         Parser.__init__(self)
         Composer.__init__(self)
-        FlowConstructor.__init__(self, id, workspace)
+        BaseConstructor.__init__(self)
         BaseResolver.__init__(self)
 
 
-def parse_volume(ctor: FlowConstructor, node: yaml.MappingNode) -> ast.Volume:
+def parse_volume(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Volume:
     return parse_dict(
         ctor,
         node,
@@ -421,7 +400,7 @@ def parse_volume(ctor: FlowConstructor, node: yaml.MappingNode) -> ast.Volume:
 
 
 def parse_volumes(
-    ctor: FlowConstructor, node: yaml.MappingNode
+    ctor: BaseConstructor, node: yaml.MappingNode
 ) -> Dict[str, ast.Volume]:
     ret = {}
     for k, v in node.value:
@@ -435,7 +414,7 @@ FlowLoader.add_path_resolver("flow:volumes", [(dict, "volumes")])  # type: ignor
 FlowLoader.add_constructor("flow:volumes", parse_volumes)  # type: ignore
 
 
-def parse_image(ctor: FlowConstructor, node: yaml.MappingNode) -> ast.Image:
+def parse_image(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Image:
     return parse_dict(
         ctor,
         node,
@@ -449,7 +428,7 @@ def parse_image(ctor: FlowConstructor, node: yaml.MappingNode) -> ast.Image:
     )
 
 
-def parse_images(ctor: FlowConstructor, node: yaml.MappingNode) -> Dict[str, ast.Image]:
+def parse_images(ctor: BaseConstructor, node: yaml.MappingNode) -> Dict[str, ast.Image]:
     ret = {}
     for k, v in node.value:
         key = ctor.construct_id(k)
@@ -463,7 +442,7 @@ FlowLoader.add_constructor("flow:images", parse_images)  # type: ignore
 
 
 def parse_exc_inc(
-    ctor: FlowConstructor, node: yaml.MappingNode
+    ctor: BaseConstructor, node: yaml.MappingNode
 ) -> Sequence[Mapping[str, StrExpr]]:
     if not isinstance(node, yaml.SequenceNode):
         node_id = node.id
@@ -480,7 +459,7 @@ def parse_exc_inc(
     return ret
 
 
-def parse_matrix(ctor: FlowConstructor, node: yaml.MappingNode) -> ast.Matrix:
+def parse_matrix(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Matrix:
     if not isinstance(node, yaml.MappingNode):
         node_id = node.id
         raise ConstructorError(
@@ -524,7 +503,7 @@ STRATEGY = {
 }
 
 
-def parse_strategy(ctor: FlowConstructor, node: yaml.MappingNode) -> ast.Strategy:
+def parse_strategy(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Strategy:
     return parse_dict(
         ctor,
         node,
@@ -572,7 +551,7 @@ JOB = {
 }
 
 
-def select_shells(ctor: FlowConstructor, dct: Dict[str, Any]) -> Dict[str, Any]:
+def select_shells(ctor: BaseConstructor, dct: Dict[str, Any]) -> Dict[str, Any]:
     found = {k for k in dct if k in ("cmd", "bash", "python")}
     if len(found) > 1:
         raise ValueError(f"{','.join(found)} are mutually exclusive")
@@ -588,13 +567,13 @@ def select_shells(ctor: FlowConstructor, dct: Dict[str, Any]) -> Dict[str, Any]:
     return dct
 
 
-def parse_job(ctor: FlowConstructor, node: yaml.MappingNode) -> ast.Job:
+def parse_job(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Job:
     return parse_dict(
         ctor, node, JOB, ast.Job, preprocess=select_shells  # type: ignore[arg-type]
     )
 
 
-def parse_jobs(ctor: FlowConstructor, node: yaml.MappingNode) -> Dict[str, ast.Job]:
+def parse_jobs(ctor: BaseConstructor, node: yaml.MappingNode) -> Dict[str, ast.Job]:
     ret = {}
     for k, v in node.value:
         key = ctor.construct_id(k)
@@ -615,7 +594,7 @@ TASK = {
 }
 
 
-def parse_task(ctor: FlowConstructor, node: yaml.MappingNode) -> ast.Task:
+def parse_task(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Task:
     return parse_dict(
         ctor, node, TASK, ast.Task, preprocess=select_shells  # type: ignore
     )
@@ -632,7 +611,7 @@ FlowLoader.add_constructor("flow:tasks", FlowLoader.construct_sequence)  # type:
 
 
 def parse_flow_defaults(
-    ctor: FlowConstructor, node: yaml.MappingNode
+    ctor: BaseConstructor, node: yaml.MappingNode
 ) -> ast.FlowDefaults:
     return parse_dict(
         ctor,
@@ -677,11 +656,11 @@ FlowLoader.add_path_resolver(  # type: ignore
 )
 
 
-def parse_arg(ctor: FlowConstructor, node: yaml.MappingNode) -> ast.Arg:
+def parse_arg(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Arg:
     return parse_dict(ctor, node, {"default": None, "descr": None}, ast.Arg)
 
 
-def parse_args(ctor: FlowConstructor, node: yaml.MappingNode) -> Dict[str, ast.Arg]:
+def parse_args(ctor: BaseConstructor, node: yaml.MappingNode) -> Dict[str, ast.Arg]:
     ret = {}
     for k, v in node.value:
         key = ctor.construct_id(k)
@@ -703,7 +682,7 @@ FlowLoader.add_path_resolver("flow:args", [(dict, "args")])  # type: ignore
 FlowLoader.add_constructor("flow:args", parse_args)  # type: ignore
 
 
-def select_kind(ctor: FlowConstructor, dct: Dict[str, Any]) -> Dict[str, Any]:
+def select_kind(ctor: BaseConstructor, dct: Dict[str, Any]) -> Dict[str, Any]:
     if dct["kind"] == ast.Kind.LIVE:
         tasks = dct.pop("tasks", None)
         if tasks is not None:
@@ -722,7 +701,7 @@ def select_kind(ctor: FlowConstructor, dct: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def find_res_type(
-    ctor: FlowConstructor, res_type: Type[ast.BaseFlow], arg: Dict[str, VarT]
+    ctor: BaseConstructor, res_type: Type[ast.BaseFlow], arg: Dict[str, VarT]
 ) -> Type[ast.BaseFlow]:
     if arg["kind"] == ast.Kind.LIVE:
         return ast.LiveFlow
@@ -732,17 +711,14 @@ def find_res_type(
         raise ValueError(f"Unknown kind {arg['kind']} of the flow")
 
 
-def parse_flow_main(ctor: FlowConstructor, node: yaml.MappingNode) -> ast.BaseFlow:
+def parse_flow_main(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.BaseFlow:
     ret = parse_dict(
         ctor,
         node,
         FLOW,
         ast.BaseFlow,
         find_res_type=find_res_type,
-        extra={"workspace": ctor._workspace},
     )
-    if ret.id is None:
-        ret = dataclasses.replace(ret, id=ctor._id)
     return ret
 
 
@@ -750,14 +726,10 @@ FlowLoader.add_path_resolver("flow:main", [])  # type: ignore
 FlowLoader.add_constructor("flow:main", parse_flow_main)  # type: ignore
 
 
-def parse_live(
-    workspace: Path, config_file: Path, *, id: Optional[str] = None
-) -> ast.LiveFlow:
+def parse_live(workspace: Path, config_file: Path) -> ast.LiveFlow:
     # Parse live flow config file
-    if id is None:
-        id = workspace.stem
     with config_file.open() as f:
-        loader = FlowLoader(f, id, workspace)
+        loader = FlowLoader(f)
         try:
             ret = loader.get_single_data()  # type: ignore[no-untyped-call]
             assert isinstance(ret, ast.LiveFlow)
@@ -767,14 +739,10 @@ def parse_live(
             loader.dispose()  # type: ignore[no-untyped-call]
 
 
-def parse_batch(
-    workspace: Path, config_file: Path, *, id: Optional[str] = None
-) -> ast.BatchFlow:
+def parse_batch(workspace: Path, config_file: Path) -> ast.BatchFlow:
     # Parse pipeline flow config file
-    if id is None:
-        id = config_file.stem
     with config_file.open() as f:
-        loader = FlowLoader(f, id, workspace)
+        loader = FlowLoader(f)
         try:
             ret = loader.get_single_data()  # type: ignore[no-untyped-call]
             assert isinstance(ret, ast.BatchFlow)
