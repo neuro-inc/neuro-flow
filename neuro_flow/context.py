@@ -433,13 +433,14 @@ class LiveContext(BaseContext):
         assert isinstance(self._ast_flow, self.FLOW_TYPE)
         return sorted(self._ast_flow.jobs)
 
-    def is_multi(self, job_id: str) -> bool:
+    async def is_multi(self, job_id: str) -> bool:
         assert isinstance(self._ast_flow, self.FLOW_TYPE)
         try:
             job = self._ast_flow.jobs[job_id]
         except KeyError:
             raise UnknownJob(job_id)
-        return bool(job.multi)  # None is False
+        multi = await job.multi.eval(EMPTY_ROOT)
+        return bool(multi)  # None is False
 
     async def with_multi(
         self, *, suffix: str, args: Optional[Sequence[str]]
@@ -473,10 +474,9 @@ class LiveContext(BaseContext):
 
         tags = set(self.defaults.tags)
         tags.add(f"job:{_id2tag(job_id)}")
+        multi = await job.multi.eval(EMPTY_ROOT)
 
-        return replace(
-            self, _meta=JobMetaCtx(id=job_id, multi=bool(job.multi), tags=tags)
-        )
+        return replace(self, _meta=JobMetaCtx(id=job_id, multi=bool(multi), tags=tags))
 
     async def with_job(self, job_id: str) -> "LiveContext":
         if self._job is not None:
@@ -642,13 +642,15 @@ class BatchContext(BaseContext):
         args = {}
         if self._ast_flow.args is not None:
             for k, v in self._ast_flow.args.items():
-                if v.default is None:
+                default = await v.default.eval(EMPTY_ROOT)
+                # descr = await v.descr.eval(EMPTY_ROOT)
+                if default is None:
                     raise EvalError(
                         f"Arg {k} is not initialized and has no default value",
                         v._start,
                         v._end,
                     )
-                args[k] = v.default
+                args[k] = default
         return replace(self, _args=args)
 
     @property
