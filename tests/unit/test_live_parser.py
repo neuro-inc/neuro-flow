@@ -16,6 +16,9 @@ from neuro_flow.expr import (
     OptStrExpr,
     PortPairExpr,
     RemotePathExpr,
+    SimpleOptBoolExpr,
+    SimpleOptIdExpr,
+    SimpleOptStrExpr,
     StrExpr,
     URIExpr,
 )
@@ -30,9 +33,17 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
     assert flow == ast.LiveFlow(
         Pos(0, 0, config_file),
         Pos(5, 0, config_file),
-        id=None,
+        id=SimpleOptIdExpr(
+            Pos(0, 0, config_file),
+            Pos(0, 0, config_file),
+            None,
+        ),
         kind=ast.FlowKind.LIVE,
-        title=None,
+        title=SimpleOptStrExpr(
+            Pos(0, 0, config_file),
+            Pos(0, 0, config_file),
+            None,
+        ),
         images=None,
         volumes=None,
         defaults=None,
@@ -72,7 +83,9 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
                 port_forward=None,
-                multi=None,
+                multi=SimpleOptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
             )
         },
     )
@@ -85,9 +98,17 @@ def test_parse_full(assets: pathlib.Path) -> None:
     assert flow == ast.LiveFlow(
         Pos(0, 0, config_file),
         Pos(51, 0, config_file),
-        id=None,
+        id=SimpleOptIdExpr(
+            Pos(0, 0, config_file),
+            Pos(0, 0, config_file),
+            None,
+        ),
         kind=ast.FlowKind.LIVE,
-        title="Global title",
+        title=SimpleOptStrExpr(
+            Pos(0, 0, config_file),
+            Pos(0, 0, config_file),
+            "Global title",
+        ),
         images={
             "image_a": ast.Image(
                 Pos(4, 4, config_file),
@@ -240,7 +261,9 @@ def test_parse_full(assets: pathlib.Path) -> None:
                         Pos(0, 0, config_file), Pos(0, 0, config_file), "2211:22"
                     )
                 ],
-                multi=None,
+                multi=SimpleOptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
             )
         },
     )
@@ -253,9 +276,17 @@ def test_parse_bash(assets: pathlib.Path) -> None:
     assert flow == ast.LiveFlow(
         Pos(0, 0, config_file),
         Pos(7, 0, config_file),
-        id=None,
+        id=SimpleOptIdExpr(
+            Pos(0, 0, config_file),
+            Pos(0, 0, config_file),
+            None,
+        ),
         kind=ast.FlowKind.LIVE,
-        title=None,
+        title=SimpleOptStrExpr(
+            Pos(0, 0, config_file),
+            Pos(0, 0, config_file),
+            None,
+        ),
         images=None,
         volumes=None,
         defaults=None,
@@ -297,7 +328,9 @@ def test_parse_bash(assets: pathlib.Path) -> None:
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
                 port_forward=None,
-                multi=None,
+                multi=SimpleOptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
             )
         },
     )
@@ -310,9 +343,17 @@ def test_parse_python(assets: pathlib.Path) -> None:
     assert flow == ast.LiveFlow(
         Pos(0, 0, config_file),
         Pos(7, 0, config_file),
-        id=None,
+        id=SimpleOptIdExpr(
+            Pos(0, 0, config_file),
+            Pos(0, 0, config_file),
+            None,
+        ),
         kind=ast.FlowKind.LIVE,
-        title=None,
+        title=SimpleOptStrExpr(
+            Pos(0, 0, config_file),
+            Pos(0, 0, config_file),
+            None,
+        ),
         images=None,
         volumes=None,
         defaults=None,
@@ -354,7 +395,9 @@ def test_parse_python(assets: pathlib.Path) -> None:
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
                 port_forward=None,
-                multi=None,
+                multi=SimpleOptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
             )
         },
     )
@@ -415,9 +458,17 @@ def test_parse_multi(assets: pathlib.Path) -> None:
     assert flow == ast.LiveFlow(
         Pos(0, 0, config_file),
         Pos(6, 0, config_file),
-        id=None,
+        id=SimpleOptIdExpr(
+            Pos(0, 0, config_file),
+            Pos(0, 0, config_file),
+            None,
+        ),
         kind=ast.FlowKind.LIVE,
-        title=None,
+        title=SimpleOptStrExpr(
+            Pos(0, 0, config_file),
+            Pos(0, 0, config_file),
+            None,
+        ),
         images=None,
         volumes=None,
         defaults=None,
@@ -457,7 +508,9 @@ def test_parse_multi(assets: pathlib.Path) -> None:
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
                 port_forward=None,
-                multi=True,
+                multi=SimpleOptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "True"
+                ),
             )
         },
     )
@@ -470,9 +523,17 @@ def test_parse_explicit_flow_id(assets: pathlib.Path) -> None:
     assert flow == ast.LiveFlow(
         Pos(0, 0, config_file),
         Pos(6, 0, config_file),
-        id="explicit-id",
+        id=SimpleOptIdExpr(
+            Pos(0, 0, config_file),
+            Pos(0, 0, config_file),
+            "explicit-id",
+        ),
         kind=ast.FlowKind.LIVE,
-        title=None,
+        title=SimpleOptStrExpr(
+            Pos(0, 0, config_file),
+            Pos(0, 0, config_file),
+            None,
+        ),
         images=None,
         volumes=None,
         defaults=None,
@@ -514,7 +575,9 @@ def test_parse_explicit_flow_id(assets: pathlib.Path) -> None:
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
                 port_forward=None,
-                multi=None,
+                multi=SimpleOptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
             )
         },
     )

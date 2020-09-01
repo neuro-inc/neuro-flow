@@ -33,7 +33,6 @@ from yaml.scanner import Scanner
 
 from . import ast
 from .expr import (
-    EvalError,
     Expr,
     IdExpr,
     OptBashExpr,
@@ -47,6 +46,10 @@ from .expr import (
     OptStrExpr,
     PortPairExpr,
     RemotePathExpr,
+    SimpleIdExpr,
+    SimpleOptBoolExpr,
+    SimpleOptIdExpr,
+    SimpleOptStrExpr,
     StrExpr,
     URIExpr,
 )
@@ -90,20 +93,6 @@ class BaseConstructor(SafeConstructor):
                 node.start_mark,
             )
         return val
-
-
-def parse_bool(ctor: BaseConstructor, node: yaml.MappingNode) -> bool:
-    return ctor.construct_yaml_bool(node)  # type: ignore[no-untyped-call,no-any-return]
-
-
-BaseConstructor.add_constructor("flow:bool", parse_bool)  # type: ignore
-
-
-def parse_str(ctor: BaseConstructor, node: yaml.MappingNode) -> str:
-    return str(ctor.construct_scalar(node))  # type: ignore[no-untyped-call]
-
-
-BaseConstructor.add_constructor("flow:str", parse_str)  # type: ignore
 
 
 def mark2pos(mark: yaml.Mark) -> Pos:
@@ -402,25 +391,19 @@ def parse_project(
             try:
                 ret = loader.get_single_data()  # type: ignore[no-untyped-call]
                 assert isinstance(ret, ast.Project)
-                if not ret.id.isidentifier():
-                    raise EvalError(
-                        f"{ret.id!r} is not identifier", ret._start, ret._end
-                    )
+                return ret
             finally:
                 loader.dispose()  # type: ignore[no-untyped-call]
     except FileNotFoundError:
-        ret = ast.Project(
+        return ast.Project(
             _start=Pos(0, 0, LocalPath("<default>")),
             _end=Pos(0, 0, LocalPath("<default>")),
-            id=workspace.stem.replace("-", "_"),
+            id=SimpleIdExpr(
+                Pos(0, 0, LocalPath("<default>")),
+                Pos(0, 0, LocalPath("<default>")),
+                workspace.stem.replace("-", "_"),
+            ),
         )
-        if not ret.id.isidentifier():
-            raise ValueError(
-                f"{ret.id!r} is not identifier, "
-                "please rename the project folder or "
-                "specify id in project.yml"
-            )
-    return ret
 
 
 # #### Flow parser ####
@@ -588,16 +571,11 @@ EXEC_UNIT = {
 }
 
 
-FlowLoader.add_path_resolver(  # type: ignore
-    "flow:bool", [(dict, "jobs"), (dict, None), (dict, "multi")]
-)
-
-
 JOB = {
     "detach": OptBoolExpr,
     "browse": OptBoolExpr,
     "port_forward": SimpleSeq(PortPairExpr),
-    "multi": None,
+    "multi": SimpleOptBoolExpr,
     **EXEC_UNIT,
 }
 
@@ -680,8 +658,8 @@ FlowLoader.add_constructor("flow:defaults", parse_flow_defaults)  # type: ignore
 
 FLOW = {
     "kind": ast.FlowKind,
-    "id": None,
-    "title": None,
+    "id": SimpleOptIdExpr,
+    "title": SimpleOptStrExpr,
     "images": None,
     "volumes": None,
     "defaults": None,
@@ -691,20 +669,11 @@ FLOW = {
 }
 
 
-FlowLoader.add_path_resolver("flow:str", [(dict, "title")])  # type: ignore
-FlowLoader.add_path_resolver("flow:str", [(dict, "id")])  # type: ignore
-
-
-FlowLoader.add_path_resolver(  # type: ignore
-    "flow:str", [(dict, "args"), (dict, "default")]
-)
-FlowLoader.add_path_resolver(  # type: ignore
-    "flow:str", [(dict, "args"), (dict, "descr")]
-)
+ARGS = {"default": SimpleOptStrExpr, "descr": SimpleOptStrExpr}
 
 
 def parse_arg(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Arg:
-    return parse_dict(ctor, node, {"default": None, "descr": None}, ast.Arg)
+    return parse_dict(ctor, node, ARGS, ast.Arg)
 
 
 def parse_args(ctor: BaseConstructor, node: yaml.MappingNode) -> Dict[str, ast.Arg]:
@@ -713,11 +682,13 @@ def parse_args(ctor: BaseConstructor, node: yaml.MappingNode) -> Dict[str, ast.A
         key = ctor.construct_id(k)
         if isinstance(v, yaml.ScalarNode):
             default = ctor.construct_object(v)  # type: ignore[no-untyped-call]
+            start = mark2pos(v.start_mark)
+            end = mark2pos(v.end_mark)
             ret[key] = ast.Arg(
-                _start=mark2pos(v.start_mark),
-                _end=mark2pos(v.end_mark),
-                default=str(default) if default is not None else None,
-                descr=None,
+                _start=start,
+                _end=end,
+                default=SimpleOptStrExpr(start, end, default),
+                descr=SimpleOptStrExpr(start, end, None),
             )
         else:
             arg = parse_arg(ctor, v)

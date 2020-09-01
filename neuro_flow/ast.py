@@ -15,6 +15,12 @@ from .expr import (
     OptStrExpr,
     PortPairExpr,
     RemotePathExpr,
+    SimpleBoolExpr,
+    SimpleIdExpr,
+    SimpleOptBoolExpr,
+    SimpleOptIdExpr,
+    SimpleOptStrExpr,
+    SimpleStrExpr,
     StrExpr,
     URIExpr,
 )
@@ -29,7 +35,7 @@ class Base:
 
 @dataclass(frozen=True)
 class Project(Base):
-    id: str
+    id: SimpleIdExpr
 
 
 # There are 'batch' for pipelined mode and 'live' for interactive one
@@ -97,7 +103,7 @@ class Job(ExecUnit):
     detach: OptBoolExpr
     browse: OptBoolExpr
     port_forward: Optional[Sequence[PortPairExpr]]
-    multi: Optional[bool]
+    multi: SimpleOptBoolExpr
 
 
 @dataclass(frozen=True)
@@ -138,9 +144,9 @@ class FlowDefaults(Base):
 @dataclass(frozen=True)
 class BaseFlow(Base):
     kind: FlowKind
-    id: Optional[str]
+    id: SimpleOptIdExpr
 
-    title: Optional[str]
+    title: SimpleOptStrExpr
 
     images: Optional[Mapping[str, Image]]
     volumes: Optional[Mapping[str, Volume]]
@@ -162,8 +168,8 @@ class Arg(Base):
     #  name:
     #    default: value
     #    descr: description
-    default: Optional[str]
-    descr: Optional[str]
+    default: SimpleOptStrExpr
+    descr: SimpleOptStrExpr
 
 
 @dataclass(frozen=True)
@@ -184,9 +190,9 @@ class ActionKind(enum.Enum):
 
 @dataclass(frozen=True)
 class Input(Base):
-    descr: str
-    required: bool
-    default: Optional[str]
+    descr: SimpleStrExpr
+    required: SimpleBoolExpr
+    default: SimpleOptStrExpr
 
 
 @dataclass(frozen=True)
@@ -197,9 +203,9 @@ class Output(Base):
 
 @dataclass(frozen=True)
 class BaseAction(Base):
-    name: str
-    author: Optional[str]
-    descr: str
+    name: SimpleIdExpr
+    author: SimpleOptStrExpr
+    descr: SimpleStrExpr
     inputs: Optional[Mapping[str, Input]]
     outputs: Optional[Mapping[str, Input]]
 
