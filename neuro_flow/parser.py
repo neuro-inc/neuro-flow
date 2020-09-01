@@ -8,6 +8,7 @@
 import dataclasses
 
 import abc
+import enum
 import yaml
 from typing import (
     Any,
@@ -200,21 +201,6 @@ class IdMapping(SimpleCompound[_T, Mapping[str, Expr[_T]]]):
         return ret
 
 
-KeyT = Union[
-    None,
-    Type[Expr[Any]],
-    SimpleCompound[Any, Any],
-    Type[ast.Kind],
-]
-VarT = Union[
-    None,
-    Expr[Any],
-    Mapping[str, Any],
-    Sequence[Any],
-    ast.Base,
-    ast.Kind,
-]
-
 _AstType = TypeVar("_AstType", bound=ast.Base)
 _CtorType = TypeVar("_CtorType", bound=BaseConstructor)
 
@@ -222,16 +208,14 @@ _CtorType = TypeVar("_CtorType", bound=BaseConstructor)
 def parse_dict(
     ctor: _CtorType,
     node: yaml.MappingNode,
-    keys: Mapping[str, KeyT],
+    keys: Mapping[str, Any],
     res_type: Type[_AstType],
     *,
     ret_name: Optional[str] = None,
     extra: Optional[Mapping[str, Union[str, LocalPath]]] = None,
-    preprocess: Optional[
-        Callable[[_CtorType, Dict[str, VarT]], Dict[str, VarT]]
-    ] = None,
+    preprocess: Optional[Callable[[_CtorType, Dict[str, Any]], Dict[str, Any]]] = None,
     find_res_type: Optional[
-        Callable[[_CtorType, Type[_AstType], Dict[str, VarT]], Type[_AstType]]
+        Callable[[_CtorType, Type[_AstType], Dict[str, Any]], Type[_AstType]]
     ] = None,
 ) -> _AstType:
     if extra is None:
@@ -259,15 +243,15 @@ def parse_dict(
                 f"unexpected key {key}",
                 k.start_mark,
             )
-        item_ctor: KeyT = keys[key]
+        item_ctor: Any = keys[key]
         tmp: Any
-        value: VarT
+        value: Any
         if item_ctor is None:
             # Get constructor from tag
             value = ctor.construct_object(v)  # type: ignore[no-untyped-call]
-        elif item_ctor is ast.Kind:
+        elif isinstance(item_ctor, type) and issubclass(item_ctor, enum.Enum):
             tmp = str(ctor.construct_object(v))  # type: ignore[no-untyped-call]
-            value = ast.Kind(tmp)
+            value = item_ctor(tmp)
         elif isinstance(item_ctor, ast.Base):
             assert isinstance(
                 v, ast.Base
@@ -326,6 +310,52 @@ def parse_dict(
         **data,
         **optional_fields,
     )
+
+
+# #### Action parser ####
+
+
+class ActionLoader(Reader, Scanner, Parser, Composer, BaseConstructor, BaseResolver):
+    def __init__(self, stream: TextIO) -> None:
+        Reader.__init__(self, stream)
+        Scanner.__init__(self)
+        Parser.__init__(self)
+        Composer.__init__(self)
+        BaseConstructor.__init__(self)
+        BaseResolver.__init__(self)
+
+
+ACTION = {
+    "name": None,
+}
+
+
+def parse_action_main(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.BaseAction:
+    ret = parse_dict(
+        ctor,
+        node,
+        ACTION,
+        ast.BaseAction,
+    )
+    return ret
+
+
+ActionLoader.add_path_resolver("action:main", [])  # type: ignore
+ActionLoader.add_constructor("action:main", parse_action_main)  # type: ignore
+
+
+def parse_action(workspace: LocalPath, action: str) -> ast.BaseAction:
+    # Parse project config file
+    ret: ast.Project
+    config_file = workspace / action
+    with config_file.open() as f:
+        loader = ActionLoader(f)
+        try:
+            ret = loader.get_single_data()  # type: ignore[no-untyped-call]
+            assert isinstance(ret, ast.BaseAction)
+            return ret
+        finally:
+            loader.dispose()  # type: ignore[no-untyped-call]
 
 
 # #### Project parser ####
@@ -589,9 +619,7 @@ def select_shells(ctor: BaseConstructor, dct: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def parse_job(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Job:
-    return parse_dict(
-        ctor, node, JOB, ast.Job, preprocess=select_shells  # type: ignore[arg-type]
-    )
+    return parse_dict(ctor, node, JOB, ast.Job, preprocess=select_shells)
 
 
 def parse_jobs(ctor: BaseConstructor, node: yaml.MappingNode) -> Dict[str, ast.Job]:
@@ -616,9 +644,7 @@ TASK = {
 
 
 def parse_task(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Task:
-    return parse_dict(
-        ctor, node, TASK, ast.Task, preprocess=select_shells  # type: ignore
-    )
+    return parse_dict(ctor, node, TASK, ast.Task, preprocess=select_shells)
 
 
 FlowLoader.add_path_resolver(  # type: ignore[no-untyped-call]
@@ -653,7 +679,7 @@ FlowLoader.add_constructor("flow:defaults", parse_flow_defaults)  # type: ignore
 
 
 FLOW = {
-    "kind": ast.Kind,
+    "kind": ast.FlowKind,
     "id": None,
     "title": None,
     "images": None,
@@ -704,14 +730,14 @@ FlowLoader.add_constructor("flow:args", parse_args)  # type: ignore
 
 
 def select_kind(ctor: BaseConstructor, dct: Dict[str, Any]) -> Dict[str, Any]:
-    if dct["kind"] == ast.Kind.LIVE:
+    if dct["kind"] == ast.FlowKind.LIVE:
         tasks = dct.pop("tasks", None)
         if tasks is not None:
             raise ValueError("flow of kind={dct['kind']} cannot have tasks")
         args = dct.pop("args", None)
         if args is not None:
             raise ValueError("flow of kind={dct['kind']} cannot have args")
-    elif dct["kind"] == ast.Kind.BATCH:
+    elif dct["kind"] == ast.FlowKind.BATCH:
         jobs = dct.pop("jobs", None)
         if jobs is not None:
             raise ValueError("flow of kind={dct['kind']} cannot have jobs")
@@ -722,11 +748,11 @@ def select_kind(ctor: BaseConstructor, dct: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def find_res_type(
-    ctor: BaseConstructor, res_type: Type[ast.BaseFlow], arg: Dict[str, VarT]
+    ctor: BaseConstructor, res_type: Type[ast.BaseFlow], arg: Dict[str, Any]
 ) -> Type[ast.BaseFlow]:
-    if arg["kind"] == ast.Kind.LIVE:
+    if arg["kind"] == ast.FlowKind.LIVE:
         return ast.LiveFlow
-    elif arg["kind"] == ast.Kind.BATCH:
+    elif arg["kind"] == ast.FlowKind.BATCH:
         return ast.BatchFlow
     else:
         raise ValueError(f"Unknown kind {arg['kind']} of the flow")
@@ -754,7 +780,7 @@ def parse_live(workspace: LocalPath, config_file: LocalPath) -> ast.LiveFlow:
         try:
             ret = loader.get_single_data()  # type: ignore[no-untyped-call]
             assert isinstance(ret, ast.LiveFlow)
-            assert ret.kind == ast.Kind.LIVE
+            assert ret.kind == ast.FlowKind.LIVE
             return ret
         finally:
             loader.dispose()  # type: ignore[no-untyped-call]
@@ -767,7 +793,7 @@ def parse_batch(workspace: LocalPath, config_file: LocalPath) -> ast.BatchFlow:
         try:
             ret = loader.get_single_data()  # type: ignore[no-untyped-call]
             assert isinstance(ret, ast.BatchFlow)
-            assert ret.kind == ast.Kind.BATCH
+            assert ret.kind == ast.FlowKind.BATCH
             return ret
         finally:
             loader.dispose()  # type: ignore[no-untyped-call]

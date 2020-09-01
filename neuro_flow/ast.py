@@ -36,7 +36,7 @@ class Project(Base):
 # (while 'batches' are technically just non-interactive jobs.
 
 
-class Kind(enum.Enum):
+class FlowKind(enum.Enum):
     LIVE = "live"  # interactive mode.
     BATCH = "batch"  # pipelined mode
 
@@ -137,7 +137,7 @@ class FlowDefaults(Base):
 
 @dataclass(frozen=True)
 class BaseFlow(Base):
-    kind: Kind
+    kind: FlowKind
     id: Optional[str]
 
     title: Optional[str]
@@ -173,6 +173,15 @@ class BatchFlow(BaseFlow):
     tasks: Sequence[Task]
 
 
+# Action
+
+
+class ActionKind(enum.Enum):
+    LIVE = "live"  # live composite
+    BATCH = "batch"  # batch composite
+    STATEFUL = "stateful"  # stateful, can be used in batch flow
+
+
 @dataclass(frozen=True)
 class Input(Base):
     descr: str
@@ -194,16 +203,16 @@ class BaseAction(Base):
     inputs: Optional[Mapping[str, Input]]
     outputs: Optional[Mapping[str, Input]]
 
-    using: str
+    kind: ActionKind
 
 
 @dataclass(frozen=True)
-class JobCompositeAction(BaseAction):
+class LiveAction(BaseAction):
     jobs: Sequence[Job]
 
 
 @dataclass(frozen=True)
-class TaskCompositeAction(BaseAction):
+class BatchAction(BaseAction):
     tasks: Sequence[Task]
 
 
