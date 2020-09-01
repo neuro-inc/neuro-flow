@@ -614,7 +614,7 @@ class OptBashExpr(OptStrExpr):
 class OptPythonExpr(OptStrExpr):
     @classmethod
     def convert(cls, arg: str) -> str:
-        ret = " ".join(["python3", "-c", shlex.quote(arg)])
+        ret = " ".join(["python3", "-uc", shlex.quote(arg)])
         return ret
 
 
