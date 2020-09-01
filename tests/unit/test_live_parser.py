@@ -526,7 +526,7 @@ def test_parse_explicit_flow_id(assets: pathlib.Path) -> None:
         id=SimpleOptIdExpr(
             Pos(0, 0, config_file),
             Pos(0, 0, config_file),
-            "explicit-id",
+            "explicit_id",
         ),
         kind=ast.FlowKind.LIVE,
         title=SimpleOptStrExpr(

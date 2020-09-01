@@ -239,6 +239,14 @@ class FlowCtx:
 _CtxT = TypeVar("_CtxT", bound="BaseContext")
 
 
+class EmptyRoot(RootABC):
+    def lookup(self, name: str) -> TypeT:
+        raise NotAvailable(name)
+
+
+EMPTY_ROOT = EmptyRoot()
+
+
 @dataclass(frozen=True)
 class BaseContext(RootABC):
     FLOW_TYPE: ClassVar[Type[ast.BaseFlow]] = field(init=False)
@@ -273,18 +281,19 @@ class BaseContext(RootABC):
         config_file: LocalPath,
     ) -> _CtxT:
         assert isinstance(ast_flow, cls.FLOW_TYPE)
-        flow_id = ast_flow.id
+        flow_id = await ast_flow.id.eval(EMPTY_ROOT)
         if flow_id is None:
             flow_id = config_file.stem.replace("-", "_")
 
         project = parse_project(workspace)
-        project_id = project.id
+        project_id = await project.id.eval(EMPTY_ROOT)
+        flow_title = await ast_flow.title.eval(EMPTY_ROOT)
 
         flow = FlowCtx(
             flow_id=flow_id,
             project_id=project_id,
             workspace=workspace.resolve(),
-            title=ast_flow.title or flow_id,
+            title=flow_title or flow_id,
         )
 
         ctx = cls(_ast_flow=ast_flow, flow=flow)
