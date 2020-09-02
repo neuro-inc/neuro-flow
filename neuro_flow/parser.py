@@ -46,7 +46,6 @@ from .expr import (
     OptStrExpr,
     PortPairExpr,
     RemotePathExpr,
-    SimpleBoolExpr,
     SimpleIdExpr,
     SimpleOptBoolExpr,
     SimpleOptIdExpr,
@@ -204,9 +203,14 @@ def parse_dict(
     *,
     ret_name: Optional[str] = None,
     extra: Optional[Mapping[str, Union[str, LocalPath]]] = None,
-    preprocess: Optional[Callable[[_CtorType, Dict[str, Any]], Dict[str, Any]]] = None,
+    preprocess: Optional[
+        Callable[[_CtorType, yaml.MappingNode, Dict[str, Any]], Dict[str, Any]]
+    ] = None,
     find_res_type: Optional[
-        Callable[[_CtorType, Type[_AstType], Dict[str, Any]], Type[_AstType]]
+        Callable[
+            [_CtorType, yaml.MappingNode, Type[_AstType], Dict[str, Any]],
+            Type[_AstType],
+        ]
     ] = None,
 ) -> _AstType:
     if extra is None:
@@ -263,9 +267,9 @@ def parse_dict(
         data[key] = value
 
     if preprocess is not None:
-        data = preprocess(ctor, dict(data))
+        data = preprocess(ctor, node, dict(data))
     if find_res_type is not None:
-        res_type = find_res_type(ctor, res_type, dict(data))
+        res_type = find_res_type(ctor, node, res_type, dict(data))
         ret_name = res_type.__name__
 
     optional_fields: Dict[str, Any] = {}
@@ -553,10 +557,14 @@ JOB = {
 }
 
 
-def select_shells(ctor: BaseConstructor, dct: Dict[str, Any]) -> Dict[str, Any]:
+def select_shells(
+    ctor: BaseConstructor, node: yaml.MappingNode, dct: Dict[str, Any]
+) -> Dict[str, Any]:
     found = {k for k in dct if k in ("cmd", "bash", "python")}
     if len(found) > 1:
-        raise ValueError(f"{','.join(found)} are mutually exclusive")
+        raise ConstructorError(
+            f"{','.join(found)} are mutually exclusive", node.start_mark
+        )
 
     bash = dct.pop("bash", None)
     if bash is not None:
@@ -674,14 +682,27 @@ FlowLoader.add_constructor("flow:args", parse_args)  # type: ignore
 
 
 def find_flow_type(
-    ctor: BaseConstructor, res_type: Type[ast.BaseFlow], arg: Dict[str, Any]
+    ctor: BaseConstructor,
+    node: yaml.MappingNode,
+    res_type: Type[ast.BaseFlow],
+    arg: Dict[str, Any],
 ) -> Type[ast.BaseFlow]:
-    if arg["kind"] == ast.FlowKind.LIVE:
+    kind = arg.get("kind")
+    if kind is None:
+        raise ConstructorError(
+            f"missing mandatory key 'kind'",
+            node.start_mark,
+        )
+
+    if kind == ast.FlowKind.LIVE:
         return ast.LiveFlow
-    elif arg["kind"] == ast.FlowKind.BATCH:
+    elif kind == ast.FlowKind.BATCH:
         return ast.BatchFlow
     else:
-        raise ValueError(f"Unknown kind {arg['kind']} of the flow")
+        raise ConstructorError(
+            f"unknown kind {kind} of the flow",
+            node.start_mark,
+        )
 
 
 def parse_flow_main(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.BaseFlow:
@@ -781,7 +802,6 @@ class ActionLoader(Reader, Scanner, Parser, Composer, BaseConstructor, BaseResol
 
 INPUT = {
     "descr": SimpleStrExpr,
-    "required": SimpleBoolExpr,
     "default": SimpleOptStrExpr,
 }
 
@@ -812,7 +832,7 @@ ActionLoader.add_constructor("action:inputs", parse_action_inputs)  # type: igno
 
 Output = {
     "descr": SimpleStrExpr,
-    "value": StrExpr,
+    "value": OptStrExpr,
 }
 
 
@@ -844,7 +864,7 @@ ActionLoader.add_path_resolver("action:job", [(dict, "job")])  # type: ignore
 ActionLoader.add_constructor("action:job", parse_job)  # type: ignore
 
 ACTION = {
-    "name": SimpleIdExpr,
+    "name": SimpleStrExpr,
     "author": SimpleOptStrExpr,
     "descr": SimpleStrExpr,
     "inputs": None,
@@ -864,12 +884,32 @@ ACTION = {
 
 
 def find_action_type(
-    ctor: BaseConstructor, res_type: Type[ast.BaseAction], arg: Dict[str, Any]
+    ctor: BaseConstructor,
+    node: yaml.MappingNode,
+    res_type: Type[ast.BaseAction],
+    arg: Dict[str, Any],
 ) -> Type[ast.BaseAction]:
-    if arg["kind"] == ast.ActionKind.LIVE:
-        return ast.LiveAction
+    kind = arg.get("kind")
+    kind = arg.get("kind")
+    if kind is None:
+        raise ConstructorError(
+            f"missing mandatory key 'kind'",
+            node.start_mark,
+        )
+
+    if kind == ast.ActionKind.LIVE:
+        ret = ast.LiveAction
     else:
-        raise ValueError(f"Unknown kind {arg['kind']} of the flow")
+        raise ConnectionError(f"unknown kind {kind} of the action", node.start_mark)
+    if isinstance(ret, (ast.LiveAction, ast.StatefulAction)):
+        for name, val in arg.get("inputs", {}).items():
+            if val.value.pattern is not None:
+                raise ConnectionError(
+                    f"outputs.{name}.value is not supported "
+                    "for {kind.value} action kind",
+                    node.start_mark,
+                )
+    return ret
 
 
 def parse_action_main(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.BaseAction:

@@ -15,7 +15,6 @@ from .expr import (
     OptStrExpr,
     PortPairExpr,
     RemotePathExpr,
-    SimpleBoolExpr,
     SimpleIdExpr,
     SimpleOptBoolExpr,
     SimpleOptIdExpr,
@@ -191,7 +190,6 @@ class ActionKind(enum.Enum):
 @dataclass(frozen=True)
 class Input(Base):
     descr: SimpleStrExpr
-    required: SimpleBoolExpr
     default: SimpleOptStrExpr
 
 
@@ -203,7 +201,7 @@ class Output(Base):
 
 @dataclass(frozen=True)
 class BaseAction(Base):
-    name: SimpleIdExpr
+    name: SimpleStrExpr
     author: SimpleOptStrExpr
     descr: SimpleStrExpr
     inputs: Optional[Mapping[str, Input]]
