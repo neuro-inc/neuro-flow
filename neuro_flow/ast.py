@@ -207,14 +207,14 @@ class BaseAction(Base):
     author: SimpleOptStrExpr
     descr: SimpleStrExpr
     inputs: Optional[Mapping[str, Input]]
-    outputs: Optional[Mapping[str, Input]]
+    outputs: Optional[Mapping[str, Output]]
 
     kind: ActionKind
 
 
 @dataclass(frozen=True)
 class LiveAction(BaseAction):
-    jobs: Sequence[Job]
+    job: Sequence[Job]
 
 
 @dataclass(frozen=True)

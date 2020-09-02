@@ -46,10 +46,12 @@ from .expr import (
     OptStrExpr,
     PortPairExpr,
     RemotePathExpr,
+    SimpleBoolExpr,
     SimpleIdExpr,
     SimpleOptBoolExpr,
     SimpleOptIdExpr,
     SimpleOptStrExpr,
+    SimpleStrExpr,
     StrExpr,
     URIExpr,
 )
@@ -222,7 +224,7 @@ def parse_dict(
     node_start = mark2pos(node.start_mark)
     node_end = mark2pos(node.end_mark)
 
-    data = {}
+    data = dict(extra)
     for k, v in node.value:
         key = ctor.construct_object(k)  # type: ignore[no-untyped-call]
         if key not in keys:
@@ -267,8 +269,10 @@ def parse_dict(
         ret_name = res_type.__name__
 
     optional_fields: Dict[str, Any] = {}
-    found_fields = extra.keys() | data.keys() | {"_start", "_end"}
+    found_fields = data.keys() | {"_start", "_end"}
+    field_names = set()
     for f in dataclasses.fields(res_type):
+        field_names.add(f.name)
         if f.name not in found_fields:
             key = f.name
             item_ctor = keys[key]
@@ -292,59 +296,28 @@ def parse_dict(
                     f"unexpected {f.name} constructor type {item_ctor!r}",
                     node.start_mark,
                 )
+
+    actual_names = found_fields | optional_fields.keys()
+    missing_names = field_names - actual_names
+    if missing_names:
+        raise ConstructorError(
+            f"while constructing a {ret_name}, "
+            f"missing fields {','.join(missing_names)}",
+            node.start_mark,
+        )
+    unknown_names = actual_names - field_names
+    if unknown_names:
+        raise ConstructorError(
+            f"while constructing a {ret_name}, "
+            f"unexpected fields {','.join(missing_names)}",
+            node.start_mark,
+        )
     return res_type(  # type: ignore[call-arg]
         _start=node_start,
         _end=node_end,
-        **extra,
         **data,
         **optional_fields,
     )
-
-
-# #### Action parser ####
-
-
-class ActionLoader(Reader, Scanner, Parser, Composer, BaseConstructor, BaseResolver):
-    def __init__(self, stream: TextIO) -> None:
-        Reader.__init__(self, stream)
-        Scanner.__init__(self)
-        Parser.__init__(self)
-        Composer.__init__(self)
-        BaseConstructor.__init__(self)
-        BaseResolver.__init__(self)
-
-
-ACTION = {
-    "name": None,
-}
-
-
-def parse_action_main(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.BaseAction:
-    ret = parse_dict(
-        ctor,
-        node,
-        ACTION,
-        ast.BaseAction,
-    )
-    return ret
-
-
-ActionLoader.add_path_resolver("action:main", [])  # type: ignore
-ActionLoader.add_constructor("action:main", parse_action_main)  # type: ignore
-
-
-def parse_action(workspace: LocalPath, action: str) -> ast.BaseAction:
-    # Parse project config file
-    ret: ast.Project
-    config_file = workspace / action
-    with config_file.open() as f:
-        loader = ActionLoader(f)
-        try:
-            ret = loader.get_single_data()  # type: ignore[no-untyped-call]
-            assert isinstance(ret, ast.BaseAction)
-            return ret
-        finally:
-            loader.dispose()  # type: ignore[no-untyped-call]
 
 
 # #### Project parser ####
@@ -700,25 +673,7 @@ FlowLoader.add_path_resolver("flow:args", [(dict, "args")])  # type: ignore
 FlowLoader.add_constructor("flow:args", parse_args)  # type: ignore
 
 
-def select_kind(ctor: BaseConstructor, dct: Dict[str, Any]) -> Dict[str, Any]:
-    if dct["kind"] == ast.FlowKind.LIVE:
-        tasks = dct.pop("tasks", None)
-        if tasks is not None:
-            raise ValueError("flow of kind={dct['kind']} cannot have tasks")
-        args = dct.pop("args", None)
-        if args is not None:
-            raise ValueError("flow of kind={dct['kind']} cannot have args")
-    elif dct["kind"] == ast.FlowKind.BATCH:
-        jobs = dct.pop("jobs", None)
-        if jobs is not None:
-            raise ValueError("flow of kind={dct['kind']} cannot have jobs")
-        del dct["jobs"]
-    else:
-        raise ValueError(f"Unknown kind {dct['kind']} of the flow")
-    return dct
-
-
-def find_res_type(
+def find_flow_type(
     ctor: BaseConstructor, res_type: Type[ast.BaseFlow], arg: Dict[str, Any]
 ) -> Type[ast.BaseFlow]:
     if arg["kind"] == ast.FlowKind.LIVE:
@@ -735,7 +690,7 @@ def parse_flow_main(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.BaseFl
         node,
         FLOW,
         ast.BaseFlow,
-        find_res_type=find_res_type,
+        find_res_type=find_flow_type,
     )
     return ret
 
@@ -809,3 +764,138 @@ def find_live_config(workspace: ConfigDir) -> ConfigPath:
     if not ret.is_file():
         raise ValueError(f"{ret} is not a file")
     return ConfigPath(workspace.workspace, ret)
+
+
+# #### Action parser ####
+
+
+class ActionLoader(Reader, Scanner, Parser, Composer, BaseConstructor, BaseResolver):
+    def __init__(self, stream: TextIO) -> None:
+        Reader.__init__(self, stream)
+        Scanner.__init__(self)
+        Parser.__init__(self)
+        Composer.__init__(self)
+        BaseConstructor.__init__(self)
+        BaseResolver.__init__(self)
+
+
+INPUT = {
+    "descr": SimpleStrExpr,
+    "required": SimpleBoolExpr,
+    "default": SimpleOptStrExpr,
+}
+
+
+def parse_action_input(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Input:
+    ret = parse_dict(
+        ctor,
+        node,
+        INPUT,
+        ast.Input,
+    )
+    return ret
+
+
+def parse_action_inputs(
+    ctor: BaseConstructor, node: yaml.MappingNode
+) -> Dict[str, ast.Input]:
+    ret = {}
+    for k, v in node.value:
+        key = ctor.construct_id(k)
+        value = parse_action_input(ctor, v)
+        ret[key] = value
+    return ret
+
+
+ActionLoader.add_path_resolver("action:inputs", [(dict, "inputs")])  # type: ignore
+ActionLoader.add_constructor("action:inputs", parse_action_inputs)  # type: ignore
+
+Output = {
+    "descr": SimpleStrExpr,
+    "value": StrExpr,
+}
+
+
+def parse_action_output(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Output:
+    ret = parse_dict(
+        ctor,
+        node,
+        INPUT,
+        ast.Output,
+    )
+    return ret
+
+
+def parse_action_outputs(
+    ctor: BaseConstructor, node: yaml.MappingNode
+) -> Dict[str, ast.Output]:
+    ret = {}
+    for k, v in node.value:
+        key = ctor.construct_id(k)
+        value = parse_action_output(ctor, v)
+        ret[key] = value
+    return ret
+
+
+ActionLoader.add_path_resolver("action:outputs", [(dict, "outputs")])  # type: ignore
+ActionLoader.add_constructor("action:outputs", parse_action_inputs)  # type: ignore
+
+ActionLoader.add_path_resolver("action:job", [(dict, "job")])  # type: ignore
+ActionLoader.add_constructor("action:job", parse_job)  # type: ignore
+
+ACTION = {
+    "name": SimpleIdExpr,
+    "author": SimpleOptStrExpr,
+    "descr": SimpleStrExpr,
+    "inputs": None,
+    "outputs": None,
+    "kind": ast.ActionKind,
+    # Live action
+    "job": None,
+    # Batch action
+    "tasks": None,
+    # Sateful action
+    "pre": None,
+    "pre_if": OptBoolExpr,
+    "main": None,
+    "post": None,
+    "post_if": OptBoolExpr,
+}
+
+
+def find_action_type(
+    ctor: BaseConstructor, res_type: Type[ast.BaseAction], arg: Dict[str, Any]
+) -> Type[ast.BaseAction]:
+    if arg["kind"] == ast.ActionKind.LIVE:
+        return ast.LiveAction
+    else:
+        raise ValueError(f"Unknown kind {arg['kind']} of the flow")
+
+
+def parse_action_main(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.BaseAction:
+    ret = parse_dict(
+        ctor,
+        node,
+        ACTION,
+        ast.BaseAction,
+        find_res_type=find_action_type,
+    )
+    return ret
+
+
+ActionLoader.add_path_resolver("action:main", [])  # type: ignore
+ActionLoader.add_constructor("action:main", parse_action_main)  # type: ignore
+
+
+def parse_action(workspace: LocalPath, action: str) -> ast.BaseAction:
+    # Parse project config file
+    ret: ast.Project
+    config_file = workspace / action
+    with config_file.open() as f:
+        loader = ActionLoader(f)
+        try:
+            ret = loader.get_single_data()  # type: ignore[no-untyped-call]
+            assert isinstance(ret, ast.BaseAction)
+            return ret
+        finally:
+            loader.dispose()  # type: ignore[no-untyped-call]
