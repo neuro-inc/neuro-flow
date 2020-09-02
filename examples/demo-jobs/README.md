@@ -67,3 +67,19 @@ neuro-flow logs multitrain bert
 ```
 neuro-flow status train
 ```
+
+# Examples of batch configs 
+
+Minimalistic batches:
+
+```
+neuro-flow bake seq
+neuro-flow bake matrix
+```
+
+A batch with non-linear DAG with 7 tasks:
+
+```
+neuro-flow build numpy
+neuro-flow bake demo
+```

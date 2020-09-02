@@ -38,6 +38,11 @@ images:
     dockerfile: ${{ flow.workspace }}/Dockerfile
     context: ${{ flow.workspace }}
 
+  numpy:
+    ref: image:${{ flow.project_id }}:v1.0
+    dockerfile: ${{ flow.workspace }}/Dockerfile-batch
+    context: ${{ flow.workspace }}
+
 jobs:
 
   test:

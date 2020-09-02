@@ -1,0 +1,5 @@
+FROM python
+
+COPY . /cfg
+
+RUN pip install --progress-bar=off -U --no-cache-dir -r /cfg/requirements-batch.txt

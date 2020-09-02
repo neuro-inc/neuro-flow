@@ -1,0 +1,86 @@
+kind: batch
+title: Demo batch with non-linear DAG
+
+args:
+  size_first: 4000
+  size_second: 5000
+  random_seed: 42
+
+defaults:
+  preset: cpu-small
+
+images:
+  numpy:
+    ref: image:${{ flow.project_id }}:v1.0
+    dockerfile: ${{ flow.workspace }}/Dockerfile-batch
+    context: ${{ flow.workspace }}
+
+volumes:
+  dataset_1:
+    remote: storage:.data/${{ flow.id }}/${{ args.size_first }}-${{ args.random_seed }}
+    mount: /data
+  dataset_2:
+    remote: storage:.data/${{ flow.id }}/${{ args.size_second }}-${{ args.random_seed }}
+    mount: /data
+
+tasks:
+  - id: entry
+    image: ubuntu
+    bash:
+      echo "This batch generates two numeric datasets and calculates the sum of averages."
+
+  - id: first_dataset
+    needs: [entry]
+    image: ${{ images.numpy.ref }}
+    volumes:
+      - ${{ volumes.dataset_1.ref_rw }}
+    python: |
+      import numpy
+      numpy.random.seed(${{ args.random_seed }})
+      dataset = numpy.random.rand(${{ args.size_first }})
+      numpy.save("/data/dataset.npy", dataset)
+
+  - id: second_dataset
+    needs: [entry]
+    image: ${{ images.numpy.ref }}
+    volumes:
+      - ${{ volumes.dataset_2.ref_rw }}
+    python: |
+      import numpy
+      numpy.random.seed(${{ args.random_seed }})
+      dataset = numpy.random.rand(${{ args.size_first }})
+      numpy.save("/data/dataset.npy", dataset)
+
+  - id: first_avg
+    needs: [first_dataset]
+    image: ${{ images.numpy.ref }}
+    volumes:
+      - ${{ volumes.dataset_1.ref_ro }}
+    python: |
+      import numpy
+      dataset = numpy.load("/data/dataset.npy")
+      avg = numpy.average(dataset)
+      print("::set-output name=avg::", avg, sep='', flush=True)
+
+  - id: second_avg
+    needs: [second_dataset]
+    image: ${{ images.numpy.ref }}
+    volumes:
+      - ${{ volumes.dataset_2.ref_ro }}
+    python: |
+      import numpy
+      dataset = numpy.load("/data/dataset.npy")
+      avg = numpy.average(dataset)
+      print("::set-output name=avg::", avg, sep='', flush=True)
+
+  - id: sum
+    needs: [first_avg, second_avg]
+    image: ${{ images.numpy.ref }}
+    python: |
+      print("::set-output name=sum::", ${{ needs.first_avg.outputs.avg }} + ${{ needs.second_avg.outputs.avg }}, sep='', flush=True)
+
+  - id: wrap_up
+    needs: [sum]
+    image: ubuntu
+    bash:
+      echo The sum of two datasets averages is equal to ${{ needs.sum.outputs.sum }}
