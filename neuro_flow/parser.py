@@ -50,7 +50,6 @@ from .expr import (
     SimpleOptBoolExpr,
     SimpleOptIdExpr,
     SimpleOptStrExpr,
-    SimpleStrExpr,
     StrExpr,
     URIExpr,
 )
@@ -280,24 +279,31 @@ def parse_dict(
         if f.name not in found_fields:
             key = f.name
             item_ctor = keys[key]
-            if item_ctor is None:
-                optional_fields[f.name] = None
-            elif isinstance(item_ctor, SimpleCompound):
-                optional_fields[f.name] = None
-            elif isinstance(item_ctor, ast.Base):
-                optional_fields[f.name] = None
+            if (
+                item_ctor is None
+                or isinstance(item_ctor, SimpleCompound)
+                or isinstance(item_ctor, ast.Base)
+            ):
+                if f.metadata.get("allow_none", False):
+                    optional_fields[f.name] = None
+                else:
+                    raise ConstructorError(
+                        f"while constructing a {ret_name}, "
+                        f"missing mandatory key '{f.name}'",
+                        node.start_mark,
+                    )
             elif isinstance(item_ctor, type) and issubclass(item_ctor, Expr):
                 if not item_ctor.allow_none:
                     raise ConstructorError(
                         f"while constructing a {ret_name}, "
-                        f"missing mandatory key {f.name}",
+                        f"missing mandatory key '{f.name}'",
                         node.start_mark,
                     )
                 optional_fields[f.name] = item_ctor(node_start, node_end, None)
             else:
                 raise ConstructorError(
                     f"while constructing a {ret_name}, "
-                    f"unexpected {f.name} constructor type {item_ctor!r}",
+                    f"unexpected '{f.name}' constructor type {item_ctor!r}",
                     node.start_mark,
                 )
 
@@ -801,7 +807,7 @@ class ActionLoader(Reader, Scanner, Parser, Composer, BaseConstructor, BaseResol
 
 
 INPUT = {
-    "descr": SimpleStrExpr,
+    "descr": SimpleOptStrExpr,
     "default": SimpleOptStrExpr,
 }
 
@@ -830,8 +836,8 @@ def parse_action_inputs(
 ActionLoader.add_path_resolver("action:inputs", [(dict, "inputs")])  # type: ignore
 ActionLoader.add_constructor("action:inputs", parse_action_inputs)  # type: ignore
 
-Output = {
-    "descr": SimpleStrExpr,
+OUTPUT = {
+    "descr": SimpleOptStrExpr,
     "value": OptStrExpr,
 }
 
@@ -840,7 +846,7 @@ def parse_action_output(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Ou
     ret = parse_dict(
         ctor,
         node,
-        INPUT,
+        OUTPUT,
         ast.Output,
     )
     return ret
@@ -858,15 +864,15 @@ def parse_action_outputs(
 
 
 ActionLoader.add_path_resolver("action:outputs", [(dict, "outputs")])  # type: ignore
-ActionLoader.add_constructor("action:outputs", parse_action_inputs)  # type: ignore
+ActionLoader.add_constructor("action:outputs", parse_action_outputs)  # type: ignore
 
 ActionLoader.add_path_resolver("action:job", [(dict, "job")])  # type: ignore
 ActionLoader.add_constructor("action:job", parse_job)  # type: ignore
 
 ACTION = {
-    "name": SimpleStrExpr,
+    "name": SimpleOptStrExpr,
     "author": SimpleOptStrExpr,
-    "descr": SimpleStrExpr,
+    "descr": SimpleOptStrExpr,
     "inputs": None,
     "outputs": None,
     "kind": ast.ActionKind,

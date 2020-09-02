@@ -1,5 +1,5 @@
 # Dataclasses
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import enum
 from typing import Mapping, Optional, Sequence
@@ -19,7 +19,6 @@ from .expr import (
     SimpleOptBoolExpr,
     SimpleOptIdExpr,
     SimpleOptStrExpr,
-    SimpleStrExpr,
     StrExpr,
     URIExpr,
 )
@@ -59,7 +58,7 @@ class Image(Base):
     ref: StrExpr  # Image reference, e.g. image:my-proj or neuromation/base@v1.6
     context: OptLocalPathExpr
     dockerfile: OptLocalPathExpr
-    build_args: Optional[Sequence[StrExpr]]
+    build_args: Optional[Sequence[StrExpr]] = field(metadata={"allow_none": True})
 
 
 @dataclass(frozen=True)
@@ -71,9 +70,9 @@ class ExecUnit(Base):
     entrypoint: OptStrExpr
     cmd: OptStrExpr
     workdir: OptRemotePathExpr
-    env: Optional[Mapping[str, StrExpr]]
-    volumes: Optional[Sequence[StrExpr]]
-    tags: Optional[Sequence[StrExpr]]
+    env: Optional[Mapping[str, StrExpr]] = field(metadata={"allow_none": True})
+    volumes: Optional[Sequence[StrExpr]] = field(metadata={"allow_none": True})
+    tags: Optional[Sequence[StrExpr]] = field(metadata={"allow_none": True})
     life_span: OptLifeSpanExpr
     http_port: OptIntExpr
     http_auth: OptBoolExpr
@@ -101,7 +100,9 @@ class Job(ExecUnit):
 
     detach: OptBoolExpr
     browse: OptBoolExpr
-    port_forward: Optional[Sequence[PortPairExpr]]
+    port_forward: Optional[Sequence[PortPairExpr]] = field(
+        metadata={"allow_none": True}
+    )
     multi: SimpleOptBoolExpr
 
 
@@ -112,11 +113,11 @@ class Task(ExecUnit):
     # A set of steps, used in net mode
     # All steps share the same implicit persistent disk volume
 
-    needs: Optional[Sequence[IdExpr]]  # BatchRef
+    needs: Optional[Sequence[IdExpr]] = field(metadata={"allow_none": True})
 
     # matrix? Do we need a build matrix? Yes probably.
 
-    strategy: Optional[Strategy]
+    strategy: Optional[Strategy] = field(metadata={"allow_none": True})
 
     # continue_on_error: OptBoolExpr
     # if_: OptBoolExpr  # -- skip conditionally
@@ -124,9 +125,9 @@ class Task(ExecUnit):
 
 @dataclass(frozen=True)
 class FlowDefaults(Base):
-    tags: Optional[Sequence[StrExpr]]
+    tags: Optional[Sequence[StrExpr]] = field(metadata={"allow_none": True})
 
-    env: Optional[Mapping[str, StrExpr]]
+    env: Optional[Mapping[str, StrExpr]] = field(metadata={"allow_none": True})
     workdir: OptRemotePathExpr
 
     life_span: OptLifeSpanExpr
@@ -147,9 +148,9 @@ class BaseFlow(Base):
 
     title: SimpleOptStrExpr
 
-    images: Optional[Mapping[str, Image]]
-    volumes: Optional[Mapping[str, Volume]]
-    defaults: Optional[FlowDefaults]
+    images: Optional[Mapping[str, Image]] = field(metadata={"allow_none": True})
+    volumes: Optional[Mapping[str, Volume]] = field(metadata={"allow_none": True})
+    defaults: Optional[FlowDefaults] = field(metadata={"allow_none": True})
 
 
 @dataclass(frozen=True)
@@ -174,7 +175,7 @@ class Arg(Base):
 @dataclass(frozen=True)
 class BatchFlow(BaseFlow):
     # self.kind == Kind.Batch
-    args: Optional[Mapping[str, Arg]]
+    args: Optional[Mapping[str, Arg]] = field(metadata={"allow_none": True})
     tasks: Sequence[Task]
 
 
@@ -189,30 +190,30 @@ class ActionKind(enum.Enum):
 
 @dataclass(frozen=True)
 class Input(Base):
-    descr: SimpleStrExpr
+    descr: SimpleOptStrExpr
     default: SimpleOptStrExpr
 
 
 @dataclass(frozen=True)
 class Output(Base):
-    descr: str
+    descr: SimpleOptStrExpr
     value: OptStrExpr  # valid for composite actions only
 
 
 @dataclass(frozen=True)
 class BaseAction(Base):
-    name: SimpleStrExpr
+    name: SimpleOptStrExpr
     author: SimpleOptStrExpr
-    descr: SimpleStrExpr
-    inputs: Optional[Mapping[str, Input]]
-    outputs: Optional[Mapping[str, Output]]
+    descr: SimpleOptStrExpr
+    inputs: Optional[Mapping[str, Input]] = field(metadata={"allow_none": True})
+    outputs: Optional[Mapping[str, Output]] = field(metadata={"allow_none": True})
 
     kind: ActionKind
 
 
 @dataclass(frozen=True)
 class LiveAction(BaseAction):
-    job: Sequence[Job]
+    job: Job
 
 
 @dataclass(frozen=True)
@@ -222,8 +223,8 @@ class BatchAction(BaseAction):
 
 @dataclass(frozen=True)
 class StatefulAction(BaseAction):
-    pre: Optional[ExecUnit]
+    pre: Optional[ExecUnit] = field(metadata={"allow_none": True})
     pre_if: OptBoolExpr
     main: ExecUnit
-    post: Optional[ExecUnit]
+    post: Optional[ExecUnit] = field(metadata={"allow_none": True})
     post_if: OptBoolExpr

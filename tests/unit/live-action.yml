@@ -11,3 +11,6 @@ inputs:
 outputs:
   res:
     descr: action result
+job:
+  image: ubuntu
+  bash: echo abc
