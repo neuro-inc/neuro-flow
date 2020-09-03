@@ -120,7 +120,6 @@ class ExecUnitCtx:
     cmd: Optional[str]
     workdir: Optional[RemotePath]
     volumes: Sequence[str]  # Sequence[VolumeRef]
-    tags: AbstractSet[str]
     life_span: Optional[float]
 
 
@@ -144,7 +143,6 @@ class JobMetaCtx:
     # Metadata used for jobs lookup
     id: str
     multi: bool
-    tags: AbstractSet[str]
 
 
 @dataclass(frozen=True)
@@ -207,7 +205,6 @@ class ImageCtx:
 
 @dataclass(frozen=True)
 class DefaultsCtx:
-    tags: AbstractSet[str]
     workdir: Optional[RemotePath]
     life_span: Optional[float]
     preset: Optional[str]
@@ -236,7 +233,7 @@ class FlowCtx:
         return self.flow_id
 
 
-_CtxT = TypeVar("_CtxT", bound="BaseContext")
+_CtxT = TypeVar("_CtxT", bound="BaseFlowContext")
 
 
 class EmptyRoot(RootABC):
@@ -248,7 +245,7 @@ EMPTY_ROOT = EmptyRoot()
 
 
 @dataclass(frozen=True)
-class BaseContext(RootABC):
+class BaseFlowContext(RootABC):
     FLOW_TYPE: ClassVar[Type[ast.BaseFlow]] = field(init=False)
     LOOKUP_KEYS: ClassVar[Tuple[str, ...]] = field(
         init=False,
@@ -258,6 +255,7 @@ class BaseContext(RootABC):
             "volumes",
             "images",
             "env",
+            "tags",
             "job",
             "batch",
         ),
@@ -267,6 +265,7 @@ class BaseContext(RootABC):
     flow: FlowCtx
     _defaults: Optional[DefaultsCtx] = None
     _env: Optional[Mapping[str, str]] = None
+    _tags: Optional[AbstractSet[str]] = None
 
     _images: Optional[Mapping[str, ImageCtx]] = None
     _volumes: Optional[Mapping[str, VolumeCtx]] = None
@@ -324,12 +323,11 @@ class BaseContext(RootABC):
         tags.add(f"flow:{_id2tag(flow_id)}")
 
         defaults = DefaultsCtx(
-            tags=tags,
             workdir=workdir,
             life_span=life_span,
             preset=preset,
         )
-        ctx = replace(ctx, _defaults=defaults, _env=env)
+        ctx = replace(ctx, _defaults=defaults, _env=env, _tags=tags)
 
         # volumes / images needs a context with defaults only for self initialization
         volumes = {}
@@ -395,16 +393,22 @@ class BaseContext(RootABC):
             raise NotAvailable("images")
         return self._images
 
+    @property
+    def tags(self) -> AbstractSet[str]:
+        if self._tags is None:
+            raise NotAvailable("tags")
+        return self._tags
+
     async def _with_args(self: _CtxT) -> _CtxT:
         # Calculate batch args context early, no-op for live mode
         return self
 
 
 @dataclass(frozen=True)
-class LiveContext(BaseContext):
+class LiveContext(BaseFlowContext):
     FLOW_TYPE: ClassVar[Type[ast.LiveFlow]] = field(init=False, default=ast.LiveFlow)
     LOOKUP_KEYS: ClassVar[Tuple[str, ...]] = field(
-        init=False, default=BaseContext.LOOKUP_KEYS + ("job", "multi", "meta")
+        init=False, default=BaseFlowContext.LOOKUP_KEYS + ("job", "multi", "meta")
     )
     _job: Optional[JobCtx] = None
     _meta: Optional[JobMetaCtx] = None
@@ -472,11 +476,11 @@ class LiveContext(BaseContext):
         except KeyError:
             raise UnknownJob(job_id)
 
-        tags = set(self.defaults.tags)
+        tags = set(self.tags)
         tags.add(f"job:{_id2tag(job_id)}")
         multi = await job.multi.eval(EMPTY_ROOT)
 
-        return replace(self, _meta=JobMetaCtx(id=job_id, multi=bool(multi), tags=tags))
+        return replace(self, _meta=JobMetaCtx(id=job_id, multi=bool(multi)), _tags=tags)
 
     async def with_job(self, job_id: str) -> "LiveContext":
         if self._job is not None:
@@ -485,7 +489,7 @@ class LiveContext(BaseContext):
             )
         assert isinstance(self._ast_flow, self.FLOW_TYPE)
 
-        tags = set(self.meta.tags)
+        tags = set(self.tags)
 
         if self.meta.multi:
             tags.add(f"multi:{self.multi.suffix}")
@@ -529,22 +533,26 @@ class LiveContext(BaseContext):
             cmd=await job.cmd.eval(self),
             workdir=workdir,
             volumes=volumes,
-            tags=self.defaults.tags | tags,
             life_span=life_span,
             http_port=await job.http_port.eval(self),
             http_auth=await job.http_auth.eval(self),
             port_forward=port_forward,
             multi=self.meta.multi,
         )
-        return replace(self, _job=job_ctx, _env=env)
+        return replace(
+            self,
+            _job=job_ctx,
+            _env=env,
+            _tags=self.tags | tags,
+        )
 
 
 @dataclass(frozen=True)
-class BatchContext(BaseContext):
+class BatchContext(BaseFlowContext):
     FLOW_TYPE: ClassVar[Type[ast.BatchFlow]] = field(init=False, default=ast.BatchFlow)
     LOOKUP_KEYS: ClassVar[Tuple[str, ...]] = field(
         init=False,
-        default=BaseContext.LOOKUP_KEYS
+        default=BaseFlowContext.LOOKUP_KEYS
         + ("args", "batch", "needs", "matrix", "strategy"),
     )
     _args: Optional[Mapping[str, str]] = None
@@ -778,7 +786,6 @@ class BatchContext(BaseContext):
             cmd=await prep_task.ast.cmd.eval(ctx),
             workdir=workdir,
             volumes=volumes,
-            tags=ctx.defaults.tags | tags,
             life_span=life_span,
             http_port=await prep_task.ast.http_port.eval(ctx),
             http_auth=await prep_task.ast.http_auth.eval(ctx),
@@ -787,6 +794,7 @@ class BatchContext(BaseContext):
             ctx,
             _task=task_ctx,
             _env=env,
+            _tags=ctx.tags | tags,
         )
 
     async def _build_matrix(self, strategy: ast.Strategy) -> Sequence[MatrixCtx]:
@@ -836,7 +844,9 @@ class BatchContext(BaseContext):
         return ret
 
 
-def calc_full_path(ctx: BaseContext, path: Optional[LocalPath]) -> Optional[LocalPath]:
+def calc_full_path(
+    ctx: BaseFlowContext, path: Optional[LocalPath]
+) -> Optional[LocalPath]:
     if path is None:
         return None
     if path.is_absolute():

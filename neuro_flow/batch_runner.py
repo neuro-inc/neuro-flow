@@ -10,15 +10,11 @@ from neuromation.api import (
     JobDescription,
     JobStatus,
     Resources,
-    SecretFile,
-    Volume,
 )
-from neuromation.api.url_utils import uri_from_cli
 from neuromation.cli.formatters import ftable  # TODO: extract into a separate library
 from types import TracebackType
-from typing import Dict, Iterable, List, Optional, Set, Type
+from typing import Iterable, List, Optional, Type
 from typing_extensions import AsyncContextManager
-from yarl import URL
 
 from . import ast
 from .commands import CmdProcessor
@@ -213,8 +209,9 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             preset_name = next(iter(self._client.config.presets))
         preset = self._client.config.presets[preset_name]
 
-        env_dict = dict(task_ctx.env)
-        secret_env_dict = self._extract_secret_env(env_dict)
+        env_dict, secret_env_dict = self._client.parse.env(
+            [f"{k}={v}" for k, v in task_ctx.env.items()]
+        )
         resources = Resources(
             memory_mb=preset.memory_mb,
             cpu=preset.cpu,
@@ -224,10 +221,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             tpu_type=preset.tpu_type,
             tpu_software_version=preset.tpu_software_version,
         )
-        input_secret_files = {vol for vol in task.volumes if vol.startswith("secret:")}
-        input_volumes = set(task.volumes) - input_secret_files
-        secret_files = await self._build_secret_files(input_secret_files)
-        volumes = await self._build_volumes(input_volumes)
+        volumes, secret_files = self._client.parse.volumes(task.volumes)
 
         http_auth = task.http_auth
         if http_auth is None:
@@ -249,47 +243,11 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             container,
             is_preemptible=preset.is_preemptible,
             name=task.name,
-            tags=list(task.tags),
+            tags=list(task_ctx.tags),
             description=task.title,
             life_span=task.life_span,
         )
         return await self._storage.start_task(attempt, task_no, task.real_id, job)
-
-    def _extract_secret_env(self, env_dict: Dict[str, str]) -> Dict[str, URL]:
-        secret_env_dict = {}
-        for name, val in env_dict.copy().items():
-            if val.startswith("secret:"):
-                secret_env_dict[name] = uri_from_cli(
-                    val,
-                    self._client.username,
-                    self._client.cluster_name,
-                    allowed_schemes=("secret"),
-                )
-                del env_dict[name]
-        return secret_env_dict
-
-    async def _build_volumes(self, input_volumes: Iterable[str]) -> Set[Volume]:
-        volumes: Set[Volume] = set()
-
-        for vol in input_volumes:
-            volumes.add(self._client.parse.volume(vol))
-        return volumes
-
-    async def _build_secret_files(self, input_volumes: Set[str]) -> Set[SecretFile]:
-        secret_files: Set[SecretFile] = set()
-        for volume in input_volumes:
-            parts = volume.split(":")
-            if len(parts) != 3:
-                raise ValueError(f"Invalid secret file specification '{volume}'")
-            container_path = parts.pop()
-            secret_uri = uri_from_cli(
-                ":".join(parts),
-                self._client.username,
-                self._client.cluster_name,
-                allowed_schemes=("secret"),
-            )
-            secret_files.add(SecretFile(secret_uri, container_path))
-        return secret_files
 
     async def _finish_task(
         self,
