@@ -880,6 +880,16 @@ ActionLoader.add_constructor(  # type: ignore
     "action:tasks", ActionLoader.construct_sequence
 )
 
+
+def parse_exec_unit(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.ExecUnit:
+    return parse_dict(ctor, node, EXEC_UNIT, ast.ExecUnit, preprocess=select_shells)
+
+
+ActionLoader.add_path_resolver("action:exec", [(dict, "pre")])  # type: ignore
+ActionLoader.add_path_resolver("action:exec", [(dict, "post")])  # type: ignore
+ActionLoader.add_path_resolver("action:exec", [(dict, "main")])  # type: ignore
+ActionLoader.add_constructor("action:exec", parse_exec_unit)  # type: ignore
+
 ACTION = {
     "name": SimpleOptStrExpr,
     "author": SimpleOptStrExpr,
@@ -912,15 +922,17 @@ def find_action_type(
             f"missing mandatory key 'kind'",
             node.start_mark,
         )
-
+    ret: Type[ast.BaseAction]
     if kind == ast.ActionKind.LIVE:
         ret = ast.LiveAction
     elif kind == ast.ActionKind.BATCH:
         ret = ast.BatchAction
+    elif kind == ast.ActionKind.STATEFUL:
+        ret = ast.StatefulAction
     else:
         raise ConnectionError(f"unknown kind {kind} of the action", node.start_mark)
-    if isinstance(ret, (ast.LiveAction, ast.StatefulAction)):
-        for name, val in arg.get("inputs", {}).items():
+    if issubclass(ret, (ast.LiveAction, ast.StatefulAction)):
+        for name, val in arg.get("outputs", {}).items():
             if val.value.pattern is not None:
                 raise ConnectionError(
                     f"outputs.{name}.value is not supported "

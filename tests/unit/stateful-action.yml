@@ -1,0 +1,24 @@
+kind: stateful
+name: Test stateful Action
+author: Andrew Svetlov
+descr: description of test action
+inputs:
+  arg1:
+    descr: param 1
+  arg2:
+    descr: param 2
+    default: value 2
+outputs:
+  res:
+    descr: action result
+pre:
+  image: ubuntu
+  bash: echo ::set-state name=state1::State 1
+pre_if: True
+main:
+  image: ubuntu
+  bash: echo ::set-state name=state2::State 2
+post:
+  image: ubuntu
+  bash: echo End
+post_if: ${{ True }}
