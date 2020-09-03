@@ -239,6 +239,14 @@ class FlowCtx:
 _CtxT = TypeVar("_CtxT", bound="BaseContext")
 
 
+class EmptyRoot(RootABC):
+    def lookup(self, name: str) -> TypeT:
+        raise NotAvailable(name)
+
+
+EMPTY_ROOT = EmptyRoot()
+
+
 @dataclass(frozen=True)
 class BaseContext(RootABC):
     FLOW_TYPE: ClassVar[Type[ast.BaseFlow]] = field(init=False)
@@ -273,18 +281,19 @@ class BaseContext(RootABC):
         config_file: LocalPath,
     ) -> _CtxT:
         assert isinstance(ast_flow, cls.FLOW_TYPE)
-        flow_id = ast_flow.id
+        flow_id = await ast_flow.id.eval(EMPTY_ROOT)
         if flow_id is None:
             flow_id = config_file.stem.replace("-", "_")
 
         project = parse_project(workspace)
-        project_id = project.id
+        project_id = await project.id.eval(EMPTY_ROOT)
+        flow_title = await ast_flow.title.eval(EMPTY_ROOT)
 
         flow = FlowCtx(
             flow_id=flow_id,
             project_id=project_id,
             workspace=workspace.resolve(),
-            title=ast_flow.title or flow_id,
+            title=flow_title or flow_id,
         )
 
         ctx = cls(_ast_flow=ast_flow, flow=flow)
@@ -424,13 +433,14 @@ class LiveContext(BaseContext):
         assert isinstance(self._ast_flow, self.FLOW_TYPE)
         return sorted(self._ast_flow.jobs)
 
-    def is_multi(self, job_id: str) -> bool:
+    async def is_multi(self, job_id: str) -> bool:
         assert isinstance(self._ast_flow, self.FLOW_TYPE)
         try:
             job = self._ast_flow.jobs[job_id]
         except KeyError:
             raise UnknownJob(job_id)
-        return bool(job.multi)  # None is False
+        multi = await job.multi.eval(EMPTY_ROOT)
+        return bool(multi)  # None is False
 
     async def with_multi(
         self, *, suffix: str, args: Optional[Sequence[str]]
@@ -464,10 +474,9 @@ class LiveContext(BaseContext):
 
         tags = set(self.defaults.tags)
         tags.add(f"job:{_id2tag(job_id)}")
+        multi = await job.multi.eval(EMPTY_ROOT)
 
-        return replace(
-            self, _meta=JobMetaCtx(id=job_id, multi=bool(job.multi), tags=tags)
-        )
+        return replace(self, _meta=JobMetaCtx(id=job_id, multi=bool(multi), tags=tags))
 
     async def with_job(self, job_id: str) -> "LiveContext":
         if self._job is not None:
@@ -633,13 +642,15 @@ class BatchContext(BaseContext):
         args = {}
         if self._ast_flow.args is not None:
             for k, v in self._ast_flow.args.items():
-                if v.default is None:
+                default = await v.default.eval(EMPTY_ROOT)
+                # descr = await v.descr.eval(EMPTY_ROOT)
+                if default is None:
                     raise EvalError(
                         f"Arg {k} is not initialized and has no default value",
                         v._start,
                         v._end,
                     )
-                args[k] = v.default
+                args[k] = default
         return replace(self, _args=args)
 
     @property

@@ -1,0 +1,16 @@
+kind: live
+name: Test live Action
+author: Andrew Svetlov
+descr: description of test action
+inputs:
+  arg1:
+    descr: param 1
+  arg2:
+    descr: param 2
+    default: value 2
+outputs:
+  res:
+    descr: action result
+job:
+  image: ubuntu
+  bash: echo abc

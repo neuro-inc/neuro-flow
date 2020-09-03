@@ -1,5 +1,5 @@
 kind: live
-id: explicit-id
+id: explicit_id
 jobs:
   test:
     cmd: echo abc

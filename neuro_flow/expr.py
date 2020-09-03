@@ -380,6 +380,7 @@ PARSER: Final = oneplus(TMPL | TEXT) + skip(finished)
 
 class Expr(Generic[_T]):
     allow_none = True
+    allow_expr = True
 
     @classmethod
     def convert(cls, arg: str) -> _T:
@@ -401,6 +402,8 @@ class Expr(Generic[_T]):
                     self._ret = self.convert(cast(Text, self._parsed[0]).arg)
                 except (TypeError, ValueError) as exc:
                     raise EvalError(str(exc), start, end)
+            elif not self.allow_expr:
+                raise EvalError(f"Expressions are not allowed in {pattern}", start, end)
         elif self.allow_none:
             self._parsed = None
         else:
@@ -476,6 +479,14 @@ class OptStrExpr(Expr[str]):
     pass
 
 
+class SimpleStrExpr(StrictExpr[str]):
+    allow_expr = False
+
+
+class SimpleOptStrExpr(Expr[str]):
+    allow_expr = False
+
+
 class IdExprMixin:
     @classmethod
     def convert(cls, arg: str) -> str:
@@ -495,6 +506,14 @@ class IdExpr(IdExprMixin, StrictExpr[str]):
 
 class OptIdExpr(IdExprMixin, Expr[str]):
     pass
+
+
+class SimpleIdExpr(IdExprMixin, StrictExpr[str]):
+    allow_expr = False
+
+
+class SimpleOptIdExpr(IdExprMixin, Expr[str]):
+    allow_expr = False
 
 
 class URIExprMixin:
@@ -524,6 +543,14 @@ class BoolExpr(BoolExprMixin, StrictExpr[bool]):
 
 class OptBoolExpr(BoolExprMixin, Expr[bool]):
     pass
+
+
+class SimpleBoolExpr(BoolExprMixin, StrictExpr[bool]):
+    allow_expr = False
+
+
+class SimpleOptBoolExpr(BoolExprMixin, Expr[bool]):
+    allow_expr = False
 
 
 class IntExprMixin:

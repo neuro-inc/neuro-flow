@@ -221,7 +221,9 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
     ) -> None:
         """Run a named job"""
 
-        if not self.ctx.is_multi(job_id):
+        is_multi = await self.ctx.is_multi(job_id)
+
+        if not is_multi:
             meta_ctx = await self._ensure_meta(job_id, suffix)
             if args:
                 raise click.BadArgumentUsage(
