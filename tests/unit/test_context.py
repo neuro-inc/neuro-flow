@@ -99,7 +99,7 @@ async def test_defaults(assets: pathlib.Path) -> None:
     config_file = workspace / "live-full.yml"
     flow = parse_live(workspace, config_file)
     ctx = await LiveContext.create(flow, workspace, config_file)
-    assert ctx.defaults.tags == {"tag-a", "tag-b", "project:unit", "flow:live-full"}
+    assert ctx.tags == {"tag-a", "tag-b", "project:unit", "flow:live-full"}
     assert ctx.defaults.workdir == RemotePath("/global/dir")
     assert ctx.defaults.life_span == 100800.0
     assert ctx.defaults.preset == "cpu-large"
@@ -133,7 +133,7 @@ async def test_job(assets: pathlib.Path) -> None:
     assert ctx2.job.cmd == "echo abc"
     assert ctx2.job.workdir == RemotePath("/local/dir")
     assert ctx2.job.volumes == ["storage:dir:/var/dir:ro", "storage:dir:/var/dir:ro"]
-    assert ctx2.job.tags == {
+    assert ctx2.tags == {
         "tag-1",
         "tag-2",
         "tag-a",
@@ -194,7 +194,7 @@ async def test_pipeline_minimal_ctx(assets: pathlib.Path) -> None:
     assert ctx2.task.cmd == "echo abc"
     assert ctx2.task.workdir == RemotePath("/local/dir")
     assert ctx2.task.volumes == ["storage:dir:/var/dir:ro", "storage:dir:/var/dir:ro"]
-    assert ctx2.task.tags == {
+    assert ctx2.tags == {
         "tag-1",
         "tag-2",
         "tag-a",
@@ -232,7 +232,7 @@ async def test_pipeline_seq(assets: pathlib.Path) -> None:
     assert ctx2.task.cmd == "bash -euxo pipefail -c 'echo def'"
     assert ctx2.task.workdir is None
     assert ctx2.task.volumes == []
-    assert ctx2.task.tags == {"project:unit", "flow:batch-seq", "task:task-2"}
+    assert ctx2.tags == {"project:unit", "flow:batch-seq", "task:task-2"}
     assert ctx2.task.life_span is None
 
     assert ctx.graph == {"task-2": {"task-1"}, "task-1": set()}
@@ -263,7 +263,7 @@ async def test_pipeline_needs(assets: pathlib.Path) -> None:
     assert ctx2.task.cmd == "bash -euxo pipefail -c 'echo def'"
     assert ctx2.task.workdir is None
     assert ctx2.task.volumes == []
-    assert ctx2.task.tags == {"project:unit", "flow:batch-needs", "task:task-2"}
+    assert ctx2.tags == {"project:unit", "flow:batch-needs", "task:task-2"}
     assert ctx2.task.life_span is None
 
     assert ctx.graph == {"task-2": {"task_a"}, "task_a": set()}
@@ -299,7 +299,7 @@ async def test_pipeline_matrix(assets: pathlib.Path) -> None:
     assert ctx2.task.cmd == "echo abc"
     assert ctx2.task.workdir is None
     assert ctx2.task.volumes == []
-    assert ctx2.task.tags == {"project:unit", "flow:batch-matrix", "task:task-1-o2-t2"}
+    assert ctx2.tags == {"project:unit", "flow:batch-matrix", "task:task-1-o2-t2"}
     assert ctx2.task.life_span is None
 
     assert ctx2.matrix == {"one": "o2", "two": "t2"}
@@ -334,7 +334,7 @@ async def test_pipeline_matrix_with_strategy(assets: pathlib.Path) -> None:
     assert ctx2.task.cmd == "echo abc"
     assert ctx2.task.workdir is None
     assert ctx2.task.volumes == []
-    assert ctx2.task.tags == {
+    assert ctx2.tags == {
         "project:unit",
         "flow:batch-matrix-with-strategy",
         "task:task-1-e3-o3-t3",
@@ -380,7 +380,7 @@ async def test_pipeline_matrix_2(assets: pathlib.Path) -> None:
     )
     assert ctx2.task.workdir is None
     assert ctx2.task.volumes == []
-    assert ctx2.task.tags == {
+    assert ctx2.tags == {
         "project:unit",
         "flow:batch-matrix-with-deps",
         "task:task-2-a-1",

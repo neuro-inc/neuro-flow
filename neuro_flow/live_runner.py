@@ -113,13 +113,13 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
         found = False
         if meta.multi and not suffix:
             async for job in self.client.jobs.list(
-                tags=meta.tags,
+                tags=meta_ctx.tags,
                 reverse=True,
             ):
                 found = True
                 yield job
         else:
-            tags = list(meta.tags)
+            tags = list(meta_ctx.tags)
             if meta.multi and suffix:
                 tags.append(f"multi:{suffix}")
             async for job in self.client.jobs.list(
@@ -162,9 +162,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
                         JobInfo(real_id, descr.status, descr.id, descr.tags, when)
                     )
         except ResourceNotFound:
-            ret.append(
-                JobInfo(job_id, JobStatus.UNKNOWN, None, meta_ctx.meta.tags, None)
-            )
+            ret.append(JobInfo(job_id, JobStatus.UNKNOWN, None, meta_ctx.tags, None))
         return ret
 
     async def ps(self) -> None:
@@ -292,7 +290,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
             run_args.append(f"--env={k}={v}")
         for v in job.volumes:
             run_args.append(f"--volume={v}")
-        for t in job.tags:
+        for t in job_ctx.tags:
             run_args.append(f"--tag={t}")
         if job.life_span is not None:
             run_args.append(f"--life-span={int(job.life_span)}s")
@@ -373,7 +371,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
                 return job_id
 
         async for descr in self.client.jobs.list(
-            tags=self.ctx.defaults.tags, statuses=(JobStatus.PENDING, JobStatus.RUNNING)
+            tags=self.ctx.tags, statuses=(JobStatus.PENDING, JobStatus.RUNNING)
         ):
             tasks.append(loop.create_task(kill(descr)))
 
