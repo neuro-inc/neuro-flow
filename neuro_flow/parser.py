@@ -869,6 +869,17 @@ ActionLoader.add_constructor("action:outputs", parse_action_outputs)  # type: ig
 ActionLoader.add_path_resolver("action:job", [(dict, "job")])  # type: ignore
 ActionLoader.add_constructor("action:job", parse_job)  # type: ignore
 
+ActionLoader.add_path_resolver(  # type: ignore[no-untyped-call]
+    "action:task", [(dict, "tasks"), (list, None)]
+)
+ActionLoader.add_constructor("action:task", parse_task)  # type: ignore
+
+
+ActionLoader.add_path_resolver("action:tasks", [(dict, "tasks")])  # type: ignore
+ActionLoader.add_constructor(  # type: ignore
+    "action:tasks", ActionLoader.construct_sequence
+)
+
 ACTION = {
     "name": SimpleOptStrExpr,
     "author": SimpleOptStrExpr,
@@ -896,7 +907,6 @@ def find_action_type(
     arg: Dict[str, Any],
 ) -> Type[ast.BaseAction]:
     kind = arg.get("kind")
-    kind = arg.get("kind")
     if kind is None:
         raise ConstructorError(
             f"missing mandatory key 'kind'",
@@ -905,6 +915,8 @@ def find_action_type(
 
     if kind == ast.ActionKind.LIVE:
         ret = ast.LiveAction
+    elif kind == ast.ActionKind.BATCH:
+        ret = ast.BatchAction
     else:
         raise ConnectionError(f"unknown kind {kind} of the action", node.start_mark)
     if isinstance(ret, (ast.LiveAction, ast.StatefulAction)):

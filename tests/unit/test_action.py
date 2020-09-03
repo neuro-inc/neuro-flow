@@ -2,6 +2,7 @@ from neuro_flow import ast
 from neuro_flow.expr import (
     OptBashExpr,
     OptBoolExpr,
+    OptIdExpr,
     OptIntExpr,
     OptLifeSpanExpr,
     OptRemotePathExpr,
@@ -96,4 +97,147 @@ def test_parse_live_action(assets: LocalPath) -> None:
                 Pos(0, 0, config_file), Pos(0, 0, config_file), None
             ),
         ),
+    )
+
+
+def test_parse_batch_action(assets: LocalPath) -> None:
+    config_file = assets / "batch-action.yml"
+    action = parse_action(assets, config_file.name)
+    assert action == ast.BatchAction(
+        Pos(0, 0, config_file),
+        Pos(24, 0, config_file),
+        kind=ast.ActionKind.BATCH,
+        name=SimpleOptStrExpr(
+            Pos(0, 0, config_file),
+            Pos(0, 0, config_file),
+            "Test batch Action",
+        ),
+        author=SimpleOptStrExpr(
+            Pos(0, 0, config_file),
+            Pos(0, 0, config_file),
+            "Andrew Svetlov",
+        ),
+        descr=SimpleOptStrExpr(
+            Pos(0, 0, config_file),
+            Pos(0, 0, config_file),
+            "description of test action",
+        ),
+        inputs={
+            "arg1": ast.Input(
+                Pos(6, 4, config_file),
+                Pos(7, 2, config_file),
+                descr=SimpleOptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "param 1"
+                ),
+                default=SimpleOptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+            ),
+            "arg2": ast.Input(
+                Pos(8, 4, config_file),
+                Pos(10, 0, config_file),
+                descr=SimpleOptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "param 2"
+                ),
+                default=SimpleOptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "value 2"
+                ),
+            ),
+        },
+        outputs={
+            "res1": ast.Output(
+                Pos(12, 4, config_file),
+                Pos(13, 0, config_file),
+                descr=SimpleOptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "action result 1"
+                ),
+                value=OptStrExpr(
+                    Pos(0, 0, config_file),
+                    Pos(0, 0, config_file),
+                    "${{ task_1.task1 }}",
+                ),
+            ),
+            "res2": ast.Output(
+                Pos(12, 4, config_file),
+                Pos(13, 0, config_file),
+                descr=SimpleOptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "action result 2"
+                ),
+                value=OptStrExpr(
+                    Pos(0, 0, config_file),
+                    Pos(0, 0, config_file),
+                    "${{ task_2.task2 }}",
+                ),
+            ),
+        },
+        tasks=[
+            ast.Task(
+                Pos(18, 2, config_file),
+                Pos(21, 0, config_file),
+                title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
+                preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                entrypoint=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                cmd=OptBashExpr(
+                    Pos(0, 0, config_file),
+                    Pos(0, 0, config_file),
+                    "echo ::set-output name=task1::Task 1",
+                ),
+                workdir=OptRemotePathExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                env=None,
+                volumes=None,
+                tags=None,
+                life_span=OptLifeSpanExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                http_port=OptIntExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                http_auth=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                id=OptIdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "task_1"),
+                needs=None,
+                strategy=None,
+            ),
+            ast.Task(
+                Pos(21, 2, config_file),
+                Pos(24, 0, config_file),
+                title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
+                preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                entrypoint=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                cmd=OptBashExpr(
+                    Pos(0, 0, config_file),
+                    Pos(0, 0, config_file),
+                    "echo ::set-output name=task2::Task 2",
+                ),
+                workdir=OptRemotePathExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                env=None,
+                volumes=None,
+                tags=None,
+                life_span=OptLifeSpanExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                http_port=OptIntExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                http_auth=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                id=OptIdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "task_2"),
+                needs=None,
+                strategy=None,
+            ),
+        ],
     )
