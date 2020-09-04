@@ -486,32 +486,30 @@ class StrictExpr(Expr[_T]):
 
 
 class StrExprMixin:
-    type = str
-
     @classmethod
     def convert(cls, arg: str) -> str:
         return arg
 
 
 class StrExpr(StrExprMixin, StrictExpr[str]):
-    pass
+    type = str
 
 
 class OptStrExpr(StrExprMixin, Expr[str]):
-    pass
+    type = str
 
 
 class SimpleStrExpr(StrExprMixin, StrictExpr[str]):
     allow_expr = False
+    type = str
 
 
 class SimpleOptStrExpr(StrExprMixin, Expr[str]):
     allow_expr = False
+    type = str
 
 
 class IdExprMixin:
-    type = str
-
     @classmethod
     def convert(cls, arg: str) -> str:
         if not arg.isidentifier():
@@ -525,40 +523,38 @@ class IdExprMixin:
 
 
 class IdExpr(IdExprMixin, StrictExpr[str]):
-    pass
+    type = str
 
 
 class OptIdExpr(IdExprMixin, Expr[str]):
-    pass
+    type = str
 
 
 class SimpleIdExpr(IdExprMixin, StrictExpr[str]):
     allow_expr = False
+    type = str
 
 
 class SimpleOptIdExpr(IdExprMixin, Expr[str]):
     allow_expr = False
+    type = str
 
 
 class URIExprMixin:
-    type = URL
-
     @classmethod
     def convert(cls, arg: Union[str, URL]) -> URL:
         return URL(arg)
 
 
 class URIExpr(URIExprMixin, StrictExpr[URL]):
-    pass
+    type = URL
 
 
 class OptURIExpr(URIExprMixin, Expr[URL]):
-    pass
+    type = URL
 
 
 class BoolExprMixin:
-    type = bool
-
     @classmethod
     def convert(cls, arg: Union[str, bool]) -> bool:
         if isinstance(arg, bool):
@@ -568,24 +564,24 @@ class BoolExprMixin:
 
 
 class BoolExpr(BoolExprMixin, StrictExpr[bool]):
-    pass
+    type = bool
 
 
 class OptBoolExpr(BoolExprMixin, Expr[bool]):
-    pass
+    type = bool
 
 
 class SimpleBoolExpr(BoolExprMixin, StrictExpr[bool]):
     allow_expr = False
+    type = bool
 
 
 class SimpleOptBoolExpr(BoolExprMixin, Expr[bool]):
     allow_expr = False
+    type = bool
 
 
 class IntExprMixin:
-    type = int
-
     @classmethod
     def convert(cls, arg: Union[str, int]) -> int:
         if isinstance(arg, int):
@@ -595,16 +591,14 @@ class IntExprMixin:
 
 
 class IntExpr(IntExprMixin, StrictExpr[int]):
-    pass
+    type = int
 
 
 class OptIntExpr(IntExprMixin, Expr[int]):
-    pass
+    type = int
 
 
 class FloatExprMixin:
-    type = float
-
     @classmethod
     def convert(cls, arg: Union[str, float]) -> float:
         if isinstance(arg, float):
@@ -614,11 +608,11 @@ class FloatExprMixin:
 
 
 class FloatExpr(FloatExprMixin, StrictExpr[float]):
-    pass
+    type = float
 
 
 class OptFloatExpr(FloatExprMixin, Expr[float]):
-    pass
+    type = float
 
 
 class OptLifeSpanExpr(OptFloatExpr):
@@ -643,35 +637,31 @@ class OptLifeSpanExpr(OptFloatExpr):
 
 
 class LocalPathMixin:
-    type = LocalPath
-
     @classmethod
     def convert(cls, arg: Union[str, LocalPath]) -> LocalPath:
         return LocalPath(arg)
 
 
 class LocalPathExpr(LocalPathMixin, StrictExpr[LocalPath]):
-    pass
+    type = LocalPath
 
 
 class OptLocalPathExpr(LocalPathMixin, Expr[LocalPath]):
-    pass
+    type = LocalPath
 
 
 class RemotePathMixin:
-    type = RemotePath
-
     @classmethod
     def convert(cls, arg: Union[str, RemotePath]) -> RemotePath:
         return RemotePath(arg)
 
 
 class RemotePathExpr(RemotePathMixin, StrictExpr[RemotePath]):
-    pass
+    type = RemotePath
 
 
 class OptRemotePathExpr(RemotePathMixin, Expr[RemotePath]):
-    pass
+    type = RemotePath
 
 
 class OptBashExpr(OptStrExpr):
