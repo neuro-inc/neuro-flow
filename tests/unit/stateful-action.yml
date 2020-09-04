@@ -14,7 +14,7 @@ outputs:
 pre:
   image: ubuntu
   bash: echo ::set-state name=state1::State 1
-pre_if: True
+pre_if: true
 main:
   image: ubuntu
   bash: echo ::set-state name=state2::State 2

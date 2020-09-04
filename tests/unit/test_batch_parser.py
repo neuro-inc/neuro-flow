@@ -76,7 +76,7 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "dir"
                 ),
                 read_only=OptBoolExpr(
-                    Pos(0, 0, config_file), Pos(0, 0, config_file), "True"
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), True
                 ),
             ),
             "volume_b": ast.Volume(
@@ -178,10 +178,10 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "2h55m"
                 ),
                 http_port=OptIntExpr(
-                    Pos(0, 0, config_file), Pos(0, 0, config_file), "8080"
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), 8080
                 ),
                 http_auth=OptBoolExpr(
-                    Pos(0, 0, config_file), Pos(0, 0, config_file), "False"
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), False
                 ),
                 strategy=None,
             )
@@ -596,10 +596,10 @@ def test_parse_matrix_with_strategy(assets: pathlib.Path) -> None:
                         ],
                     ),
                     fail_fast=OptBoolExpr(
-                        Pos(0, 0, config_file), Pos(0, 0, config_file), "True"
+                        Pos(0, 0, config_file), Pos(0, 0, config_file), True
                     ),
                     max_parallel=OptIntExpr(
-                        Pos(0, 0, config_file), Pos(0, 0, config_file), "5"
+                        Pos(0, 0, config_file), Pos(0, 0, config_file), 5
                     ),
                 ),
             )

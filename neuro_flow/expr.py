@@ -33,6 +33,7 @@ from typing import (
     Optional,
     Sequence,
     Tuple,
+    Type,
     TypeVar,
     Union,
     cast,
@@ -381,18 +382,29 @@ PARSER: Final = oneplus(TMPL | TEXT) + skip(finished)
 class Expr(Generic[_T]):
     allow_none = True
     allow_expr = True
+    type: Type[_T]
 
     @classmethod
-    def convert(cls, arg: str) -> _T:
-        # implementation for StrExpr and OptStrExpr
-        return cast(_T, arg)
+    @abc.abstractmethod
+    def convert(cls, arg: Union[str, _T]) -> _T:
+        pass
 
-    def __init__(self, start: Pos, end: Pos, pattern: Optional[str]) -> None:
+    def __init__(self, start: Pos, end: Pos, pattern: Union[None, str, _T]) -> None:
         self._pattern = pattern
         # precalculated value for constant string, allows raising errors earlier
         self._ret: Optional[_T] = None
         if pattern is not None:
-            if not isinstance(pattern, str):
+            if isinstance(pattern, str):
+                # parse later
+                pass
+            elif isinstance(pattern, self.type):
+                # explicit non-string value is passed
+                try:
+                    self._ret = self.convert(pattern)
+                    return
+                except (TypeError, ValueError) as exc:
+                    raise EvalError(str(exc), start, end)
+            else:
                 raise EvalError(f"str is expected, got {type(pattern)}", start, end)
             tokens = list(tokenize(pattern, start=start))
             self._parsed: Optional[Sequence[Item]] = PARSER.parse(tokens)
@@ -411,7 +423,9 @@ class Expr(Generic[_T]):
 
     @property
     def pattern(self) -> Optional[str]:
-        return self._pattern
+        if self._pattern is None:
+            return None
+        return str(self._pattern)
 
     async def eval(self, root: RootABC) -> Optional[_T]:
         if self._ret is not None:
@@ -471,20 +485,28 @@ class StrictExpr(Expr[_T]):
 # These comprehensive specializations exist mainly for static type checker
 
 
-class StrExpr(StrictExpr[str]):
-    pass
+class StrExprMixin:
+    @classmethod
+    def convert(cls, arg: str) -> str:
+        return arg
 
 
-class OptStrExpr(Expr[str]):
-    pass
+class StrExpr(StrExprMixin, StrictExpr[str]):
+    type = str
 
 
-class SimpleStrExpr(StrictExpr[str]):
+class OptStrExpr(StrExprMixin, Expr[str]):
+    type = str
+
+
+class SimpleStrExpr(StrExprMixin, StrictExpr[str]):
     allow_expr = False
+    type = str
 
 
-class SimpleOptStrExpr(Expr[str]):
+class SimpleOptStrExpr(StrExprMixin, Expr[str]):
     allow_expr = False
+    type = str
 
 
 class IdExprMixin:
@@ -501,96 +523,107 @@ class IdExprMixin:
 
 
 class IdExpr(IdExprMixin, StrictExpr[str]):
-    pass
+    type = str
 
 
 class OptIdExpr(IdExprMixin, Expr[str]):
-    pass
+    type = str
 
 
 class SimpleIdExpr(IdExprMixin, StrictExpr[str]):
     allow_expr = False
+    type = str
 
 
 class SimpleOptIdExpr(IdExprMixin, Expr[str]):
     allow_expr = False
+    type = str
 
 
 class URIExprMixin:
     @classmethod
-    def convert(cls, arg: str) -> URL:
+    def convert(cls, arg: Union[str, URL]) -> URL:
         return URL(arg)
 
 
 class URIExpr(URIExprMixin, StrictExpr[URL]):
-    pass
+    type = URL
 
 
 class OptURIExpr(URIExprMixin, Expr[URL]):
-    pass
+    type = URL
 
 
 class BoolExprMixin:
     @classmethod
-    def convert(cls, arg: str) -> bool:
+    def convert(cls, arg: Union[str, bool]) -> bool:
+        if isinstance(arg, bool):
+            return arg
         tmp = parse_literal(arg, "a boolean")
         return bool(tmp)
 
 
 class BoolExpr(BoolExprMixin, StrictExpr[bool]):
-    pass
+    type = bool
 
 
 class OptBoolExpr(BoolExprMixin, Expr[bool]):
-    pass
+    type = bool
 
 
 class SimpleBoolExpr(BoolExprMixin, StrictExpr[bool]):
     allow_expr = False
+    type = bool
 
 
 class SimpleOptBoolExpr(BoolExprMixin, Expr[bool]):
     allow_expr = False
+    type = bool
 
 
 class IntExprMixin:
     @classmethod
-    def convert(cls, arg: str) -> int:
+    def convert(cls, arg: Union[str, int]) -> int:
+        if isinstance(arg, int):
+            return arg
         tmp = parse_literal(arg, "an integer")
         return int(tmp)  # type: ignore[arg-type]
 
 
 class IntExpr(IntExprMixin, StrictExpr[int]):
-    pass
+    type = int
 
 
 class OptIntExpr(IntExprMixin, Expr[int]):
-    pass
+    type = int
 
 
 class FloatExprMixin:
     @classmethod
-    def convert(cls, arg: str) -> float:
+    def convert(cls, arg: Union[str, float]) -> float:
+        if isinstance(arg, float):
+            return arg
         tmp = parse_literal(arg, "a float")
         return float(tmp)  # type: ignore[arg-type]
 
 
 class FloatExpr(FloatExprMixin, StrictExpr[float]):
-    pass
+    type = float
 
 
 class OptFloatExpr(FloatExprMixin, Expr[float]):
-    pass
+    type = float
 
 
 class OptLifeSpanExpr(OptFloatExpr):
     RE = re.compile(r"^((?P<d>\d+)d)?((?P<h>\d+)h)?((?P<m>\d+)m)?((?P<s>\d+)s)?$")
 
     @classmethod
-    def convert(cls, arg: str) -> float:
+    def convert(cls, arg: Union[str, float]) -> float:
         try:
-            return float(literal_eval(arg))
+            return super(cls, OptLifeSpanExpr).convert(arg)
         except (ValueError, SyntaxError):
+            assert isinstance(arg, str)
             match = cls.RE.match(arg)
             if match is None:
                 raise ValueError(f"{arg!r} is not a life span")
@@ -605,30 +638,30 @@ class OptLifeSpanExpr(OptFloatExpr):
 
 class LocalPathMixin:
     @classmethod
-    def convert(cls, arg: str) -> LocalPath:
+    def convert(cls, arg: Union[str, LocalPath]) -> LocalPath:
         return LocalPath(arg)
 
 
 class LocalPathExpr(LocalPathMixin, StrictExpr[LocalPath]):
-    pass
+    type = LocalPath
 
 
 class OptLocalPathExpr(LocalPathMixin, Expr[LocalPath]):
-    pass
+    type = LocalPath
 
 
 class RemotePathMixin:
     @classmethod
-    def convert(cls, arg: str) -> RemotePath:
+    def convert(cls, arg: Union[str, RemotePath]) -> RemotePath:
         return RemotePath(arg)
 
 
 class RemotePathExpr(RemotePathMixin, StrictExpr[RemotePath]):
-    pass
+    type = RemotePath
 
 
 class OptRemotePathExpr(RemotePathMixin, Expr[RemotePath]):
-    pass
+    type = RemotePath
 
 
 class OptBashExpr(OptStrExpr):
