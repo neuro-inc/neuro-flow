@@ -324,7 +324,7 @@ def test_parse_stateful_action(assets: LocalPath) -> None:
             http_port=OptIntExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
             http_auth=OptBoolExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
         ),
-        pre_if=OptBoolExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "True"),
+        pre_if=OptBoolExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), True),
         main=ast.ExecUnit(
             Pos(18, 2, config_file),
             Pos(20, 0, config_file),

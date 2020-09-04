@@ -254,7 +254,7 @@ def parse_dict(
         elif isinstance(item_ctor, SimpleCompound):
             value = item_ctor.construct(ctor, v)
         elif isinstance(item_ctor, type) and issubclass(item_ctor, Expr):
-            tmp = str(ctor.construct_object(v))  # type: ignore[no-untyped-call]
+            tmp = ctor.construct_object(v)  # type: ignore[no-untyped-call]
             value = item_ctor(mark2pos(v.start_mark), mark2pos(v.end_mark), tmp)
         else:
             raise ConstructorError(

@@ -142,7 +142,7 @@ def test_parse_full(assets: pathlib.Path) -> None:
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "/var/dir"
                 ),
                 read_only=OptBoolExpr(
-                    Pos(0, 0, config_file), Pos(0, 0, config_file), "True"
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), True
                 ),
                 local=OptLocalPathExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "dir"
@@ -245,16 +245,16 @@ def test_parse_full(assets: pathlib.Path) -> None:
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "Job title"
                 ),
                 detach=OptBoolExpr(
-                    Pos(0, 0, config_file), Pos(0, 0, config_file), "True"
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), True
                 ),
                 browse=OptBoolExpr(
-                    Pos(0, 0, config_file), Pos(0, 0, config_file), "True"
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), True
                 ),
                 http_port=OptIntExpr(
-                    Pos(0, 0, config_file), Pos(0, 0, config_file), "8080"
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), 8080
                 ),
                 http_auth=OptBoolExpr(
-                    Pos(0, 0, config_file), Pos(0, 0, config_file), "False"
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), False
                 ),
                 port_forward=[
                     PortPairExpr(
@@ -509,7 +509,7 @@ def test_parse_multi(assets: pathlib.Path) -> None:
                 ),
                 port_forward=None,
                 multi=SimpleOptBoolExpr(
-                    Pos(0, 0, config_file), Pos(0, 0, config_file), "True"
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), True
                 ),
             )
         },
