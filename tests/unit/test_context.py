@@ -4,9 +4,15 @@ from neuromation.api import JobStatus
 from textwrap import dedent
 from yarl import URL
 
-from neuro_flow.context import BatchContext, DepCtx, LiveContext, NotAvailable
+from neuro_flow.context import (
+    ActionContext,
+    BatchContext,
+    DepCtx,
+    LiveContext,
+    NotAvailable,
+)
 from neuro_flow.expr import EvalError
-from neuro_flow.parser import parse_batch, parse_live
+from neuro_flow.parser import parse_action, parse_batch, parse_live
 from neuro_flow.types import LocalPath, RemotePath
 
 
@@ -397,3 +403,16 @@ async def test_pipeline_args(assets: pathlib.Path) -> None:
     ctx = await BatchContext.create(flow, workspace, config_file)
 
     assert ctx.args == {"arg1": "val1", "arg2": "val2"}
+
+
+async def test_batch_action_context(assets: pathlib.Path) -> None:
+    workspace = assets
+    config_file = workspace / "batch-action.yml"
+    ast_action = parse_action(assets, config_file.name)
+    ctx = await ActionContext.create(ast_action)
+    assert ctx.outputs == {}
+    assert ctx.state == {}
+    with pytest.raises(NotAvailable):
+        ctx.inputs
+
+    # ctx2 = await ctx.with_inputs({})

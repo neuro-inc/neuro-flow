@@ -186,7 +186,7 @@ def test_parse_batch_action(assets: LocalPath) -> None:
                 cmd=OptBashExpr(
                     Pos(0, 0, config_file),
                     Pos(0, 0, config_file),
-                    "echo ::set-output name=task1::Task 1",
+                    "echo ::set-output name=task1::Task 1 ${{ inputs.arg1 }}",
                 ),
                 workdir=OptRemotePathExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
@@ -220,7 +220,7 @@ def test_parse_batch_action(assets: LocalPath) -> None:
                 cmd=OptBashExpr(
                     Pos(0, 0, config_file),
                     Pos(0, 0, config_file),
-                    "echo ::set-output name=task2::Task 2",
+                    "echo ::set-output name=task2::Task 2 ${{ inputs.arg2 }}",
                 ),
                 workdir=OptRemotePathExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
