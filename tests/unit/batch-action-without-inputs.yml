@@ -2,12 +2,6 @@ kind: batch
 name: Test batch Action
 author: Andrew Svetlov
 descr: description of test action
-inputs:
-  arg1:
-    descr: param 1
-  arg2:
-    descr: param 2
-    default: value 2
 outputs:
   res1:
     descr: action result 1
@@ -18,7 +12,7 @@ outputs:
 tasks:
 - id: task_1
   image: ubuntu
-  bash: echo ::set-output name=task1::Task 1 ${{ inputs.arg1 }}
+  bash: echo ::set-output name=task1::Task 1
 - id: task_2
   image: ubuntu
-  bash: echo ::set-output name=task2::Task 2 ${{ inputs.arg2 }}
+  bash: echo ::set-output name=task2::Task 2
