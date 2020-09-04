@@ -245,11 +245,24 @@ EMPTY_ROOT = EmptyRoot()
 
 
 @dataclass(frozen=True)
-class BaseFlowContext(RootABC):
+class BaseContext(RootABC):
+    LOOKUP_KEYS: ClassVar[Tuple[str, ...]] = field(init=False, default=())
+
+    def lookup(self, name: str) -> TypeT:
+        if name not in self.LOOKUP_KEYS:
+            raise NotAvailable(name)
+        ret = getattr(self, name)
+        # assert isinstance(ret, (ContainerT, SequenceT, MappingT)), ret
+        return cast(TypeT, ret)
+
+
+@dataclass(frozen=True)
+class BaseFlowContext(BaseContext):
     FLOW_TYPE: ClassVar[Type[ast.BaseFlow]] = field(init=False)
     LOOKUP_KEYS: ClassVar[Tuple[str, ...]] = field(
         init=False,
-        default=(
+        default=BaseContext.LOOKUP_KEYS
+        + (
             "flow",
             "defaults",
             "volumes",
@@ -361,13 +374,6 @@ class BaseFlowContext(RootABC):
                     build_args=build_args,
                 )
         return replace(ctx, _volumes=volumes, _images=images)
-
-    def lookup(self, name: str) -> TypeT:
-        if name not in self.LOOKUP_KEYS:
-            raise NotAvailable(name)
-        ret = getattr(self, name)
-        # assert isinstance(ret, (ContainerT, SequenceT, MappingT)), ret
-        return cast(TypeT, ret)
 
     @property
     def env(self) -> Mapping[str, str]:
@@ -842,6 +848,67 @@ class BatchContext(BaseFlowContext):
         for dct in strategy.matrix.include:
             ret.append({k: await v.eval(self) for k, v in dct.items()})
         return ret
+
+
+@dataclass(frozen=True)
+class ActionContext(BaseContext):
+    LOOKUP_KEYS: ClassVar[Tuple[str, ...]] = field(
+        init=False,
+        default=BaseContext.LOOKUP_KEYS + ("inputs",),
+    )
+
+    ast: ast.BaseAction
+    outputs: Mapping[str, str]
+    state: Mapping[str, str]
+
+    _inputs: Optional[Mapping[str, str]] = None
+    # Add a context with global flow info, e.g. ctx.flow.id maybe?
+
+    @classmethod
+    async def create(
+        cls,
+        ast_action: ast.BaseAction,
+    ) -> "ActionContext":
+        assert isinstance(ast_action, ast.BaseAction)
+        return cls(ast=ast_action, _inputs=None, outputs={}, state={})
+
+    @property
+    def inputs(self) -> Mapping[str, str]:
+        if self._inputs is None:
+            raise NotAvailable("inputs")
+        return self._inputs
+
+    async def with_inputs(self, inputs: Mapping[str, str]) -> "ActionContext":
+        if self._inputs is not None:
+            raise TypeError(
+                "Cannot enter into the task context if "
+                "the task is already initialized"
+            )
+        if self.ast.inputs is None:
+            if inputs:
+                raise ValueError(f"Unsupported input names ','.join(inputs)")
+            else:
+                return self
+        new_inputs = dict(inputs)
+        for name, inp in self.ast.inputs.items():
+            if name not in new_inputs and inp.default.pattern is not None:
+                val = await inp.default.eval(EMPTY_ROOT)
+                assert val is not None
+                new_inputs[name] = val
+        extra = new_inputs.keys() - self.ast.inputs.keys()
+        if extra:
+            raise ValueError(f"Unsupported input names ','.join(extra)")
+        return replace(self, _inputs=new_inputs)
+
+    async def with_state(self, state: Mapping[str, str]) -> "ActionContext":
+        new_state = dict(self.state)
+        new_state.update(state)
+        return replace(self, state=new_state)
+
+    async def with_outputs(self, outputs: Mapping[str, str]) -> "ActionContext":
+        new_outputs = dict(self.outputs)
+        new_outputs.update(outputs)
+        return replace(self, outputs=new_outputs)
 
 
 def calc_full_path(
