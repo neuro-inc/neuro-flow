@@ -33,6 +33,7 @@ from typing import (
     Optional,
     Sequence,
     Tuple,
+    Type,
     TypeVar,
     Union,
     cast,
@@ -381,18 +382,29 @@ PARSER: Final = oneplus(TMPL | TEXT) + skip(finished)
 class Expr(Generic[_T]):
     allow_none = True
     allow_expr = True
+    type: Type[_T]
 
     @classmethod
-    def convert(cls, arg: str) -> _T:
-        # implementation for StrExpr and OptStrExpr
-        return cast(_T, arg)
+    @abc.abstractmethod
+    def convert(cls, arg: Union[str, _T]) -> _T:
+        pass
 
-    def __init__(self, start: Pos, end: Pos, pattern: Optional[str]) -> None:
+    def __init__(self, start: Pos, end: Pos, pattern: Union[None, str, _T]) -> None:
         self._pattern = pattern
         # precalculated value for constant string, allows raising errors earlier
         self._ret: Optional[_T] = None
         if pattern is not None:
-            if not isinstance(pattern, str):
+            if isinstance(pattern, str):
+                # parse later
+                pass
+            elif isinstance(pattern, self.type):
+                # explicit non-string value is passed
+                try:
+                    self._ret = self.convert(pattern)
+                    return
+                except (TypeError, ValueError) as exc:
+                    raise EvalError(str(exc), start, end)
+            else:
                 raise EvalError(f"str is expected, got {type(pattern)}", start, end)
             tokens = list(tokenize(pattern, start=start))
             self._parsed: Optional[Sequence[Item]] = PARSER.parse(tokens)
@@ -411,7 +423,9 @@ class Expr(Generic[_T]):
 
     @property
     def pattern(self) -> Optional[str]:
-        return self._pattern
+        if self._pattern is None:
+            return None
+        return str(self._pattern)
 
     async def eval(self, root: RootABC) -> Optional[_T]:
         if self._ret is not None:
@@ -471,23 +485,33 @@ class StrictExpr(Expr[_T]):
 # These comprehensive specializations exist mainly for static type checker
 
 
-class StrExpr(StrictExpr[str]):
+class StrExprMixin:
+    type = str
+
+    @classmethod
+    def convert(cls, arg: str) -> str:
+        return arg
+
+
+class StrExpr(StrExprMixin, StrictExpr[str]):
     pass
 
 
-class OptStrExpr(Expr[str]):
+class OptStrExpr(StrExprMixin, Expr[str]):
     pass
 
 
-class SimpleStrExpr(StrictExpr[str]):
+class SimpleStrExpr(StrExprMixin, StrictExpr[str]):
     allow_expr = False
 
 
-class SimpleOptStrExpr(Expr[str]):
+class SimpleOptStrExpr(StrExprMixin, Expr[str]):
     allow_expr = False
 
 
 class IdExprMixin:
+    type = str
+
     @classmethod
     def convert(cls, arg: str) -> str:
         if not arg.isidentifier():
@@ -517,8 +541,10 @@ class SimpleOptIdExpr(IdExprMixin, Expr[str]):
 
 
 class URIExprMixin:
+    type = URL
+
     @classmethod
-    def convert(cls, arg: str) -> URL:
+    def convert(cls, arg: Union[str, URL]) -> URL:
         return URL(arg)
 
 
@@ -531,8 +557,12 @@ class OptURIExpr(URIExprMixin, Expr[URL]):
 
 
 class BoolExprMixin:
+    type = bool
+
     @classmethod
-    def convert(cls, arg: str) -> bool:
+    def convert(cls, arg: Union[str, bool]) -> bool:
+        if isinstance(arg, bool):
+            return arg
         tmp = parse_literal(arg, "a boolean")
         return bool(tmp)
 
@@ -554,8 +584,12 @@ class SimpleOptBoolExpr(BoolExprMixin, Expr[bool]):
 
 
 class IntExprMixin:
+    type = int
+
     @classmethod
-    def convert(cls, arg: str) -> int:
+    def convert(cls, arg: Union[str, int]) -> int:
+        if isinstance(arg, int):
+            return arg
         tmp = parse_literal(arg, "an integer")
         return int(tmp)  # type: ignore[arg-type]
 
@@ -569,8 +603,12 @@ class OptIntExpr(IntExprMixin, Expr[int]):
 
 
 class FloatExprMixin:
+    type = float
+
     @classmethod
-    def convert(cls, arg: str) -> float:
+    def convert(cls, arg: Union[str, float]) -> float:
+        if isinstance(arg, float):
+            return arg
         tmp = parse_literal(arg, "a float")
         return float(tmp)  # type: ignore[arg-type]
 
@@ -587,10 +625,11 @@ class OptLifeSpanExpr(OptFloatExpr):
     RE = re.compile(r"^((?P<d>\d+)d)?((?P<h>\d+)h)?((?P<m>\d+)m)?((?P<s>\d+)s)?$")
 
     @classmethod
-    def convert(cls, arg: str) -> float:
+    def convert(cls, arg: Union[str, float]) -> float:
         try:
-            return float(literal_eval(arg))
+            return super(cls, OptLifeSpanExpr).convert(arg)
         except (ValueError, SyntaxError):
+            assert isinstance(arg, str)
             match = cls.RE.match(arg)
             if match is None:
                 raise ValueError(f"{arg!r} is not a life span")
@@ -604,8 +643,10 @@ class OptLifeSpanExpr(OptFloatExpr):
 
 
 class LocalPathMixin:
+    type = LocalPath
+
     @classmethod
-    def convert(cls, arg: str) -> LocalPath:
+    def convert(cls, arg: Union[str, LocalPath]) -> LocalPath:
         return LocalPath(arg)
 
 
@@ -618,8 +659,10 @@ class OptLocalPathExpr(LocalPathMixin, Expr[LocalPath]):
 
 
 class RemotePathMixin:
+    type = RemotePath
+
     @classmethod
-    def convert(cls, arg: str) -> RemotePath:
+    def convert(cls, arg: Union[str, RemotePath]) -> RemotePath:
         return RemotePath(arg)
 
 
