@@ -886,18 +886,23 @@ class ActionContext(BaseContext):
             )
         if self.ast.inputs is None:
             if inputs:
-                raise ValueError(f"Unsupported input names ','.join(inputs)")
+                raise ValueError(f"Unsupported input(s): {','.join(sorted(inputs))}")
             else:
                 return self
         new_inputs = dict(inputs)
         for name, inp in self.ast.inputs.items():
             if name not in new_inputs and inp.default.pattern is not None:
                 val = await inp.default.eval(EMPTY_ROOT)
+                # inputs doesn't support expressions,
+                # non-none pattern means non-none input
                 assert val is not None
                 new_inputs[name] = val
         extra = new_inputs.keys() - self.ast.inputs.keys()
         if extra:
-            raise ValueError(f"Unsupported input names ','.join(extra)")
+            raise ValueError(f"Unsupported input(s): {','.join(sorted(extra))}")
+        missing = self.ast.inputs.keys() - new_inputs.keys()
+        if missing:
+            raise ValueError(f"Required input(s): {','.join(sorted(missing))}")
         return replace(self, _inputs=new_inputs)
 
     async def with_state(self, state: Mapping[str, str]) -> "ActionContext":
