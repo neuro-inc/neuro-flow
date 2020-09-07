@@ -108,7 +108,7 @@ def test_tmpl_false7() -> None:
         PARSER.parse(list(tokenize("$[[", START)))
 
 
-def test_tmpl_false7() -> None:
+def test_tmpl_false8() -> None:
     with pytest.raises(NoParseError):
         PARSER.parse(list(tokenize("$[[ name sub  param", START)))
 

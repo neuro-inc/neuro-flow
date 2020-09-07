@@ -120,7 +120,7 @@ class Tokenizer:
                 idx = ltmpl.start()
         rtmpl = self.RTMPL_RE.search(s, i, idx)
         if rtmpl is not None:
-            t = self.make_token("TEXT", s[i:rtmpl.start()], pos)
+            t = self.make_token("TEXT", s[i : rtmpl.start()], pos)
             errline = s.splitlines()[t.end.line - start.line]
             raise LexerError(t.end, " " * start.col + errline)
         return self.make_token("TEXT", s[i:idx], pos)
