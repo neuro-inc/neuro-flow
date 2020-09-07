@@ -47,6 +47,32 @@ def test_tmpl_ok3() -> None:
     )
 
 
+def test_tmpl_ok4() -> None:
+    assert [Lookup(Pos(0, 4, FNAME), Pos(0, 8, FNAME), "name", [])] == PARSER.parse(
+        list(tokenize("$[[ name ]]", START))
+    )
+
+
+def test_tmpl_ok5() -> None:
+    assert [
+        Lookup(
+            Pos(0, 4, FNAME),
+            Pos(0, 18, FNAME),
+            "name",
+            [
+                AttrGetter(Pos(0, 9, FNAME), Pos(0, 12, FNAME), "sub"),
+                AttrGetter(Pos(0, 13, FNAME), Pos(0, 18, FNAME), "param"),
+            ],
+        )
+    ] == PARSER.parse(list(tokenize("$[[ name.sub.param ]]", START)))
+
+
+def test_tmpl_ok6() -> None:
+    assert [Lookup(Pos(0, 3, FNAME), Pos(0, 7, FNAME), "name", [])] == PARSER.parse(
+        list(tokenize("$[[name]]", START))
+    )
+
+
 def test_tmpl_false1() -> None:
     with pytest.raises(LexerError):
         PARSER.parse(list(tokenize("}}", START)))
@@ -70,6 +96,31 @@ def test_tmpl_false4() -> None:
 def test_tmpl_false5() -> None:
     with pytest.raises(LexerError):
         PARSER.parse(list(tokenize("name }}", START)))
+
+
+def test_tmpl_false6() -> None:
+    with pytest.raises(LexerError):
+        PARSER.parse(list(tokenize("]]", START)))
+
+
+def test_tmpl_false7() -> None:
+    with pytest.raises(NoParseError):
+        PARSER.parse(list(tokenize("$[[", START)))
+
+
+def test_tmpl_false7() -> None:
+    with pytest.raises(NoParseError):
+        PARSER.parse(list(tokenize("$[[ name sub  param", START)))
+
+
+def test_tmpl_false9() -> None:
+    with pytest.raises(NoParseError):
+        PARSER.parse(list(tokenize("$[[ name", START)))
+
+
+def test_tmpl_false10() -> None:
+    with pytest.raises(LexerError):
+        PARSER.parse(list(tokenize("name ]]", START)))
 
 
 def test_tmpl_literal_none() -> None:
