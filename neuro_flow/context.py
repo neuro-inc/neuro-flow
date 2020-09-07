@@ -233,7 +233,7 @@ class FlowCtx:
         return self.flow_id
 
 
-_CtxT = TypeVar("_CtxT", bound="BaseFlowContext")
+_CtxT = TypeVar("_CtxT", bound="BaseContext")
 
 
 class EmptyRoot(RootABC):
@@ -283,8 +283,6 @@ class BaseFlowContext(BaseContext):
     _images: Optional[Mapping[str, ImageCtx]] = None
     _volumes: Optional[Mapping[str, VolumeCtx]] = None
 
-    # Add a context with global flow info, e.g. ctx.flow.id maybe?
-
     @classmethod
     async def create(
         cls: Type[_CtxT],
@@ -292,6 +290,7 @@ class BaseFlowContext(BaseContext):
         workspace: LocalPath,
         config_file: LocalPath,
     ) -> _CtxT:
+        assert issubclass(cls, BaseFlowContext)
         assert isinstance(ast_flow, cls.FLOW_TYPE)
         flow_id = await ast_flow.id.eval(EMPTY_ROOT)
         if flow_id is None:
@@ -373,7 +372,11 @@ class BaseFlowContext(BaseContext):
                     full_dockerfile_path=calc_full_path(ctx, dockerfile_path),
                     build_args=build_args,
                 )
-        return replace(ctx, _volumes=volumes, _images=images)
+        return replace(  # type: ignore[return-value]
+            ctx,
+            _volumes=volumes,
+            _images=images,
+        )
 
     @property
     def env(self) -> Mapping[str, str]:
@@ -652,6 +655,7 @@ class BatchContext(BaseFlowContext):
 
     async def _with_args(self: _CtxT) -> _CtxT:
         # Calculate batch args context early, no-op for live mode
+        assert isinstance(self, BaseFlowContext)
         assert isinstance(self._ast_flow, ast.BatchFlow)
         args = {}
         if self._ast_flow.args is not None:
@@ -665,7 +669,7 @@ class BatchContext(BaseFlowContext):
                         v._end,
                     )
                 args[k] = default
-        return replace(self, _args=args)
+        return replace(self, _args=args)  # type: ignore[return-value]
 
     @property
     def args(self) -> Mapping[str, str]:
@@ -851,13 +855,13 @@ class BatchContext(BaseFlowContext):
 
 
 @dataclass(frozen=True)
-class ActionContext(BaseContext):
+class BaseActionContext(BaseContext):
     LOOKUP_KEYS: ClassVar[Tuple[str, ...]] = field(
         init=False,
         default=BaseContext.LOOKUP_KEYS + ("inputs",),
     )
 
-    ast: ast.BaseAction
+    _ast: ast.BaseAction
     outputs: Mapping[str, str]
     state: Mapping[str, str]
 
@@ -866,11 +870,17 @@ class ActionContext(BaseContext):
 
     @classmethod
     async def create(
-        cls,
+        cls: Type[_CtxT],
         ast_action: ast.BaseAction,
-    ) -> "ActionContext":
+    ) -> _CtxT:
+        assert issubclass(cls, BaseActionContext)
         assert isinstance(ast_action, ast.BaseAction)
-        return cls(ast=ast_action, _inputs=None, outputs={}, state={})
+        return cls(  # type: ignore[return-value]
+            _ast=ast_action,
+            _inputs=None,
+            outputs={},
+            state={},
+        )
 
     @property
     def inputs(self) -> Mapping[str, str]:
@@ -878,42 +888,48 @@ class ActionContext(BaseContext):
             raise NotAvailable("inputs")
         return self._inputs
 
-    async def with_inputs(self, inputs: Mapping[str, str]) -> "ActionContext":
+    async def with_inputs(self: _CtxT, inputs: Mapping[str, str]) -> _CtxT:
+        assert isinstance(self, BaseActionContext)
         if self._inputs is not None:
             raise TypeError(
                 "Cannot enter into the task context if "
                 "the task is already initialized"
             )
-        if self.ast.inputs is None:
+        if self._ast.inputs is None:
             if inputs:
                 raise ValueError(f"Unsupported input(s): {','.join(sorted(inputs))}")
             else:
-                return self
+                return self  # type: ignore[return-value]
         new_inputs = dict(inputs)
-        for name, inp in self.ast.inputs.items():
+        for name, inp in self._ast.inputs.items():
             if name not in new_inputs and inp.default.pattern is not None:
                 val = await inp.default.eval(EMPTY_ROOT)
                 # inputs doesn't support expressions,
                 # non-none pattern means non-none input
                 assert val is not None
                 new_inputs[name] = val
-        extra = new_inputs.keys() - self.ast.inputs.keys()
+        extra = new_inputs.keys() - self._ast.inputs.keys()
         if extra:
             raise ValueError(f"Unsupported input(s): {','.join(sorted(extra))}")
-        missing = self.ast.inputs.keys() - new_inputs.keys()
+        missing = self._ast.inputs.keys() - new_inputs.keys()
         if missing:
             raise ValueError(f"Required input(s): {','.join(sorted(missing))}")
-        return replace(self, _inputs=new_inputs)
+        return replace(self, _inputs=new_inputs)  # type: ignore[return-value]
 
-    async def with_state(self, state: Mapping[str, str]) -> "ActionContext":
+    async def with_state(
+        self: _CtxT,
+        state: Mapping[str, str],
+    ) -> _CtxT:
+        assert isinstance(self, BaseActionContext)
         new_state = dict(self.state)
         new_state.update(state)
-        return replace(self, state=new_state)
+        return replace(self, state=new_state)  # type: ignore[return-value]
 
-    async def with_outputs(self, outputs: Mapping[str, str]) -> "ActionContext":
+    async def with_outputs(self: _CtxT, outputs: Mapping[str, str]) -> _CtxT:
+        assert isinstance(self, BaseActionContext)
         new_outputs = dict(self.outputs)
         new_outputs.update(outputs)
-        return replace(self, outputs=new_outputs)
+        return replace(self, outputs=new_outputs)  # type: ignore[return-value]
 
 
 def calc_full_path(

@@ -5,7 +5,7 @@ from textwrap import dedent
 from yarl import URL
 
 from neuro_flow.context import (
-    ActionContext,
+    BaseActionContext,
     BatchContext,
     DepCtx,
     LiveContext,
@@ -409,7 +409,7 @@ async def test_batch_action_default(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "batch-action.yml"
     ast_action = parse_action(assets, config_file.name)
-    ctx = await ActionContext.create(ast_action)
+    ctx = await BaseActionContext.create(ast_action)
     assert ctx.outputs == {}
     assert ctx.state == {}
     with pytest.raises(NotAvailable):
@@ -420,7 +420,7 @@ async def test_batch_action_with_inputs_unsupported(assets: pathlib.Path) -> Non
     workspace = assets
     config_file = workspace / "batch-action.yml"
     ast_action = parse_action(assets, config_file.name)
-    ctx = await ActionContext.create(ast_action)
+    ctx = await BaseActionContext.create(ast_action)
 
     with pytest.raises(ValueError, match=r"Unsupported input\(s\): other,unknown"):
         await ctx.with_inputs({"unknown": "value", "other": "val"})
@@ -430,7 +430,7 @@ async def test_batch_action_without_inputs_unsupported(assets: pathlib.Path) -> 
     workspace = assets
     config_file = workspace / "batch-action-without-inputs.yml"
     ast_action = parse_action(assets, config_file.name)
-    ctx = await ActionContext.create(ast_action)
+    ctx = await BaseActionContext.create(ast_action)
 
     with pytest.raises(ValueError, match=r"Unsupported input\(s\): unknown"):
         await ctx.with_inputs({"unknown": "value"})
@@ -440,7 +440,7 @@ async def test_batch_action_with_inputs_no_default(assets: pathlib.Path) -> None
     workspace = assets
     config_file = workspace / "batch-action.yml"
     ast_action = parse_action(assets, config_file.name)
-    ctx = await ActionContext.create(ast_action)
+    ctx = await BaseActionContext.create(ast_action)
 
     with pytest.raises(ValueError, match=r"Required input\(s\): arg1"):
         await ctx.with_inputs({"arg2": "val2"})
@@ -450,7 +450,7 @@ async def test_batch_action_with_inputs_ok(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "batch-action.yml"
     ast_action = parse_action(assets, config_file.name)
-    ctx = await ActionContext.create(ast_action)
+    ctx = await BaseActionContext.create(ast_action)
 
     ctx2 = await ctx.with_inputs({"arg1": "v1", "arg2": "v2"})
     assert ctx2.inputs == {"arg1": "v1", "arg2": "v2"}
@@ -460,7 +460,7 @@ async def test_batch_action_with_inputs_default_ok(assets: pathlib.Path) -> None
     workspace = assets
     config_file = workspace / "batch-action.yml"
     ast_action = parse_action(assets, config_file.name)
-    ctx = await ActionContext.create(ast_action)
+    ctx = await BaseActionContext.create(ast_action)
 
     ctx2 = await ctx.with_inputs({"arg1": "v1"})
     assert ctx2.inputs == {"arg1": "v1", "arg2": "value 2"}
