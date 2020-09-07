@@ -326,6 +326,8 @@ COMMA: Final = skip(a(","))
 
 OPEN_TMPL: Final = skip(a("${{"))
 CLOSE_TMPL: Final = skip(a("}}"))
+OPEN_TMPL2: Final = skip(a("$[["))
+CLOSE_TMPL2: Final = skip(a("]]"))
 
 LPAR: Final = skip(a("("))
 RPAR = skip(a(")"))
@@ -372,7 +374,7 @@ ATOM_EXPR.define(ATOM | FUNC_CALL | LOOKUP)
 EXPR.define(ATOM_EXPR)
 
 
-TMPL: Final = OPEN_TMPL + EXPR + CLOSE_TMPL
+TMPL: Final = (OPEN_TMPL + EXPR + CLOSE_TMPL) | (OPEN_TMPL2 + EXPR + CLOSE_TMPL2)
 
 TEXT: Final = some(lambda tok: tok.type == "TEXT") >> make_text
 

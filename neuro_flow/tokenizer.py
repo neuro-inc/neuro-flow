@@ -66,6 +66,8 @@ class Tokenizer:
     TOKENS = [
         ("LTMPL", r"\$\{\{"),
         ("RTMPL", r"\}\}"),
+        ("LTMPL2", r"\$\[\["),
+        ("RTMPL2", r"\]\]"),
         ("SPACE", r"[ \t]+"),
         ("NONE", r"None"),
         ("BOOL", r"True|False"),
@@ -86,6 +88,9 @@ class Tokenizer:
     ]
     TOKENS_RE = re.compile("|".join(f"(?P<{typ}>{regexp})" for typ, regexp in TOKENS))
 
+    LTMPL_RE = re.compile(r"\$\{\{|\$\[\[")
+    RTMPL_RE = re.compile(r"\}\}|\]\]")
+
     def make_token(self, typ: str, value: str, pos: Pos) -> Token:
         nls = value.count("\n")
         n_line = pos.line + nls
@@ -105,20 +110,20 @@ class Tokenizer:
             raise LexerError(pos, " " * start.col + errline)
 
     def match_text(self, s: str, i: int, start: Pos, pos: Pos) -> Optional[Token]:
-        ltmpl = s.find("${{", i)
-        if ltmpl == i:
-            return None
-        if ltmpl == -1:
-            # LTMPL not found, use the whole string
-            substr = s[i:]
+        ltmpl = self.LTMPL_RE.search(s, i)
+        if ltmpl is None:
+            idx = len(s)
         else:
-            substr = s[i:ltmpl]
-        err_pos = substr.find("}}")
-        if err_pos != -1:
-            t = self.make_token("TEXT", substr[:err_pos], pos)
+            if ltmpl.start() == i:
+                return None
+            else:
+                idx = ltmpl.start()
+        rtmpl = self.RTMPL_RE.search(s, i, idx)
+        if rtmpl is not None:
+            t = self.make_token("TEXT", s[i : rtmpl.start()], pos)
             errline = s.splitlines()[t.end.line - start.line]
             raise LexerError(t.end, " " * start.col + errline)
-        return self.make_token("TEXT", substr, pos)
+        return self.make_token("TEXT", s[i:idx], pos)
 
     def __call__(self, s: str, start: Pos) -> Iterator[Token]:
         in_expr = False
@@ -128,7 +133,7 @@ class Tokenizer:
         while i < length:
             if in_expr:
                 t = self.match_specs(s, i, start, pos)
-                if t.type == "RTMPL":
+                if t.type in ("RTMPL", "RTMPL2"):
                     in_expr = False
             else:
                 txt = self.match_text(s, i, start, pos)
