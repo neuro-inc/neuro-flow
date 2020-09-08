@@ -6,6 +6,7 @@ COLORS = {
     JobStatus.PENDING: "yellow",
     JobStatus.RUNNING: "blue",
     JobStatus.SUCCEEDED: "green",
+    JobStatus.CANCELLED: "green",
     JobStatus.FAILED: "red",
     JobStatus.UNKNOWN: "yellow",
 }

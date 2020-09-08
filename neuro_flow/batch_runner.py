@@ -167,7 +167,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                     if st.id in finished:
                         continue
                     status = await self._client.jobs.status(st.raw_id)
-                    if status.status in (JobStatus.FAILED, JobStatus.SUCCEEDED):
+                    if status.status in (JobStatus.FAILED, JobStatus.SUCCEEDED, JobStatus.CANCELLED):
                         finished[st.id] = await self._finish_task(
                             attempt,
                             len(started) + len(finished),
@@ -192,10 +192,11 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                 await asyncio.sleep(1)
 
     def _accumulate_result(self, finished: Iterable[FinishedTask]) -> JobStatus:
-        # TODO: handle cancelled tasks
         for task in finished:
             if task.status == JobStatus.FAILED:
                 return JobStatus.FAILED
+            elif task.status == JobStatus.CANCELLED:
+                return JobStatus.CANCELLED
 
         return JobStatus.SUCCEEDED
 

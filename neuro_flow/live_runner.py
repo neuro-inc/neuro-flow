@@ -250,7 +250,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
                     if not job.detach:
                         await self._run_subproc("neuro", "attach", descr.id)
                     return
-                # Here the status is SUCCEDED or FAILED, restart
+                # Here the status is SUCCEED, CANCELLED or FAILED, restart
             except ResourceNotFound:
                 # Job does not exist, run it
                 pass
@@ -329,7 +329,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
                 if descr.status in (JobStatus.PENDING, JobStatus.RUNNING):
                     await self.client.jobs.kill(descr.id)
                     descr = await self.client.jobs.status(descr.id)
-                    while descr.status not in (JobStatus.SUCCEEDED, JobStatus.FAILED):
+                    while descr.status not in (JobStatus.SUCCEEDED, JobStatus.CANCELLED, JobStatus.FAILED):
                         await asyncio.sleep(0.2)
                         descr = await self.client.jobs.status(descr.id)
                     return True
@@ -360,7 +360,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
             await self.client.jobs.kill(descr.id)
             try:
                 descr = await self.client.jobs.status(descr.id)
-                while descr.status not in (JobStatus.SUCCEEDED, JobStatus.FAILED):
+                while descr.status not in (JobStatus.SUCCEEDED, JobStatus.FAILED, JobStatus.CANCELLED):
                     await asyncio.sleep(0.2)
                     descr = await self.client.jobs.status(descr.id)
             except ResourceNotFound:
