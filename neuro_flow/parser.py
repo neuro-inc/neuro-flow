@@ -221,7 +221,7 @@ def parse_dict(
         raise ConstructorError(
             None,
             None,
-            f"expected a mapping node, but found {node_id}",
+            f"expected a mapping node, but found '{node_id}'",
             node.start_mark,
         )
     node_start = mark2pos(node.start_mark)
@@ -232,9 +232,9 @@ def parse_dict(
         key = ctor.construct_object(k)  # type: ignore[no-untyped-call]
         if key not in keys:
             raise ConstructorError(
-                f"while constructing a {ret_name}",
+                f"while constructing a '{ret_name}'",
                 node.start_mark,
-                f"unexpected key {key}",
+                f"unexpected key '{key}'",
                 k.start_mark,
             )
         item_ctor: Any = keys[key]
@@ -249,7 +249,7 @@ def parse_dict(
         elif isinstance(item_ctor, ast.Base):
             assert isinstance(
                 v, ast.Base
-            ), f"[{type(v)}] {v} should be ast.Base derived"
+            ), f"[{type(v)}] '{v}' should be ast.Base derived"
             value = v
         elif isinstance(item_ctor, SimpleCompound):
             value = item_ctor.construct(ctor, v)
@@ -258,9 +258,9 @@ def parse_dict(
             value = item_ctor(mark2pos(v.start_mark), mark2pos(v.end_mark), tmp)
         else:
             raise ConstructorError(
-                f"while constructing a {ret_name}",
+                f"while constructing a '{ret_name}'",
                 node.start_mark,
-                f"unexpected value tag {v.tag} for key {key}[{item_ctor}]",
+                f"unexpected value tag '{v.tag}' for key '{key}[{item_ctor}]'",
                 k.start_mark,
             )
         data[key] = value
@@ -288,38 +288,39 @@ def parse_dict(
                     optional_fields[f.name] = None
                 else:
                     raise ConstructorError(
-                        f"while constructing a {ret_name}, "
+                        f"while constructing a '{ret_name}', "
                         f"missing mandatory key '{f.name}'",
                         node.start_mark,
                     )
             elif isinstance(item_ctor, type) and issubclass(item_ctor, Expr):
                 if not item_ctor.allow_none:
                     raise ConstructorError(
-                        f"while constructing a {ret_name}, "
+                        f"while constructing a '{ret_name}', "
                         f"missing mandatory key '{f.name}'",
                         node.start_mark,
                     )
                 optional_fields[f.name] = item_ctor(node_start, node_end, None)
             else:
                 raise ConstructorError(
-                    f"while constructing a {ret_name}, "
-                    f"unexpected '{f.name}' constructor type {item_ctor!r}",
+                    f"while constructing a '{ret_name}', "
+                    f"unexpected '{f.name}' constructor type '{item_ctor!r}'",
                     node.start_mark,
                 )
 
     actual_names = found_fields | optional_fields.keys()
     missing_names = field_names - actual_names
+    sep = ","
     if missing_names:
         raise ConstructorError(
-            f"while constructing a {ret_name}, "
-            f"missing fields {','.join(missing_names)}",
+            f"while constructing a '{ret_name}', "
+            f"missing fields '{sep.join(missing_names)}'",
             node.start_mark,
         )
     unknown_names = actual_names - field_names
     if unknown_names:
         raise ConstructorError(
-            f"while constructing a {ret_name}, "
-            f"unexpected fields {','.join(missing_names)}",
+            f"while constructing a '{ret_name}', "
+            f"unexpected fields '{sep.join(missing_names)}'",
             node.start_mark,
         )
     return res_type(  # type: ignore[call-arg]
@@ -562,6 +563,11 @@ JOB = {
     **EXEC_UNIT,
 }
 
+JOB_ACTION_CALL = {
+    "action": StrExpr,
+    "args": SimpleMapping(StrExpr),
+}
+
 
 def select_shells(
     ctor: BaseConstructor, node: yaml.MappingNode, dct: Dict[str, Any]
@@ -583,8 +589,43 @@ def select_shells(
     return dct
 
 
-def parse_job(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Job:
-    return parse_dict(ctor, node, JOB, ast.Job, preprocess=select_shells)
+def select_job_or_action(
+    ctor: BaseConstructor, node: yaml.MappingNode, dct: Dict[str, Any]
+) -> Dict[str, Any]:
+    if "action" in dct:
+        return {k: v for k, v in dct.items() if k in JOB_ACTION_CALL}
+    else:
+        dct2 = {k: v for k, v in dct.items() if k in JOB}
+        return select_shells(ctor, node, dct2)
+
+
+JOB_OR_ACTION = {**JOB, **JOB_ACTION_CALL}
+
+
+def find_job_type(
+    ctor: BaseConstructor,
+    node: yaml.MappingNode,
+    res_type: Type[ast.BaseFlow],
+    arg: Dict[str, Any],
+) -> Union[Type[ast.Job], Type[ast.JobActionCall]]:
+    action = arg.get("action")
+    if action is None:
+        return ast.Job
+    else:
+        return ast.JobActionCall
+
+
+def parse_job(
+    ctor: BaseConstructor, node: yaml.MappingNode
+) -> Union[ast.Job, ast.JobActionCall]:
+    return parse_dict(
+        ctor,
+        node,
+        JOB_OR_ACTION,
+        ast.Base,
+        preprocess=select_job_or_action,
+        find_res_type=find_job_type,
+    )
 
 
 def parse_jobs(ctor: BaseConstructor, node: yaml.MappingNode) -> Dict[str, ast.Job]:

@@ -10,10 +10,11 @@ from neuro_flow.expr import (
     OptRemotePathExpr,
     OptStrExpr,
     SimpleOptBoolExpr,
+    SimpleOptIdExpr,
     SimpleOptStrExpr,
     StrExpr,
 )
-from neuro_flow.parser import parse_action
+from neuro_flow.parser import parse_action, parse_live
 from neuro_flow.tokenizer import Pos
 from neuro_flow.types import LocalPath
 
@@ -374,4 +375,47 @@ def test_parse_stateful_action(assets: LocalPath) -> None:
         post_if=OptBoolExpr(
             Pos(0, 0, config_file), Pos(0, 0, config_file), "${{ True }}"
         ),
+    )
+
+
+def test_parse_live_call(assets: LocalPath) -> None:
+    workspace = assets
+    config_file = workspace / "live-action-call.yml"
+    flow = parse_live(workspace, config_file)
+    assert flow == ast.LiveFlow(
+        Pos(0, 0, config_file),
+        Pos(6, 0, config_file),
+        id=SimpleOptIdExpr(
+            Pos(0, 0, config_file),
+            Pos(0, 0, config_file),
+            None,
+        ),
+        kind=ast.FlowKind.LIVE,
+        title=SimpleOptStrExpr(
+            Pos(0, 0, config_file),
+            Pos(0, 0, config_file),
+            None,
+        ),
+        images=None,
+        volumes=None,
+        defaults=None,
+        jobs={
+            "test": ast.JobActionCall(
+                Pos(3, 4, config_file),
+                Pos(6, 0, config_file),
+                action=StrExpr(
+                    Pos(3, 4, config_file),
+                    Pos(5, 0, config_file),
+                    "workspace:live-action",
+                ),
+                args={
+                    "arg1": StrExpr(
+                        Pos(0, 0, config_file), Pos(0, 0, config_file), "val 1"
+                    )
+                },
+                # ## multi=SimpleOptBoolExpr(
+                # ##     Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                # ## ),
+            )
+        },
     )

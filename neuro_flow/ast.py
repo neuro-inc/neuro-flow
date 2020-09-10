@@ -129,13 +129,18 @@ class Task(ExecUnit, TaskBase):
 
 
 @dataclass(frozen=True)
-class ActionCall(Base):
+class BaseActionCall(Base):
     action: str  # action ref
     args: Optional[Mapping[str, StrExpr]] = field(metadata={"allow_none": True})
 
 
 @dataclass(frozen=True)
-class TaskActionCall(ActionCall, TaskBase):
+class JobActionCall(BaseActionCall):
+    pass
+
+
+@dataclass(frozen=True)
+class TaskActionCall(BaseActionCall, TaskBase):
     pass
 
 
@@ -172,7 +177,7 @@ class BaseFlow(Base):
 @dataclass(frozen=True)
 class LiveFlow(BaseFlow):
     # self.kind == Kind.Job
-    jobs: Mapping[str, Union[Job, ActionCall]]
+    jobs: Mapping[str, Union[Job, JobActionCall]]
 
 
 @dataclass(frozen=True)
