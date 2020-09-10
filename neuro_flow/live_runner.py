@@ -16,7 +16,7 @@ from typing_extensions import AsyncContextManager
 from .context import ImageCtx, LiveContext, UnknownJob, VolumeCtx
 from .parser import parse_live
 from .types import LocalPath
-from .utils import format_job_status
+from .utils import RUNNING_JOB_STATUSES, TERMINATED_JOB_STATUSES, format_job_status
 
 
 @dataclasses.dataclass(frozen=True)
@@ -250,7 +250,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
                     if not job.detach:
                         await self._run_subproc("neuro", "attach", descr.id)
                     return
-                # Here the status is SUCCEDED or FAILED, restart
+                # Here the status is SUCCEED, CANCELLED or FAILED, restart
             except ResourceNotFound:
                 # Job does not exist, run it
                 pass
@@ -326,10 +326,10 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
 
         try:
             async for descr in self._resolve_jobs(meta_ctx, suffix):
-                if descr.status in (JobStatus.PENDING, JobStatus.RUNNING):
+                if descr.status in RUNNING_JOB_STATUSES:
                     await self.client.jobs.kill(descr.id)
                     descr = await self.client.jobs.status(descr.id)
-                    while descr.status not in (JobStatus.SUCCEEDED, JobStatus.FAILED):
+                    while descr.status not in TERMINATED_JOB_STATUSES:
                         await asyncio.sleep(0.2)
                         descr = await self.client.jobs.status(descr.id)
                     return True
@@ -360,7 +360,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
             await self.client.jobs.kill(descr.id)
             try:
                 descr = await self.client.jobs.status(descr.id)
-                while descr.status not in (JobStatus.SUCCEEDED, JobStatus.FAILED):
+                while descr.status not in TERMINATED_JOB_STATUSES:
                     await asyncio.sleep(0.2)
                     descr = await self.client.jobs.status(descr.id)
             except ResourceNotFound:
@@ -371,7 +371,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
                 return job_id
 
         async for descr in self.client.jobs.list(
-            tags=self.ctx.tags, statuses=(JobStatus.PENDING, JobStatus.RUNNING)
+            tags=self.ctx.tags, statuses=RUNNING_JOB_STATUSES
         ):
             tasks.append(loop.create_task(kill(descr)))
 

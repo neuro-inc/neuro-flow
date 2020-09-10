@@ -22,7 +22,7 @@ from .context import BatchContext, DepCtx
 from .parser import ConfigDir, parse_batch
 from .storage import Attempt, BatchStorage, FinishedTask, StartedTask
 from .types import LocalPath
-from .utils import format_job_status
+from .utils import TERMINATED_JOB_STATUSES, format_job_status
 
 
 if sys.version_info >= (3, 9):
@@ -167,7 +167,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                     if st.id in finished:
                         continue
                     status = await self._client.jobs.status(st.raw_id)
-                    if status.status in (JobStatus.FAILED, JobStatus.SUCCEEDED):
+                    if status.status in TERMINATED_JOB_STATUSES:
                         finished[st.id] = await self._finish_task(
                             attempt,
                             len(started) + len(finished),
@@ -192,9 +192,10 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                 await asyncio.sleep(1)
 
     def _accumulate_result(self, finished: Iterable[FinishedTask]) -> JobStatus:
-        # TODO: handle cancelled tasks
         for task in finished:
-            if task.status == JobStatus.FAILED:
+            if task.status == JobStatus.CANCELLED:
+                return JobStatus.CANCELLED
+            elif task.status == JobStatus.FAILED:
                 return JobStatus.FAILED
 
         return JobStatus.SUCCEEDED
