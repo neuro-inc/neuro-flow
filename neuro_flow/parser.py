@@ -526,7 +526,7 @@ def parse_strategy(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Strateg
     return parse_dict(
         ctor,
         node,
-        {"matrix": None, "fail_fast": OptBoolExpr, "max_parallel": OptIntExpr},
+        STRATEGY,
         ast.Strategy,
     )
 

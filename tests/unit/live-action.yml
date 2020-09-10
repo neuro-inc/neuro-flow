@@ -13,4 +13,4 @@ outputs:
     descr: action result
 job:
   image: ubuntu
-  bash: echo abc
+  bash: echo A ${{ inputs.arg1 }} B ${{ inputs.arg2 }} C

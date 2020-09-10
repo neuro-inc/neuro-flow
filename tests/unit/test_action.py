@@ -80,7 +80,11 @@ def test_parse_live_action(assets: LocalPath) -> None:
             image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
             preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
             entrypoint=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
-            cmd=OptBashExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "echo abc"),
+            cmd=OptBashExpr(
+                Pos(0, 0, config_file),
+                Pos(0, 0, config_file),
+                "echo A ${{ inputs.arg1 }} B ${{ inputs.arg2 }} C",
+            ),
             workdir=OptRemotePathExpr(
                 Pos(0, 0, config_file), Pos(0, 0, config_file), None
             ),

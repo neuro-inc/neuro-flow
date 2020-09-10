@@ -5,7 +5,7 @@ from textwrap import dedent
 from yarl import URL
 
 from neuro_flow.context import (
-    BaseActionContext,
+    ActionContext,
     BatchContext,
     DepCtx,
     LiveContext,
@@ -409,7 +409,7 @@ async def test_batch_action_default(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "batch-action.yml"
     ast_action = parse_action(config_file)
-    ctx = await BaseActionContext.create(ast_action)
+    ctx = await ActionContext.create(ast_action)
     assert ctx.outputs == {}
     assert ctx.state == {}
     with pytest.raises(NotAvailable):
@@ -420,7 +420,7 @@ async def test_batch_action_with_inputs_unsupported(assets: pathlib.Path) -> Non
     workspace = assets
     config_file = workspace / "batch-action.yml"
     ast_action = parse_action(config_file)
-    ctx = await BaseActionContext.create(ast_action)
+    ctx = await ActionContext.create(ast_action)
 
     with pytest.raises(ValueError, match=r"Unsupported input\(s\): other,unknown"):
         await ctx.with_inputs({"unknown": "value", "other": "val"})
@@ -430,7 +430,7 @@ async def test_batch_action_without_inputs_unsupported(assets: pathlib.Path) -> 
     workspace = assets
     config_file = workspace / "batch-action-without-inputs.yml"
     ast_action = parse_action(config_file)
-    ctx = await BaseActionContext.create(ast_action)
+    ctx = await ActionContext.create(ast_action)
 
     with pytest.raises(ValueError, match=r"Unsupported input\(s\): unknown"):
         await ctx.with_inputs({"unknown": "value"})
@@ -440,7 +440,7 @@ async def test_batch_action_with_inputs_no_default(assets: pathlib.Path) -> None
     workspace = assets
     config_file = workspace / "batch-action.yml"
     ast_action = parse_action(config_file)
-    ctx = await BaseActionContext.create(ast_action)
+    ctx = await ActionContext.create(ast_action)
 
     with pytest.raises(ValueError, match=r"Required input\(s\): arg1"):
         await ctx.with_inputs({"arg2": "val2"})
@@ -450,7 +450,7 @@ async def test_batch_action_with_inputs_ok(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "batch-action.yml"
     ast_action = parse_action(config_file)
-    ctx = await BaseActionContext.create(ast_action)
+    ctx = await ActionContext.create(ast_action)
 
     ctx2 = await ctx.with_inputs({"arg1": "v1", "arg2": "v2"})
     assert ctx2.inputs == {"arg1": "v1", "arg2": "v2"}
@@ -460,7 +460,7 @@ async def test_batch_action_with_inputs_default_ok(assets: pathlib.Path) -> None
     workspace = assets
     config_file = workspace / "batch-action.yml"
     ast_action = parse_action(config_file)
-    ctx = await BaseActionContext.create(ast_action)
+    ctx = await ActionContext.create(ast_action)
 
     ctx2 = await ctx.with_inputs({"arg1": "v1"})
     assert ctx2.inputs == {"arg1": "v1", "arg2": "value 2"}
@@ -475,26 +475,22 @@ async def test_job_with_live_action(assets: pathlib.Path) -> None:
 
     ctx2 = await ctx.with_job("test")
     assert ctx2.job.id == "test"
-    assert ctx2.job.title == "Job title"
-    assert ctx2.job.name == "job-name"
-    assert ctx2.job.image == "image:banana"
-    assert ctx2.job.preset == "cpu-small"
-    assert ctx2.job.http_port == 8080
+    assert ctx2.job.title == "live_action_call.test"
+    assert ctx2.job.name is None
+    assert ctx2.job.image == "ubuntu"
+    assert ctx2.job.preset is None
+    assert ctx2.job.http_port is None
     assert not ctx2.job.http_auth
-    assert ctx2.job.entrypoint == "bash"
-    assert ctx2.job.cmd == "echo abc"
-    assert ctx2.job.workdir == RemotePath("/local/dir")
-    assert ctx2.job.volumes == ["storage:dir:/var/dir:ro", "storage:dir:/var/dir:ro"]
+    assert ctx2.job.entrypoint is None
+    assert ctx2.job.cmd == "bash -euxo pipefail -c 'echo A val 1 B value 2 C'"
+    assert ctx2.job.workdir is None
+    assert ctx2.job.volumes == []
     assert ctx2.tags == {
-        "tag-1",
-        "tag-2",
-        "tag-a",
-        "tag-b",
         "project:unit",
         "flow:live-action-call",
         "job:test",
     }
-    assert ctx2.job.life_span == 10500.0
-    assert ctx2.job.port_forward == ["2211:22"]
-    assert ctx2.job.detach
-    assert ctx2.job.browse
+    assert ctx2.job.life_span is None
+    assert ctx2.job.port_forward == []
+    assert not ctx2.job.detach
+    assert not ctx2.job.browse
