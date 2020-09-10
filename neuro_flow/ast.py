@@ -130,7 +130,7 @@ class Task(ExecUnit, TaskBase):
 
 @dataclass(frozen=True)
 class BaseActionCall(Base):
-    action: str  # action ref
+    action: StrExpr  # action ref
     args: Optional[Mapping[str, StrExpr]] = field(metadata={"allow_none": True})
 
 

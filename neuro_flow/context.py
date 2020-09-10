@@ -23,7 +23,7 @@ from yarl import URL
 
 from . import ast
 from .expr import EvalError, LiteralT, RootABC, TypeT
-from .parser import parse_project
+from .parser import parse_action, parse_project
 from .types import LocalPath, RemotePath
 
 
@@ -378,6 +378,16 @@ class BaseFlowContext(BaseContext):
             _images=images,
         )
 
+    async def fetch_action(self, action_name: str) -> ast.BaseAction:
+        scheme, sep, spec = action_name.partition(":")
+        if not sep:
+            raise ValueError(f"{action_name} has no schema")
+        if scheme == "workspace":
+            path = self.flow.workspace / spec
+            return parse_action(path)
+        else:
+            raise ValueError(f"Unsupported scheme '{scheme}'")
+
     @property
     def env(self) -> Mapping[str, str]:
         if self._env is None:
@@ -486,10 +496,22 @@ class LiveContext(BaseFlowContext):
         except KeyError:
             raise UnknownJob(job_id)
 
-        assert isinstance(job, ast.Job)
-        tags = set(self.tags)
-        tags.add(f"job:{_id2tag(job_id)}")
-        multi = await job.multi.eval(EMPTY_ROOT)
+        if isinstance(job, ast.JobActionCall):
+            tags = set(self.tags)
+            tags.add(f"job:{_id2tag(job_id)}")
+            action = await self.fetch_action(await job.action.eval(self))
+            if action.kind != ast.ActionKind.LIVE:
+                raise TypeError(
+                    f"Invalid action '{action}' "
+                    f"type {action.kind.value} for live flow"
+                )
+            assert isinstance(action, ast.LiveAction)
+            multi = await action.job.multi.eval(EMPTY_ROOT)
+        else:
+            assert isinstance(job, ast.Job)
+            tags = set(self.tags)
+            tags.add(f"job:{_id2tag(job_id)}")
+            multi = await job.multi.eval(EMPTY_ROOT)
 
         return replace(self, _meta=JobMetaCtx(id=job_id, multi=bool(multi)), _tags=tags)
 

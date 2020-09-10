@@ -23,6 +23,7 @@ from typing import (
     Type,
     TypeVar,
     Union,
+    cast,
 )
 from yaml.composer import Composer
 from yaml.constructor import ConstructorError, SafeConstructor
@@ -605,7 +606,7 @@ JOB_OR_ACTION = {**JOB, **JOB_ACTION_CALL}
 def find_job_type(
     ctor: BaseConstructor,
     node: yaml.MappingNode,
-    res_type: Type[ast.BaseFlow],
+    res_type: Type[ast.Base],
     arg: Dict[str, Any],
 ) -> Union[Type[ast.Job], Type[ast.JobActionCall]]:
     action = arg.get("action")
@@ -618,17 +619,22 @@ def find_job_type(
 def parse_job(
     ctor: BaseConstructor, node: yaml.MappingNode
 ) -> Union[ast.Job, ast.JobActionCall]:
-    return parse_dict(
-        ctor,
-        node,
-        JOB_OR_ACTION,
-        ast.Base,
-        preprocess=select_job_or_action,
-        find_res_type=find_job_type,
+    return cast(
+        Union[ast.Job, ast.JobActionCall],
+        parse_dict(
+            ctor,
+            node,
+            JOB_OR_ACTION,
+            ast.Base,
+            preprocess=select_job_or_action,
+            find_res_type=find_job_type,
+        ),
     )
 
 
-def parse_jobs(ctor: BaseConstructor, node: yaml.MappingNode) -> Dict[str, ast.Job]:
+def parse_jobs(
+    ctor: BaseConstructor, node: yaml.MappingNode
+) -> Dict[str, Union[ast.Job, ast.JobActionCall]]:
     ret = {}
     for k, v in node.value:
         key = ctor.construct_id(k)
@@ -998,11 +1004,10 @@ ActionLoader.add_path_resolver("action:main", [])  # type: ignore
 ActionLoader.add_constructor("action:main", parse_action_main)  # type: ignore
 
 
-def parse_action(workspace: LocalPath, action: str) -> ast.BaseAction:
+def parse_action(action_file: LocalPath) -> ast.BaseAction:
     # Parse project config file
     ret: ast.Project
-    config_file = workspace / action
-    with config_file.open() as f:
+    with action_file.open() as f:
         loader = ActionLoader(f)
         try:
             ret = loader.get_single_data()  # type: ignore[no-untyped-call]

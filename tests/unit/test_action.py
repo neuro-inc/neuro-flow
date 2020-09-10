@@ -21,7 +21,7 @@ from neuro_flow.types import LocalPath
 
 def test_parse_live_action(assets: LocalPath) -> None:
     config_file = assets / "live-action.yml"
-    action = parse_action(assets, config_file.name)
+    action = parse_action(config_file)
     assert action == ast.LiveAction(
         Pos(0, 0, config_file),
         Pos(16, 0, config_file),
@@ -105,7 +105,7 @@ def test_parse_live_action(assets: LocalPath) -> None:
 
 def test_parse_batch_action(assets: LocalPath) -> None:
     config_file = assets / "batch-action.yml"
-    action = parse_action(assets, config_file.name)
+    action = parse_action(config_file)
     assert action == ast.BatchAction(
         Pos(0, 0, config_file),
         Pos(24, 0, config_file),
@@ -248,7 +248,7 @@ def test_parse_batch_action(assets: LocalPath) -> None:
 
 def test_parse_stateful_action(assets: LocalPath) -> None:
     config_file = assets / "stateful-action.yml"
-    action = parse_action(assets, config_file.name)
+    action = parse_action(config_file)
     assert action == ast.StatefulAction(
         Pos(0, 0, config_file),
         Pos(24, 0, config_file),
@@ -413,9 +413,6 @@ def test_parse_live_call(assets: LocalPath) -> None:
                         Pos(0, 0, config_file), Pos(0, 0, config_file), "val 1"
                     )
                 },
-                # ## multi=SimpleOptBoolExpr(
-                # ##     Pos(0, 0, config_file), Pos(0, 0, config_file), None
-                # ## ),
             )
         },
     )
