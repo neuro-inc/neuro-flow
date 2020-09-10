@@ -452,6 +452,7 @@ class LiveContext(BaseFlowContext):
             job = self._ast_flow.jobs[job_id]
         except KeyError:
             raise UnknownJob(job_id)
+        assert isinstance(job, ast.Job)
         multi = await job.multi.eval(EMPTY_ROOT)
         return bool(multi)  # None is False
 
@@ -485,6 +486,7 @@ class LiveContext(BaseFlowContext):
         except KeyError:
             raise UnknownJob(job_id)
 
+        assert isinstance(job, ast.Job)
         tags = set(self.tags)
         tags.add(f"job:{_id2tag(job_id)}")
         multi = await job.multi.eval(EMPTY_ROOT)
@@ -505,6 +507,8 @@ class LiveContext(BaseFlowContext):
 
         # Always exists since the meta context is previously creted
         job = self._ast_flow.jobs[job_id]
+
+        assert isinstance(job, ast.Job)
 
         if job.tags is not None:
             tags |= {await v.eval(self) for v in job.tags}
@@ -584,6 +588,8 @@ class BatchContext(BaseFlowContext):
         prep_tasks = {}
         last_needs: Set[str] = set()
         for num, ast_task in enumerate(ctx._ast_flow.tasks, 1):
+            assert isinstance(ast_task, ast.Task)
+
             # eval matrix
             matrix: Sequence[MatrixCtx]
             strategy: StrategyCtx
