@@ -193,10 +193,10 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
 
     def _accumulate_result(self, finished: Iterable[FinishedTask]) -> JobStatus:
         for task in finished:
-            if task.status == JobStatus.FAILED:
-                return JobStatus.FAILED
-            elif task.status == JobStatus.CANCELLED:
+            if task.status == JobStatus.CANCELLED:
                 return JobStatus.CANCELLED
+            elif task.status == JobStatus.FAILED:
+                return JobStatus.FAILED
 
         return JobStatus.SUCCEEDED
 
