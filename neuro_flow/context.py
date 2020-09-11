@@ -23,7 +23,7 @@ from yarl import URL
 
 from . import ast
 from .expr import EvalError, LiteralT, RootABC, TypeT
-from .parser import parse_project
+from .parser import parse_action, parse_project
 from .types import LocalPath, RemotePath
 
 
@@ -233,7 +233,7 @@ class FlowCtx:
         return self.flow_id
 
 
-_CtxT = TypeVar("_CtxT", bound="BaseFlowContext")
+_CtxT = TypeVar("_CtxT", bound="BaseContext")
 
 
 class EmptyRoot(RootABC):
@@ -283,8 +283,6 @@ class BaseFlowContext(BaseContext):
     _images: Optional[Mapping[str, ImageCtx]] = None
     _volumes: Optional[Mapping[str, VolumeCtx]] = None
 
-    # Add a context with global flow info, e.g. ctx.flow.id maybe?
-
     @classmethod
     async def create(
         cls: Type[_CtxT],
@@ -292,6 +290,7 @@ class BaseFlowContext(BaseContext):
         workspace: LocalPath,
         config_file: LocalPath,
     ) -> _CtxT:
+        assert issubclass(cls, BaseFlowContext)
         assert isinstance(ast_flow, cls.FLOW_TYPE)
         flow_id = await ast_flow.id.eval(EMPTY_ROOT)
         if flow_id is None:
@@ -373,7 +372,25 @@ class BaseFlowContext(BaseContext):
                     full_dockerfile_path=calc_full_path(ctx, dockerfile_path),
                     build_args=build_args,
                 )
-        return replace(ctx, _volumes=volumes, _images=images)
+        return replace(  # type: ignore[return-value]
+            ctx,
+            _volumes=volumes,
+            _images=images,
+        )
+
+    async def fetch_action(self, action_name: str) -> ast.BaseAction:
+        scheme, sep, spec = action_name.partition(":")
+        if not sep:
+            raise ValueError(f"{action_name} has no schema")
+        if scheme == "workspace":
+            path = self.flow.workspace / spec
+            if not path.exists():
+                path = path.with_suffix(".yml")
+            if not path.exists():
+                raise ValueError(f"Action {action_name} does not exist")
+            return parse_action(path)
+        else:
+            raise ValueError(f"Unsupported scheme '{scheme}'")
 
     @property
     def env(self) -> Mapping[str, str]:
@@ -449,6 +466,7 @@ class LiveContext(BaseFlowContext):
             job = self._ast_flow.jobs[job_id]
         except KeyError:
             raise UnknownJob(job_id)
+        assert isinstance(job, ast.Job)
         multi = await job.multi.eval(EMPTY_ROOT)
         return bool(multi)  # None is False
 
@@ -482,10 +500,21 @@ class LiveContext(BaseFlowContext):
         except KeyError:
             raise UnknownJob(job_id)
 
+        if isinstance(job, ast.JobActionCall):
+            action = await self.fetch_action(await job.action.eval(self))
+            if action.kind != ast.ActionKind.LIVE:
+                raise TypeError(
+                    f"Invalid action '{action}' "
+                    f"type {action.kind.value} for live flow"
+                )
+            assert isinstance(action, ast.LiveAction)
+            multi = await action.job.multi.eval(EMPTY_ROOT)
+        else:
+            assert isinstance(job, ast.Job)
+            multi = await job.multi.eval(EMPTY_ROOT)
+
         tags = set(self.tags)
         tags.add(f"job:{_id2tag(job_id)}")
-        multi = await job.multi.eval(EMPTY_ROOT)
-
         return replace(self, _meta=JobMetaCtx(id=job_id, multi=bool(multi)), _tags=tags)
 
     async def with_job(self, job_id: str) -> "LiveContext":
@@ -495,62 +524,115 @@ class LiveContext(BaseFlowContext):
             )
         assert isinstance(self._ast_flow, self.FLOW_TYPE)
 
-        tags = set(self.tags)
-
-        if self.meta.multi:
-            tags.add(f"multi:{self.multi.suffix}")
-
         # Always exists since the meta context is previously creted
         job = self._ast_flow.jobs[job_id]
 
-        if job.tags is not None:
-            tags |= {await v.eval(self) for v in job.tags}
+        if isinstance(job, ast.JobActionCall):
+            action = await self.fetch_action(await job.action.eval(self))
+            if action.kind != ast.ActionKind.LIVE:
+                raise TypeError(
+                    f"Invalid action '{action}' "
+                    f"type {action.kind.value} for live flow"
+                )
+            assert isinstance(action, ast.LiveAction)
+            action_ctx = await ActionContext.create(action)
+            args = {}
+            if job.args is not None:
+                for k, v in job.args.items():
+                    args[k] = await v.eval(self)
 
-        env = dict(self.env)
-        if job.env is not None:
-            env.update({k: await v.eval(self) for k, v in job.env.items()})
+            action_ctx = await action_ctx.with_inputs(args)
+            assert isinstance(action.job, ast.Job)
+            job_ctx, env, tags = await self._calc_job(
+                action_ctx,
+                self.flow.flow_id,
+                job_id,
+                action.job,
+                self.defaults,
+                self.meta.multi,
+            )
+        else:
+            job_ctx, env, tags = await self._calc_job(
+                self,
+                self.flow.flow_id,
+                job_id,
+                job,
+                self.defaults,
+                self.meta.multi,
+            )
 
-        title = await job.title.eval(self)
-        if title is None:
-            title = f"{self.flow.flow_id}.{job_id}"
+        real_tags = self.tags | tags
 
-        workdir = (await job.workdir.eval(self)) or self.defaults.workdir
+        if self.meta.multi:
+            real_tags |= {f"multi:{self.multi.suffix}"}
 
-        volumes = []
-        if job.volumes is not None:
-            volumes = [await v.eval(self) for v in job.volumes]
-
-        life_span = (await job.life_span.eval(self)) or self.defaults.life_span
-
-        preset = (await job.preset.eval(self)) or self.defaults.preset
-        port_forward = []
-        if job.port_forward is not None:
-            port_forward = [await val.eval(self) for val in job.port_forward]
-
-        job_ctx = JobCtx(
-            id=job_id,
-            detach=bool(await job.detach.eval(self)),
-            browse=bool(await job.browse.eval(self)),
-            title=title,
-            name=await job.name.eval(self),
-            image=await job.image.eval(self),
-            preset=preset,
-            entrypoint=await job.entrypoint.eval(self),
-            cmd=await job.cmd.eval(self),
-            workdir=workdir,
-            volumes=volumes,
-            life_span=life_span,
-            http_port=await job.http_port.eval(self),
-            http_auth=await job.http_auth.eval(self),
-            port_forward=port_forward,
-            multi=self.meta.multi,
-        )
         return replace(
             self,
             _job=job_ctx,
-            _env=env,
-            _tags=self.tags | tags,
+            _env=dict(self.env, **env),
+            _tags=real_tags,
         )
+
+    @classmethod
+    async def _calc_job(
+        cls,
+        ctx: RootABC,
+        flow_id: str,
+        job_id: str,
+        job: ast.Job,
+        defaults: DefaultsCtx,
+        multi: bool,
+    ) -> Tuple[JobCtx, Mapping[str, str], AbstractSet[str]]:
+
+        assert isinstance(job, ast.Job)
+
+        tags = set()
+        if job.tags is not None:
+            tags |= {await v.eval(ctx) for v in job.tags}
+
+        env = {}
+        if job.env is not None:
+            env.update({k: await v.eval(ctx) for k, v in job.env.items()})
+
+        title = await job.title.eval(ctx)
+        if title is None:
+            title = f"{flow_id}.{job_id}"
+
+        workdir = (await job.workdir.eval(ctx)) or defaults.workdir
+
+        volumes = []
+        if job.volumes is not None:
+            for v in job.volumes:
+                val = await v.eval(ctx)
+                if val:
+                    volumes.append(val)
+
+        life_span = (await job.life_span.eval(ctx)) or defaults.life_span
+
+        preset = (await job.preset.eval(ctx)) or defaults.preset
+        port_forward = []
+        if job.port_forward is not None:
+            port_forward = [await val.eval(ctx) for val in job.port_forward]
+
+        job_ctx = JobCtx(
+            id=job_id,
+            detach=bool(await job.detach.eval(ctx)),
+            browse=bool(await job.browse.eval(ctx)),
+            title=title,
+            name=await job.name.eval(ctx),
+            image=await job.image.eval(ctx),
+            preset=preset,
+            entrypoint=await job.entrypoint.eval(ctx),
+            cmd=await job.cmd.eval(ctx),
+            workdir=workdir,
+            volumes=volumes,
+            life_span=life_span,
+            http_port=await job.http_port.eval(ctx),
+            http_auth=await job.http_auth.eval(ctx),
+            port_forward=port_forward,
+            multi=multi,
+        )
+        return job_ctx, env, tags
 
 
 @dataclass(frozen=True)
@@ -581,6 +663,8 @@ class BatchContext(BaseFlowContext):
         prep_tasks = {}
         last_needs: Set[str] = set()
         for num, ast_task in enumerate(ctx._ast_flow.tasks, 1):
+            assert isinstance(ast_task, ast.Task)
+
             # eval matrix
             matrix: Sequence[MatrixCtx]
             strategy: StrategyCtx
@@ -652,6 +736,7 @@ class BatchContext(BaseFlowContext):
 
     async def _with_args(self: _CtxT) -> _CtxT:
         # Calculate batch args context early, no-op for live mode
+        assert isinstance(self, BaseFlowContext)
         assert isinstance(self._ast_flow, ast.BatchFlow)
         args = {}
         if self._ast_flow.args is not None:
@@ -665,7 +750,7 @@ class BatchContext(BaseFlowContext):
                         v._end,
                     )
                 args[k] = default
-        return replace(self, _args=args)
+        return replace(self, _args=args)  # type: ignore[return-value]
 
     @property
     def args(self) -> Mapping[str, str]:
@@ -774,7 +859,10 @@ class BatchContext(BaseFlowContext):
 
         volumes = []
         if prep_task.ast.volumes is not None:
-            volumes = [await v.eval(ctx) for v in prep_task.ast.volumes]
+            for v in prep_task.ast.volumes:
+                val = await v.eval(ctx)
+                if val:
+                    volumes.append(val)
 
         life_span = (await prep_task.ast.life_span.eval(ctx)) or ctx.defaults.life_span
 
@@ -857,20 +945,26 @@ class ActionContext(BaseContext):
         default=BaseContext.LOOKUP_KEYS + ("inputs",),
     )
 
-    ast: ast.BaseAction
+    _ast: ast.BaseAction
+
     outputs: Mapping[str, str]
     state: Mapping[str, str]
-
     _inputs: Optional[Mapping[str, str]] = None
     # Add a context with global flow info, e.g. ctx.flow.id maybe?
 
     @classmethod
     async def create(
-        cls,
+        cls: Type[_CtxT],
         ast_action: ast.BaseAction,
-    ) -> "ActionContext":
+    ) -> _CtxT:
+        assert issubclass(cls, ActionContext)
         assert isinstance(ast_action, ast.BaseAction)
-        return cls(ast=ast_action, _inputs=None, outputs={}, state={})
+        return cls(  # type: ignore[return-value]
+            _ast=ast_action,
+            _inputs=None,
+            outputs={},
+            state={},
+        )
 
     @property
     def inputs(self) -> Mapping[str, str]:
@@ -878,42 +972,48 @@ class ActionContext(BaseContext):
             raise NotAvailable("inputs")
         return self._inputs
 
-    async def with_inputs(self, inputs: Mapping[str, str]) -> "ActionContext":
+    async def with_inputs(self: _CtxT, inputs: Mapping[str, str]) -> _CtxT:
+        assert isinstance(self, ActionContext)
         if self._inputs is not None:
             raise TypeError(
                 "Cannot enter into the task context if "
                 "the task is already initialized"
             )
-        if self.ast.inputs is None:
+        if self._ast.inputs is None:
             if inputs:
                 raise ValueError(f"Unsupported input(s): {','.join(sorted(inputs))}")
             else:
-                return self
+                return self  # type: ignore[return-value]
         new_inputs = dict(inputs)
-        for name, inp in self.ast.inputs.items():
+        for name, inp in self._ast.inputs.items():
             if name not in new_inputs and inp.default.pattern is not None:
                 val = await inp.default.eval(EMPTY_ROOT)
                 # inputs doesn't support expressions,
                 # non-none pattern means non-none input
                 assert val is not None
                 new_inputs[name] = val
-        extra = new_inputs.keys() - self.ast.inputs.keys()
+        extra = new_inputs.keys() - self._ast.inputs.keys()
         if extra:
             raise ValueError(f"Unsupported input(s): {','.join(sorted(extra))}")
-        missing = self.ast.inputs.keys() - new_inputs.keys()
+        missing = self._ast.inputs.keys() - new_inputs.keys()
         if missing:
             raise ValueError(f"Required input(s): {','.join(sorted(missing))}")
-        return replace(self, _inputs=new_inputs)
+        return replace(self, _inputs=new_inputs)  # type: ignore[return-value]
 
-    async def with_state(self, state: Mapping[str, str]) -> "ActionContext":
+    async def with_state(
+        self: _CtxT,
+        state: Mapping[str, str],
+    ) -> _CtxT:
+        assert isinstance(self, ActionContext)
         new_state = dict(self.state)
         new_state.update(state)
-        return replace(self, state=new_state)
+        return replace(self, state=new_state)  # type: ignore[return-value]
 
-    async def with_outputs(self, outputs: Mapping[str, str]) -> "ActionContext":
+    async def with_outputs(self: _CtxT, outputs: Mapping[str, str]) -> _CtxT:
+        assert isinstance(self, ActionContext)
         new_outputs = dict(self.outputs)
         new_outputs.update(outputs)
-        return replace(self, outputs=new_outputs)
+        return replace(self, outputs=new_outputs)  # type: ignore[return-value]
 
 
 def calc_full_path(

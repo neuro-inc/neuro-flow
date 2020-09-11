@@ -385,37 +385,43 @@ class Expr(Generic[_T]):
     allow_none = True
     allow_expr = True
     type: Type[_T]
+    _ret: Union[None, _T]
+    _pattern: Union[None, str, _T]
+    _parsed: Optional[Sequence[Item]]
 
     @classmethod
     @abc.abstractmethod
     def convert(cls, arg: Union[str, _T]) -> _T:
         pass
 
+    def _try_convert(self, arg: Union[str, _T], start: Pos, end: Pos) -> None:
+        try:
+            self._ret = self.convert(arg)
+        except (TypeError, ValueError) as exc:
+            raise EvalError(str(exc), start, end)
+
     def __init__(self, start: Pos, end: Pos, pattern: Union[None, str, _T]) -> None:
         self._pattern = pattern
         # precalculated value for constant string, allows raising errors earlier
-        self._ret: Optional[_T] = None
+        self._ret = None
         if pattern is not None:
             if isinstance(pattern, str):
                 # parse later
                 pass
             elif isinstance(pattern, self.type):
                 # explicit non-string value is passed
-                try:
-                    self._ret = self.convert(pattern)
-                    return
-                except (TypeError, ValueError) as exc:
-                    raise EvalError(str(exc), start, end)
+                self._try_convert(pattern, start, end)
+                return
             else:
                 raise EvalError(f"str is expected, got {type(pattern)}", start, end)
             tokens = list(tokenize(pattern, start=start))
-            self._parsed: Optional[Sequence[Item]] = PARSER.parse(tokens)
-            assert self._parsed is not None
+            if tokens:
+                self._parsed = PARSER.parse(tokens)
+            else:
+                self._parsed = [Text(start, end, "")]
+            assert self._parsed
             if len(self._parsed) == 1 and type(self._parsed[0]) == Text:
-                try:
-                    self._ret = self.convert(cast(Text, self._parsed[0]).arg)
-                except (TypeError, ValueError) as exc:
-                    raise EvalError(str(exc), start, end)
+                self._try_convert(cast(Text, self._parsed[0]).arg, start, end)
             elif not self.allow_expr:
                 raise EvalError(f"Expressions are not allowed in {pattern}", start, end)
         elif self.allow_none:

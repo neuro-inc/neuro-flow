@@ -23,6 +23,7 @@ from typing import (
     Type,
     TypeVar,
     Union,
+    cast,
 )
 from yaml.composer import Composer
 from yaml.constructor import ConstructorError, SafeConstructor
@@ -221,7 +222,7 @@ def parse_dict(
         raise ConstructorError(
             None,
             None,
-            f"expected a mapping node, but found {node_id}",
+            f"expected a mapping node, but found '{node_id}'",
             node.start_mark,
         )
     node_start = mark2pos(node.start_mark)
@@ -232,9 +233,9 @@ def parse_dict(
         key = ctor.construct_object(k)  # type: ignore[no-untyped-call]
         if key not in keys:
             raise ConstructorError(
-                f"while constructing a {ret_name}",
+                f"while constructing a '{ret_name}'",
                 node.start_mark,
-                f"unexpected key {key}",
+                f"unexpected key '{key}'",
                 k.start_mark,
             )
         item_ctor: Any = keys[key]
@@ -249,7 +250,7 @@ def parse_dict(
         elif isinstance(item_ctor, ast.Base):
             assert isinstance(
                 v, ast.Base
-            ), f"[{type(v)}] {v} should be ast.Base derived"
+            ), f"[{type(v)}] '{v}' should be ast.Base derived"
             value = v
         elif isinstance(item_ctor, SimpleCompound):
             value = item_ctor.construct(ctor, v)
@@ -258,9 +259,9 @@ def parse_dict(
             value = item_ctor(mark2pos(v.start_mark), mark2pos(v.end_mark), tmp)
         else:
             raise ConstructorError(
-                f"while constructing a {ret_name}",
+                f"while constructing a '{ret_name}'",
                 node.start_mark,
-                f"unexpected value tag {v.tag} for key {key}[{item_ctor}]",
+                f"unexpected value tag '{v.tag}' for key '{key}[{item_ctor}]'",
                 k.start_mark,
             )
         data[key] = value
@@ -288,38 +289,39 @@ def parse_dict(
                     optional_fields[f.name] = None
                 else:
                     raise ConstructorError(
-                        f"while constructing a {ret_name}, "
+                        f"while constructing a '{ret_name}', "
                         f"missing mandatory key '{f.name}'",
                         node.start_mark,
                     )
             elif isinstance(item_ctor, type) and issubclass(item_ctor, Expr):
                 if not item_ctor.allow_none:
                     raise ConstructorError(
-                        f"while constructing a {ret_name}, "
+                        f"while constructing a '{ret_name}', "
                         f"missing mandatory key '{f.name}'",
                         node.start_mark,
                     )
                 optional_fields[f.name] = item_ctor(node_start, node_end, None)
             else:
                 raise ConstructorError(
-                    f"while constructing a {ret_name}, "
-                    f"unexpected '{f.name}' constructor type {item_ctor!r}",
+                    f"while constructing a '{ret_name}', "
+                    f"unexpected '{f.name}' constructor type '{item_ctor!r}'",
                     node.start_mark,
                 )
 
     actual_names = found_fields | optional_fields.keys()
     missing_names = field_names - actual_names
+    sep = ","
     if missing_names:
         raise ConstructorError(
-            f"while constructing a {ret_name}, "
-            f"missing fields {','.join(missing_names)}",
+            f"while constructing a '{ret_name}', "
+            f"missing fields '{sep.join(missing_names)}'",
             node.start_mark,
         )
     unknown_names = actual_names - field_names
     if unknown_names:
         raise ConstructorError(
-            f"while constructing a {ret_name}, "
-            f"unexpected fields {','.join(missing_names)}",
+            f"while constructing a '{ret_name}', "
+            f"unexpected fields '{sep.join(missing_names)}'",
             node.start_mark,
         )
     return res_type(  # type: ignore[call-arg]
@@ -524,7 +526,7 @@ def parse_strategy(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Strateg
     return parse_dict(
         ctor,
         node,
-        {"matrix": None, "fail_fast": OptBoolExpr, "max_parallel": OptIntExpr},
+        STRATEGY,
         ast.Strategy,
     )
 
@@ -546,7 +548,7 @@ EXEC_UNIT = {
     "python": OptPythonExpr,
     "workdir": OptRemotePathExpr,
     "env": SimpleMapping(StrExpr),
-    "volumes": SimpleSeq(StrExpr),
+    "volumes": SimpleSeq(OptStrExpr),
     "tags": SimpleSeq(StrExpr),
     "life_span": OptLifeSpanExpr,
     "http_port": OptIntExpr,
@@ -560,6 +562,11 @@ JOB = {
     "port_forward": SimpleSeq(PortPairExpr),
     "multi": SimpleOptBoolExpr,
     **EXEC_UNIT,
+}
+
+JOB_ACTION_CALL = {
+    "action": StrExpr,
+    "args": SimpleMapping(StrExpr),
 }
 
 
@@ -583,11 +590,51 @@ def select_shells(
     return dct
 
 
-def parse_job(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Job:
-    return parse_dict(ctor, node, JOB, ast.Job, preprocess=select_shells)
+def select_job_or_action(
+    ctor: BaseConstructor, node: yaml.MappingNode, dct: Dict[str, Any]
+) -> Dict[str, Any]:
+    if "action" in dct:
+        return {k: v for k, v in dct.items() if k in JOB_ACTION_CALL}
+    else:
+        dct2 = {k: v for k, v in dct.items() if k in JOB}
+        return select_shells(ctor, node, dct2)
 
 
-def parse_jobs(ctor: BaseConstructor, node: yaml.MappingNode) -> Dict[str, ast.Job]:
+JOB_OR_ACTION = {**JOB, **JOB_ACTION_CALL}
+
+
+def find_job_type(
+    ctor: BaseConstructor,
+    node: yaml.MappingNode,
+    res_type: Type[ast.Base],
+    arg: Dict[str, Any],
+) -> Union[Type[ast.Job], Type[ast.JobActionCall]]:
+    action = arg.get("action")
+    if action is None:
+        return ast.Job
+    else:
+        return ast.JobActionCall
+
+
+def parse_job(
+    ctor: BaseConstructor, node: yaml.MappingNode
+) -> Union[ast.Job, ast.JobActionCall]:
+    return cast(
+        Union[ast.Job, ast.JobActionCall],
+        parse_dict(
+            ctor,
+            node,
+            JOB_OR_ACTION,
+            ast.Base,
+            preprocess=select_job_or_action,
+            find_res_type=find_job_type,
+        ),
+    )
+
+
+def parse_jobs(
+    ctor: BaseConstructor, node: yaml.MappingNode
+) -> Dict[str, Union[ast.Job, ast.JobActionCall]]:
     ret = {}
     for k, v in node.value:
         key = ctor.construct_id(k)
@@ -866,8 +913,19 @@ def parse_action_outputs(
 ActionLoader.add_path_resolver("action:outputs", [(dict, "outputs")])  # type: ignore
 ActionLoader.add_constructor("action:outputs", parse_action_outputs)  # type: ignore
 
+
+def parse_job_in_live_action(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Job:
+    ret = parse_job(ctor, node)
+    if not isinstance(ret, ast.Job):
+        raise ConstructorError(
+            f"nested actions are forbidden",
+            node.start_mark,
+        )
+    return ret
+
+
 ActionLoader.add_path_resolver("action:job", [(dict, "job")])  # type: ignore
-ActionLoader.add_constructor("action:job", parse_job)  # type: ignore
+ActionLoader.add_constructor("action:job", parse_job_in_live_action)  # type: ignore
 
 ActionLoader.add_path_resolver(  # type: ignore[no-untyped-call]
     "action:task", [(dict, "tasks"), (list, None)]
@@ -957,11 +1015,10 @@ ActionLoader.add_path_resolver("action:main", [])  # type: ignore
 ActionLoader.add_constructor("action:main", parse_action_main)  # type: ignore
 
 
-def parse_action(workspace: LocalPath, action: str) -> ast.BaseAction:
+def parse_action(action_file: LocalPath) -> ast.BaseAction:
     # Parse project config file
     ret: ast.Project
-    config_file = workspace / action
-    with config_file.open() as f:
+    with action_file.open() as f:
         loader = ActionLoader(f)
         try:
             ret = loader.get_single_data()  # type: ignore[no-untyped-call]

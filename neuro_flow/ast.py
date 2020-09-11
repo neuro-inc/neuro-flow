@@ -2,7 +2,7 @@
 from dataclasses import dataclass, field
 
 import enum
-from typing import Mapping, Optional, Sequence
+from typing import Mapping, Optional, Sequence, Union
 
 from .expr import (
     IdExpr,
@@ -71,7 +71,7 @@ class ExecUnit(Base):
     cmd: OptStrExpr
     workdir: OptRemotePathExpr
     env: Optional[Mapping[str, StrExpr]] = field(metadata={"allow_none": True})
-    volumes: Optional[Sequence[StrExpr]] = field(metadata={"allow_none": True})
+    volumes: Optional[Sequence[OptStrExpr]] = field(metadata={"allow_none": True})
     tags: Optional[Sequence[StrExpr]] = field(metadata={"allow_none": True})
     life_span: OptLifeSpanExpr
     http_port: OptIntExpr
@@ -107,7 +107,7 @@ class Job(ExecUnit):
 
 
 @dataclass(frozen=True)
-class Task(ExecUnit):
+class TaskBase(Base):
     id: OptIdExpr
 
     # A set of steps, used in net mode
@@ -121,6 +121,27 @@ class Task(ExecUnit):
 
     # continue_on_error: OptBoolExpr
     # if_: OptBoolExpr  # -- skip conditionally
+
+
+@dataclass(frozen=True)
+class Task(ExecUnit, TaskBase):
+    pass
+
+
+@dataclass(frozen=True)
+class BaseActionCall(Base):
+    action: StrExpr  # action ref
+    args: Optional[Mapping[str, StrExpr]] = field(metadata={"allow_none": True})
+
+
+@dataclass(frozen=True)
+class JobActionCall(BaseActionCall):
+    pass
+
+
+@dataclass(frozen=True)
+class TaskActionCall(BaseActionCall, TaskBase):
+    pass
 
 
 @dataclass(frozen=True)
@@ -156,7 +177,7 @@ class BaseFlow(Base):
 @dataclass(frozen=True)
 class LiveFlow(BaseFlow):
     # self.kind == Kind.Job
-    jobs: Mapping[str, Job]
+    jobs: Mapping[str, Union[Job, JobActionCall]]
 
 
 @dataclass(frozen=True)
@@ -176,7 +197,7 @@ class Arg(Base):
 class BatchFlow(BaseFlow):
     # self.kind == Kind.Batch
     args: Optional[Mapping[str, Arg]] = field(metadata={"allow_none": True})
-    tasks: Sequence[Task]
+    tasks: Sequence[Union[Task, TaskActionCall]]
 
 
 # Action

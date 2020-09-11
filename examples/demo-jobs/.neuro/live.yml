@@ -99,26 +99,16 @@ jobs:
         python ${{ volumes.code.mount }}/train.py --data ${{ volumes.data.mount }} ${{ multi.args }}
 
   jupyter:
-    http_port: 8888
-    browse: True
-    detach: True
-    life_span: 10d
-    volumes:
-      - ${{ volumes.data.ref_ro }}
-      - ${{ volumes.code.ref_rw }}
-      - ${{ volumes.config.ref_ro }}
-      - ${{ volumes.notebooks.ref_rw }}
-      - ${{ volumes.results.ref_rw }}
-    env:
-      PYTHONPATH: ${{ volumes.code.mount }}
-    image: ${{ images.img.ref }}
-    cmd: >-
-      jupyter notebook
-        --no-browser
-        --ip=0.0.0.0
-        --allow-root
-        --NotebookApp.token=
-        --notebook-dir=${{ volumes.notebooks.mount }}
+    action: ws:.neuro/jupyter
+    args:
+      volume_data: ${{ volumes.data.ref_ro }}
+      volume_code: ${{ volumes.code.ref_rw }}
+      volume_config: ${{ volumes.config.ref_ro }}
+      volume_notebooks: ${{ volumes.notebooks.ref_rw }}
+      volume_results: ${{ volumes.results.ref_rw }}
+      python_path: ${{ volumes.code.mount }}
+      image: ${{ images.img.ref }}
+      notebook_dir: ${{ volumes.notebooks.mount }}
 
   tensorboard:
     preset: cpu-small

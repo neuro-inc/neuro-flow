@@ -97,7 +97,7 @@ def test_parse_full(assets: pathlib.Path) -> None:
     flow = parse_live(workspace, config_file)
     assert flow == ast.LiveFlow(
         Pos(0, 0, config_file),
-        Pos(51, 0, config_file),
+        Pos(53, 0, config_file),
         id=SimpleOptIdExpr(
             Pos(0, 0, config_file),
             Pos(0, 0, config_file),
@@ -193,7 +193,7 @@ def test_parse_full(assets: pathlib.Path) -> None:
         jobs={
             "test_a": ast.Job(
                 Pos(30, 4, config_file),
-                Pos(51, 0, config_file),
+                Pos(53, 0, config_file),
                 name=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "job-name"
                 ),
@@ -223,15 +223,25 @@ def test_parse_full(assets: pathlib.Path) -> None:
                     ),
                 },
                 volumes=[
-                    StrExpr(
+                    OptStrExpr(
                         Pos(0, 0, config_file),
                         Pos(0, 0, config_file),
                         "${{ volumes.volume_a.ref }}",
                     ),
-                    StrExpr(
+                    OptStrExpr(
                         Pos(0, 0, config_file),
                         Pos(0, 0, config_file),
                         "storage:dir:/var/dir:ro",
+                    ),
+                    OptStrExpr(
+                        Pos(0, 0, config_file),
+                        Pos(0, 0, config_file),
+                        "",
+                    ),
+                    OptStrExpr(
+                        Pos(0, 0, config_file),
+                        Pos(0, 0, config_file),
+                        None,
                     ),
                 ],
                 tags=[
