@@ -74,7 +74,7 @@ from .types import LocalPath, RemotePath
 
 class NotAvailable(LookupError):
     def __init__(self, ctx_name: str) -> None:
-        super().__init__(f"Context {ctx_name} is not available")
+        super().__init__(f"The '{ctx_name}' context is not available")
 
 
 class UnknownJob(KeyError):
@@ -382,7 +382,7 @@ class BaseFlowContext(BaseContext):
         scheme, sep, spec = action_name.partition(":")
         if not sep:
             raise ValueError(f"{action_name} has no schema")
-        if scheme == "workspace":
+        if scheme in ("ws", "workspace"):
             path = self.flow.workspace / spec
             if not path.exists():
                 path = path.with_suffix(".yml")
@@ -461,14 +461,8 @@ class LiveContext(BaseFlowContext):
         return sorted(self._ast_flow.jobs)
 
     async def is_multi(self, job_id: str) -> bool:
-        assert isinstance(self._ast_flow, self.FLOW_TYPE)
-        try:
-            job = self._ast_flow.jobs[job_id]
-        except KeyError:
-            raise UnknownJob(job_id)
-        assert isinstance(job, ast.Job)
-        multi = await job.multi.eval(EMPTY_ROOT)
-        return bool(multi)  # None is False
+        meta_ctx = await self.with_meta(job_id)
+        return meta_ctx.meta.multi
 
     async def with_multi(
         self, *, suffix: str, args: Optional[Sequence[str]]

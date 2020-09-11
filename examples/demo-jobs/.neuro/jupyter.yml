@@ -1,0 +1,55 @@
+kind: live
+name: Jupyter Notebook
+author: Andrew Svetlov
+descr: Start Jupyter Notebook
+inputs:
+  image:
+    descr: image ref for Jupyter Notebook
+  volume_data:
+    descr: data mount
+    default: ''
+  volume_code:
+    descr: code mount
+    default: ''
+  volume_config:
+    descr: config mount
+    default: ''
+  volume_notebooks:
+    descr: notebooks mount
+    default: ''
+  volume_results:
+    descr: results mount
+    default: ''
+  http_port:
+    descr: http port to serve
+    default: '8888'
+  life_span:
+    descr: life span
+    default: 10d
+  notebook_dir:
+    descr: a folder for notebooks
+    default: ''
+  python_path:
+    descr: additional import path for Python
+    default: ''
+job:
+  http_port: ${{ inputs.http_port }}
+  browse: True
+  detach: True
+  life_span: ${{ inputs.life_span }}
+  volumes:
+    - ${{ inputs.volume_data }}
+    - ${{ inputs.volume_code }}
+    - ${{ inputs.volume_config }}
+    - ${{ inputs.volume_notebooks }}
+    - ${{ inputs.volume_results }}
+  env:
+    PYTHONPATH: ${{ inputs.python_path }}
+  image: ${{ inputs.image }}
+  cmd: >-
+    jupyter notebook
+      --no-browser
+      --ip=0.0.0.0
+      --allow-root
+      --NotebookApp.token=
+      --notebook-dir=${{ inputs.notebook_dir }}

@@ -7,34 +7,34 @@ defaults:
 
 volumes:
   data:
-    remote: storage:${{ flow.id }}/data
+    remote: storage:${{ flow.project_id }}/data
     mount: /project/data
     local: data
     read_only: True
   code:
-    remote: storage:${{ flow.id }}/modules
+    remote: storage:${{ flow.project_id }}/modules
     mount: /project/modules
     local: modules
   config:
-    remote: storage:${{ flow.id }}/config
+    remote: storage:${{ flow.project_id }}/config
     mount: /project/config
     local: config
   notebooks:
-    remote: storage:${{ flow.id }}/notebooks
+    remote: storage:${{ flow.project_id }}/notebooks
     mount: /project/notebooks
     local: notebooks
   results:
-    remote: storage:${{ flow.id }}/results
+    remote: storage:${{ flow.project_id }}/results
     mount: /project/results
     local: results
   project:
-    remote: storage:${{ flow.id }}
+    remote: storage:${{ flow.project_id }}
     mount: /project
     read_only: True
 
 images:
   img:
-    ref: image:${{ flow.id }}:v1.0
+    ref: image:${{ flow.project_id }}:v1.0
     dockerfile: ${{ flow.workspace }}/Dockerfile
     context: ${{ flow.workspace }}
 
