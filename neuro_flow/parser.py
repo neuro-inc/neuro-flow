@@ -913,8 +913,19 @@ def parse_action_outputs(
 ActionLoader.add_path_resolver("action:outputs", [(dict, "outputs")])  # type: ignore
 ActionLoader.add_constructor("action:outputs", parse_action_outputs)  # type: ignore
 
+
+def parse_job_in_live_action(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Job:
+    ret = parse_job(ctor, node)
+    if not isinstance(ret, ast.Job):
+        raise ConstructorError(
+            f"nested actions are forbidden",
+            node.start_mark,
+        )
+    return ret
+
+
 ActionLoader.add_path_resolver("action:job", [(dict, "job")])  # type: ignore
-ActionLoader.add_constructor("action:job", parse_job)  # type: ignore
+ActionLoader.add_constructor("action:job", parse_job_in_live_action)  # type: ignore
 
 ActionLoader.add_path_resolver(  # type: ignore[no-untyped-call]
     "action:task", [(dict, "tasks"), (list, None)]

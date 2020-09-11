@@ -542,6 +542,7 @@ class LiveContext(BaseFlowContext):
                     args[k] = await v.eval(self)
 
             action_ctx = await action_ctx.with_inputs(args)
+            assert isinstance(action.job, ast.Job)
             job_ctx, env, tags = await self._calc_job(
                 action_ctx,
                 self.flow.flow_id,
