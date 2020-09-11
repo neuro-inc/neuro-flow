@@ -235,7 +235,7 @@ async def test_pipeline_seq(assets: pathlib.Path) -> None:
     assert ctx2.task.http_port is None
     assert not ctx2.task.http_auth
     assert ctx2.task.entrypoint is None
-    assert ctx2.task.cmd == "bash -euxo pipefail -c 'echo def'"
+    assert ctx2.task.cmd == "bash -euo pipefail -c 'echo def'"
     assert ctx2.task.workdir is None
     assert ctx2.task.volumes == []
     assert ctx2.tags == {"project:unit", "flow:batch-seq", "task:task-2"}
@@ -266,7 +266,7 @@ async def test_pipeline_needs(assets: pathlib.Path) -> None:
     assert ctx2.task.http_port is None
     assert not ctx2.task.http_auth
     assert ctx2.task.entrypoint is None
-    assert ctx2.task.cmd == "bash -euxo pipefail -c 'echo def'"
+    assert ctx2.task.cmd == "bash -euo pipefail -c 'echo def'"
     assert ctx2.task.workdir is None
     assert ctx2.task.volumes == []
     assert ctx2.tags == {"project:unit", "flow:batch-needs", "task:task-2"}
@@ -382,7 +382,7 @@ async def test_pipeline_matrix_2(assets: pathlib.Path) -> None:
     assert not ctx2.task.http_auth
     assert ctx2.task.entrypoint is None
     assert ctx2.task.cmd == (
-        """bash -euxo pipefail -c \'echo "Task B a 1"\necho value\n\'"""
+        """bash -euo pipefail -c \'echo "Task B a 1"\necho value\n\'"""
     )
     assert ctx2.task.workdir is None
     assert ctx2.task.volumes == []
@@ -482,7 +482,7 @@ async def test_job_with_live_action(assets: pathlib.Path) -> None:
     assert ctx2.job.http_port is None
     assert not ctx2.job.http_auth
     assert ctx2.job.entrypoint is None
-    assert ctx2.job.cmd == "bash -euxo pipefail -c 'echo A val 1 B value 2 C'"
+    assert ctx2.job.cmd == "bash -euo pipefail -c 'echo A val 1 B value 2 C'"
     assert ctx2.job.workdir is None
     assert ctx2.job.volumes == []
     assert ctx2.tags == {

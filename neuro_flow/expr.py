@@ -675,7 +675,7 @@ class OptRemotePathExpr(RemotePathMixin, Expr[RemotePath]):
 class OptBashExpr(OptStrExpr):
     @classmethod
     def convert(cls, arg: str) -> str:
-        ret = " ".join(["bash", "-euxo", "pipefail", "-c", shlex.quote(arg)])
+        ret = " ".join(["bash", "-euo", "pipefail", "-c", shlex.quote(arg)])
         return ret
 
 
