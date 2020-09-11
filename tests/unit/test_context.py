@@ -18,8 +18,8 @@ from neuro_flow.types import LocalPath, RemotePath
 
 def test_inavailable_context_ctor() -> None:
     err = NotAvailable("job")
-    assert err.args == ("Context job is not available",)
-    assert str(err) == "Context job is not available"
+    assert err.args == ("The 'job' context is not available",)
+    assert str(err) == "The 'job' context is not available"
 
 
 async def test_ctx_flow(assets: pathlib.Path) -> None:
