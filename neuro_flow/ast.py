@@ -71,7 +71,7 @@ class ExecUnit(Base):
     cmd: OptStrExpr
     workdir: OptRemotePathExpr
     env: Optional[Mapping[str, StrExpr]] = field(metadata={"allow_none": True})
-    volumes: Optional[Sequence[StrExpr]] = field(metadata={"allow_none": True})
+    volumes: Optional[Sequence[OptStrExpr]] = field(metadata={"allow_none": True})
     tags: Optional[Sequence[StrExpr]] = field(metadata={"allow_none": True})
     life_span: OptLifeSpanExpr
     http_port: OptIntExpr

@@ -27,7 +27,7 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
     flow = parse_batch(workspace, config_file)
     assert flow == ast.BatchFlow(
         Pos(0, 0, config_file),
-        Pos(47, 0, config_file),
+        Pos(49, 0, config_file),
         id=SimpleOptIdExpr(
             Pos(0, 0, config_file),
             Pos(0, 0, config_file),
@@ -124,7 +124,7 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
         tasks=[
             ast.Task(
                 _start=Pos(29, 4, config_file),
-                _end=Pos(47, 0, config_file),
+                _end=Pos(49, 0, config_file),
                 id=OptIdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "test_a"),
                 title=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "Batch title"
@@ -159,15 +159,25 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
                     ),
                 },
                 volumes=[
-                    StrExpr(
+                    OptStrExpr(
                         Pos(0, 0, config_file),
                         Pos(0, 0, config_file),
                         "${{ volumes.volume_a.ref }}",
                     ),
-                    StrExpr(
+                    OptStrExpr(
                         Pos(0, 0, config_file),
                         Pos(0, 0, config_file),
                         "storage:dir:/var/dir:ro",
+                    ),
+                    OptStrExpr(
+                        Pos(0, 0, config_file),
+                        Pos(0, 0, config_file),
+                        "",
+                    ),
+                    OptStrExpr(
+                        Pos(0, 0, config_file),
+                        Pos(0, 0, config_file),
+                        None,
                     ),
                 ],
                 tags=[

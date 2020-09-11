@@ -602,7 +602,10 @@ class LiveContext(BaseFlowContext):
 
         volumes = []
         if job.volumes is not None:
-            volumes = [await v.eval(ctx) for v in job.volumes]
+            for v in job.volumes:
+                val = await v.eval(ctx)
+                if val:
+                    volumes.append(val)
 
         life_span = (await job.life_span.eval(ctx)) or defaults.life_span
 
@@ -856,7 +859,10 @@ class BatchContext(BaseFlowContext):
 
         volumes = []
         if prep_task.ast.volumes is not None:
-            volumes = [await v.eval(ctx) for v in prep_task.ast.volumes]
+            for v in prep_task.ast.volumes:
+                val = await v.eval(ctx)
+                if val:
+                    volumes.append(val)
 
         life_span = (await prep_task.ast.life_span.eval(ctx)) or ctx.defaults.life_span
 

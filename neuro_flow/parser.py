@@ -548,7 +548,7 @@ EXEC_UNIT = {
     "python": OptPythonExpr,
     "workdir": OptRemotePathExpr,
     "env": SimpleMapping(StrExpr),
-    "volumes": SimpleSeq(StrExpr),
+    "volumes": SimpleSeq(OptStrExpr),
     "tags": SimpleSeq(StrExpr),
     "life_span": OptLifeSpanExpr,
     "http_port": OptIntExpr,

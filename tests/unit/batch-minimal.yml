@@ -41,6 +41,8 @@ tasks:
     volumes:
       - ${{ volumes.volume_a.ref }}
       - storage:dir:/var/dir:ro
+      - ''
+      - ~
     tags: [tag-1, tag-2]
     life_span: 2h55m
     http_port: 8080
