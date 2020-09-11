@@ -1,0 +1,6 @@
+kind: batch
+tasks:
+- test:
+  action: ws:batch-action
+  args:
+    arg1: val 1
