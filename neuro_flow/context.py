@@ -17,6 +17,7 @@ from typing import (
     Tuple,
     Type,
     TypeVar,
+    Union,
     cast,
 )
 from yarl import URL
@@ -146,7 +147,7 @@ class JobMetaCtx:
 
 
 @dataclass(frozen=True)
-class PreparedTaskCtx:
+class BasePrepTaskCtx:
     id: Optional[str]
     real_id: str
 
@@ -154,7 +155,15 @@ class PreparedTaskCtx:
     matrix: MatrixCtx
     strategy: StrategyCtx
 
+
+@dataclass(frozen=True)
+class PrepTaskCtx(BasePrepTaskCtx):
     ast: ast.Task
+
+
+@dataclass(frozen=True)
+class PrepBatchCallCtx(BasePrepTaskCtx):
+    action: ast.TaskActionCall
 
 
 @dataclass(frozen=True)
@@ -630,127 +639,17 @@ class LiveContext(BaseFlowContext):
 
 
 @dataclass(frozen=True)
-class BatchContext(BaseFlowContext):
-    FLOW_TYPE: ClassVar[Type[ast.BatchFlow]] = field(init=False, default=ast.BatchFlow)
+class TaskContext(BaseContext):
     LOOKUP_KEYS: ClassVar[Tuple[str, ...]] = field(
         init=False,
-        default=BaseFlowContext.LOOKUP_KEYS
-        + ("args", "batch", "needs", "matrix", "strategy"),
+        default=BaseContext.LOOKUP_KEYS + ("needs", "matrix", "strategy"),
     )
-    _args: Optional[Mapping[str, str]] = None
+
     _task: Optional[TaskCtx] = None
     _needs: Optional[NeedsCtx] = None
-    _prep_tasks: Optional[Mapping[str, PreparedTaskCtx]] = None
-    _graph: Optional[Mapping[str, AbstractSet[str]]] = None
+    _prep_tasks: Optional[Mapping[str, BasePrepTaskCtx]] = None
     _matrix: Optional[MatrixCtx] = None
     _strategy: Optional[StrategyCtx] = None
-
-    @classmethod
-    async def create(
-        cls: Type[_CtxT],
-        ast_flow: ast.BaseFlow,
-        workspace: LocalPath,
-        config_file: LocalPath,
-    ) -> _CtxT:
-        ctx = await super(cls, BatchContext).create(ast_flow, workspace, config_file)
-        assert isinstance(ctx._ast_flow, ast.BatchFlow)
-        prep_tasks = {}
-        last_needs: Set[str] = set()
-        for num, ast_task in enumerate(ctx._ast_flow.tasks, 1):
-            assert isinstance(ast_task, ast.Task)
-
-            # eval matrix
-            matrix: Sequence[MatrixCtx]
-            strategy: StrategyCtx
-            default_strategy = StrategyCtx()
-            if ast_task.strategy is not None:
-                fail_fast = await ast_task.strategy.fail_fast.eval(ctx)
-                if fail_fast is None:
-                    fail_fast = default_strategy.fail_fast
-                max_parallel = await ast_task.strategy.max_parallel.eval(ctx)
-                if max_parallel is None:
-                    max_parallel = default_strategy.max_parallel
-                strategy = StrategyCtx(fail_fast=fail_fast, max_parallel=max_parallel)
-                if ast_task.strategy.matrix is not None:
-                    matrix = await ctx._build_matrix(ast_task.strategy)
-                    matrix = await ctx._exclude(ast_task.strategy, matrix)
-                    matrix = await ctx._include(ast_task.strategy, matrix)
-
-                    if len(matrix) > 256:
-                        raise EvalError(
-                            f"The matrix size for task #{num} exceeds the limit of 256",
-                            ast_task.strategy.matrix._start,
-                            ast_task.strategy.matrix._end,
-                        )
-                else:
-                    matrix = [{}]  # dummy
-            else:
-                strategy = default_strategy  # default
-                matrix = [{}]  # dummy
-
-            real_ids = set()
-            for row in matrix:
-                # make prep patch(es)
-                matrix_ctx = await ctx.with_matrix(row)
-                task_id = await ast_task.id.eval(matrix_ctx)
-                if task_id is None:
-                    # Dash is not allowed in identifier, so the generated read id
-                    # never clamps with user_provided one.
-                    suffix = [str(row[k]) for k in sorted(row)]
-                    real_id = "-".join(["task", str(num), *suffix])
-                else:
-                    real_id = task_id
-                if real_id in prep_tasks:
-                    raise ValueError(f"Duplicated task id {real_id}")
-                if ast_task.needs is not None:
-                    needs = {await need.eval(matrix_ctx) for need in ast_task.needs}
-                else:
-                    needs = last_needs
-
-                prep = PreparedTaskCtx(
-                    id=task_id,
-                    real_id=real_id,
-                    needs=needs,
-                    matrix=row,
-                    strategy=strategy,
-                    ast=ast_task,
-                )
-                prep_tasks[real_id] = prep
-                real_ids.add(real_id)
-
-            last_needs = real_ids
-
-        graph: Dict[str, AbstractSet[str]] = {}
-        for key, val in prep_tasks.items():
-            graph[key] = val.needs
-
-        return replace(  # type: ignore[return-value]
-            ctx, _prep_tasks=prep_tasks, _graph=graph
-        )
-
-    async def _with_args(self: _CtxT) -> _CtxT:
-        # Calculate batch args context early, no-op for live mode
-        assert isinstance(self, BaseFlowContext)
-        assert isinstance(self._ast_flow, ast.BatchFlow)
-        args = {}
-        if self._ast_flow.args is not None:
-            for k, v in self._ast_flow.args.items():
-                default = await v.default.eval(EMPTY_ROOT)
-                # descr = await v.descr.eval(EMPTY_ROOT)
-                if default is None:
-                    raise EvalError(
-                        f"Arg {k} is not initialized and has no default value",
-                        v._start,
-                        v._end,
-                    )
-                args[k] = default
-        return replace(self, _args=args)  # type: ignore[return-value]
-
-    @property
-    def args(self) -> Mapping[str, str]:
-        if self._args is None:
-            raise NotAvailable("args")
-        return self._args
 
     @property
     def task(self) -> TaskCtx:
@@ -780,27 +679,209 @@ class BatchContext(BaseFlowContext):
     def graph(self) -> Mapping[str, AbstractSet[str]]:
         # Batch names, sorted by the execution order.
         # Batches from each set in the list can be executed concurrently.
-        assert self._graph is not None
-        return self._graph
-
-    @property
-    def cardinality(self) -> int:
-        # 1 slot for started task and another one for finished
         assert self._prep_tasks is not None
-        return len(self._prep_tasks) * 2
+        ret = {}
+        for key, val in self._prep_tasks.items():
+            ret[key] = val.needs
+        return ret
 
     def get_dep_ids(self, real_id: str) -> AbstractSet[str]:
         assert self._prep_tasks is not None
         prep_task = self._prep_tasks[real_id]
         return prep_task.needs
 
-    async def with_matrix(self, matrix: MatrixCtx) -> "BatchContext":
+    async def with_matrix(self: _CtxT, matrix: MatrixCtx) -> _CtxT:
+        assert isinstance(self, TaskContext)
         if self._matrix is not None:
             raise TypeError(
                 "Cannot enter into the matrix context if "
                 "the matrix is already initialized"
             )
-        return replace(self, _matrix=matrix)
+        return replace(self, _matrix=matrix)  # type: ignore[return-value]
+
+    async def _prepare(
+        self, tasks: Sequence[Union[ast.Task, ast.TaskActionCall]]
+    ) -> Dict[str, BasePrepTaskCtx]:
+        prep_tasks: Dict[str, BasePrepTaskCtx] = {}
+        last_needs: Set[str] = set()
+        for num, ast_task in enumerate(tasks, 1):
+            assert isinstance(ast_task, (ast.Task, ast.TaskActionCall))
+
+            # eval matrix
+            matrix: Sequence[MatrixCtx]
+            strategy: StrategyCtx
+            default_strategy = StrategyCtx()
+            if ast_task.strategy is not None:
+                fail_fast = await ast_task.strategy.fail_fast.eval(self)
+                if fail_fast is None:
+                    fail_fast = default_strategy.fail_fast
+                max_parallel = await ast_task.strategy.max_parallel.eval(self)
+                if max_parallel is None:
+                    max_parallel = default_strategy.max_parallel
+                strategy = StrategyCtx(fail_fast=fail_fast, max_parallel=max_parallel)
+                if ast_task.strategy.matrix is not None:
+                    matrix = await self._build_matrix(ast_task.strategy)
+                    matrix = await self._exclude(ast_task.strategy, matrix)
+                    matrix = await self._include(ast_task.strategy, matrix)
+
+                    if len(matrix) > 256:
+                        raise EvalError(
+                            f"The matrix size for task #{num} exceeds the limit of 256",
+                            ast_task.strategy.matrix._start,
+                            ast_task.strategy.matrix._end,
+                        )
+                else:
+                    matrix = [{}]  # dummy
+            else:
+                strategy = default_strategy  # default
+                matrix = [{}]  # dummy
+
+            real_ids = set()
+            for row in matrix:
+                # make prep patch(es)
+                matrix_ctx = await self.with_matrix(row)
+                task_id = await ast_task.id.eval(matrix_ctx)
+                if task_id is None:
+                    # Dash is not allowed in identifier, so the generated read id
+                    # never clamps with user_provided one.
+                    suffix = [str(row[k]) for k in sorted(row)]
+                    real_id = "-".join(["task", str(num), *suffix])
+                else:
+                    real_id = task_id
+                if real_id in prep_tasks:
+                    raise ValueError(f"Duplicated task id {real_id}")
+                if ast_task.needs is not None:
+                    needs = {await need.eval(matrix_ctx) for need in ast_task.needs}
+                else:
+                    needs = last_needs
+
+                if isinstance(ast_task, ast.Task):
+                    prep_task = PrepTaskCtx(
+                        id=task_id,
+                        real_id=real_id,
+                        needs=needs,
+                        matrix=row,
+                        strategy=strategy,
+                        ast=ast_task,
+                    )
+                    prep_tasks[real_id] = prep_task
+                else:
+                    prep_call = PrepBatchCallCtx(
+                        id=task_id,
+                        real_id=real_id,
+                        needs=needs,
+                        matrix=row,
+                        strategy=strategy,
+                        action=ast_task,
+                    )
+                    prep_tasks[real_id] = prep_call
+                real_ids.add(real_id)
+
+            last_needs = real_ids
+        return prep_tasks
+
+    async def _build_matrix(self, strategy: ast.Strategy) -> Sequence[MatrixCtx]:
+        assert strategy.matrix is not None
+        products = []
+        for k, lst in strategy.matrix.products.items():
+            lst2 = [{k: await i.eval(self)} for i in lst]
+            products.append(lst2)
+        ret = []
+        for row in itertools.product(*products):
+            dct: Dict[str, LiteralT] = {}
+            for elem in row:
+                dct.update(elem)
+            ret.append(dct)
+        return ret
+
+    async def _exclude(
+        self, strategy: ast.Strategy, matrix: Sequence[MatrixCtx]
+    ) -> Sequence[MatrixCtx]:
+        assert strategy.matrix is not None
+        exclude = []
+        for dct in strategy.matrix.exclude:
+            exclude.append({k: await v.eval(self) for k, v in dct.items()})
+        ret = []
+        for row in matrix:
+            include = True
+            for exc in exclude:
+                match = True
+                for k, v in exc.items():
+                    if row[k] != v:
+                        match = False
+                        break
+                if match:
+                    include = False
+                    break
+            if include:
+                ret.append(row)
+        return ret
+
+    async def _include(
+        self, strategy: ast.Strategy, matrix: Sequence[MatrixCtx]
+    ) -> Sequence[MatrixCtx]:
+        assert strategy.matrix is not None
+        ret = list(matrix)
+        for dct in strategy.matrix.include:
+            ret.append({k: await v.eval(self) for k, v in dct.items()})
+        return ret
+
+
+@dataclass(frozen=True)
+class BatchContext(TaskContext, BaseFlowContext):
+    FLOW_TYPE: ClassVar[Type[ast.BatchFlow]] = field(init=False, default=ast.BatchFlow)
+    LOOKUP_KEYS: ClassVar[Tuple[str, ...]] = field(
+        init=False,
+        default=BaseFlowContext.LOOKUP_KEYS
+        + TaskContext.LOOKUP_KEYS
+        + ("args", "needs"),
+    )
+    _args: Optional[Mapping[str, str]] = None
+
+    @classmethod
+    async def create(
+        cls: Type[_CtxT],
+        ast_flow: ast.BaseFlow,
+        workspace: LocalPath,
+        config_file: LocalPath,
+    ) -> _CtxT:
+        ctx = await super(cls, BatchContext).create(ast_flow, workspace, config_file)
+        assert issubclass(cls, BatchContext), cls
+        assert isinstance(ctx._ast_flow, ast.BatchFlow)
+
+        prep_tasks = await cls._prepare(ctx, ctx._ast_flow.tasks)
+
+        return replace(ctx, _prep_tasks=prep_tasks)
+
+    async def _with_args(self: _CtxT) -> _CtxT:
+        # Calculate batch args context early, no-op for live mode
+        assert isinstance(self, BaseFlowContext)
+        assert isinstance(self._ast_flow, ast.BatchFlow)
+        args = {}
+        if self._ast_flow.args is not None:
+            for k, v in self._ast_flow.args.items():
+                default = await v.default.eval(EMPTY_ROOT)
+                # descr = await v.descr.eval(EMPTY_ROOT)
+                if default is None:
+                    raise EvalError(
+                        f"Arg {k} is not initialized and has no default value",
+                        v._start,
+                        v._end,
+                    )
+                args[k] = default
+        return replace(self, _args=args)  # type: ignore[return-value]
+
+    @property
+    def args(self) -> Mapping[str, str]:
+        if self._args is None:
+            raise NotAvailable("args")
+        return self._args
+
+    @property
+    def cardinality(self) -> int:
+        # 1 slot for started task and another one for finished
+        assert self._prep_tasks is not None
+        return len(self._prep_tasks) * 2
 
     async def with_task(self, real_id: str, *, needs: NeedsCtx) -> "BatchContext":
         # real_id -- the task's real id
@@ -820,6 +901,8 @@ class BatchContext(BaseFlowContext):
             prep_task = self._prep_tasks[real_id]
         except KeyError:
             raise UnknownTask(real_id)
+
+        assert isinstance(prep_task, PrepTaskCtx), prep_task
 
         if needs.keys() != prep_task.needs:
             extra = ",".join(needs.keys() - prep_task.needs)
@@ -884,52 +967,6 @@ class BatchContext(BaseFlowContext):
             _env=env,
             _tags=ctx.tags | tags,
         )
-
-    async def _build_matrix(self, strategy: ast.Strategy) -> Sequence[MatrixCtx]:
-        assert strategy.matrix is not None
-        products = []
-        for k, lst in strategy.matrix.products.items():
-            lst2 = [{k: await i.eval(self)} for i in lst]
-            products.append(lst2)
-        ret = []
-        for row in itertools.product(*products):
-            dct: Dict[str, LiteralT] = {}
-            for elem in row:
-                dct.update(elem)
-            ret.append(dct)
-        return ret
-
-    async def _exclude(
-        self, strategy: ast.Strategy, matrix: Sequence[MatrixCtx]
-    ) -> Sequence[MatrixCtx]:
-        assert strategy.matrix is not None
-        exclude = []
-        for dct in strategy.matrix.exclude:
-            exclude.append({k: await v.eval(self) for k, v in dct.items()})
-        ret = []
-        for row in matrix:
-            include = True
-            for exc in exclude:
-                match = True
-                for k, v in exc.items():
-                    if row[k] != v:
-                        match = False
-                        break
-                if match:
-                    include = False
-                    break
-            if include:
-                ret.append(row)
-        return ret
-
-    async def _include(
-        self, strategy: ast.Strategy, matrix: Sequence[MatrixCtx]
-    ) -> Sequence[MatrixCtx]:
-        assert strategy.matrix is not None
-        ret = list(matrix)
-        for dct in strategy.matrix.include:
-            ret.append({k: await v.eval(self) for k, v in dct.items()})
-        return ret
 
 
 @dataclass(frozen=True)
