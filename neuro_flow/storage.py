@@ -383,6 +383,7 @@ class BatchFSStorage(BatchStorage):
         task_id: str,
         descr: JobDescription,
     ) -> StartedTask:
+        assert 0 < task_no < int("9" * DIGITS), task_no
         bake_uri = _mk_bake_uri(attempt.bake)
         attempt_url = bake_uri / f"{attempt.number:02d}.attempt"
         pre = str(task_no + 1).zfill(DIGITS)
@@ -412,6 +413,7 @@ class BatchFSStorage(BatchStorage):
         descr: JobDescription,
         outputs: Mapping[str, str],
     ) -> FinishedTask:
+        assert 0 < task_no < int("9" * DIGITS), task_no
         assert task.raw_id == descr.id
         assert task.created_at == descr.history.created_at
         bake_uri = _mk_bake_uri(attempt.bake)
