@@ -102,7 +102,6 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             batch_name,
             config_file.name,
             config_content,
-            ctx.cardinality,
             ctx.graph,
         )
         click.echo(f"Bake {bake} created")
@@ -146,7 +145,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             for tid in finished:
                 toposorter.done(tid)
 
-            while True:
+            while toposorter.is_active():
                 for tid in toposorter.get_ready():
                     if tid in started:
                         continue
@@ -177,19 +176,17 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                         click.echo(f"Task {st.id} [{st.raw_id}] finished")
                         toposorter.done(st.id)
 
-                if len(finished) == ctx.cardinality // 2:
-                    click.echo(f"Attempt #{attempt.number} finished")
-                    await self._storage.finish_attempt(
-                        attempt,
-                        self._accumulate_result(finished.values()),
-                    )
-                    return
-
                 # AS: I have no idea what timeout is better;
                 # too short value bombards servers,
                 # too long timeout makes the waiting longer than expected
                 # The missing events subsystem would be great for this task :)
                 await asyncio.sleep(1)
+
+            click.echo(f"Attempt #{attempt.number} finished")
+            await self._storage.finish_attempt(
+                attempt,
+                self._accumulate_result(finished.values()),
+            )
 
     def _accumulate_result(self, finished: Iterable[FinishedTask]) -> JobStatus:
         for task in finished:
