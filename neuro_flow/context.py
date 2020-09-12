@@ -266,28 +266,51 @@ class BaseContext(RootABC):
 
 
 @dataclass(frozen=True)
-class BaseFlowContext(BaseContext):
-    FLOW_TYPE: ClassVar[Type[ast.BaseFlow]] = field(init=False)
+class EnvTagsContext(BaseContext):
     LOOKUP_KEYS: ClassVar[Tuple[str, ...]] = field(
         init=False,
         default=BaseContext.LOOKUP_KEYS
+        + (
+            "env",
+            "tags",
+        ),
+    )
+
+    _env: Optional[Mapping[str, str]] = None
+    _tags: Optional[AbstractSet[str]] = None
+
+    @property
+    def env(self) -> Mapping[str, str]:
+        if self._env is None:
+            raise NotAvailable("env")
+        return self._env
+
+    @property
+    def tags(self) -> AbstractSet[str]:
+        if self._tags is None:
+            raise NotAvailable("tags")
+        return self._tags
+
+
+@dataclass(frozen=True)
+class BaseFlowContext(EnvTagsContext):
+    FLOW_TYPE: ClassVar[Type[ast.BaseFlow]] = field(init=False)
+    LOOKUP_KEYS: ClassVar[Tuple[str, ...]] = field(
+        init=False,
+        default=EnvTagsContext.LOOKUP_KEYS
         + (
             "flow",
             "defaults",
             "volumes",
             "images",
-            "env",
-            "tags",
             "job",
             "batch",
         ),
     )
 
-    _ast_flow: ast.BaseFlow
-    flow: FlowCtx
+    _ast_flow: Optional[ast.BaseFlow] = None
+    _flow: Optional[FlowCtx] = None
     _defaults: Optional[DefaultsCtx] = None
-    _env: Optional[Mapping[str, str]] = None
-    _tags: Optional[AbstractSet[str]] = None
 
     _images: Optional[Mapping[str, ImageCtx]] = None
     _volumes: Optional[Mapping[str, VolumeCtx]] = None
@@ -316,7 +339,7 @@ class BaseFlowContext(BaseContext):
             title=flow_title or flow_id,
         )
 
-        ctx = cls(_ast_flow=ast_flow, flow=flow)
+        ctx = cls(_ast_flow=ast_flow, _flow=flow)
         ctx = await ctx._with_args()
 
         ast_defaults = ast_flow.defaults
@@ -381,10 +404,13 @@ class BaseFlowContext(BaseContext):
                     full_dockerfile_path=calc_full_path(ctx, dockerfile_path),
                     build_args=build_args,
                 )
-        return replace(  # type: ignore[return-value]
-            ctx,
-            _volumes=volumes,
-            _images=images,
+        return cast(
+            _CtxT,
+            replace(
+                ctx,
+                _volumes=volumes,
+                _images=images,
+            ),
         )
 
     async def fetch_action(self, action_name: str) -> ast.BaseAction:
@@ -402,10 +428,10 @@ class BaseFlowContext(BaseContext):
             raise ValueError(f"Unsupported scheme '{scheme}'")
 
     @property
-    def env(self) -> Mapping[str, str]:
-        if self._env is None:
-            raise NotAvailable("env")
-        return self._env
+    def flow(self) -> FlowCtx:
+        if self._flow is None:
+            raise NotAvailable("flow")
+        return self._flow
 
     @property
     def defaults(self) -> DefaultsCtx:
@@ -424,12 +450,6 @@ class BaseFlowContext(BaseContext):
         if self._images is None:
             raise NotAvailable("images")
         return self._images
-
-    @property
-    def tags(self) -> AbstractSet[str]:
-        if self._tags is None:
-            raise NotAvailable("tags")
-        return self._tags
 
     async def _with_args(self: _CtxT) -> _CtxT:
         # Calculate batch args context early, no-op for live mode
@@ -697,7 +717,7 @@ class TaskContext(BaseContext):
                 "Cannot enter into the matrix context if "
                 "the matrix is already initialized"
             )
-        return replace(self, _matrix=matrix)  # type: ignore[return-value]
+        return cast(_CtxT, replace(self, _matrix=matrix))
 
     async def _prepare(
         self, tasks: Sequence[Union[ast.Task, ast.TaskActionCall]]
@@ -851,7 +871,7 @@ class BatchContext(TaskContext, BaseFlowContext):
 
         prep_tasks = await cls._prepare(ctx, ctx._ast_flow.tasks)
 
-        return replace(ctx, _prep_tasks=prep_tasks)
+        return cast(_CtxT, replace(ctx, _prep_tasks=prep_tasks))
 
     async def _with_args(self: _CtxT) -> _CtxT:
         # Calculate batch args context early, no-op for live mode
@@ -869,7 +889,7 @@ class BatchContext(TaskContext, BaseFlowContext):
                         v._end,
                     )
                 args[k] = default
-        return replace(self, _args=args)  # type: ignore[return-value]
+        return cast(_CtxT, replace(self, _args=args))
 
     @property
     def args(self) -> Mapping[str, str]:
@@ -990,11 +1010,14 @@ class ActionContext(BaseContext):
     ) -> _CtxT:
         assert issubclass(cls, ActionContext)
         assert isinstance(ast_action, ast.BaseAction)
-        return cls(  # type: ignore[return-value]
-            _ast=ast_action,
-            _inputs=None,
-            outputs={},
-            state={},
+        return cast(
+            _CtxT,
+            cls(
+                _ast=ast_action,
+                _inputs=None,
+                outputs={},
+                state={},
+            ),
         )
 
     @property
@@ -1014,7 +1037,7 @@ class ActionContext(BaseContext):
             if inputs:
                 raise ValueError(f"Unsupported input(s): {','.join(sorted(inputs))}")
             else:
-                return self  # type: ignore[return-value]
+                return cast(_CtxT, self)
         new_inputs = dict(inputs)
         for name, inp in self._ast.inputs.items():
             if name not in new_inputs and inp.default.pattern is not None:
@@ -1029,7 +1052,7 @@ class ActionContext(BaseContext):
         missing = self._ast.inputs.keys() - new_inputs.keys()
         if missing:
             raise ValueError(f"Required input(s): {','.join(sorted(missing))}")
-        return replace(self, _inputs=new_inputs)  # type: ignore[return-value]
+        return cast(_CtxT, replace(self, _inputs=new_inputs))
 
     async def with_state(
         self: _CtxT,
@@ -1038,13 +1061,13 @@ class ActionContext(BaseContext):
         assert isinstance(self, ActionContext)
         new_state = dict(self.state)
         new_state.update(state)
-        return replace(self, state=new_state)  # type: ignore[return-value]
+        return cast(_CtxT, replace(self, state=new_state))
 
     async def with_outputs(self: _CtxT, outputs: Mapping[str, str]) -> _CtxT:
         assert isinstance(self, ActionContext)
         new_outputs = dict(self.outputs)
         new_outputs.update(outputs)
-        return replace(self, outputs=new_outputs)  # type: ignore[return-value]
+        return cast(_CtxT, replace(self, outputs=new_outputs))
 
 
 def calc_full_path(
