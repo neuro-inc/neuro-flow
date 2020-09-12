@@ -494,3 +494,39 @@ async def test_job_with_live_action(assets: pathlib.Path) -> None:
     assert ctx2.job.port_forward == []
     assert not ctx2.job.detach
     assert not ctx2.job.browse
+
+
+async def test_pipeline_with_batch_action(assets: pathlib.Path) -> None:
+    workspace = assets
+    config_file = workspace / "batch-action-call.yml"
+    flow = parse_batch(workspace, config_file)
+    ctx = await BatchContext.create(flow, workspace, config_file)
+
+    ctx2 = await ctx.with_task("test", needs={})
+    assert ctx2.task.id == "test_a"
+    assert ctx2.task.real_id == "test_a"
+    assert ctx2.task.needs == set()
+    assert ctx2.task.title == "Batch title"
+    assert ctx2.task.name == "job-name"
+    assert ctx2.task.image == "image:banana"
+    assert ctx2.task.preset == "cpu-small"
+    assert ctx2.task.http_port == 8080
+    assert not ctx2.task.http_auth
+    assert ctx2.task.entrypoint == "bash"
+    assert ctx2.task.cmd == "echo abc"
+    assert ctx2.task.workdir == RemotePath("/local/dir")
+    assert ctx2.task.volumes == ["storage:dir:/var/dir:ro", "storage:dir:/var/dir:ro"]
+    assert ctx2.tags == {
+        "tag-1",
+        "tag-2",
+        "tag-a",
+        "tag-b",
+        "project:unit",
+        "flow:batch-minimal",
+    }
+    assert ctx2.task.life_span == 10500.0
+
+    assert ctx.graph == {"test_a": set()}
+    assert ctx2.matrix == {}
+    assert ctx2.strategy.max_parallel == 10
+    assert not ctx2.strategy.fail_fast

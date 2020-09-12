@@ -14,7 +14,7 @@ from neuro_flow.expr import (
     SimpleOptStrExpr,
     StrExpr,
 )
-from neuro_flow.parser import parse_action, parse_live
+from neuro_flow.parser import parse_action, parse_batch, parse_live
 from neuro_flow.tokenizer import Pos
 from neuro_flow.types import LocalPath
 
@@ -419,4 +419,46 @@ def test_parse_live_call(assets: LocalPath) -> None:
                 },
             )
         },
+    )
+
+
+def test_parse_batch_call(assets: LocalPath) -> None:
+    workspace = assets
+    config_file = workspace / "batch-action-call.yml"
+    flow = parse_batch(workspace, config_file)
+    assert flow == ast.BatchFlow(
+        Pos(0, 0, config_file),
+        Pos(6, 0, config_file),
+        args=None,
+        id=SimpleOptIdExpr(
+            Pos(0, 0, config_file),
+            Pos(0, 0, config_file),
+            None,
+        ),
+        kind=ast.FlowKind.BATCH,
+        title=SimpleOptStrExpr(
+            Pos(0, 0, config_file),
+            Pos(0, 0, config_file),
+            None,
+        ),
+        images=None,
+        volumes=None,
+        defaults=None,
+        tasks=[
+            ast.TaskActionCall(
+                Pos(2, 2, config_file),
+                Pos(6, 0, config_file),
+                id=OptIdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "test"),
+                needs=None,
+                strategy=None,
+                action=StrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "ws:batch-action"
+                ),
+                args={
+                    "arg1": StrExpr(
+                        Pos(0, 0, config_file), Pos(0, 0, config_file), "val 1"
+                    )
+                },
+            )
+        ],
     )

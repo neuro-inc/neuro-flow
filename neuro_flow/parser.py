@@ -655,8 +655,50 @@ TASK = {
 }
 
 
-def parse_task(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Task:
-    return parse_dict(ctor, node, TASK, ast.Task, preprocess=select_shells)
+TASK_ACTION_CALL = {
+    "id": OptIdExpr,
+    "needs": SimpleSeq(IdExpr),
+    "strategy": None,
+    "action": StrExpr,
+    "args": SimpleMapping(StrExpr),
+}
+
+
+TASK_OR_ACTION = {**TASK, **TASK_ACTION_CALL}
+
+
+def select_task_or_action(
+    ctor: BaseConstructor, node: yaml.MappingNode, dct: Dict[str, Any]
+) -> Dict[str, Any]:
+    if "action" in dct:
+        return {k: v for k, v in dct.items() if k in TASK_ACTION_CALL}
+    else:
+        dct2 = {k: v for k, v in dct.items() if k in TASK}
+        return select_shells(ctor, node, dct2)
+
+
+def find_task_type(
+    ctor: BaseConstructor,
+    node: yaml.MappingNode,
+    res_type: Type[ast.Base],
+    arg: Dict[str, Any],
+) -> Union[Type[ast.Task], Type[ast.TaskActionCall]]:
+    action = arg.get("action")
+    if action is None:
+        return ast.Task
+    else:
+        return ast.TaskActionCall
+
+
+def parse_task(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Base:
+    return parse_dict(
+        ctor,
+        node,
+        TASK_OR_ACTION,
+        ast.Base,
+        preprocess=select_task_or_action,
+        find_res_type=find_task_type,
+    )
 
 
 FlowLoader.add_path_resolver(  # type: ignore[no-untyped-call]
