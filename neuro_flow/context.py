@@ -813,8 +813,6 @@ class TaskContext(BaseContext):
         except KeyError:
             raise UnknownTask(real_id)
 
-        assert isinstance(prep_task, PrepTaskCtx), prep_task
-
         if needs.keys() != prep_task.needs:
             extra = ",".join(needs.keys() - prep_task.needs)
             missing = ",".join(prep_task.needs - needs.keys())
@@ -827,6 +825,8 @@ class TaskContext(BaseContext):
 
         ctx = await self.with_matrix(prep_task.matrix)
         ctx = replace(ctx, _needs=needs, _strategy=prep_task.strategy)
+
+        assert isinstance(prep_task, PrepTaskCtx), prep_task
 
         env = dict(ctx.env)
         if prep_task.ast.env is not None:
