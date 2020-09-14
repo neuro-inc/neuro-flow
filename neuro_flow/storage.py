@@ -26,6 +26,7 @@ STARTED_RE: Final = re.compile(r"\A\d+\.(?P<id>[a-zA-Z][a-zA-Z0-9_\-]*).started.
 FINISHED_RE: Final = re.compile(
     r"\A\d+\.(?P<id>[a-zA-Z][a-zA-Z0-9_\-]*).finished.json\Z"
 )
+DIGITS = 4
 
 
 @dataclasses.dataclass(frozen=True)
@@ -35,7 +36,6 @@ class Bake:
     when: datetime.datetime
     suffix: str
     config_name: str
-    cardinality: int
     graph: Mapping[str, AbstractSet[str]]
 
     def __str__(self) -> str:
@@ -113,7 +113,6 @@ class BatchStorage(abc.ABC):
             when=datetime.datetime.now(),
             suffix="suffix",
             config_name="config_name",
-            cardinality=1,
             graph={},
         )
         yield bake
@@ -125,7 +124,6 @@ class BatchStorage(abc.ABC):
         batch: str,
         config_name: str,
         config_content: str,
-        cardinality: int,
         graph: Mapping[str, AbstractSet[str]],
     ) -> Bake:
         pass
@@ -242,7 +240,6 @@ class BatchFSStorage(BatchStorage):
         batch: str,
         config_name: str,
         config_content: str,
-        cardinality: int,
         graph: Mapping[str, AbstractSet[str]],
     ) -> Bake:
         when = _now()
@@ -252,7 +249,6 @@ class BatchFSStorage(BatchStorage):
             when=when,
             suffix=secrets.token_hex(3),
             config_name=config_name,
-            cardinality=cardinality,
             graph=graph,
         )
         bake_uri = _mk_bake_uri(bake)
@@ -290,8 +286,7 @@ class BatchFSStorage(BatchStorage):
         bake_uri = _mk_bake_uri(bake)
         attempt_uri = bake_uri / f"{attempt_no:02d}.attempt"
         await self._client.storage.mkdir(attempt_uri)
-        digits = bake.cardinality // 10 + 1
-        pre = "0".zfill(digits)
+        pre = "0".zfill(DIGITS)
         when = _now()
         ret = Attempt(bake=bake, when=when, number=attempt_no, result=JobStatus.PENDING)
         await self._write_json(attempt_uri / f"{pre}.init.json", _attempt_to_json(ret))
@@ -311,11 +306,10 @@ class BatchFSStorage(BatchStorage):
         else:
             assert 0 < attempt_no < 99
             fname = f"{attempt_no:02d}.attempt"
-            digits = bake.cardinality // 10 + 1
-            pre = "0".zfill(digits)
+            pre = "0".zfill(DIGITS)
             init_name = f"{pre}.init.json"
             init_data = await self._read_json(bake_uri / fname / init_name)
-            pre = "9" * digits
+            pre = "9" * DIGITS
             result_name = f"{pre}.result.json"
             try:
                 result_data = await self._read_json(bake_uri / fname / result_name)
@@ -328,10 +322,9 @@ class BatchFSStorage(BatchStorage):
     ) -> Tuple[Dict[str, StartedTask], Dict[str, FinishedTask]]:
         bake_uri = _mk_bake_uri(attempt.bake)
         attempt_url = bake_uri / f"{attempt.number:02d}.attempt"
-        digits = attempt.bake.cardinality // 10 + 1
-        pre = "0".zfill(digits)
+        pre = "0".zfill(DIGITS)
         init_name = f"{pre}.init.json"
-        pre = "9" * digits
+        pre = "9" * DIGITS
         result_name = f"{pre}.result.json"
         data = await self._read_json(attempt_url / init_name)
         started = {}
@@ -379,8 +372,7 @@ class BatchFSStorage(BatchStorage):
     async def finish_attempt(self, attempt: Attempt, result: JobStatus) -> None:
         bake_uri = _mk_bake_uri(attempt.bake)
         attempt_url = bake_uri / f"{attempt.number:02d}.attempt"
-        digits = attempt.bake.cardinality // 10 + 1
-        pre = "9" * digits
+        pre = "9" * DIGITS
         data = {"result": result.value}
         await self._write_json(attempt_url / f"{pre}.result.json", data)
 
@@ -391,10 +383,10 @@ class BatchFSStorage(BatchStorage):
         task_id: str,
         descr: JobDescription,
     ) -> StartedTask:
+        assert 0 < task_no < int("9" * DIGITS), task_no
         bake_uri = _mk_bake_uri(attempt.bake)
         attempt_url = bake_uri / f"{attempt.number:02d}.attempt"
-        digits = attempt.bake.cardinality // 10 + 1
-        pre = str(task_no + 1).zfill(digits)
+        pre = str(task_no + 1).zfill(DIGITS)
         assert descr.history.created_at is not None
         ret = StartedTask(
             attempt=attempt,
@@ -421,12 +413,12 @@ class BatchFSStorage(BatchStorage):
         descr: JobDescription,
         outputs: Mapping[str, str],
     ) -> FinishedTask:
+        assert 0 < task_no < int("9" * DIGITS), task_no
         assert task.raw_id == descr.id
         assert task.created_at == descr.history.created_at
         bake_uri = _mk_bake_uri(attempt.bake)
         attempt_url = bake_uri / f"{attempt.number:02d}.attempt"
-        digits = attempt.bake.cardinality // 10 + 1
-        pre = str(task_no + 1).zfill(digits)
+        pre = str(task_no + 1).zfill(DIGITS)
         assert descr.history.created_at is not None
         assert descr.history.started_at is not None
         assert descr.history.finished_at is not None
@@ -518,7 +510,6 @@ def _bake_to_json(bake: Bake) -> Dict[str, Any]:
         "when": _dt2str(bake.when),
         "suffix": bake.suffix,
         "config_name": bake.config_name,
-        "cardinality": bake.cardinality,
         "graph": [[k, sorted(v)] for k, v in bake.graph.items()],
     }
 
@@ -530,7 +521,6 @@ def _bake_from_json(data: Dict[str, Any]) -> Bake:
         when=datetime.datetime.fromisoformat(data["when"]),
         suffix=data["suffix"],
         config_name=data["config_name"],
-        cardinality=data["cardinality"],
         graph={i[0]: set(i[1]) for i in data["graph"]},
     )
 
