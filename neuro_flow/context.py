@@ -164,6 +164,7 @@ class PrepTaskCtx(BasePrepTaskCtx):
 @dataclass(frozen=True)
 class PrepBatchCallCtx(BasePrepTaskCtx):
     action: ast.TaskActionCall
+    args: Mapping[str, str]
 
 
 @dataclass(frozen=True)
@@ -304,8 +305,6 @@ class BaseFlowContext(BaseContext):
             "flow",
             "volumes",
             "images",
-            "job",
-            "batch",
         ),
     )
 
@@ -454,7 +453,7 @@ class BaseFlowContext(BaseContext):
 class LiveContext(BaseFlowContext):
     FLOW_TYPE: ClassVar[Type[ast.LiveFlow]] = field(init=False, default=ast.LiveFlow)
     LOOKUP_KEYS: ClassVar[Tuple[str, ...]] = field(
-        init=False, default=BaseFlowContext.LOOKUP_KEYS + ("job", "multi", "meta")
+        init=False, default=BaseFlowContext.LOOKUP_KEYS + ("multi", "meta")
     )
     _job: Optional[JobCtx] = None
     _meta: Optional[JobMetaCtx] = None
@@ -703,7 +702,7 @@ class TaskContext(BaseContext):
             real_ids = set()
             for row in matrix:
                 # make prep patch(es)
-                matrix_ctx = await self.with_matrix(row)
+                matrix_ctx = await self.with_matrix(strategy, row)
                 task_id = await ast_task.id.eval(matrix_ctx)
                 if task_id is None:
                     # Dash is not allowed in identifier, so the generated read id
@@ -730,6 +729,7 @@ class TaskContext(BaseContext):
                     )
                     prep_tasks[real_id] = prep_task
                 else:
+                    assert isinstance(ast_task.ast.TaskActionCall)
                     prep_call = PrepBatchCallCtx(
                         id=task_id,
                         real_id=real_id,
@@ -737,6 +737,7 @@ class TaskContext(BaseContext):
                         matrix=row,
                         strategy=strategy,
                         action=ast_task,
+                        args=ast_task.args or {},
                     )
                     prep_tasks[real_id] = prep_call
                 real_ids.add(real_id)
@@ -783,14 +784,19 @@ class TaskContext(BaseContext):
         prep_task = self._prep_tasks[real_id]
         return prep_task.needs
 
-    async def with_matrix(self: _CtxT, matrix: MatrixCtx) -> _CtxT:
+    async def with_matrix(self: _CtxT, strategy: StrategyCtx, matrix: MatrixCtx) -> _CtxT:
         assert isinstance(self, TaskContext)
         if self._matrix is not None:
             raise TypeError(
                 "Cannot enter into the matrix context if "
                 "the matrix is already initialized"
             )
-        return cast(_CtxT, replace(self, _matrix=matrix))
+        if self._strategy is not None:
+            raise TypeError(
+                "Cannot enter into the strategy context if "
+                "the strategy is already initialized"
+            )
+        return cast(_CtxT, replace(self, _strategy=strategy, _matrix=matrix))
 
     async def with_task(self: _CtxT, real_id: str, *, needs: NeedsCtx) -> _CtxT:
         # real_id -- the task's real id
@@ -823,8 +829,22 @@ class TaskContext(BaseContext):
                 err.append(f"missing keys {missing}")
             raise ValueError(" ".join(err))
 
-        ctx = await self.with_matrix(prep_task.matrix)
-        ctx = replace(ctx, _needs=needs, _strategy=prep_task.strategy)
+        if isinstance(prep_task, PrepBatchCallCtx):
+            action = await self.fetch_action(await prep_task.action.eval(self))
+            if action.kind != ast.ActionKind.BATCH:
+                raise TypeError(
+                    f"Invalid action '{action}' "
+                    f"type {action.kind.value} for batch flow"
+                )
+            parent_ctx = await BatchActionContext.create("prefix", prep_task.action)
+            ctx = await parent_ctx.with_matrix(prep_task.strategy, prep_task.matrix)
+            parent_ctx = await parent_ctx.with_inputs({k: await v.eval(ctx) for v in prep_task.args})
+            ast_tasks = action.tasks
+        else:
+            assert isinstance(prep_task, PrepTaskCtx)
+            ctx = await self.with_matrix(prep_task.strategy, prep_task.matrix)
+            ctx = replace(ctx, _needs=needs)
+            ast_task = prep_task.ast
 
         assert isinstance(prep_task, PrepTaskCtx), prep_task
 
