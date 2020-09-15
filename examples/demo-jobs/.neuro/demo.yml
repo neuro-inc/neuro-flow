@@ -17,10 +17,10 @@ images:
 
 volumes:
   dataset_1:
-    remote: storage:.data/${{ flow.id }}/${{ args.size_first }}-${{ args.random_seed }}
+    remote: storage:${{ flow.id }}/data/${{ args.size_first }}-${{ args.random_seed }}
     mount: /data
   dataset_2:
-    remote: storage:.data/${{ flow.id }}/${{ args.size_second }}-${{ args.random_seed }}
+    remote: storage:${{ flow.id }}/data/${{ args.size_second }}-${{ args.random_seed }}
     mount: /data
 
 tasks:
