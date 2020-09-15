@@ -22,12 +22,14 @@ from funcparserlib.parser import (
     skip,
     some,
 )
+from neuromation.api import JobStatus
 from typing import (
     Any,
     Awaitable,
     Callable,
     Dict,
     Generic,
+    Iterator,
     List,
     Mapping,
     Optional,
@@ -64,10 +66,16 @@ class MappingT(Protocol):
     def __getitem__(self, key: LiteralT) -> TypeT:
         ...
 
+    def __iter__(self) -> Iterator[LiteralT]:
+        ...
+
 
 @runtime_checkable
 class SequenceT(Protocol):
     def __getitem__(self, idx: LiteralT) -> TypeT:
+        ...
+
+    def __iter__(self) -> Iterator[TypeT]:
         ...
 
 
@@ -148,8 +156,45 @@ async def from_json(ctx: CallCtx, arg: str) -> TypeT:
     return cast(TypeT, json.loads(arg))
 
 
+def _check_has_needs(ctx: CallCtx, func_name: str) -> None:
+    try:
+        ctx.root.lookup("needs")
+    except LookupError:
+        raise ValueError(f"{func_name}() is only available inside task definition")
+
+
+async def always(ctx: CallCtx) -> bool:
+    _check_has_needs(ctx, func_name="always")
+    return True
+
+
+async def success(ctx: CallCtx) -> bool:
+    _check_has_needs(ctx, func_name="success")
+    needs = ctx.root.lookup("needs")
+    assert isinstance(needs, MappingT)
+    for dependency in needs:
+        dep_ctx = needs[dependency]
+        assert isinstance(dep_ctx, ContainerT)
+        if dep_ctx.result != JobStatus.SUCCEEDED:
+            return False
+    return True
+
+
+async def failure(ctx: CallCtx) -> bool:
+    _check_has_needs(ctx, func_name="failure")
+    return not success(ctx)
+
+
 FUNCTIONS = _build_signatures(
-    len=alen, nothing=nothing, fmt=fmt, keys=akeys, to_json=to_json, from_json=from_json
+    len=alen,
+    nothing=nothing,
+    fmt=fmt,
+    keys=akeys,
+    to_json=to_json,
+    from_json=from_json,
+    always=always,
+    success=success,
+    failure=failure,
 )
 
 
