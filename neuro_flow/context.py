@@ -166,7 +166,7 @@ class TaskCtx(ExecUnitCtx):
     needs: AbstractSet[str]  # A set of batch.id
 
     # continue_on_error: OptBoolExpr
-    # if_: OptBoolExpr  # -- skip conditionally
+    enable: bool
 
 
 @dataclass(frozen=True)
@@ -855,6 +855,12 @@ class BatchContext(BaseFlowContext):
 
         preset = (await prep_task.ast.preset.eval(ctx)) or ctx.defaults.preset
 
+        enable = await prep_task.ast.enable.eval(ctx)
+        if enable is None:
+            enable = all(
+                dep_ctx.result == JobStatus.SUCCEEDED for dep_ctx in needs.values()
+            )
+
         task_ctx = TaskCtx(
             id=prep_task.id,
             real_id=prep_task.real_id,
@@ -870,6 +876,7 @@ class BatchContext(BaseFlowContext):
             life_span=life_span,
             http_port=await prep_task.ast.http_port.eval(ctx),
             http_auth=await prep_task.ast.http_auth.eval(ctx),
+            enable=enable,
         )
         return replace(
             ctx,

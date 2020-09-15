@@ -174,8 +174,7 @@ async def success(ctx: CallCtx) -> bool:
     assert isinstance(needs, MappingT)
     for dependency in needs:
         dep_ctx = needs[dependency]
-        assert isinstance(dep_ctx, ContainerT)
-        if dep_ctx.result != JobStatus.SUCCEEDED:
+        if dep_ctx.result != JobStatus.SUCCEEDED:  # type: ignore
             return False
     return True
 
@@ -315,7 +314,8 @@ class Call(Item):
     async def eval(self, root: RootABC) -> TypeT:
         args = [await a.eval(root) for a in self.args]
         try:
-            tmp = await self.func.call(root, *args)  # type: ignore
+            call_ctx = CallCtx(self.start, self.end, root)
+            tmp = await self.func.call(call_ctx, *args)  # type: ignore
         except asyncio.CancelledError:
             raise
         except EvalError:
