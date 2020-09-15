@@ -60,7 +60,7 @@ tasks:
       import numpy
       dataset = numpy.load("/data/dataset.npy")
       avg = numpy.average(dataset)
-      print("::set-output name=avg::", avg, sep='', flush=True)
+      print(f"::set-output name=avg::{avg}")
 
   - id: second_avg
     needs: [second_dataset]
