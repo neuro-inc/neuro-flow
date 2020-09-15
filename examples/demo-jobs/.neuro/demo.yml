@@ -16,11 +16,8 @@ images:
     context: ${{ flow.workspace }}
 
 volumes:
-  dataset_1:
-    remote: storage:${{ flow.id }}/data/${{ args.size_first }}-${{ args.random_seed }}
-    mount: /data
-  dataset_2:
-    remote: storage:${{ flow.id }}/data/${{ args.size_second }}-${{ args.random_seed }}
+  dataset:
+    remote: storage:${{ flow.id }}/data
     mount: /data
 
 tasks:
@@ -29,55 +26,44 @@ tasks:
     bash:
       echo "This batch generates two numeric datasets and calculates the sum of averages."
 
-  - id: first_dataset
+  - id: generate_dataset_${{ matrix.size }}
     needs: [entry]
     image: ${{ images.numpy.ref }}
+    strategy:
+      matrix:
+        # Problem #1: I can't list vars inside matrix.
+        # I can list them explicitly, but then I'll have to type them manually in all other matrices and dependencies.
+        size: [${{ args.size_first }}, ${{ args.size_second }}]
     volumes:
-      - ${{ volumes.dataset_1.ref_rw }}
+      - ${{ volumes.dataset.ref_rw }}
     python: |
       import numpy
       numpy.random.seed(${{ args.random_seed }})
-      dataset = numpy.random.rand(${{ args.size_first }})
-      numpy.save("/data/dataset.npy", dataset)
+      dataset = numpy.random.rand(${{ matrix.size }})
+      numpy.save("/data/${{ matrix.size }}-${{ args.random_seed }}/dataset.npy", dataset)
 
-  - id: second_dataset
-    needs: [entry]
+  - id: avg_${{ matrix.size }}
+    # Problem #2: I can't list dependencies with variables.
+    # In this use-case I can go without explicit dependency, but the DAG may be more complex.
+    needs: [generate_dataset_${{ args.size_first }}, generate_dataset_${{ args.size_second }}]
     image: ${{ images.numpy.ref }}
+    strategy:
+      matrix:
+        size: [${{ args.size_first }}, ${{ args.size_second }}]
     volumes:
-      - ${{ volumes.dataset_2.ref_rw }}
+      - ${{ volumes.dataset.ref_ro }}
     python: |
       import numpy
-      numpy.random.seed(${{ args.random_seed }})
-      dataset = numpy.random.rand(${{ args.size_first }})
-      numpy.save("/data/dataset.npy", dataset)
-
-  - id: first_avg
-    needs: [first_dataset]
-    image: ${{ images.numpy.ref }}
-    volumes:
-      - ${{ volumes.dataset_1.ref_ro }}
-    python: |
-      import numpy
-      dataset = numpy.load("/data/dataset.npy")
-      avg = numpy.average(dataset)
-      print(f"::set-output name=avg::{avg}")
-
-  - id: second_avg
-    needs: [second_dataset]
-    image: ${{ images.numpy.ref }}
-    volumes:
-      - ${{ volumes.dataset_2.ref_ro }}
-    python: |
-      import numpy
-      dataset = numpy.load("/data/dataset.npy")
+      dataset = numpy.load("/data/${{ matrix.size }}-${{ args.random_seed }}/dataset.npy")
       avg = numpy.average(dataset)
       print(f"::set-output name=avg::{avg}")
 
   - id: sum
-    needs: [first_avg, second_avg]
     image: ${{ images.numpy.ref }}
+    # Problem #3: I can't find a way to retrieve results from all matrix jobs.
+    # Vars in vars (like below) don't work.
     python: |
-      result = ${{ needs.first_avg.outputs.avg }} + ${{ needs.second_avg.outputs.avg }}
+      result = ${{ needs.avg_${{ size_first }}.outputs.avg }} + ${{ needs.avg_${{ size_first }}.outputs.avg }}
       print(f"::set-output name=sum::{result}")
 
   - id: wrap_up
