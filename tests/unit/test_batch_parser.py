@@ -774,7 +774,7 @@ def test_parse_enable(assets: pathlib.Path) -> None:
     flow = parse_batch(workspace, config_file)
     assert flow == ast.BatchFlow(
         Pos(0, 0, config_file),
-        Pos(12, 0, config_file),
+        Pos(11, 0, config_file),
         id=SimpleOptIdExpr(
             Pos(0, 0, config_file),
             Pos(0, 0, config_file),
@@ -830,8 +830,8 @@ def test_parse_enable(assets: pathlib.Path) -> None:
             ),
             ast.Task(
                 _start=Pos(6, 4, config_file),
-                _end=Pos(12, 0, config_file),
-                id=OptIdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "task_b"),
+                _end=Pos(11, 0, config_file),
+                id=OptIdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 needs=[
                     IdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "task_a")
