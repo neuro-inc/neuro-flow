@@ -128,7 +128,7 @@ async def alen(ctx: CallCtx, arg: TypeT) -> int:
 
 
 async def akeys(ctx: CallCtx, arg: TypeT) -> TypeT:
-    # Async version of len(), async is required for the sake of uniformness.
+    # Async version of list(), async is required for the sake of uniformness.
     if not isinstance(arg, Mapping):
         raise TypeError(f"keys() requires a mapping, got {arg!r}")
     return list(arg)  # type: ignore  # List[...] is implicitly converted to SequenceT

@@ -778,8 +778,7 @@ class BatchContext(BaseFlowContext):
 
     @property
     def graph(self) -> Mapping[str, AbstractSet[str]]:
-        # Batch names, sorted by the execution order.
-        # Batches from each set in the list can be executed concurrently.
+        # Mapping between task id and its needs set
         assert self._graph is not None
         return self._graph
 
