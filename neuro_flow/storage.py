@@ -26,6 +26,7 @@ STARTED_RE: Final = re.compile(r"\A\d+\.(?P<id>[a-zA-Z][a-zA-Z0-9_\-]*).started.
 FINISHED_RE: Final = re.compile(
     r"\A\d+\.(?P<id>[a-zA-Z][a-zA-Z0-9_\-]*).finished.json\Z"
 )
+SKIPPED_RE: Final = re.compile(r"\A\d+\.(?P<id>[a-zA-Z][a-zA-Z0-9_\-]*).skipped.json\Z")
 DIGITS = 4
 
 
@@ -82,6 +83,13 @@ class FinishedTask:
     finish_reason: str
     finish_description: str
     outputs: Mapping[str, str]
+
+
+@dataclasses.dataclass(frozen=True)
+class SkippedTask:
+    attempt: Attempt
+    id: str
+    when: datetime.datetime
 
 
 # A storage abstraction
@@ -153,7 +161,7 @@ class BatchStorage(abc.ABC):
     @abc.abstractmethod
     async def fetch_attempt(
         self, attempt: Attempt
-    ) -> Tuple[Dict[str, StartedTask], Dict[str, FinishedTask]]:
+    ) -> Tuple[Dict[str, StartedTask], Dict[str, FinishedTask], Dict[str, SkippedTask]]:
         pass
 
     @abc.abstractmethod
@@ -179,6 +187,15 @@ class BatchStorage(abc.ABC):
         descr: JobDescription,
         outputs: Mapping[str, str],
     ) -> FinishedTask:
+        pass
+
+    @abc.abstractmethod
+    async def skip_task(
+        self,
+        attempt: Attempt,
+        task_no: int,
+        task_id: str,
+    ) -> SkippedTask:
         pass
 
 
@@ -319,7 +336,7 @@ class BatchFSStorage(BatchStorage):
 
     async def fetch_attempt(
         self, attempt: Attempt
-    ) -> Tuple[Dict[str, StartedTask], Dict[str, FinishedTask]]:
+    ) -> Tuple[Dict[str, StartedTask], Dict[str, FinishedTask], Dict[str, SkippedTask]]:
         bake_uri = _mk_bake_uri(attempt.bake)
         attempt_url = bake_uri / f"{attempt.number:02d}.attempt"
         pre = "0".zfill(DIGITS)
@@ -329,6 +346,7 @@ class BatchFSStorage(BatchStorage):
         data = await self._read_json(attempt_url / init_name)
         started = {}
         finished = {}
+        skipped = {}
         async for fs in self._client.storage.ls(attempt_url):
             if fs.name == init_name:
                 continue
@@ -365,9 +383,19 @@ class BatchFSStorage(BatchStorage):
                     outputs=data["outputs"],
                 )
                 continue
+            match = SKIPPED_RE.match(fs.name)
+            if match:
+                data = await self._read_json(attempt_url / fs.name)
+                assert match.group("id") == data["id"]
+                skipped[data["id"]] = SkippedTask(
+                    attempt=attempt,
+                    id=data["id"],
+                    when=datetime.datetime.fromisoformat(data["when"]),
+                )
+                continue
             raise ValueError(f"Unexpected name {attempt_url / fs.name}")
         assert finished.keys() <= started.keys()
-        return started, finished
+        return started, finished, skipped
 
     async def finish_attempt(self, attempt: Attempt, result: JobStatus) -> None:
         bake_uri = _mk_bake_uri(attempt.bake)
@@ -451,6 +479,29 @@ class BatchFSStorage(BatchStorage):
             "outputs": ret.outputs,
         }
         await self._write_json(attempt_url / f"{pre}.{task.id}.finished.json", data)
+        return ret
+
+    async def skip_task(
+        self,
+        attempt: Attempt,
+        task_no: int,
+        task_id: str,
+    ) -> SkippedTask:
+        assert 0 < task_no < int("9" * DIGITS), task_no
+        bake_uri = _mk_bake_uri(attempt.bake)
+        attempt_url = bake_uri / f"{attempt.number:02d}.attempt"
+        pre = str(task_no + 1).zfill(DIGITS)
+        ret = SkippedTask(
+            attempt=attempt,
+            id=task_id,
+            when=datetime.datetime.now(datetime.timezone.utc),
+        )
+
+        data = {
+            "id": ret.id,
+            "when": ret.when.isoformat(timespec="seconds"),
+        }
+        await self._write_json(attempt_url / f"{pre}.{ret.id}.skipped.json", data)
         return ret
 
     async def _read_file(self, url: URL) -> str:
