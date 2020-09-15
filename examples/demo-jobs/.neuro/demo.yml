@@ -2,9 +2,9 @@ kind: batch
 title: Demo batch with non-linear DAG
 
 args:
-  size_first: 4000
-  size_second: 5000
-  random_seed: 42
+  size_first: "4000"
+  size_second: "5000"
+  random_seed: "42"
 
 defaults:
   preset: cpu-small

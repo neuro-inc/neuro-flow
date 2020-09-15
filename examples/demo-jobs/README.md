@@ -70,16 +70,28 @@ neuro-flow status train
 
 # Examples of batch configs 
 
-Minimalistic batches:
+1. Minimalistic batches:
 
 ```
 neuro-flow bake seq
 neuro-flow bake matrix
 ```
 
-A batch with non-linear DAG with 7 tasks:
+2. A batch with non-linear DAG with 7 tasks:
 
 ```
 neuro-flow build numpy
 neuro-flow bake demo
 ```
+
+3. See list of bakes:
+
+```
+neuro-flow bakes
+```
+
+4. See details of a particular bake:
+
+```
+neuro-flow inspect <bake-id>
+``` 
