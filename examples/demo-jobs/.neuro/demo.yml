@@ -77,7 +77,8 @@ tasks:
     needs: [first_avg, second_avg]
     image: ${{ images.numpy.ref }}
     python: |
-      print("::set-output name=sum::", ${{ needs.first_avg.outputs.avg }} + ${{ needs.second_avg.outputs.avg }}, sep='', flush=True)
+      result = ${{ needs.first_avg.outputs.avg }} + ${{ needs.second_avg.outputs.avg }}
+      print(f"::set-output name=sum::{result}")
 
   - id: wrap_up
     needs: [sum]
