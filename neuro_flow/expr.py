@@ -8,6 +8,7 @@ import asyncio
 import datetime
 import inspect
 import json
+import operator
 import re
 import shlex
 from ast import literal_eval
@@ -313,6 +314,37 @@ def make_text(arg: Token) -> Text:
     return Text(arg.start, arg.end, arg.value)
 
 
+@dataclasses.dataclass(frozen=True)
+class BinOp(Item):
+    op: Callable[[TypeT, TypeT], TypeT]
+    args: Tuple[Item, Item]
+
+    async def eval(self, root: RootABC) -> TypeT:
+        args = [await a.eval(root) for a in self.args]
+        return self.op(*args)  # type: ignore
+
+
+def make_bin_op_expr(args: Tuple[Item, Token, Item]) -> BinOp:
+    op_args = (args[0], args[2])
+    op_map = {
+        "==": operator.eq,
+        "!=": operator.ne,
+        "or": operator.or_,
+        "and": operator.and_,
+        "<": operator.lt,
+        "<=": operator.le,
+        ">": operator.gt,
+        ">=": operator.ge,
+    }
+    op_token = args[1]
+    return BinOp(
+        args[0].start,
+        args[2].end,
+        op=op_map[op_token.value],
+        args=op_args,
+    )
+
+
 def a(value: str) -> Parser:
     """Eq(a) -> Parser(a, a)
 
@@ -334,6 +366,8 @@ RPAR = skip(a(")"))
 
 LSQB: Final = skip(a("["))
 RSQB = skip(a("]"))
+
+BIN_OP = a("==") | a("!=") | a("or") | a("and") | a("<") | a("<=") | a(">") | a(">=")
 
 REAL: Final = literal("REAL") | literal("EXP")
 
@@ -368,10 +402,11 @@ FUNC_ARGS: Final = maybe(EXPR + many(COMMA + EXPR)) >> make_args
 FUNC_CALL: Final = (NAME + LPAR + FUNC_ARGS + RPAR + TRAILER) >> make_call
 
 
-ATOM_EXPR.define(ATOM | FUNC_CALL | LOOKUP)
+ATOM_EXPR.define(ATOM | FUNC_CALL | LOOKUP | LPAR + EXPR + RPAR)
 
+BIN_OP_EXPR: Final = ATOM_EXPR + BIN_OP + EXPR >> make_bin_op_expr
 
-EXPR.define(ATOM_EXPR)
+EXPR.define(BIN_OP_EXPR | ATOM_EXPR)
 
 
 TMPL: Final = (OPEN_TMPL + EXPR + CLOSE_TMPL) | (OPEN_TMPL2 + EXPR + CLOSE_TMPL2)

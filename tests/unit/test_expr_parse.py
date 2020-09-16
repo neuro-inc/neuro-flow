@@ -1,12 +1,15 @@
+import operator
 import pytest
 from funcparserlib.parser import NoParseError
 from textwrap import dedent
+from typing import Any
 from typing_extensions import Final
 
 from neuro_flow.expr import (
     FUNCTIONS,
     PARSER,
     AttrGetter,
+    BinOp,
     Call,
     ItemGetter,
     Literal,
@@ -352,6 +355,73 @@ def test_func_call_with_trailer_item() -> None:
     ] == PARSER.parse(
         list(tokenize("""${{ from_json('{"a": 1, "b": "val"}')['a'] }}""", START))
     )
+
+
+@pytest.mark.parametrize(  # type: ignore
+    "op_str,op_func",
+    [
+        ("==", operator.eq),
+        ("!=", operator.ne),
+        ("or", operator.or_),
+        ("and", operator.and_),
+        ("<", operator.lt),
+        ("<=", operator.le),
+        (">", operator.gt),
+        (">=", operator.ge),
+    ],
+)
+def test_operator_parse(op_str: str, op_func: Any) -> None:
+    assert [
+        BinOp(
+            Pos(0, 4, FNAME),
+            Pos(0, 14 + len(op_str), FNAME),
+            op_func,
+            (
+                Lookup(Pos(0, 4, FNAME), Pos(0, 7, FNAME), "foo", []),
+                Literal(
+                    Pos(0, 9 + len(op_str), FNAME),
+                    Pos(0, 14 + len(op_str), FNAME),
+                    "bar",
+                ),
+            ),
+        )
+    ] == PARSER.parse(list(tokenize(f"""${{{{ foo {op_str} "bar" }}}}""", START)))
+
+
+def test_operator_parse_brackets() -> None:
+    assert [
+        BinOp(
+            start=Pos(line=0, col=4, filename=FNAME),
+            end=Pos(line=0, col=24, filename=FNAME),
+            op=operator.or_,
+            args=(
+                Lookup(
+                    start=Pos(line=0, col=4, filename=FNAME),
+                    end=Pos(line=0, col=7, filename=FNAME),
+                    root="foo",
+                    trailer=[],
+                ),
+                BinOp(
+                    start=Pos(line=0, col=12, filename=FNAME),
+                    end=Pos(line=0, col=24, filename=FNAME),
+                    op=operator.eq,
+                    args=(
+                        Lookup(
+                            start=Pos(line=0, col=12, filename=FNAME),
+                            end=Pos(line=0, col=15, filename=FNAME),
+                            root="bar",
+                            trailer=[],
+                        ),
+                        Literal(
+                            start=Pos(line=0, col=19, filename=FNAME),
+                            end=Pos(line=0, col=24, filename=FNAME),
+                            val="baz",
+                        ),
+                    ),
+                ),
+            ),
+        )
+    ] == PARSER.parse(list(tokenize("""${{ foo or (bar == "baz") }}""", START)))
 
 
 def test_corner_case1() -> None:
