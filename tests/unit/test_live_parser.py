@@ -97,7 +97,7 @@ def test_parse_full(assets: pathlib.Path) -> None:
     flow = parse_live(workspace, config_file)
     assert flow == ast.LiveFlow(
         Pos(0, 0, config_file),
-        Pos(53, 0, config_file),
+        Pos(60, 0, config_file),
         id=SimpleOptIdExpr(
             Pos(0, 0, config_file),
             Pos(0, 0, config_file),
@@ -112,7 +112,7 @@ def test_parse_full(assets: pathlib.Path) -> None:
         images={
             "image_a": ast.Image(
                 Pos(4, 4, config_file),
-                Pos(11, 0, config_file),
+                Pos(15, 0, config_file),
                 ref=StrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "image:banana"
                 ),
@@ -129,12 +129,24 @@ def test_parse_full(assets: pathlib.Path) -> None:
                         Pos(0, 0, config_file), Pos(0, 0, config_file), "--arg2=val2"
                     ),
                 ],
+                env={
+                    "SECRET_ENV": StrExpr(
+                        Pos(0, 0, config_file), Pos(0, 0, config_file), "secret:key"
+                    ),
+                },
+                volumes=[
+                    OptStrExpr(
+                        Pos(0, 0, config_file),
+                        Pos(0, 0, config_file),
+                        "${{ volumes.volume_sec.ref_ro }}",
+                    ),
+                ],
             )
         },
         volumes={
             "volume_a": ast.Volume(
-                Pos(13, 4, config_file),
-                Pos(17, 2, config_file),
+                Pos(17, 4, config_file),
+                Pos(21, 2, config_file),
                 remote=URIExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "storage:dir"
                 ),
@@ -149,8 +161,8 @@ def test_parse_full(assets: pathlib.Path) -> None:
                 ),
             ),
             "volume_b": ast.Volume(
-                Pos(18, 4, config_file),
-                Pos(20, 0, config_file),
+                Pos(22, 4, config_file),
+                Pos(24, 2, config_file),
                 remote=URIExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "storage:other"
                 ),
@@ -164,10 +176,28 @@ def test_parse_full(assets: pathlib.Path) -> None:
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
             ),
+            "volume_sec": ast.Volume(
+                Pos(25, 4, config_file),
+                Pos(27, 0, config_file),
+                remote=URIExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "secret:key"
+                ),
+                mount=RemotePathExpr(
+                    Pos(0, 0, config_file),
+                    Pos(0, 0, config_file),
+                    "/var/secret/key.txt",
+                ),
+                read_only=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                local=OptLocalPathExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+            ),
         },
         defaults=ast.FlowDefaults(
-            Pos(21, 2, config_file),
-            Pos(28, 0, config_file),
+            Pos(28, 2, config_file),
+            Pos(35, 0, config_file),
             tags=[
                 StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "tag-a"),
                 StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "tag-b"),
@@ -192,8 +222,8 @@ def test_parse_full(assets: pathlib.Path) -> None:
         ),
         jobs={
             "test_a": ast.Job(
-                Pos(30, 4, config_file),
-                Pos(53, 0, config_file),
+                Pos(37, 4, config_file),
+                Pos(60, 0, config_file),
                 name=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "job-name"
                 ),

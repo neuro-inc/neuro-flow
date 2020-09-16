@@ -9,6 +9,10 @@ images:
     - --arg1
     - val1
     - --arg2=val2
+    env:
+      SECRET_ENV: secret:key
+    volumes:
+      - ${{ volumes.volume_sec.ref_ro }}
 volumes:
   volume_a:
     remote: storage:dir
@@ -18,6 +22,9 @@ volumes:
   volume_b:
     remote: storage:other
     mount: /var/other
+  volume_sec:
+    remote: secret:key
+    mount: /var/secret/key.txt
 defaults:
   tags: [tag-a, tag-b]
   env:

@@ -98,6 +98,8 @@ async def test_images(assets: pathlib.Path) -> None:
     assert ctx.images["image_a"].dockerfile == LocalPath("dir/Dockerfile")
     assert ctx.images["image_a"].full_dockerfile_path == workspace / "dir/Dockerfile"
     assert ctx.images["image_a"].build_args == ["--arg1", "val1", "--arg2=val2"]
+    assert ctx.images["image_a"].env == {"SECRET_ENV": "secret:key"}
+    assert ctx.images["image_a"].volumes == ["secret:key:/var/secret/key.txt:ro"]
 
 
 async def test_defaults(assets: pathlib.Path) -> None:
