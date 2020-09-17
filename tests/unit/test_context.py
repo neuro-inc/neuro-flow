@@ -492,7 +492,7 @@ async def test_pipeline_with_batch_action(assets: pathlib.Path) -> None:
     flow = parse_batch(workspace, config_file)
     ctx = await BatchContext.create(flow, workspace, config_file)
 
-    ctx2 = await ctx.with_task("test", needs={})
+    ctx2 = await ctx.with_action("test", needs={})
     assert ctx2.task.id == "test_a"
     assert ctx2.task.real_id == "test_a"
     assert ctx2.task.needs == set()
