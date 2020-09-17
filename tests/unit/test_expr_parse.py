@@ -376,13 +376,11 @@ def test_operator_parse(op_str: str, op_func: Any) -> None:
             Pos(0, 4, FNAME),
             Pos(0, 14 + len(op_str), FNAME),
             op_func,
-            (
-                Lookup(Pos(0, 4, FNAME), Pos(0, 7, FNAME), "foo", []),
-                Literal(
-                    Pos(0, 9 + len(op_str), FNAME),
-                    Pos(0, 14 + len(op_str), FNAME),
-                    "bar",
-                ),
+            Lookup(Pos(0, 4, FNAME), Pos(0, 7, FNAME), "foo", []),
+            Literal(
+                Pos(0, 9 + len(op_str), FNAME),
+                Pos(0, 14 + len(op_str), FNAME),
+                "bar",
             ),
         )
     ] == PARSER.parse(list(tokenize(f"""${{{{ foo {op_str} "bar" }}}}""", START)))
@@ -394,30 +392,26 @@ def test_operator_parse_brackets() -> None:
             start=Pos(line=0, col=4, filename=FNAME),
             end=Pos(line=0, col=24, filename=FNAME),
             op=operator.or_,
-            args=(
-                Lookup(
-                    start=Pos(line=0, col=4, filename=FNAME),
-                    end=Pos(line=0, col=7, filename=FNAME),
-                    root="foo",
+            left=Lookup(
+                start=Pos(line=0, col=4, filename=FNAME),
+                end=Pos(line=0, col=7, filename=FNAME),
+                root="foo",
+                trailer=[],
+            ),
+            right=BinOp(
+                start=Pos(line=0, col=12, filename=FNAME),
+                end=Pos(line=0, col=24, filename=FNAME),
+                op=operator.eq,
+                left=Lookup(
+                    start=Pos(line=0, col=12, filename=FNAME),
+                    end=Pos(line=0, col=15, filename=FNAME),
+                    root="bar",
                     trailer=[],
                 ),
-                BinOp(
-                    start=Pos(line=0, col=12, filename=FNAME),
+                right=Literal(
+                    start=Pos(line=0, col=19, filename=FNAME),
                     end=Pos(line=0, col=24, filename=FNAME),
-                    op=operator.eq,
-                    args=(
-                        Lookup(
-                            start=Pos(line=0, col=12, filename=FNAME),
-                            end=Pos(line=0, col=15, filename=FNAME),
-                            root="bar",
-                            trailer=[],
-                        ),
-                        Literal(
-                            start=Pos(line=0, col=19, filename=FNAME),
-                            end=Pos(line=0, col=24, filename=FNAME),
-                            val="baz",
-                        ),
-                    ),
+                    val="baz",
                 ),
             ),
         )
@@ -442,12 +436,12 @@ def test_corner_case1() -> None:
                 Pos(5, 17, FNAME),
                 dedent(
                     """\
-                        jupyter notebook
-                          --no-browser
-                          --ip=0.0.0.0
-                          --allow-root
-                          --NotebookApp.token=
-                          --notebook-dir="""
+                            jupyter notebook
+                              --no-browser
+                              --ip=0.0.0.0
+                              --allow-root
+                              --NotebookApp.token=
+                              --notebook-dir="""
                 ),
             ),
             Lookup(

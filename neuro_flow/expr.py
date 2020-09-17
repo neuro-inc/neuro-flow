@@ -317,15 +317,16 @@ def make_text(arg: Token) -> Text:
 @dataclasses.dataclass(frozen=True)
 class BinOp(Item):
     op: Callable[[TypeT, TypeT], TypeT]
-    args: Tuple[Item, Item]
+    left: Item
+    right: Item
 
     async def eval(self, root: RootABC) -> TypeT:
-        args = [await a.eval(root) for a in self.args]
-        return self.op(*args)  # type: ignore
+        left_val = await self.left.eval(root)
+        right_val = await self.right.eval(root)
+        return self.op(left_val, right_val)  # type: ignore
 
 
 def make_bin_op_expr(args: Tuple[Item, Token, Item]) -> BinOp:
-    op_args = (args[0], args[2])
     op_map = {
         "==": operator.eq,
         "!=": operator.ne,
@@ -341,7 +342,8 @@ def make_bin_op_expr(args: Tuple[Item, Token, Item]) -> BinOp:
         args[0].start,
         args[2].end,
         op=op_map[op_token.value],
-        args=op_args,
+        left=args[0],
+        right=args[2],
     )
 
 
