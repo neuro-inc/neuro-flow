@@ -192,8 +192,10 @@ async def failure(ctx: CallCtx) -> bool:
 
 async def cancelled(ctx: CallCtx) -> bool:
     _check_has_needs(ctx, func_name="failure")
-    needs_statuses = _get_needs_statuses(ctx.root)
-    return any(status == JobStatus.CANCELLED for status in needs_statuses)
+    raise NotImplementedError(
+        "cancelled() is not available as batch cancellation is "
+        "not implemented. Check issue #68 on github"
+    )
 
 
 FUNCTIONS = _build_signatures(
