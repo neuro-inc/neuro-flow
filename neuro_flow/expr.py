@@ -160,7 +160,7 @@ def _check_has_needs(ctx: CallCtx, func_name: str) -> None:
     try:
         ctx.root.lookup("needs")
     except LookupError:
-        raise ValueError(f"{func_name}() is only available inside task definition")
+        raise ValueError(f"{func_name}() is only available inside a task definition")
 
 
 async def always(ctx: CallCtx) -> bool:
