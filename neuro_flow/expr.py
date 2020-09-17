@@ -156,7 +156,7 @@ async def from_json(ctx: CallCtx, arg: str) -> TypeT:
     return cast(TypeT, json.loads(arg))
 
 
-def _check_has_needs(ctx: CallCtx, func_name: str) -> None:
+def _check_has_needs(ctx: CallCtx, *, func_name: str) -> None:
     try:
         ctx.root.lookup("needs")
     except LookupError:
