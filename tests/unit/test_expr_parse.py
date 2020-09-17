@@ -15,6 +15,7 @@ from neuro_flow.expr import (
     Literal,
     Lookup,
     Text,
+    UnaryOp,
 )
 from neuro_flow.tokenizer import LexerError, Pos, tokenize
 from neuro_flow.types import LocalPath
@@ -384,6 +385,27 @@ def test_operator_parse(op_str: str, op_func: Any) -> None:
             ),
         )
     ] == PARSER.parse(list(tokenize(f"""${{{{ foo {op_str} "bar" }}}}""", START)))
+
+
+@pytest.mark.parametrize(  # type: ignore
+    "op_str,op_func",
+    [
+        ("not", operator.not_),
+    ],
+)
+def test_unary_operator_parse(op_str: str, op_func: Any) -> None:
+    assert [
+        UnaryOp(
+            Pos(0, 4, FNAME),
+            Pos(0, 10 + len(op_str), FNAME),
+            op_func,
+            Literal(
+                Pos(0, 5 + len(op_str), FNAME),
+                Pos(0, 10 + len(op_str), FNAME),
+                "bar",
+            ),
+        )
+    ] == PARSER.parse(list(tokenize(f"""${{{{ {op_str} "bar" }}}}""", START)))
 
 
 def test_operator_parse_brackets() -> None:

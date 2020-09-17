@@ -79,6 +79,7 @@ class Tokenizer:
         ("INT", r"-?[0-9][0-9_]*"),
         ("STR", r"'[^']*'|" r'"[^"]*"'),
         ("BIN_OP", r"==|!=|or|and|<=|<|>=|>"),
+        ("UNARY_OP", r"not"),
         ("NAME", r"[A-Za-z][A-Za-z_0-9]*"),
         ("DOT", r"\."),
         ("COMMA", r","),

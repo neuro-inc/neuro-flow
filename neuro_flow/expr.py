@@ -347,6 +347,29 @@ def make_bin_op_expr(args: Tuple[Item, Token, Item]) -> BinOp:
     )
 
 
+@dataclasses.dataclass(frozen=True)
+class UnaryOp(Item):
+    op: Callable[[TypeT], TypeT]
+    operand: Item
+
+    async def eval(self, root: RootABC) -> TypeT:
+        operand_val = await self.operand.eval(root)
+        return self.op(operand_val)  # type: ignore
+
+
+def make_unary_op_expr(args: Tuple[Token, Item]) -> UnaryOp:
+    op_map = {
+        "not": operator.not_,
+    }
+    op_token = args[0]
+    return UnaryOp(
+        args[0].start,
+        args[1].end,
+        op=op_map[op_token.value],
+        operand=args[1],
+    )
+
+
 def a(value: str) -> Parser:
     """Eq(a) -> Parser(a, a)
 
@@ -370,6 +393,7 @@ LSQB: Final = skip(a("["))
 RSQB = skip(a("]"))
 
 BIN_OP = a("==") | a("!=") | a("or") | a("and") | a("<") | a("<=") | a(">") | a(">=")
+UNARY_OP = a("not")
 
 REAL: Final = literal("REAL") | literal("EXP")
 
@@ -408,7 +432,9 @@ ATOM_EXPR.define(ATOM | FUNC_CALL | LOOKUP | LPAR + EXPR + RPAR)
 
 BIN_OP_EXPR: Final = ATOM_EXPR + BIN_OP + EXPR >> make_bin_op_expr
 
-EXPR.define(BIN_OP_EXPR | ATOM_EXPR)
+UNARY_OP_EXPR: Final = UNARY_OP + EXPR >> make_unary_op_expr
+
+EXPR.define(BIN_OP_EXPR | UNARY_OP_EXPR | ATOM_EXPR)
 
 
 TMPL: Final = (OPEN_TMPL + EXPR + CLOSE_TMPL) | (OPEN_TMPL2 + EXPR + CLOSE_TMPL2)

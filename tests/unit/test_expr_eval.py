@@ -31,6 +31,8 @@ class DictContext(RootABC):
         ("len(foo) >= 5", {"foo": [1, 2, 3]}, False),
         ("(2 == 3) or True", {}, True),
         ("'sdfdsf' == True", {}, False),
+        ("not True", {}, False),
+        ("not (42 == 42) or not True", {}, False),
     ],
 )
 async def test_bool_evals(expr: str, context: Dict[str, TypeT], result: bool) -> None:
