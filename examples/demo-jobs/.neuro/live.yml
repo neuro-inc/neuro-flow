@@ -7,7 +7,7 @@ defaults:
 
 volumes:
   data:
-    remote: storage:${{ flow.project_id }}/data
+    remote: storage:$[[ flow.project_id ]]/data
     mount: /project/data
     local: data
     read_only: True
@@ -101,7 +101,7 @@ jobs:
   jupyter:
     action: ws:.neuro/jupyter
     args:
-      volume_data: ${{ volumes.data.ref_ro }}
+      volume_data: $[[ volumes.data.ref_ro ]]
       volume_code: ${{ volumes.code.ref_rw }}
       volume_config: ${{ volumes.config.ref_ro }}
       volume_notebooks: ${{ volumes.notebooks.ref_rw }}
