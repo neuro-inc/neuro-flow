@@ -168,20 +168,32 @@ async def always(ctx: CallCtx) -> bool:
     return True
 
 
-async def success(ctx: CallCtx) -> bool:
-    _check_has_needs(ctx, func_name="success")
-    needs = ctx.root.lookup("needs")
+def _get_needs_statuses(root: RootABC) -> List[JobStatus]:
+    needs = root.lookup("needs")
     assert isinstance(needs, MappingT)
+    result: List[JobStatus] = []
     for dependency in needs:
         dep_ctx = needs[dependency]
-        if dep_ctx.result != JobStatus.SUCCEEDED:  # type: ignore
-            return False
-    return True
+        result.append(dep_ctx.result)  # type: ignore
+    return result
+
+
+async def success(ctx: CallCtx) -> bool:
+    _check_has_needs(ctx, func_name="success")
+    needs_statuses = _get_needs_statuses(ctx.root)
+    return all(status == JobStatus.SUCCEEDED for status in needs_statuses)
 
 
 async def failure(ctx: CallCtx) -> bool:
     _check_has_needs(ctx, func_name="failure")
-    return not success(ctx)
+    needs_statuses = _get_needs_statuses(ctx.root)
+    return any(status == JobStatus.FAILED for status in needs_statuses)
+
+
+async def cancelled(ctx: CallCtx) -> bool:
+    _check_has_needs(ctx, func_name="failure")
+    needs_statuses = _get_needs_statuses(ctx.root)
+    return any(status == JobStatus.CANCELLED for status in needs_statuses)
 
 
 FUNCTIONS = _build_signatures(
@@ -194,6 +206,7 @@ FUNCTIONS = _build_signatures(
     always=always,
     success=success,
     failure=failure,
+    cancelled=cancelled,
 )
 
 
