@@ -343,7 +343,6 @@ class BaseFlowContext(BaseContext):
         )
         ctx = replace(ctx, _defaults=defaults, _env=env, _tags=tags)
 
-        # volumes / images needs a context with defaults only for self initialization
         volumes = {}
         if ast_flow.volumes is not None:
             for k, v in ast_flow.volumes.items():
