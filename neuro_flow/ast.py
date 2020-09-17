@@ -19,6 +19,7 @@ from .expr import (
     SimpleOptBoolExpr,
     SimpleOptIdExpr,
     SimpleOptStrExpr,
+    SimpleStrExpr,
     StrExpr,
     URIExpr,
 )
@@ -130,7 +131,7 @@ class Task(ExecUnit, TaskBase):
 
 @dataclass(frozen=True)
 class BaseActionCall(Base):
-    action: StrExpr  # action ref
+    action: SimpleStrExpr  # action ref
     args: Optional[Mapping[str, StrExpr]] = field(metadata={"allow_none": True})
 
 

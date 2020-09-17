@@ -51,6 +51,7 @@ from .expr import (
     SimpleOptBoolExpr,
     SimpleOptIdExpr,
     SimpleOptStrExpr,
+    SimpleStrExpr,
     StrExpr,
     URIExpr,
 )
@@ -565,7 +566,7 @@ JOB = {
 }
 
 JOB_ACTION_CALL = {
-    "action": StrExpr,
+    "action": SimpleStrExpr,
     "args": SimpleMapping(StrExpr),
 }
 
@@ -659,7 +660,7 @@ TASK_ACTION_CALL = {
     "id": OptIdExpr,
     "needs": SimpleSeq(IdExpr),
     "strategy": None,
-    "action": StrExpr,
+    "action": SimpleStrExpr,
     "args": SimpleMapping(StrExpr),
 }
 

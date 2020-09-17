@@ -12,6 +12,7 @@ from neuro_flow.expr import (
     SimpleOptBoolExpr,
     SimpleOptIdExpr,
     SimpleOptStrExpr,
+    SimpleStrExpr,
     StrExpr,
 )
 from neuro_flow.parser import parse_action, parse_batch, parse_live
@@ -407,7 +408,7 @@ def test_parse_live_call(assets: LocalPath) -> None:
             "test": ast.JobActionCall(
                 Pos(3, 4, config_file),
                 Pos(6, 0, config_file),
-                action=StrExpr(
+                action=SimpleStrExpr(
                     Pos(3, 4, config_file),
                     Pos(5, 0, config_file),
                     "workspace:live-action",
@@ -451,7 +452,7 @@ def test_parse_batch_call(assets: LocalPath) -> None:
                 id=OptIdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "test"),
                 needs=None,
                 strategy=None,
-                action=StrExpr(
+                action=SimpleStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "ws:batch-action"
                 ),
                 args={

@@ -23,7 +23,7 @@ from typing import (
 from yarl import URL
 
 from . import ast
-from .expr import EvalError, LiteralT, RootABC, TypeT
+from .expr import EvalError, LiteralT, RootABC, StrExpr, TypeT
 from .parser import parse_action, parse_project
 from .types import LocalPath, RemotePath
 
@@ -163,8 +163,8 @@ class PrepTaskCtx(BasePrepTaskCtx):
 
 @dataclass(frozen=True)
 class PrepBatchCallCtx(BasePrepTaskCtx):
-    action: ast.TaskActionCall
-    args: Mapping[str, str]
+    action: str
+    args: Mapping[str, StrExpr]
 
 
 @dataclass(frozen=True)
@@ -265,6 +265,7 @@ class BaseContext(RootABC):
         ),
     )
 
+    _workspace: LocalPath
     _env: Optional[Mapping[str, str]] = None
     _tags: Optional[AbstractSet[str]] = None
     _defaults: Optional[DefaultsCtx] = None
@@ -293,6 +294,21 @@ class BaseContext(RootABC):
         ret = getattr(self, name)
         # assert isinstance(ret, (ContainerT, SequenceT, MappingT)), ret
         return cast(TypeT, ret)
+
+    async def fetch_action(self, action_name: str) -> ast.BaseAction:
+        scheme, sep, spec = action_name.partition(":")
+        if not sep:
+            raise ValueError(f"{action_name} has no schema")
+        if scheme in ("ws", "workspace"):
+            assert self._workspace is not None
+            path = self._workspace / spec
+            if not path.exists():
+                path = path.with_suffix(".yml")
+            if not path.exists():
+                raise ValueError(f"Action {action_name} does not exist")
+            return parse_action(path)
+        else:
+            raise ValueError(f"Unsupported scheme '{scheme}'")
 
 
 @dataclass(frozen=True)
@@ -338,7 +354,7 @@ class BaseFlowContext(BaseContext):
             title=flow_title or flow_id,
         )
 
-        ctx = cls(_ast_flow=ast_flow, _flow=flow)
+        ctx = cls(_ast_flow=ast_flow, _flow=flow, _workspace=flow.workspace)
         ctx = await ctx._with_args()
 
         ast_defaults = ast_flow.defaults
@@ -411,20 +427,6 @@ class BaseFlowContext(BaseContext):
                 _images=images,
             ),
         )
-
-    async def fetch_action(self, action_name: str) -> ast.BaseAction:
-        scheme, sep, spec = action_name.partition(":")
-        if not sep:
-            raise ValueError(f"{action_name} has no schema")
-        if scheme in ("ws", "workspace"):
-            path = self.flow.workspace / spec
-            if not path.exists():
-                path = path.with_suffix(".yml")
-            if not path.exists():
-                raise ValueError(f"Action {action_name} does not exist")
-            return parse_action(path)
-        else:
-            raise ValueError(f"Unsupported scheme '{scheme}'")
 
     @property
     def flow(self) -> FlowCtx:
@@ -544,26 +546,23 @@ class LiveContext(BaseFlowContext):
         job = self._ast_flow.jobs[job_id]
 
         if isinstance(job, ast.JobActionCall):
-            action = await self.fetch_action(await job.action.eval(self))
-            if action.kind != ast.ActionKind.LIVE:
-                raise TypeError(
-                    f"Invalid action '{action}' "
-                    f"type {action.kind.value} for live flow"
-                )
-            assert isinstance(action, ast.LiveAction)
-            action_ctx = await ActionContext.create("", action)
+            action_ctx = await ActionContext.create(
+                "", await job.action.eval(EMPTY_ROOT), self._workspace
+            )
+            assert isinstance(action_ctx._ast, ast.LiveAction)
             args = {}
             if job.args is not None:
                 for k, v in job.args.items():
                     args[k] = await v.eval(self)
 
             action_ctx = await action_ctx.with_inputs(args)
-            assert isinstance(action.job, ast.Job)
+            assert isinstance(action_ctx._ast, ast.LiveAction)
+            assert isinstance(action_ctx._ast.job, ast.Job)
             job_ctx, env, tags = await self._calc_job(
                 action_ctx,
                 self.flow.flow_id,
                 job_id,
-                action.job,
+                action_ctx._ast.job,
                 self.meta.multi,
             )
         else:
@@ -729,14 +728,14 @@ class TaskContext(BaseContext):
                     )
                     prep_tasks[real_id] = prep_task
                 else:
-                    assert isinstance(ast_task.ast.TaskActionCall)
+                    assert isinstance(ast_task, ast.TaskActionCall)
                     prep_call = PrepBatchCallCtx(
                         id=task_id,
                         real_id=real_id,
                         needs=needs,
                         matrix=row,
                         strategy=strategy,
-                        action=ast_task,
+                        action=await ast_task.action.eval(EMPTY_ROOT),
                         args=ast_task.args or {},
                     )
                     prep_tasks[real_id] = prep_call
@@ -784,7 +783,9 @@ class TaskContext(BaseContext):
         prep_task = self._prep_tasks[real_id]
         return prep_task.needs
 
-    async def with_matrix(self: _CtxT, strategy: StrategyCtx, matrix: MatrixCtx) -> _CtxT:
+    async def with_matrix(
+        self: _CtxT, strategy: StrategyCtx, matrix: MatrixCtx
+    ) -> _CtxT:
         assert isinstance(self, TaskContext)
         if self._matrix is not None:
             raise TypeError(
@@ -798,13 +799,15 @@ class TaskContext(BaseContext):
             )
         return cast(_CtxT, replace(self, _strategy=strategy, _matrix=matrix))
 
-    async def with_task(self: _CtxT, real_id: str, *, needs: NeedsCtx) -> _CtxT:
-        # real_id -- the task's real id
-        #
-        # outputs -- real_id -> (output_name -> value) mapping for all task ids
-        # enumerated in needs.
-        #
-        # TODO: multi-state tasks require 'state' mapping (state_name -> value)
+    async def is_action(self, real_id: str) -> bool:
+        assert self._prep_tasks is not None
+        try:
+            prep_task = self._prep_tasks[real_id]
+            return isinstance(prep_task, PrepBatchCallCtx)
+        except KeyError:
+            raise UnknownTask(real_id)
+
+    def _with_task_pre(self, real_id: str, *, needs: NeedsCtx) -> BasePrepTaskCtx:
         assert isinstance(self, TaskContext)
         assert self._prep_tasks is not None
         assert self._prefix is not None
@@ -828,25 +831,56 @@ class TaskContext(BaseContext):
             if missing:
                 err.append(f"missing keys {missing}")
             raise ValueError(" ".join(err))
+        return prep_task
+
+    async def with_action(
+        self: _CtxT, real_id: str, *, needs: NeedsCtx
+    ) -> "BatchActionContext":
+        # real_id -- the task's real id
+        #
+        # outputs -- real_id -> (output_name -> value) mapping for all task ids
+        # enumerated in needs.
+        #
+        # TODO: multi-state tasks require 'state' mapping (state_name -> value)
+        assert isinstance(self, TaskContext)
+        assert self._prep_tasks is not None
+        prep_task = self._with_task_pre(real_id, needs=needs)
+
+        if isinstance(prep_task, PrepTaskCtx):
+            raise RuntimeError("Use .with_task() for calling an task-typed task")
+
+        assert isinstance(prep_task, PrepBatchCallCtx)
+        action = await self.fetch_action(prep_task.action)
+        if action.kind != ast.ActionKind.BATCH:
+            raise TypeError(
+                f"Invalid action '{action}' " f"type {action.kind.value} for batch flow"
+            )
+        ctx = await BatchActionContext.create(
+            "prefix", prep_task.action, self._workspace
+        )
+        ctx = await ctx.with_matrix(prep_task.strategy, prep_task.matrix)
+        ctx = await ctx.with_inputs(
+            {k: await v.eval(ctx) for k, v in prep_task.args.items()}
+        )
+        return ctx
+
+    async def with_task(self: _CtxT, real_id: str, *, needs: NeedsCtx) -> _CtxT:
+        # real_id -- the task's real id
+        #
+        # outputs -- real_id -> (output_name -> value) mapping for all task ids
+        # enumerated in needs.
+        #
+        # TODO: multi-state tasks require 'state' mapping (state_name -> value)
+        assert isinstance(self, TaskContext)
+        assert self._prep_tasks is not None
+        prep_task = self._with_task_pre(real_id, needs=needs)
 
         if isinstance(prep_task, PrepBatchCallCtx):
-            action = await self.fetch_action(await prep_task.action.eval(self))
-            if action.kind != ast.ActionKind.BATCH:
-                raise TypeError(
-                    f"Invalid action '{action}' "
-                    f"type {action.kind.value} for batch flow"
-                )
-            parent_ctx = await BatchActionContext.create("prefix", prep_task.action)
-            ctx = await parent_ctx.with_matrix(prep_task.strategy, prep_task.matrix)
-            parent_ctx = await parent_ctx.with_inputs({k: await v.eval(ctx) for v in prep_task.args})
-            ast_tasks = action.tasks
-        else:
-            assert isinstance(prep_task, PrepTaskCtx)
-            ctx = await self.with_matrix(prep_task.strategy, prep_task.matrix)
-            ctx = replace(ctx, _needs=needs)
-            ast_task = prep_task.ast
+            raise RuntimeError("Use .with_action() for calling an action-typed task")
 
         assert isinstance(prep_task, PrepTaskCtx), prep_task
+        ctx = await self.with_matrix(prep_task.strategy, prep_task.matrix)
+        ctx = replace(ctx, _needs=needs)
 
         env = dict(ctx.env)
         if prep_task.ast.env is not None:
@@ -1008,6 +1042,7 @@ class ActionContext(BaseContext):
     )
 
     _ast: Optional[ast.BaseAction] = None
+    _name: str = ""
 
     _outputs: Optional[Mapping[str, str]] = None
     _state: Optional[Mapping[str, str]] = None
@@ -1019,13 +1054,21 @@ class ActionContext(BaseContext):
     async def create(
         cls: Type[_CtxT],
         prefix: str,
-        ast_action: ast.BaseAction,
+        action: str,
+        workspace: LocalPath,
     ) -> _CtxT:
         assert issubclass(cls, ActionContext)
+        ctx = cls(
+            _workspace=workspace,
+            _name=action,
+        )
+        ast_action = await ctx.fetch_action(action)
         assert isinstance(ast_action, ast.BaseAction)
+
         return cast(
             _CtxT,
-            cls(
+            replace(
+                ctx,
                 _prefix=prefix,
                 _ast=ast_action,
                 _inputs=None,
@@ -1104,6 +1147,28 @@ class ActionContext(BaseContext):
         new_outputs.update(outputs)
         return cast(_CtxT, replace(self, outputs=new_outputs))
 
+    def _check_kind(self, required: ast.ActionKind) -> None:
+        assert self._ast is not None
+        if self._ast.kind != required:
+            raise TypeError(
+                f"Invalid action '{self._name}' "
+                f"type {self._ast.kind.value}, {required.value} is required"
+            )
+
+
+@dataclass(frozen=True)
+class LiveActionContext(ActionContext):
+    @classmethod
+    async def create(
+        cls: Type[_CtxT],
+        prefix: str,
+        action: str,
+        workspace: LocalPath,
+    ) -> _CtxT:
+        ret = await super(cls, LiveActionContext).create(prefix, action, workspace)
+        ret._check_kind(ast.ActionKind.LIVE)
+        return cast(_CtxT, ret)
+
 
 @dataclass(frozen=True)
 class BatchActionContext(TaskContext, ActionContext):
@@ -1116,9 +1181,11 @@ class BatchActionContext(TaskContext, ActionContext):
     async def create(
         cls: Type[_CtxT],
         prefix: str,
-        ast_action: ast.BaseAction,
+        action: str,
+        workspace: LocalPath,
     ) -> _CtxT:
-        ctx = await super(cls, BatchActionContext).create(prefix, ast_action)
+        ctx = await super(cls, BatchActionContext).create(prefix, action, workspace)
+        ctx._check_kind(ast.ActionKind.BATCH)
         assert isinstance(ctx, BatchActionContext)
         assert isinstance(ctx._ast, ast.BatchAction)
         prefix, prep_tasks = await ctx._prepare(prefix, ctx._ast.tasks)
