@@ -651,6 +651,7 @@ TASK = {
     "id": OptIdExpr,
     "needs": SimpleSeq(IdExpr),
     "strategy": None,
+    "enable": OptBoolExpr,
     **EXEC_UNIT,
 }
 

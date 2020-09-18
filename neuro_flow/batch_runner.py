@@ -20,7 +20,7 @@ from . import ast
 from .commands import CmdProcessor
 from .context import BatchContext, DepCtx
 from .parser import ConfigDir, parse_batch
-from .storage import Attempt, BatchStorage, FinishedTask, StartedTask
+from .storage import Attempt, BatchStorage, FinishedTask, SkippedTask, StartedTask
 from .types import LocalPath
 from .utils import TERMINATED_JOB_STATUSES, format_job_status
 
@@ -138,7 +138,10 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             click.echo("Find last attempt")
             attempt = await self._storage.find_attempt(bake)
             click.echo(f"Fetch attempt #{attempt.number}")
-            started, finished = await self._storage.fetch_attempt(attempt)
+            started, finished, skipped = await self._storage.fetch_attempt(attempt)
+
+            def _next_task_no() -> int:
+                return len(started) + len(finished) + len(skipped)
 
             toposorter = graphlib.TopologicalSorter(ctx.graph)
             toposorter.prepare()
@@ -152,15 +155,24 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                     deps = ctx.graph[tid]
                     needs = {}
                     for dep_id in deps:
-                        dep = finished.get(dep_id)
-                        assert dep is not None
-                        needs[dep_id] = DepCtx(dep.status, dep.outputs)
+                        if dep_id in skipped:
+                            needs[dep_id] = DepCtx(JobStatus.CANCELLED, {})
+                        else:
+                            dep = finished.get(dep_id)
+                            assert dep is not None
+                            needs[dep_id] = DepCtx(dep.status, dep.outputs)
                     task_ctx = await ctx.with_task(tid, needs=needs)
-                    st = await self._start_task(
-                        attempt, len(started) + len(finished), task_ctx
-                    )
-                    click.echo(f"Task {st.id} [{st.raw_id}] started")
-                    started[st.id] = st
+                    if task_ctx.task.enable:
+                        st = await self._start_task(attempt, _next_task_no(), task_ctx)
+                        click.echo(f"Task {st.id} [{st.raw_id}] started")
+                        started[st.id] = st
+                    else:
+                        skipped_task = await self._skip_task(
+                            attempt, _next_task_no(), task_ctx
+                        )
+                        click.echo(f"Task {skipped_task.id} skipped")
+                        skipped[skipped_task.id] = skipped_task
+                        toposorter.done(skipped_task.id)
 
                 for st in started.values():
                     if st.id in finished:
@@ -247,6 +259,12 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         )
         return await self._storage.start_task(attempt, task_no, task.real_id, job)
 
+    async def _skip_task(
+        self, attempt: Attempt, task_no: int, task_ctx: BatchContext
+    ) -> SkippedTask:
+        task = task_ctx.task
+        return await self._storage.skip_task(attempt, task_no, task.real_id)
+
     async def _finish_task(
         self,
         attempt: Attempt,
@@ -290,13 +308,15 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             )
         )
 
-        started, finished = await self._storage.fetch_attempt(attempt)
+        started, finished, skipped = await self._storage.fetch_attempt(attempt)
         for task_id in bake.graph:
             if task_id in finished:
                 rows.append([task_id, format_job_status(finished[task_id].status)])
             elif task_id in started:
                 info = await self._client.jobs.status(started[task_id].raw_id)
                 rows.append([task_id, format_job_status(info.status.value)])
+            elif task_id in skipped:
+                rows.append([task_id, format_job_status(JobStatus.CANCELLED)])
             else:
                 rows.append([task_id, format_job_status(JobStatus.UNKNOWN)])
 
@@ -308,7 +328,9 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
     ) -> None:
         bake = await self._storage.fetch_bake_by_id(self.project, bake_id)
         attempt = await self._storage.find_attempt(bake, attempt_no)
-        started, finished = await self._storage.fetch_attempt(attempt)
+        started, finished, skipped = await self._storage.fetch_attempt(attempt)
+        if task_id in skipped:
+            raise click.BadArgumentUsage(f"Task {task_id} was skipped")
         if task_id not in finished:
             if task_id not in started:
                 raise click.BadArgumentUsage(f"Unknown task {task_id}")

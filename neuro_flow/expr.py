@@ -23,12 +23,14 @@ from funcparserlib.parser import (
     skip,
     some,
 )
+from neuromation.api import JobStatus
 from typing import (
     Any,
     Awaitable,
     Callable,
     Dict,
     Generic,
+    Iterator,
     List,
     Mapping,
     Optional,
@@ -65,10 +67,16 @@ class MappingT(Protocol):
     def __getitem__(self, key: LiteralT) -> TypeT:
         ...
 
+    def __iter__(self) -> Iterator[LiteralT]:
+        ...
+
 
 @runtime_checkable
 class SequenceT(Protocol):
     def __getitem__(self, idx: LiteralT) -> TypeT:
+        ...
+
+    def __iter__(self) -> Iterator[TypeT]:
         ...
 
 
@@ -129,7 +137,7 @@ async def alen(ctx: CallCtx, arg: TypeT) -> int:
 
 
 async def akeys(ctx: CallCtx, arg: TypeT) -> TypeT:
-    # Async version of len(), async is required for the sake of uniformness.
+    # Async version of list(), async is required for the sake of uniformness.
     if not isinstance(arg, Mapping):
         raise TypeError(f"keys() requires a mapping, got {arg!r}")
     return list(arg)  # type: ignore  # List[...] is implicitly converted to SequenceT
@@ -149,8 +157,44 @@ async def from_json(ctx: CallCtx, arg: str) -> TypeT:
     return cast(TypeT, json.loads(arg))
 
 
+def _check_has_needs(ctx: CallCtx, *, func_name: str) -> None:
+    try:
+        ctx.root.lookup("needs")
+    except LookupError:
+        raise ValueError(f"{func_name}() is only available inside a task definition")
+
+
+def _get_needs_statuses(root: RootABC) -> List[JobStatus]:
+    needs = root.lookup("needs")
+    assert isinstance(needs, MappingT)
+    result: List[JobStatus] = []
+    for dependency in needs:
+        dep_ctx = needs[dependency]
+        result.append(dep_ctx.result)  # type: ignore
+    return result
+
+
+async def success(ctx: CallCtx) -> bool:
+    _check_has_needs(ctx, func_name="success")
+    needs_statuses = _get_needs_statuses(ctx.root)
+    return all(status == JobStatus.SUCCEEDED for status in needs_statuses)
+
+
+async def failure(ctx: CallCtx) -> bool:
+    _check_has_needs(ctx, func_name="failure")
+    needs_statuses = _get_needs_statuses(ctx.root)
+    return any(status == JobStatus.FAILED for status in needs_statuses)
+
+
 FUNCTIONS = _build_signatures(
-    len=alen, nothing=nothing, fmt=fmt, keys=akeys, to_json=to_json, from_json=from_json
+    len=alen,
+    nothing=nothing,
+    fmt=fmt,
+    keys=akeys,
+    to_json=to_json,
+    from_json=from_json,
+    success=success,
+    failure=failure,
 )
 
 
@@ -271,7 +315,8 @@ class Call(Item):
     async def eval(self, root: RootABC) -> TypeT:
         args = [await a.eval(root) for a in self.args]
         try:
-            tmp = await self.func.call(root, *args)  # type: ignore
+            call_ctx = CallCtx(self.start, self.end, root)
+            tmp = await self.func.call(call_ctx, *args)  # type: ignore
         except asyncio.CancelledError:
             raise
         except EvalError:
