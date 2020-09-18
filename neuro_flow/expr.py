@@ -163,11 +163,6 @@ def _check_has_needs(ctx: CallCtx, *, func_name: str) -> None:
         raise ValueError(f"{func_name}() is only available inside a task definition")
 
 
-async def always(ctx: CallCtx) -> bool:
-    _check_has_needs(ctx, func_name="always")
-    return True
-
-
 def _get_needs_statuses(root: RootABC) -> List[JobStatus]:
     needs = root.lookup("needs")
     assert isinstance(needs, MappingT)
@@ -190,14 +185,6 @@ async def failure(ctx: CallCtx) -> bool:
     return any(status == JobStatus.FAILED for status in needs_statuses)
 
 
-async def cancelled(ctx: CallCtx) -> bool:
-    _check_has_needs(ctx, func_name="failure")
-    raise NotImplementedError(
-        "cancelled() is not available as batch cancellation is "
-        "not implemented. Check issue #68 on github"
-    )
-
-
 FUNCTIONS = _build_signatures(
     len=alen,
     nothing=nothing,
@@ -205,10 +192,8 @@ FUNCTIONS = _build_signatures(
     keys=akeys,
     to_json=to_json,
     from_json=from_json,
-    always=always,
     success=success,
     failure=failure,
-    cancelled=cancelled,
 )
 
 
