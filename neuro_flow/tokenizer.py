@@ -1,7 +1,7 @@
 import dataclasses
 
 import re
-from typing import Any, Iterator, Optional
+from typing import Iterator, Optional
 
 from .types import LocalPath
 
@@ -19,16 +19,6 @@ class Token:
     value: str
     start: Pos
     end: Pos
-
-    def __eq__(self, other: Any) -> bool:
-        if not isinstance(other, Token):
-            return False
-        return (
-            self.type == other.type
-            and self.value == other.value
-            and self.start == other.start
-            and self.end == other.end
-        )
 
     def _pos_str(self) -> str:
         sl, sp = self.start.line, self.start.col
@@ -78,6 +68,8 @@ class Tokenizer:
         ("BIN", r"0[bB][0-1_]+"),
         ("INT", r"-?[0-9][0-9_]*"),
         ("STR", r"'[^']*'|" r'"[^"]*"'),
+        ("OP", r"(==|!=|or|and|<=|<|>=|>)(?=[ \t])"),
+        ("UNARY_OP", r"(not)(?=[ \t])"),
         ("NAME", r"[A-Za-z][A-Za-z_0-9]*"),
         ("DOT", r"\."),
         ("COMMA", r","),

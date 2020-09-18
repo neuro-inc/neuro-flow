@@ -121,7 +121,7 @@ class TaskBase(Base):
     strategy: Optional[Strategy] = field(metadata={"allow_none": True})
 
     # continue_on_error: OptBoolExpr
-    # if_: OptBoolExpr  # -- skip conditionally
+    enable: OptBoolExpr
 
 
 @dataclass(frozen=True)

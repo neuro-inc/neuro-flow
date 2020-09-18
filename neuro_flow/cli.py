@@ -308,3 +308,7 @@ async def show(
             BatchRunner(config_dir, client, storage)
         )
         await runner.logs(bake_id, task_id, attempt_no=attempt, raw=raw)
+
+
+if __name__ == "__main__":
+    main()
