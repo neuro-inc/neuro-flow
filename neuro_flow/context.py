@@ -546,8 +546,11 @@ class LiveContext(BaseFlowContext):
         job = self._ast_flow.jobs[job_id]
 
         if isinstance(job, ast.JobActionCall):
-            action_ctx = await ActionContext.create(
-                "", await job.action.eval(EMPTY_ROOT), self._workspace, self.tags
+            action_ctx = await LiveActionContext.create(
+                f"{self.flow.flow_id}.{job_id}",  # unused
+                await job.action.eval(EMPTY_ROOT),
+                self._workspace,
+                self.tags,
             )
             assert isinstance(action_ctx._ast, ast.LiveAction)
             args = {}
@@ -857,7 +860,7 @@ class TaskContext(BaseContext):
             )
         parent_ctx = await self.with_matrix(prep_task.strategy, prep_task.matrix)
         ctx = await BatchActionContext.create(
-            "prefix",
+            f"{self._prefix}.{real_id}",
             prep_task.action,
             self._workspace,
             parent_ctx.tags,

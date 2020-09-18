@@ -513,12 +513,10 @@ async def test_pipeline_with_batch_action(assets: pathlib.Path) -> None:
     )
     assert ctx3.task.workdir is None
     assert ctx3.task.volumes == []
-    assert ctx3.tags == {
-        'project:unit', 'flow:batch-action-call', 'task:task-1'
-    }
+    assert ctx3.tags == {"project:unit", "flow:batch-action-call", "task:task-1"}
     assert ctx3.task.life_span is None
 
-    assert ctx3.graph == {'task_1': set(), 'task_2': {'task_1'}}
+    assert ctx3.graph == {"task_1": set(), "task_2": {"task_1"}}
     assert ctx3.matrix == {}
     assert ctx3.strategy.max_parallel == 10
     assert not ctx3.strategy.fail_fast
