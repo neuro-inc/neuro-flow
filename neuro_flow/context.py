@@ -547,7 +547,7 @@ class LiveContext(BaseFlowContext):
 
         if isinstance(job, ast.JobActionCall):
             action_ctx = await ActionContext.create(
-                "", await job.action.eval(EMPTY_ROOT), self._workspace
+                "", await job.action.eval(EMPTY_ROOT), self._workspace, self.tags
             )
             assert isinstance(action_ctx._ast, ast.LiveAction)
             args = {}
@@ -855,12 +855,15 @@ class TaskContext(BaseContext):
             raise TypeError(
                 f"Invalid action '{action}' " f"type {action.kind.value} for batch flow"
             )
+        parent_ctx = await self.with_matrix(prep_task.strategy, prep_task.matrix)
         ctx = await BatchActionContext.create(
-            "prefix", prep_task.action, self._workspace
+            "prefix",
+            prep_task.action,
+            self._workspace,
+            parent_ctx.tags,
         )
-        ctx = await ctx.with_matrix(prep_task.strategy, prep_task.matrix)
         ctx = await ctx.with_inputs(
-            {k: await v.eval(ctx) for k, v in prep_task.args.items()}
+            {k: await v.eval(parent_ctx) for k, v in prep_task.args.items()}
         )
         return ctx
 
@@ -1056,6 +1059,7 @@ class ActionContext(BaseContext):
         prefix: str,
         action: str,
         workspace: LocalPath,
+        tags: AbstractSet[str],
     ) -> _CtxT:
         assert issubclass(cls, ActionContext)
         ctx = cls(
@@ -1075,7 +1079,7 @@ class ActionContext(BaseContext):
                 _outputs={},
                 _state={},
                 _env={},
-                _tags=set(),
+                _tags=set(tags),
                 _defaults=DefaultsCtx(),
             ),
         )
@@ -1164,8 +1168,11 @@ class LiveActionContext(ActionContext):
         prefix: str,
         action: str,
         workspace: LocalPath,
+        tags: AbstractSet[str],
     ) -> _CtxT:
-        ret = await super(cls, LiveActionContext).create(prefix, action, workspace)
+        ret = await super(cls, LiveActionContext).create(
+            prefix, action, workspace, tags
+        )
         ret._check_kind(ast.ActionKind.LIVE)
         return cast(_CtxT, ret)
 
@@ -1183,8 +1190,11 @@ class BatchActionContext(TaskContext, ActionContext):
         prefix: str,
         action: str,
         workspace: LocalPath,
+        tags: AbstractSet[str],
     ) -> _CtxT:
-        ctx = await super(cls, BatchActionContext).create(prefix, action, workspace)
+        ctx = await super(cls, BatchActionContext).create(
+            prefix, action, workspace, tags
+        )
         ctx._check_kind(ast.ActionKind.BATCH)
         assert isinstance(ctx, BatchActionContext)
         assert isinstance(ctx._ast, ast.BatchAction)

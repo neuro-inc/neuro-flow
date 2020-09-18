@@ -407,7 +407,7 @@ async def test_pipeline_args(assets: pathlib.Path) -> None:
 
 async def test_batch_action_default(assets: pathlib.Path) -> None:
     workspace = assets
-    ctx = await BatchActionContext.create("", "ws:batch-action.yml", workspace)
+    ctx = await BatchActionContext.create("", "ws:batch-action.yml", workspace, set())
     assert ctx.outputs == {}
     assert ctx.state == {}
     with pytest.raises(NotAvailable):
@@ -416,7 +416,7 @@ async def test_batch_action_default(assets: pathlib.Path) -> None:
 
 async def test_batch_action_with_inputs_unsupported(assets: pathlib.Path) -> None:
     workspace = assets
-    ctx = await BatchActionContext.create("", "ws:batch-action.yml", workspace)
+    ctx = await BatchActionContext.create("", "ws:batch-action.yml", workspace, set())
 
     with pytest.raises(ValueError, match=r"Unsupported input\(s\): other,unknown"):
         await ctx.with_inputs({"unknown": "value", "other": "val"})
@@ -425,7 +425,7 @@ async def test_batch_action_with_inputs_unsupported(assets: pathlib.Path) -> Non
 async def test_batch_action_without_inputs_unsupported(assets: pathlib.Path) -> None:
     workspace = assets
     ctx = await BatchActionContext.create(
-        "", "ws:batch-action-without-inputs", workspace
+        "", "ws:batch-action-without-inputs", workspace, set()
     )
 
     with pytest.raises(ValueError, match=r"Unsupported input\(s\): unknown"):
@@ -434,7 +434,7 @@ async def test_batch_action_without_inputs_unsupported(assets: pathlib.Path) -> 
 
 async def test_batch_action_with_inputs_no_default(assets: pathlib.Path) -> None:
     workspace = assets
-    ctx = await BatchActionContext.create("", "ws:batch-action.yml", workspace)
+    ctx = await BatchActionContext.create("", "ws:batch-action.yml", workspace, set())
 
     with pytest.raises(ValueError, match=r"Required input\(s\): arg1"):
         await ctx.with_inputs({"arg2": "val2"})
@@ -442,7 +442,7 @@ async def test_batch_action_with_inputs_no_default(assets: pathlib.Path) -> None
 
 async def test_batch_action_with_inputs_ok(assets: pathlib.Path) -> None:
     workspace = assets
-    ctx = await BatchActionContext.create("", "ws:batch-action", workspace)
+    ctx = await BatchActionContext.create("", "ws:batch-action", workspace, set())
 
     ctx2 = await ctx.with_inputs({"arg1": "v1", "arg2": "v2"})
     assert ctx2.inputs == {"arg1": "v1", "arg2": "v2"}
@@ -450,7 +450,7 @@ async def test_batch_action_with_inputs_ok(assets: pathlib.Path) -> None:
 
 async def test_batch_action_with_inputs_default_ok(assets: pathlib.Path) -> None:
     workspace = assets
-    ctx = await BatchActionContext.create("", "ws:batch-action", workspace)
+    ctx = await BatchActionContext.create("", "ws:batch-action", workspace, set())
 
     ctx2 = await ctx.with_inputs({"arg1": "v1"})
     assert ctx2.inputs == {"arg1": "v1", "arg2": "value 2"}
@@ -492,31 +492,33 @@ async def test_pipeline_with_batch_action(assets: pathlib.Path) -> None:
     flow = parse_batch(workspace, config_file)
     ctx = await BatchContext.create(flow, workspace, config_file)
 
+    assert await ctx.is_action("test")
     ctx2 = await ctx.with_action("test", needs={})
-    assert ctx2.task.id == "test_a"
-    assert ctx2.task.real_id == "test_a"
-    assert ctx2.task.needs == set()
-    assert ctx2.task.title == "Batch title"
-    assert ctx2.task.name == "job-name"
-    assert ctx2.task.image == "image:banana"
-    assert ctx2.task.preset == "cpu-small"
-    assert ctx2.task.http_port == 8080
-    assert not ctx2.task.http_auth
-    assert ctx2.task.entrypoint == "bash"
-    assert ctx2.task.cmd == "echo abc"
-    assert ctx2.task.workdir == RemotePath("/local/dir")
-    assert ctx2.task.volumes == ["storage:dir:/var/dir:ro", "storage:dir:/var/dir:ro"]
-    assert ctx2.tags == {
-        "tag-1",
-        "tag-2",
-        "tag-a",
-        "tag-b",
-        "project:unit",
-        "flow:batch-minimal",
-    }
-    assert ctx2.task.life_span == 10500.0
+    assert isinstance(ctx2, BatchActionContext)
 
-    assert ctx.graph == {"test_a": set()}
-    assert ctx2.matrix == {}
-    assert ctx2.strategy.max_parallel == 10
-    assert not ctx2.strategy.fail_fast
+    ctx3 = await ctx2.with_task("task_1", needs={})
+    assert ctx3.task.id == "task_1"
+    assert ctx3.task.real_id == "task_1"
+    assert ctx3.task.needs == set()
+    assert ctx3.task.title is None
+    assert ctx3.task.name is None
+    assert ctx3.task.image == "ubuntu"
+    assert ctx3.task.preset is None
+    assert ctx3.task.http_port is None
+    assert not ctx3.task.http_auth
+    assert ctx3.task.entrypoint is None
+    assert (
+        ctx3.task.cmd
+        == "bash -euo pipefail -c 'echo ::set-output name=task1::Task 1 val 1'"
+    )
+    assert ctx3.task.workdir is None
+    assert ctx3.task.volumes == []
+    assert ctx3.tags == {
+        'project:unit', 'flow:batch-action-call', 'task:task-1'
+    }
+    assert ctx3.task.life_span is None
+
+    assert ctx3.graph == {'task_1': set(), 'task_2': {'task_1'}}
+    assert ctx3.matrix == {}
+    assert ctx3.strategy.max_parallel == 10
+    assert not ctx3.strategy.fail_fast
