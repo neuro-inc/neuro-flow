@@ -496,3 +496,43 @@ async def test_job_with_live_action(assets: pathlib.Path) -> None:
     assert ctx2.job.port_forward == []
     assert not ctx2.job.detach
     assert not ctx2.job.browse
+
+
+async def test_pipeline_enable_default_no_needs(assets: pathlib.Path) -> None:
+    workspace = assets
+    config_file = workspace / "batch-enable.yml"
+    flow = parse_batch(workspace, config_file)
+    ctx = await BatchContext.create(flow, workspace, config_file)
+
+    ctx2 = await ctx.with_task("task_a", needs={})
+    assert ctx2.task.enable
+
+
+async def test_pipeline_enable_default_with_needs(assets: pathlib.Path) -> None:
+    workspace = assets
+    config_file = workspace / "batch-needs.yml"
+    flow = parse_batch(workspace, config_file)
+    ctx = await BatchContext.create(flow, workspace, config_file)
+
+    ctx2 = await ctx.with_task("task-2", needs={"task_a": DepCtx(JobStatus.FAILED, {})})
+    assert not ctx2.task.enable
+
+    ctx2 = await ctx.with_task(
+        "task-2", needs={"task_a": DepCtx(JobStatus.SUCCEEDED, {})}
+    )
+    assert ctx2.task.enable
+
+
+async def test_pipeline_enable_success(assets: pathlib.Path) -> None:
+    workspace = assets
+    config_file = workspace / "batch-enable.yml"
+    flow = parse_batch(workspace, config_file)
+    ctx = await BatchContext.create(flow, workspace, config_file)
+
+    ctx2 = await ctx.with_task("task-2", needs={"task_a": DepCtx(JobStatus.FAILED, {})})
+    assert not ctx2.task.enable
+
+    ctx2 = await ctx.with_task(
+        "task-2", needs={"task_a": DepCtx(JobStatus.SUCCEEDED, {})}
+    )
+    assert ctx2.task.enable

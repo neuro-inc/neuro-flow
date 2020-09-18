@@ -1,0 +1,11 @@
+kind: batch
+tasks:
+  - id: task_a
+    image: ubuntu
+    preset: cpu-small
+    bash: echo abc
+  - needs: [task_a]
+    enable: ${{ success() }}
+    image: ubuntu
+    preset: cpu-small
+    bash: echo abc
