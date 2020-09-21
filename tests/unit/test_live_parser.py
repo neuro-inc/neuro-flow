@@ -97,7 +97,7 @@ def test_parse_full(assets: pathlib.Path) -> None:
     flow = parse_live(workspace, config_file)
     assert flow == ast.LiveFlow(
         Pos(0, 0, config_file),
-        Pos(60, 0, config_file),
+        Pos(57, 0, config_file),
         id=SimpleOptIdExpr(
             Pos(0, 0, config_file),
             Pos(0, 0, config_file),
@@ -162,7 +162,7 @@ def test_parse_full(assets: pathlib.Path) -> None:
             ),
             "volume_b": ast.Volume(
                 Pos(22, 4, config_file),
-                Pos(24, 2, config_file),
+                Pos(24, 0, config_file),
                 remote=URIExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "storage:other"
                 ),
@@ -176,28 +176,10 @@ def test_parse_full(assets: pathlib.Path) -> None:
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
             ),
-            "volume_sec": ast.Volume(
-                Pos(25, 4, config_file),
-                Pos(27, 0, config_file),
-                remote=URIExpr(
-                    Pos(0, 0, config_file), Pos(0, 0, config_file), "secret:key"
-                ),
-                mount=RemotePathExpr(
-                    Pos(0, 0, config_file),
-                    Pos(0, 0, config_file),
-                    "/var/secret/key.txt",
-                ),
-                read_only=OptBoolExpr(
-                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
-                ),
-                local=OptLocalPathExpr(
-                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
-                ),
-            ),
         },
         defaults=ast.FlowDefaults(
-            Pos(28, 2, config_file),
-            Pos(35, 0, config_file),
+            Pos(25, 2, config_file),
+            Pos(32, 0, config_file),
             tags=[
                 StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "tag-a"),
                 StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "tag-b"),
@@ -222,8 +204,8 @@ def test_parse_full(assets: pathlib.Path) -> None:
         ),
         jobs={
             "test_a": ast.Job(
-                Pos(37, 4, config_file),
-                Pos(60, 0, config_file),
+                Pos(34, 4, config_file),
+                Pos(57, 0, config_file),
                 name=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "job-name"
                 ),

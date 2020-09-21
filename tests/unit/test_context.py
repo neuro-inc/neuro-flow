@@ -61,7 +61,7 @@ async def test_volumes(assets: pathlib.Path) -> None:
     config_file = workspace / "live-full.yml"
     flow = parse_live(workspace, config_file)
     ctx = await LiveContext.create(flow, workspace, config_file)
-    assert ctx.volumes.keys() == {"volume_a", "volume_b", "volume_sec"}
+    assert ctx.volumes.keys() == {"volume_a", "volume_b"}
 
     assert ctx.volumes["volume_a"].id == "volume_a"
     assert ctx.volumes["volume_a"].remote == URL("storage:dir")

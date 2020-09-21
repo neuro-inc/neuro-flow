@@ -22,9 +22,6 @@ volumes:
   volume_b:
     remote: storage:other
     mount: /var/other
-  volume_sec:
-    remote: secret:key
-    mount: /var/secret/key.txt
 defaults:
   tags: [tag-a, tag-b]
   env:

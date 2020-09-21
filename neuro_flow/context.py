@@ -343,6 +343,7 @@ class BaseFlowContext(BaseContext):
         )
         ctx = replace(ctx, _defaults=defaults, _env=env, _tags=tags)
 
+        # volumes / images needs a context with defaults only for self initialization
         volumes = {}
         if ast_flow.volumes is not None:
             for k, v in ast_flow.volumes.items():
@@ -355,7 +356,6 @@ class BaseFlowContext(BaseContext):
                     local=local_path,
                     full_local_path=calc_full_path(ctx, local_path),
                 )
-        ctx = replace(ctx, _volumes=volumes)
 
         images = {}
         if ast_flow.images is not None:
@@ -391,6 +391,7 @@ class BaseFlowContext(BaseContext):
                 )
         return replace(  # type: ignore[return-value]
             ctx,
+            _volumes=volumes,
             _images=images,
         )
 
