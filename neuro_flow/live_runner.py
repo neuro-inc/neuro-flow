@@ -479,6 +479,10 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
         cmd.append(f"--file={rel_dockerfile_path}")
         for arg in image_ctx.build_args:
             cmd.append(f"--build-arg={arg}")
+        for vol in image_ctx.volumes:
+            cmd.append(f"--volume={vol}")
+        for k, v in image_ctx.env.items():
+            cmd.append(f"--env={k}={v}")
         cmd.append(str(image_ctx.full_context_path))
         cmd.append(str(image_ctx.ref))
         await self._run_subproc("neuro-extras", "image", "build", *cmd)
