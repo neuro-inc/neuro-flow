@@ -665,8 +665,8 @@ class TaskContext(BaseContext):
     _prefix: Optional[str] = None
 
     async def _prepare(
-        self, prefix: str, tasks: Sequence[Union[ast.Task, ast.TaskActionCall]]
-    ) -> Tuple[str, Dict[str, BasePrepTaskCtx]]:
+        self, tasks: Sequence[Union[ast.Task, ast.TaskActionCall]]
+    ) -> Dict[str, BasePrepTaskCtx]:
         prep_tasks: Dict[str, BasePrepTaskCtx] = {}
         last_needs: Set[str] = set()
         for num, ast_task in enumerate(tasks, 1):
@@ -745,7 +745,7 @@ class TaskContext(BaseContext):
                 real_ids.add(real_id)
 
             last_needs = real_ids
-        return prefix, prep_tasks
+        return prep_tasks
 
     @property
     def task(self) -> TaskCtx:
@@ -860,7 +860,7 @@ class TaskContext(BaseContext):
             )
         parent_ctx = await self.with_matrix(prep_task.strategy, prep_task.matrix)
         ctx = await BatchActionContext.create(
-            f"{self._prefix}.{real_id}",
+            _join_pre(self._prefix, real_id),
             prep_task.action,
             self._workspace,
             parent_ctx.tags,
@@ -894,14 +894,14 @@ class TaskContext(BaseContext):
 
         title = await prep_task.ast.title.eval(ctx)
         if title is None:
-            title = f"{self._prefix}.{real_id}"
+            title = _join_pre(self._prefix, real_id)
         title = await prep_task.ast.title.eval(ctx)
 
         tags = set()
         if prep_task.ast.tags is not None:
             tags = {await v.eval(ctx) for v in prep_task.ast.tags}
         if not tags:
-            tags = {f"task:{_id2tag(real_id)}"}
+            tags = {"task:" + _join_pre(self._prefix, _id2tag(real_id))}
 
         workdir = (await prep_task.ast.workdir.eval(ctx)) or ctx.defaults.workdir
 
@@ -1014,13 +1014,17 @@ class BatchContext(TaskContext, BaseFlowContext):
         workspace: LocalPath,
         config_file: LocalPath,
     ) -> _CtxT:
-        ctx = await super(cls, BatchContext).create(ast_flow, workspace, config_file)
+        ctx = await super(cls, BatchContext).create(
+            ast_flow,
+            workspace,
+            config_file,
+        )
         assert issubclass(cls, BatchContext), cls
         assert isinstance(ctx._ast_flow, ast.BatchFlow)
 
-        prefix, prep_tasks = await ctx._prepare(ctx.flow.flow_id, ctx._ast_flow.tasks)
+        prep_tasks = await ctx._prepare(ctx._ast_flow.tasks)
 
-        return cast(_CtxT, replace(ctx, _prefix=prefix, _prep_tasks=prep_tasks))
+        return cast(_CtxT, replace(ctx, _prefix="", _prep_tasks=prep_tasks))
 
     async def _with_args(self: _CtxT) -> _CtxT:
         # Calculate batch args context early, no-op for live mode
@@ -1208,7 +1212,7 @@ class BatchActionContext(TaskContext, ActionContext):
         ctx._check_kind(ast.ActionKind.BATCH)
         assert isinstance(ctx, BatchActionContext)
         assert isinstance(ctx._ast, ast.BatchAction)
-        prefix, prep_tasks = await ctx._prepare(prefix, ctx._ast.tasks)
+        prep_tasks = await ctx._prepare(ctx._ast.tasks)
 
         return cast(_CtxT, replace(ctx, _prefix=prefix, _prep_tasks=prep_tasks))
 
@@ -1225,3 +1229,10 @@ def calc_full_path(
 
 def _id2tag(id: str) -> str:
     return id.replace("_", "-").lower()
+
+
+def _join_pre(pre: Optional[str], id: str) -> str:
+    if pre:
+        return pre + "." + id
+    else:
+        return id
