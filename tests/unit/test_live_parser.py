@@ -138,7 +138,7 @@ def test_parse_full(assets: pathlib.Path) -> None:
                     OptStrExpr(
                         Pos(0, 0, config_file),
                         Pos(0, 0, config_file),
-                        "${{ volumes.volume_sec.ref_ro }}",
+                        "secret:key:/var/secret/key.txt",
                     ),
                 ],
             )

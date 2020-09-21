@@ -12,7 +12,7 @@ images:
     env:
       SECRET_ENV: secret:key
     volumes:
-      - ${{ volumes.volume_sec.ref_ro }}
+      - secret:key:/var/secret/key.txt
 volumes:
   volume_a:
     remote: storage:dir
