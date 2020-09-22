@@ -212,7 +212,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                 skipped_task = await self._skip_task(
                     attempt, self._next_task_no(started, finished, skipped), full_id
                 )
-                click.echo(f"Task {skipped_task.id} skipped")
+                click.echo(f"Task {'.'.join(skipped_task.id)} is skipped")
                 skipped[skipped_task.id] = skipped_task
                 topo.done(full_id)
                 continue
@@ -222,7 +222,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                 st = await self._storage.start_batch_action(
                     attempt, self._next_task_no(started, finished, skipped), full_id
                 )
-                click.echo(f"Task {st.id} [{st.raw_id}] started")
+                click.echo(f"Task {'.'.join(st.id)} [{st.raw_id}] is started")
                 started[st.id] = st
                 yield full_id, action_ctx
             else:
@@ -233,7 +233,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                         self._next_task_no(started, finished, skipped),
                         task_ctx,
                     )
-                    click.echo(f"Task {st.id} [{st.raw_id}] started")
+                    click.echo(f"Task {'.'.join(st.id)} [{st.raw_id}] is started")
                     started[st.id] = st
 
     async def _process_started(
@@ -260,7 +260,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                         st,
                         status,
                     )
-                    click.echo(f"Task {st.id} [{st.raw_id}] has finished")
+                    click.echo(f"Task {'.'.join(st.id)} [{st.raw_id}] is finished")
                     topo.done(st.id)
             else:
                 # (sub)action
@@ -283,7 +283,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                     st,
                     outputs,
                 )
-                click.echo(f"Action {st.id} has finished")
+                click.echo(f"Action {'.'.join(st.id)} is finished")
                 topo.done(st.id)
 
     def _build_needs(
@@ -416,11 +416,17 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
 
     async def list_bakes(self) -> None:
         rows: List[List[str]] = []
-        rows.append([click.style("ID", bold=True), click.style("Status", bold=True)])
         async for bake in self._storage.list_bakes(self.project):
-            attempt = await self._storage.find_attempt(bake)
-            rows.append([bake.bake_id, format_job_status(attempt.result)])
+            try:
+                attempt = await self._storage.find_attempt(bake)
+            except ValueError:
+                click.secho(f"Bake {bake} is malformed, skipping", fg="yellow")
+            else:
+                rows.append([bake.bake_id, format_job_status(attempt.result)])
 
+        rows.sort()
+
+        rows.insert(0, [click.style("ID", bold=True), click.style("Status", bold=True)])
         for line in ftable.table(rows):
             click.echo(line)
 

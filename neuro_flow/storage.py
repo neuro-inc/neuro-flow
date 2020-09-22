@@ -9,7 +9,7 @@ import secrets
 import sys
 from neuromation.api import Client, JobDescription, JobStatus
 from types import TracebackType
-from typing import Any, AsyncIterator, Dict, Mapping, Optional, Tuple, Type, cast
+from typing import Any, AsyncIterator, Dict, Mapping, Optional, Tuple, Type
 from typing_extensions import Final
 from yarl import URL
 
@@ -43,7 +43,7 @@ class Bake:
 
     def __str__(self) -> str:
         folder = "_".join([self.batch, _dt2str(self.when), self.suffix])
-        return f"{self.project} {folder}"
+        return f"{self.project}/{folder}"
 
     @property
     def bake_id(self) -> str:
@@ -372,30 +372,38 @@ class BatchFSStorage(BatchStorage):
         started = {}
         finished = {}
         skipped = {}
+        files = []
         async for fs in self._client.storage.ls(attempt_url):
             if fs.name == init_name:
                 continue
             if fs.name == result_name:
                 continue
-            match = STARTED_RE.match(fs.name)
+            files.append(fs.name)
+
+        files.sort()
+
+        for fname in files:
+            match = STARTED_RE.match(fname)
             if match:
-                data = await self._read_json(attempt_url / fs.name)
-                assert match.group("id").split(".") == data["id"]
-                started[data["id"]] = StartedTask(
+                data = await self._read_json(attempt_url / fname)
+                assert match.group("id") == data["id"]
+                full_id = tuple(data["id"].split("."))
+                started[full_id] = StartedTask(
                     attempt=attempt,
-                    id=cast(Tuple[str], tuple(data["id"])),
+                    id=full_id,
                     raw_id=data["raw_id"],
                     created_at=datetime.datetime.fromisoformat(data["created_at"]),
                     when=datetime.datetime.fromisoformat(data["when"]),
                 )
                 continue
-            match = FINISHED_RE.match(fs.name)
+            match = FINISHED_RE.match(fname)
             if match:
-                data = await self._read_json(attempt_url / fs.name)
-                assert match.group("id").split(".") == data["id"]
-                finished[data["id"]] = FinishedTask(
+                data = await self._read_json(attempt_url / fname)
+                assert match.group("id") == data["id"]
+                full_id = tuple(data["id"].split("."))
+                finished[full_id] = FinishedTask(
                     attempt=attempt,
-                    id=cast(Tuple[str], tuple(data["id"])),
+                    id=full_id,
                     raw_id=data["raw_id"],
                     when=datetime.datetime.fromisoformat(data["when"]),
                     status=JobStatus(data["status"]),
@@ -408,13 +416,14 @@ class BatchFSStorage(BatchStorage):
                     outputs=data["outputs"],
                 )
                 continue
-            match = SKIPPED_RE.match(fs.name)
+            match = SKIPPED_RE.match(fname)
             if match:
-                data = await self._read_json(attempt_url / fs.name)
+                data = await self._read_json(attempt_url / fname)
                 assert match.group("id").split(".") == data["id"]
-                skipped[data["id"]] = SkippedTask(
+                full_id = tuple(data["id"].split("."))
+                skipped[full_id] = SkippedTask(
                     attempt=attempt,
-                    id=cast(Tuple[str], tuple(data["id"])),
+                    id=full_id,
                     when=datetime.datetime.fromisoformat(data["when"]),
                 )
                 continue
@@ -436,7 +445,7 @@ class BatchFSStorage(BatchStorage):
         task_id: FullID,
         descr: JobDescription,
     ) -> StartedTask:
-        assert 0 < task_no < int("9" * DIGITS), task_no
+        assert 0 <= task_no < int("9" * DIGITS) - 1, task_no
         bake_uri = _mk_bake_uri(attempt.bake)
         attempt_url = bake_uri / f"{attempt.number:02d}.attempt"
         pre = str(task_no + 1).zfill(DIGITS)
@@ -464,7 +473,7 @@ class BatchFSStorage(BatchStorage):
         task_no: int,
         task_id: FullID,
     ) -> StartedTask:
-        assert 0 < task_no < int("9" * DIGITS), task_no
+        assert 0 <= task_no < int("9" * DIGITS) - 1, task_no
         bake_uri = _mk_bake_uri(attempt.bake)
         attempt_url = bake_uri / f"{attempt.number:02d}.attempt"
         pre = str(task_no + 1).zfill(DIGITS)
@@ -519,7 +528,7 @@ class BatchFSStorage(BatchStorage):
     async def _write_finish(
         self, attempt: Attempt, task_no: int, ft: FinishedTask
     ) -> None:
-        assert 0 < task_no < int("9" * DIGITS), task_no
+        assert 0 <= task_no < int("9" * DIGITS) - 1, task_no
         bake_uri = _mk_bake_uri(attempt.bake)
         attempt_url = bake_uri / f"{attempt.number:02d}.attempt"
         pre = str(task_no + 1).zfill(DIGITS)
@@ -569,7 +578,7 @@ class BatchFSStorage(BatchStorage):
         task_no: int,
         task_id: FullID,
     ) -> SkippedTask:
-        assert 0 < task_no < int("9" * DIGITS), task_no
+        assert 0 <= task_no < int("9" * DIGITS) - 1, task_no
         bake_uri = _mk_bake_uri(attempt.bake)
         attempt_url = bake_uri / f"{attempt.number:02d}.attempt"
         pre = str(task_no + 1).zfill(DIGITS)
