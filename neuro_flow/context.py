@@ -889,9 +889,7 @@ class TaskContext(BaseContext):
             prep_task.action,
             self._workspace,
             parent_ctx.tags,
-        )
-        ctx = await ctx.with_inputs(
-            {k: await v.eval(parent_ctx) for k, v in prep_task.args.items()}
+            {k: await v.eval(parent_ctx) for k, v in prep_task.args.items()},
         )
         return ctx
 
@@ -1190,17 +1188,19 @@ class BatchActionContext(TaskContext, ActionContext):
     )
 
     @classmethod
-    async def create(
+    async def create(  # type:ignore[override]
         cls: Type[_CtxT],
         prefix: FullID,
         action: str,
         workspace: LocalPath,
         tags: AbstractSet[str],
+        inputs: Mapping[str, str],
     ) -> _CtxT:
-        ctx = await super(cls, BatchActionContext).create(
+        ctx = await super(cls, BatchActionContext).create(  # type:ignore[call-arg]
             prefix, action, workspace, tags
         )
         ctx._check_kind(ast.ActionKind.BATCH)
+        ctx = await ctx.with_inputs(inputs)
         assert isinstance(ctx, BatchActionContext)
         assert isinstance(ctx._ast, ast.BatchAction)
         prep_tasks = await ctx._prepare(ctx._ast.tasks)

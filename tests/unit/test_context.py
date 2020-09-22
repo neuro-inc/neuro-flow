@@ -407,51 +407,56 @@ async def test_pipeline_args(assets: pathlib.Path) -> None:
 
 async def test_batch_action_default(assets: pathlib.Path) -> None:
     workspace = assets
-    ctx = await BatchActionContext.create((), "ws:batch-action.yml", workspace, set())
-    with pytest.raises(NotAvailable):
-        ctx.inputs
+    ctx = await BatchActionContext.create(
+        (), "ws:batch-action.yml", workspace, set(), {"arg1": "val 1"}
+    )
+    assert ctx.inputs == {"arg1": "val 1", "arg2": "value 2"}
 
 
 async def test_batch_action_with_inputs_unsupported(assets: pathlib.Path) -> None:
     workspace = assets
-    ctx = await BatchActionContext.create((), "ws:batch-action.yml", workspace, set())
-
     with pytest.raises(ValueError, match=r"Unsupported input\(s\): other,unknown"):
-        await ctx.with_inputs({"unknown": "value", "other": "val"})
+        await BatchActionContext.create(
+            (),
+            "ws:batch-action.yml",
+            workspace,
+            set(),
+            {"unknown": "value", "other": "val"},
+        )
 
 
 async def test_batch_action_without_inputs_unsupported(assets: pathlib.Path) -> None:
     workspace = assets
-    ctx = await BatchActionContext.create(
-        (), "ws:batch-action-without-inputs", workspace, set()
-    )
-
     with pytest.raises(ValueError, match=r"Unsupported input\(s\): unknown"):
-        await ctx.with_inputs({"unknown": "value"})
+        await BatchActionContext.create(
+            (), "ws:batch-action-without-inputs", workspace, set(), {"unknown": "value"}
+        )
 
 
 async def test_batch_action_with_inputs_no_default(assets: pathlib.Path) -> None:
     workspace = assets
-    ctx = await BatchActionContext.create((), "ws:batch-action.yml", workspace, set())
-
     with pytest.raises(ValueError, match=r"Required input\(s\): arg1"):
-        await ctx.with_inputs({"arg2": "val2"})
+        await BatchActionContext.create(
+            (), "ws:batch-action.yml", workspace, set(), {"arg2": "val2"}
+        )
 
 
 async def test_batch_action_with_inputs_ok(assets: pathlib.Path) -> None:
     workspace = assets
-    ctx = await BatchActionContext.create((), "ws:batch-action", workspace, set())
+    ctx = await BatchActionContext.create(
+        (), "ws:batch-action", workspace, set(), {"arg1": "v1", "arg2": "v2"}
+    )
 
-    ctx2 = await ctx.with_inputs({"arg1": "v1", "arg2": "v2"})
-    assert ctx2.inputs == {"arg1": "v1", "arg2": "v2"}
+    assert ctx.inputs == {"arg1": "v1", "arg2": "v2"}
 
 
 async def test_batch_action_with_inputs_default_ok(assets: pathlib.Path) -> None:
     workspace = assets
-    ctx = await BatchActionContext.create((), "ws:batch-action", workspace, set())
+    ctx = await BatchActionContext.create(
+        (), "ws:batch-action", workspace, set(), {"arg1": "v1"}
+    )
 
-    ctx2 = await ctx.with_inputs({"arg1": "v1"})
-    assert ctx2.inputs == {"arg1": "v1", "arg2": "value 2"}
+    assert ctx.inputs == {"arg1": "v1", "arg2": "value 2"}
 
 
 async def test_job_with_live_action(assets: pathlib.Path) -> None:

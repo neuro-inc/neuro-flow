@@ -971,6 +971,18 @@ def parse_job_in_live_action(ctor: BaseConstructor, node: yaml.MappingNode) -> a
 ActionLoader.add_path_resolver("action:job", [(dict, "job")])  # type: ignore
 ActionLoader.add_constructor("action:job", parse_job_in_live_action)  # type: ignore
 
+ActionLoader.add_path_resolver(  # type: ignore
+    "action:matrix",
+    [(dict, "tasks"), (list, None), (dict, "strategy"), (dict, "matrix")],
+)
+ActionLoader.add_constructor("action:matrix", parse_matrix)  # type: ignore
+
+ActionLoader.add_path_resolver(  # type: ignore
+    "action:strategy", [(dict, "tasks"), (list, None), (dict, "strategy")]
+)
+ActionLoader.add_constructor("action:strategy", parse_strategy)  # type: ignore
+
+
 ActionLoader.add_path_resolver(  # type: ignore[no-untyped-call]
     "action:task", [(dict, "tasks"), (list, None)]
 )

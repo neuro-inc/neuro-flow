@@ -41,6 +41,10 @@ else:
     from . import backport_graphlib as graphlib
 
 
+class NotFinished(ValueError):
+    pass
+
+
 class BatchRunner(AsyncContextManager["BatchRunner"]):
     def __init__(
         self, config_dir: ConfigDir, client: Client, storage: BatchStorage
@@ -300,7 +304,8 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                 needs[dep_id] = DepCtx(JobStatus.CANCELLED, {})
             else:
                 dep = finished.get(full_id)
-                assert dep is not None
+                if dep is None:
+                    raise NotFinished(full_id)
                 needs[dep_id] = DepCtx(dep.status, dep.outputs)
         return needs
 
@@ -323,7 +328,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             if full_id in finished:
                 topo.done(full_id)
             elif await ctx.is_action(full_id[-1]):
-                if full_id in started:
+                if full_id not in started:
                     continue
                 needs = self._build_needs(prefix, graph[full_id], finished, skipped)
                 action_ctx = await ctx.with_action(full_id[-1], needs=needs)
