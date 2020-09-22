@@ -171,7 +171,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                         async for new_prefix, new_ctx, new_topo in self._build_topo(
                             action_pre, action_ctx, started, finished, skipped
                         ):
-                            topos[new_prefix] = (ctx, topo)
+                            topos[new_prefix] = (new_ctx, new_topo)
 
                 await self._process_started(attempt, topos, started, finished, skipped)
 
@@ -226,7 +226,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                 st = await self._storage.start_batch_action(
                     attempt, self._next_task_no(started, finished, skipped), full_id
                 )
-                click.echo(f"Task {'.'.join(st.id)} [{st.raw_id}] is started")
+                click.echo(f"Action {'.'.join(st.id)} [{st.raw_id}] is started")
                 started[st.id] = st
                 yield full_id, action_ctx
             else:
