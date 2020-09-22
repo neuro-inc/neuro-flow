@@ -219,6 +219,7 @@ class Input(Base):
 @dataclass(frozen=True)
 class Output(Base):
     descr: SimpleOptStrExpr
+    # TODO: split Output class to BatchOutput with value and an Output without it
     value: OptStrExpr  # valid for composite actions only
 
 
@@ -228,7 +229,6 @@ class BaseAction(Base):
     author: SimpleOptStrExpr
     descr: SimpleOptStrExpr
     inputs: Optional[Mapping[str, Input]] = field(metadata={"allow_none": True})
-    outputs: Optional[Mapping[str, Output]] = field(metadata={"allow_none": True})
 
     kind: ActionKind
 
@@ -240,11 +240,15 @@ class LiveAction(BaseAction):
 
 @dataclass(frozen=True)
 class BatchAction(BaseAction):
+    outputs: Optional[Mapping[str, Output]] = field(metadata={"allow_none": True})
+
     tasks: Sequence[Task]
 
 
 @dataclass(frozen=True)
 class StatefulAction(BaseAction):
+    outputs: Optional[Mapping[str, Output]] = field(metadata={"allow_none": True})
+
     pre: Optional[ExecUnit] = field(metadata={"allow_none": True})
     pre_if: OptBoolExpr
     main: ExecUnit

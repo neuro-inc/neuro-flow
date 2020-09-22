@@ -13,15 +13,25 @@ from neuromation.api import (
 )
 from neuromation.cli.formatters import ftable  # TODO: extract into a separate library
 from types import TracebackType
-from typing import Iterable, List, Optional, Type
+from typing import (
+    AbstractSet,
+    AsyncIterator,
+    Dict,
+    Iterable,
+    List,
+    Mapping,
+    Optional,
+    Tuple,
+    Type,
+)
 from typing_extensions import AsyncContextManager
 
 from . import ast
 from .commands import CmdProcessor
-from .context import BatchContext, DepCtx
+from .context import BatchActionContext, BatchContext, DepCtx, NeedsCtx, TaskContext
 from .parser import ConfigDir, parse_batch
 from .storage import Attempt, BatchStorage, FinishedTask, SkippedTask, StartedTask
-from .types import LocalPath
+from .types import FullID, LocalPath
 from .utils import TERMINATED_JOB_STATUSES, format_job_status
 
 
@@ -102,7 +112,6 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             batch_name,
             config_file.name,
             config_content,
-            ctx.graph,
         )
         click.echo(f"Bake {bake} created")
         # TODO: run this function in a job
@@ -131,7 +140,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             flow = parse_batch(workspace, config_file)
             assert isinstance(flow, ast.BatchFlow)
 
-            ctx = await BatchContext.create(
+            top_ctx = await BatchContext.create(
                 flow, self._config_dir.workspace, config_file
             )
 
@@ -140,53 +149,27 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             click.echo(f"Fetch attempt #{attempt.number}")
             started, finished, skipped = await self._storage.fetch_attempt(attempt)
 
-            def _next_task_no() -> int:
-                return len(started) + len(finished) + len(skipped)
+            topos: Dict[
+                FullID, Tuple[TaskContext, "graphlib.TopologicalSorter[FullID]"]
+            ] = {}
+            async for prefix, ctx, topo in self._build_topo(
+                (), top_ctx, started, finished, skipped
+            ):
+                topos[prefix] = (ctx, topo)
 
-            toposorter = graphlib.TopologicalSorter(ctx.graph)
-            toposorter.prepare()
-            for tid in finished:
-                toposorter.done(tid)
+            top_topo = topos[()][1]
 
-            while toposorter.is_active():
-                for tid in toposorter.get_ready():
-                    if tid in started:
-                        continue
-                    deps = ctx.graph[tid]
-                    needs = {}
-                    for dep_id in deps:
-                        if dep_id in skipped:
-                            needs[dep_id] = DepCtx(JobStatus.CANCELLED, {})
-                        else:
-                            dep = finished.get(dep_id)
-                            assert dep is not None
-                            needs[dep_id] = DepCtx(dep.status, dep.outputs)
-                    task_ctx = await ctx.with_task(tid, needs=needs)
-                    if task_ctx.task.enable:
-                        st = await self._start_task(attempt, _next_task_no(), task_ctx)
-                        click.echo(f"Task {st.id} [{st.raw_id}] started")
-                        started[st.id] = st
-                    else:
-                        skipped_task = await self._skip_task(
-                            attempt, _next_task_no(), task_ctx
-                        )
-                        click.echo(f"Task {skipped_task.id} skipped")
-                        skipped[skipped_task.id] = skipped_task
-                        toposorter.done(skipped_task.id)
+            while top_topo.is_active():
+                for prefix, (ctx, topo) in topos.copy().items():
+                    async for action_pre, action_ctx in self._process_topo(
+                        attempt, prefix, topo, ctx, started, finished, skipped
+                    ):
+                        async for new_prefix, new_ctx, new_topo in self._build_topo(
+                            action_pre, action_ctx, started, finished, skipped
+                        ):
+                            topos[new_prefix] = (ctx, topo)
 
-                for st in started.values():
-                    if st.id in finished:
-                        continue
-                    status = await self._client.jobs.status(st.raw_id)
-                    if status.status in TERMINATED_JOB_STATUSES:
-                        finished[st.id] = await self._finish_task(
-                            attempt,
-                            len(started) + len(finished),
-                            st,
-                            status,
-                        )
-                        click.echo(f"Task {st.id} [{st.raw_id}] finished")
-                        toposorter.done(st.id)
+                await self._process_started(attempt, topos, started, finished, skipped)
 
                 # AS: I have no idea what timeout is better;
                 # too short value bombards servers,
@@ -200,6 +183,156 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                 self._accumulate_result(finished.values()),
             )
 
+    def _next_task_no(
+        self,
+        started: Dict[FullID, StartedTask],
+        finished: Dict[FullID, FinishedTask],
+        skipped: Dict[FullID, SkippedTask],
+    ) -> int:
+        return len(started) + len(finished) + len(skipped)
+
+    async def _process_topo(
+        self,
+        attempt: Attempt,
+        prefix: FullID,
+        topo: graphlib.TopologicalSorter[FullID],
+        ctx: TaskContext,
+        started: Dict[FullID, StartedTask],
+        finished: Dict[FullID, FinishedTask],
+        skipped: Dict[FullID, SkippedTask],
+    ) -> AsyncIterator[Tuple[FullID, TaskContext]]:
+        for full_id in topo.get_ready():
+            if full_id in started:
+                continue
+            tid = full_id[-1]
+            needs = self._build_needs(prefix, ctx.graph[full_id], finished, skipped)
+            assert full_id[:-1] == prefix
+            if not await ctx.is_enabled(tid, needs=needs):
+                # Make task started and immediatelly skipped
+                skipped_task = await self._skip_task(
+                    attempt, self._next_task_no(started, finished, skipped), full_id
+                )
+                click.echo(f"Task {skipped_task.id} skipped")
+                skipped[skipped_task.id] = skipped_task
+                topo.done(full_id)
+                continue
+
+            if await ctx.is_action(tid):
+                action_ctx = await ctx.with_action(tid, needs=needs)
+                st = await self._storage.start_batch_action(
+                    attempt, self._next_task_no(started, finished, skipped), full_id
+                )
+                click.echo(f"Task {st.id} [{st.raw_id}] started")
+                started[st.id] = st
+                yield full_id, action_ctx
+            else:
+                task_ctx = await ctx.with_task(tid, needs=needs)
+                if task_ctx.task.enable:
+                    st = await self._start_task(
+                        attempt,
+                        self._next_task_no(started, finished, skipped),
+                        task_ctx,
+                    )
+                    click.echo(f"Task {st.id} [{st.raw_id}] started")
+                    started[st.id] = st
+
+    async def _process_started(
+        self,
+        attempt: Attempt,
+        topos: Dict[FullID, Tuple[TaskContext, "graphlib.TopologicalSorter[FullID]"]],
+        started: Dict[FullID, StartedTask],
+        finished: Dict[FullID, FinishedTask],
+        skipped: Dict[FullID, SkippedTask],
+    ) -> None:
+        for st in started.values():
+            if st.id in finished:
+                continue
+            if st.id in skipped:
+                continue
+            if st.raw_id:
+                ctx, topo = topos[st.id[:-1]]
+                # (sub)task
+                status = await self._client.jobs.status(st.raw_id)
+                if status.status in TERMINATED_JOB_STATUSES:
+                    finished[st.id] = await self._finish_task(
+                        attempt,
+                        self._next_task_no(started, finished, skipped),
+                        st,
+                        status,
+                    )
+                    click.echo(f"Task {st.id} [{st.raw_id}] has finished")
+                    topo.done(st.id)
+            else:
+                # (sub)action
+                ctx, topo = topos[st.id]
+                if topo.is_active():
+                    # the action is still in progress
+                    continue
+
+                # done, make it finished
+                assert isinstance(ctx, BatchActionContext)
+
+                needs = self._build_needs(
+                    ctx.prefix, ctx.graph.keys(), finished, skipped
+                )
+                outputs = await ctx.calc_outputs(needs)
+
+                finished[st.id] = await self._storage.finish_batch_action(
+                    attempt,
+                    self._next_task_no(started, finished, skipped),
+                    st,
+                    outputs,
+                )
+                click.echo(f"Action {st.id} has finished")
+                topo.done(st.id)
+
+    def _build_needs(
+        self,
+        prefix: FullID,
+        deps: AbstractSet[FullID],
+        finished: Mapping[FullID, FinishedTask],
+        skipped: Mapping[FullID, SkippedTask],
+    ) -> NeedsCtx:
+        needs = {}
+        for full_id in deps:
+            dep_id = full_id[-1]
+            if full_id in skipped:
+                needs[dep_id] = DepCtx(JobStatus.CANCELLED, {})
+            else:
+                dep = finished.get(full_id)
+                assert dep is not None
+                needs[dep_id] = DepCtx(dep.status, dep.outputs)
+        return needs
+
+    async def _build_topo(
+        self,
+        prefix: FullID,
+        ctx: TaskContext,
+        started: Mapping[FullID, StartedTask],
+        finished: Mapping[FullID, FinishedTask],
+        skipped: Mapping[FullID, SkippedTask],
+    ) -> AsyncIterator[
+        Tuple[FullID, TaskContext, "graphlib.TopologicalSorter[FullID]"]
+    ]:
+        graph = ctx.graph
+        topo = graphlib.TopologicalSorter(graph)
+        topo.prepare()
+        for full_id in graph:
+            if full_id in skipped:
+                topo.done(full_id)
+            if full_id in finished:
+                topo.done(full_id)
+            elif await ctx.is_action(full_id[-1]):
+                if full_id in started:
+                    continue
+                needs = self._build_needs(prefix, graph[full_id], finished, skipped)
+                action_ctx = await ctx.with_action(full_id[-1], needs=needs)
+                async for sub_pre, sub_ctx, sub_topo in self._build_topo(
+                    full_id, action_ctx, started, finished, skipped
+                ):
+                    yield sub_pre, sub_ctx, sub_topo
+        yield prefix, ctx, topo
+
     def _accumulate_result(self, finished: Iterable[FinishedTask]) -> JobStatus:
         for task in finished:
             if task.status == JobStatus.CANCELLED:
@@ -210,7 +343,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         return JobStatus.SUCCEEDED
 
     async def _start_task(
-        self, attempt: Attempt, task_no: int, task_ctx: BatchContext
+        self, attempt: Attempt, task_no: int, task_ctx: TaskContext
     ) -> StartedTask:
         task = task_ctx.task
 
@@ -257,13 +390,12 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             description=task.title,
             life_span=task.life_span,
         )
-        return await self._storage.start_task(attempt, task_no, task.real_id, job)
+        return await self._storage.start_task(attempt, task_no, task.full_id, job)
 
     async def _skip_task(
-        self, attempt: Attempt, task_no: int, task_ctx: BatchContext
+        self, attempt: Attempt, task_no: int, full_id: FullID
     ) -> SkippedTask:
-        task = task_ctx.task
-        return await self._storage.skip_task(attempt, task_no, task.real_id)
+        return await self._storage.skip_task(attempt, task_no, full_id)
 
     async def _finish_task(
         self,
@@ -309,16 +441,19 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         )
 
         started, finished, skipped = await self._storage.fetch_attempt(attempt)
-        for task_id in bake.graph:
+        for task_id in started:
             if task_id in finished:
-                rows.append([task_id, format_job_status(finished[task_id].status)])
+                rows.append(
+                    [".".join(task_id), format_job_status(finished[task_id].status)]
+                )
+            elif task_id in skipped:
+                rows.append([".".join(task_id), format_job_status(JobStatus.CANCELLED)])
             elif task_id in started:
                 info = await self._client.jobs.status(started[task_id].raw_id)
-                rows.append([task_id, format_job_status(info.status.value)])
-            elif task_id in skipped:
-                rows.append([task_id, format_job_status(JobStatus.CANCELLED)])
+                rows.append([".".join(task_id), format_job_status(info.status.value)])
             else:
-                rows.append([task_id, format_job_status(JobStatus.UNKNOWN)])
+                # Unreachable currently
+                rows.append([".".join(task_id), format_job_status(JobStatus.UNKNOWN)])
 
         for line in ftable.table(rows):
             click.echo(line)
@@ -329,15 +464,16 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         bake = await self._storage.fetch_bake_by_id(self.project, bake_id)
         attempt = await self._storage.find_attempt(bake, attempt_no)
         started, finished, skipped = await self._storage.fetch_attempt(attempt)
-        if task_id in skipped:
+        full_id = tuple(task_id.split("."))
+        if full_id in skipped:
             raise click.BadArgumentUsage(f"Task {task_id} was skipped")
-        if task_id not in finished:
-            if task_id not in started:
+        if full_id not in finished:
+            if full_id not in started:
                 raise click.BadArgumentUsage(f"Unknown task {task_id}")
             else:
                 raise click.BadArgumentUsage(f"Task {task_id} is not finished")
         else:
-            task = finished[task_id]
+            task = finished[full_id]
 
         click.echo(
             " ".join(

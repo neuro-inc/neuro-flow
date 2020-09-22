@@ -25,7 +25,7 @@ def test_parse_live_action(assets: LocalPath) -> None:
     action = parse_action(config_file)
     assert action == ast.LiveAction(
         Pos(0, 0, config_file),
-        Pos(16, 0, config_file),
+        Pos(13, 0, config_file),
         kind=ast.ActionKind.LIVE,
         name=SimpleOptStrExpr(
             Pos(0, 0, config_file),
@@ -64,19 +64,9 @@ def test_parse_live_action(assets: LocalPath) -> None:
                 ),
             ),
         },
-        outputs={
-            "res": ast.Output(
-                Pos(12, 4, config_file),
-                Pos(13, 0, config_file),
-                descr=SimpleOptStrExpr(
-                    Pos(0, 0, config_file), Pos(0, 0, config_file), "action result"
-                ),
-                value=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
-            )
-        },
         job=ast.Job(
-            Pos(14, 2, config_file),
-            Pos(16, 0, config_file),
+            Pos(11, 2, config_file),
+            Pos(13, 0, config_file),
             name=OptStrExpr(Pos(3, 4, config_file), Pos(5, 0, config_file), None),
             image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
             preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),

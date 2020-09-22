@@ -1,5 +1,7 @@
-import pathlib
+from pathlib import Path, PurePosixPath
+from typing import Tuple
 
 
-LocalPath = pathlib.Path
-RemotePath = pathlib.PurePosixPath
+LocalPath = Path
+RemotePath = PurePosixPath
+FullID = Tuple[str, ...]

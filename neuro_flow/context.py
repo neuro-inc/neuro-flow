@@ -23,9 +23,9 @@ from typing import (
 from yarl import URL
 
 from . import ast
-from .expr import EvalError, LiteralT, RootABC, StrExpr, TypeT
+from .expr import EvalError, LiteralT, OptBoolExpr, RootABC, StrExpr, TypeT
 from .parser import parse_action, parse_project
-from .types import LocalPath, RemotePath
+from .types import FullID, LocalPath, RemotePath
 
 
 # Neuro-flow contexts (variables available during expressions calculation).
@@ -154,6 +154,7 @@ class BasePrepTaskCtx:
     needs: AbstractSet[str]  # A set of batch.id
     matrix: MatrixCtx
     strategy: StrategyCtx
+    enable: OptBoolExpr
 
 
 @dataclass(frozen=True)
@@ -171,7 +172,7 @@ class PrepBatchCallCtx(BasePrepTaskCtx):
 class TaskCtx(ExecUnitCtx):
     # executed task
     id: Optional[str]
-    real_id: str
+    full_id: FullID
 
     needs: AbstractSet[str]  # A set of batch.id
 
@@ -547,7 +548,7 @@ class LiveContext(BaseFlowContext):
 
         if isinstance(job, ast.JobActionCall):
             action_ctx = await LiveActionContext.create(
-                f"{self.flow.flow_id}.{job_id}",  # unused
+                (self.flow.flow_id, job_id),  # unused
                 await job.action.eval(EMPTY_ROOT),
                 self._workspace,
                 self.tags,
@@ -662,7 +663,8 @@ class TaskContext(BaseContext):
     _prep_tasks: Optional[Mapping[str, BasePrepTaskCtx]] = None
     _matrix: Optional[MatrixCtx] = None
     _strategy: Optional[StrategyCtx] = None
-    _prefix: Optional[str] = None
+    _prefix: FullID = ()
+    _graph: Optional[Mapping[FullID, AbstractSet[FullID]]] = None
 
     async def _prepare(
         self, tasks: Sequence[Union[ast.Task, ast.TaskActionCall]]
@@ -727,6 +729,7 @@ class TaskContext(BaseContext):
                         needs=needs,
                         matrix=row,
                         strategy=strategy,
+                        enable=ast_task.enable,
                         ast=ast_task,
                     )
                     prep_tasks[real_id] = prep_task
@@ -738,6 +741,7 @@ class TaskContext(BaseContext):
                         needs=needs,
                         matrix=row,
                         strategy=strategy,
+                        enable=ast_task.enable,
                         action=await ast_task.action.eval(EMPTY_ROOT),
                         args=ast_task.args or {},
                     )
@@ -772,14 +776,18 @@ class TaskContext(BaseContext):
         return self._strategy
 
     @property
-    def graph(self) -> Mapping[str, AbstractSet[str]]:
-        # Batch names, sorted by the execution order.
-        # Batches from each set in the list can be executed concurrently.
+    def graph(self) -> Mapping[FullID, AbstractSet[FullID]]:
+        # Dependency graph for the context's tasks
         assert self._prep_tasks is not None
-        ret = {}
-        for key, val in self._prep_tasks.items():
-            ret[key] = val.needs
-        return ret
+        if self._graph is None:
+            ret = {}
+            for key, val in self._prep_tasks.items():
+                ret[self._prefix + (key,)] = set(self._prefix + (i,) for i in val.needs)
+            # Use the hack with direct setattr
+            # to cheat the frozen dataclass write protection
+            object.__setattr__(self, "_graph", ret)
+        assert self._graph is not None
+        return self._graph
 
     def get_dep_ids(self, real_id: str) -> AbstractSet[str]:
         assert self._prep_tasks is not None
@@ -807,6 +815,22 @@ class TaskContext(BaseContext):
         try:
             prep_task = self._prep_tasks[real_id]
             return isinstance(prep_task, PrepBatchCallCtx)
+        except KeyError:
+            raise UnknownTask(real_id)
+
+    async def is_enabled(self, real_id: str, *, needs: NeedsCtx) -> bool:
+        assert self._prep_tasks is not None
+        assert self._task is None
+        try:
+            prep_task = self._prep_tasks[real_id]
+            ctx = await self.with_matrix(prep_task.strategy, prep_task.matrix)
+            ctx = replace(ctx, _needs=needs)
+            enable = await prep_task.enable.eval(ctx)
+            if enable is None:
+                enable = all(
+                    dep_ctx.result == JobStatus.SUCCEEDED for dep_ctx in needs.values()
+                )
+            return enable
         except KeyError:
             raise UnknownTask(real_id)
 
@@ -859,8 +883,9 @@ class TaskContext(BaseContext):
                 f"Invalid action '{action}' " f"type {action.kind.value} for batch flow"
             )
         parent_ctx = await self.with_matrix(prep_task.strategy, prep_task.matrix)
+        full_id = self._prefix + (prep_task.real_id,)
         ctx = await BatchActionContext.create(
-            _join_pre(self._prefix, real_id),
+            full_id,
             prep_task.action,
             self._workspace,
             parent_ctx.tags,
@@ -888,20 +913,22 @@ class TaskContext(BaseContext):
         ctx = await self.with_matrix(prep_task.strategy, prep_task.matrix)
         ctx = replace(ctx, _needs=needs)
 
+        full_id = self._prefix + (prep_task.real_id,)
+
         env = dict(ctx.env)
         if prep_task.ast.env is not None:
             env.update({k: await v.eval(ctx) for k, v in prep_task.ast.env.items()})
 
         title = await prep_task.ast.title.eval(ctx)
         if title is None:
-            title = _join_pre(self._prefix, real_id)
+            title = ".".join(full_id)
         title = await prep_task.ast.title.eval(ctx)
 
         tags = set()
         if prep_task.ast.tags is not None:
             tags = {await v.eval(ctx) for v in prep_task.ast.tags}
         if not tags:
-            tags = {"task:" + _join_pre(self._prefix, _id2tag(real_id))}
+            tags = {"task:" + _id2tag(".".join(full_id))}
 
         workdir = (await prep_task.ast.workdir.eval(ctx)) or ctx.defaults.workdir
 
@@ -916,15 +943,11 @@ class TaskContext(BaseContext):
 
         preset = (await prep_task.ast.preset.eval(ctx)) or ctx.defaults.preset
 
-        enable = await prep_task.ast.enable.eval(ctx)
-        if enable is None:
-            enable = all(
-                dep_ctx.result == JobStatus.SUCCEEDED for dep_ctx in needs.values()
-            )
+        enable = await self.is_enabled(real_id, needs=needs)
 
         task_ctx = TaskCtx(
             id=prep_task.id,
-            real_id=prep_task.real_id,
+            full_id=full_id,
             needs=prep_task.needs,
             title=title,
             name=(await prep_task.ast.name.eval(ctx)),
@@ -1024,7 +1047,7 @@ class BatchContext(TaskContext, BaseFlowContext):
 
         prep_tasks = await ctx._prepare(ctx._ast_flow.tasks)
 
-        return cast(_CtxT, replace(ctx, _prefix="", _prep_tasks=prep_tasks))
+        return cast(_CtxT, replace(ctx, _prefix=(), _prep_tasks=prep_tasks))
 
     async def _with_args(self: _CtxT) -> _CtxT:
         # Calculate batch args context early, no-op for live mode
@@ -1061,16 +1084,14 @@ class ActionContext(BaseContext):
     _ast: Optional[ast.BaseAction] = None
     _name: str = ""
 
-    _outputs: Optional[Mapping[str, str]] = None
-    _state: Optional[Mapping[str, str]] = None
     _inputs: Optional[Mapping[str, str]] = None
-    _prefix: Optional[str] = None
+    _prefix: FullID = ()
     # Add a context with global flow info, e.g. ctx.flow.id maybe?
 
     @classmethod
     async def create(
         cls: Type[_CtxT],
-        prefix: str,
+        prefix: FullID,
         action: str,
         workspace: LocalPath,
         tags: AbstractSet[str],
@@ -1090,8 +1111,6 @@ class ActionContext(BaseContext):
                 _prefix=prefix,
                 _ast=ast_action,
                 _inputs=None,
-                _outputs={},
-                _state={},
                 _env={},
                 _tags=set(tags),
                 _defaults=DefaultsCtx(),
@@ -1099,8 +1118,7 @@ class ActionContext(BaseContext):
         )
 
     @property
-    def prefix(self) -> str:
-        assert self._prefix is not None
+    def prefix(self) -> FullID:
         return self._prefix
 
     @property
@@ -1108,18 +1126,6 @@ class ActionContext(BaseContext):
         if self._inputs is None:
             raise NotAvailable("inputs")
         return self._inputs
-
-    @property
-    def outputs(self) -> Mapping[str, str]:
-        if self._outputs is None:
-            raise NotAvailable("outputs")
-        return self._outputs
-
-    @property
-    def state(self) -> Mapping[str, str]:
-        if self._state is None:
-            raise NotAvailable("state")
-        return self._state
 
     async def with_inputs(self: _CtxT, inputs: Mapping[str, str]) -> _CtxT:
         assert isinstance(self, ActionContext)
@@ -1150,21 +1156,6 @@ class ActionContext(BaseContext):
             raise ValueError(f"Required input(s): {','.join(sorted(missing))}")
         return cast(_CtxT, replace(self, _inputs=new_inputs))
 
-    async def with_state(
-        self: _CtxT,
-        state: Mapping[str, str],
-    ) -> _CtxT:
-        assert isinstance(self, ActionContext)
-        new_state = dict(self.state)
-        new_state.update(state)
-        return cast(_CtxT, replace(self, state=new_state))
-
-    async def with_outputs(self: _CtxT, outputs: Mapping[str, str]) -> _CtxT:
-        assert isinstance(self, ActionContext)
-        new_outputs = dict(self.outputs)
-        new_outputs.update(outputs)
-        return cast(_CtxT, replace(self, outputs=new_outputs))
-
     def _check_kind(self, required: ast.ActionKind) -> None:
         assert self._ast is not None
         if self._ast.kind != required:
@@ -1179,7 +1170,7 @@ class LiveActionContext(ActionContext):
     @classmethod
     async def create(
         cls: Type[_CtxT],
-        prefix: str,
+        prefix: FullID,
         action: str,
         workspace: LocalPath,
         tags: AbstractSet[str],
@@ -1201,7 +1192,7 @@ class BatchActionContext(TaskContext, ActionContext):
     @classmethod
     async def create(
         cls: Type[_CtxT],
-        prefix: str,
+        prefix: FullID,
         action: str,
         workspace: LocalPath,
         tags: AbstractSet[str],
@@ -1216,6 +1207,22 @@ class BatchActionContext(TaskContext, ActionContext):
 
         return cast(_CtxT, replace(ctx, _prefix=prefix, _prep_tasks=prep_tasks))
 
+    async def calc_outputs(self, needs: NeedsCtx) -> DepCtx:
+        if any(i.result == JobStatus.CANCELLED for i in needs.values()):
+            return DepCtx(JobStatus.CANCELLED, {})
+        elif any(i.result == JobStatus.FAILED for i in needs.values()):
+            return DepCtx(JobStatus.FAILED, {})
+        else:
+            ret = {}
+            assert isinstance(self._ast, ast.BatchAction)
+            ctx = replace(self, _needs=needs)
+            if self._ast.outputs is not None:
+                for name, descr in self._ast.outputs.items():
+                    val = await descr.value.eval(ctx)
+                    assert val is not None
+                    ret[name] = val
+            return DepCtx(JobStatus.SUCCEEDED, ret)
+
 
 def calc_full_path(
     ctx: BaseFlowContext, path: Optional[LocalPath]
@@ -1229,10 +1236,3 @@ def calc_full_path(
 
 def _id2tag(id: str) -> str:
     return id.replace("_", "-").lower()
-
-
-def _join_pre(pre: Optional[str], id: str) -> str:
-    if pre:
-        return pre + "." + id
-    else:
-        return id

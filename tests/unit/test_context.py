@@ -188,7 +188,7 @@ async def test_pipeline_minimal_ctx(assets: pathlib.Path) -> None:
 
     ctx2 = await ctx.with_task("test_a", needs={})
     assert ctx2.task.id == "test_a"
-    assert ctx2.task.real_id == "test_a"
+    assert ctx2.task.full_id == ("test_a",)
     assert ctx2.task.needs == set()
     assert ctx2.task.title == "Batch title"
     assert ctx2.task.name == "job-name"
@@ -210,7 +210,7 @@ async def test_pipeline_minimal_ctx(assets: pathlib.Path) -> None:
     }
     assert ctx2.task.life_span == 10500.0
 
-    assert ctx.graph == {"test_a": set()}
+    assert ctx.graph == {("test_a",): set()}
     assert ctx2.matrix == {}
     assert ctx2.strategy.max_parallel == 10
     assert not ctx2.strategy.fail_fast
@@ -226,7 +226,7 @@ async def test_pipeline_seq(assets: pathlib.Path) -> None:
         "task-2", needs={"task-1": DepCtx(JobStatus.SUCCEEDED, {})}
     )
     assert ctx2.task.id is None
-    assert ctx2.task.real_id == "task-2"
+    assert ctx2.task.full_id == ("task-2",)
     assert ctx2.task.needs == {"task-1"}
     assert ctx2.task.title is None
     assert ctx2.task.name is None
@@ -241,7 +241,7 @@ async def test_pipeline_seq(assets: pathlib.Path) -> None:
     assert ctx2.tags == {"project:unit", "flow:batch-seq", "task:task-2"}
     assert ctx2.task.life_span is None
 
-    assert ctx.graph == {"task-2": {"task-1"}, "task-1": set()}
+    assert ctx.graph == {("task-2",): {("task-1",)}, ("task-1",): set()}
     assert ctx2.matrix == {}
     assert ctx2.strategy.max_parallel == 10
     assert not ctx2.strategy.fail_fast
@@ -257,7 +257,7 @@ async def test_pipeline_needs(assets: pathlib.Path) -> None:
         "task-2", needs={"task_a": DepCtx(JobStatus.SUCCEEDED, {})}
     )
     assert ctx2.task.id is None
-    assert ctx2.task.real_id == "task-2"
+    assert ctx2.task.full_id == ("task-2",)
     assert ctx2.task.needs == {"task_a"}
     assert ctx2.task.title is None
     assert ctx2.task.name is None
@@ -272,7 +272,7 @@ async def test_pipeline_needs(assets: pathlib.Path) -> None:
     assert ctx2.tags == {"project:unit", "flow:batch-needs", "task:task-2"}
     assert ctx2.task.life_span is None
 
-    assert ctx.graph == {"task-2": {"task_a"}, "task_a": set()}
+    assert ctx.graph == {("task-2",): {("task_a",)}, ("task_a",): set()}
     assert ctx2.matrix == {}
     assert ctx2.strategy.max_parallel == 10
     assert not ctx2.strategy.fail_fast
@@ -285,15 +285,15 @@ async def test_pipeline_matrix(assets: pathlib.Path) -> None:
     ctx = await BatchContext.create(flow, workspace, config_file)
 
     assert ctx.graph == {
-        "task-1-e3-o3-t3": set(),
-        "task-1-o1-t1": set(),
-        "task-1-o2-t1": set(),
-        "task-1-o2-t2": set(),
+        ("task-1-e3-o3-t3",): set(),
+        ("task-1-o1-t1",): set(),
+        ("task-1-o2-t1",): set(),
+        ("task-1-o2-t2",): set(),
     }
 
     ctx2 = await ctx.with_task("task-1-o2-t2", needs={})
     assert ctx2.task.id is None
-    assert ctx2.task.real_id == "task-1-o2-t2"
+    assert ctx2.task.full_id == ("task-1-o2-t2",)
     assert ctx2.task.needs == set()
     assert ctx2.task.title is None
     assert ctx2.task.name is None
@@ -320,15 +320,15 @@ async def test_pipeline_matrix_with_strategy(assets: pathlib.Path) -> None:
     ctx = await BatchContext.create(flow, workspace, config_file)
 
     assert ctx.graph == {
-        "task-1-e3-o3-t3": set(),
-        "task-1-o1-t1": set(),
-        "task-1-o2-t1": set(),
-        "task-1-o2-t2": set(),
+        ("task-1-e3-o3-t3",): set(),
+        ("task-1-o1-t1",): set(),
+        ("task-1-o2-t1",): set(),
+        ("task-1-o2-t2",): set(),
     }
 
     ctx2 = await ctx.with_task("task-1-e3-o3-t3", needs={})
     assert ctx2.task.id is None
-    assert ctx2.task.real_id == "task-1-e3-o3-t3"
+    assert ctx2.task.full_id == ("task-1-e3-o3-t3",)
     assert ctx2.task.needs == set()
     assert ctx2.task.title is None
     assert ctx2.task.name is None
@@ -359,20 +359,20 @@ async def test_pipeline_matrix_2(assets: pathlib.Path) -> None:
     ctx = await BatchContext.create(flow, workspace, config_file)
 
     assert ctx.graph == {
-        "task-2-a-1": {"task_a"},
-        "task-2-a-2": {"task_a"},
-        "task-2-b-1": {"task_a"},
-        "task-2-b-2": {"task_a"},
-        "task-2-c-1": {"task_a"},
-        "task-2-c-2": {"task_a"},
-        "task_a": set(),
+        ("task-2-a-1",): {("task_a",)},
+        ("task-2-a-2",): {("task_a",)},
+        ("task-2-b-1",): {("task_a",)},
+        ("task-2-b-2",): {("task_a",)},
+        ("task-2-c-1",): {("task_a",)},
+        ("task-2-c-2",): {("task_a",)},
+        ("task_a",): set(),
     }
 
     ctx2 = await ctx.with_task(
         "task-2-a-1", needs={"task_a": DepCtx(JobStatus.SUCCEEDED, {"name": "value"})}
     )
     assert ctx2.task.id is None
-    assert ctx2.task.real_id == "task-2-a-1"
+    assert ctx2.task.full_id == ("task-2-a-1",)
     assert ctx2.task.needs == {"task_a"}
     assert ctx2.task.title is None
     assert ctx2.task.name is None
@@ -407,16 +407,14 @@ async def test_pipeline_args(assets: pathlib.Path) -> None:
 
 async def test_batch_action_default(assets: pathlib.Path) -> None:
     workspace = assets
-    ctx = await BatchActionContext.create("", "ws:batch-action.yml", workspace, set())
-    assert ctx.outputs == {}
-    assert ctx.state == {}
+    ctx = await BatchActionContext.create((), "ws:batch-action.yml", workspace, set())
     with pytest.raises(NotAvailable):
         ctx.inputs
 
 
 async def test_batch_action_with_inputs_unsupported(assets: pathlib.Path) -> None:
     workspace = assets
-    ctx = await BatchActionContext.create("", "ws:batch-action.yml", workspace, set())
+    ctx = await BatchActionContext.create((), "ws:batch-action.yml", workspace, set())
 
     with pytest.raises(ValueError, match=r"Unsupported input\(s\): other,unknown"):
         await ctx.with_inputs({"unknown": "value", "other": "val"})
@@ -425,7 +423,7 @@ async def test_batch_action_with_inputs_unsupported(assets: pathlib.Path) -> Non
 async def test_batch_action_without_inputs_unsupported(assets: pathlib.Path) -> None:
     workspace = assets
     ctx = await BatchActionContext.create(
-        "", "ws:batch-action-without-inputs", workspace, set()
+        (), "ws:batch-action-without-inputs", workspace, set()
     )
 
     with pytest.raises(ValueError, match=r"Unsupported input\(s\): unknown"):
@@ -434,7 +432,7 @@ async def test_batch_action_without_inputs_unsupported(assets: pathlib.Path) -> 
 
 async def test_batch_action_with_inputs_no_default(assets: pathlib.Path) -> None:
     workspace = assets
-    ctx = await BatchActionContext.create("", "ws:batch-action.yml", workspace, set())
+    ctx = await BatchActionContext.create((), "ws:batch-action.yml", workspace, set())
 
     with pytest.raises(ValueError, match=r"Required input\(s\): arg1"):
         await ctx.with_inputs({"arg2": "val2"})
@@ -442,7 +440,7 @@ async def test_batch_action_with_inputs_no_default(assets: pathlib.Path) -> None
 
 async def test_batch_action_with_inputs_ok(assets: pathlib.Path) -> None:
     workspace = assets
-    ctx = await BatchActionContext.create("", "ws:batch-action", workspace, set())
+    ctx = await BatchActionContext.create((), "ws:batch-action", workspace, set())
 
     ctx2 = await ctx.with_inputs({"arg1": "v1", "arg2": "v2"})
     assert ctx2.inputs == {"arg1": "v1", "arg2": "v2"}
@@ -450,7 +448,7 @@ async def test_batch_action_with_inputs_ok(assets: pathlib.Path) -> None:
 
 async def test_batch_action_with_inputs_default_ok(assets: pathlib.Path) -> None:
     workspace = assets
-    ctx = await BatchActionContext.create("", "ws:batch-action", workspace, set())
+    ctx = await BatchActionContext.create((), "ws:batch-action", workspace, set())
 
     ctx2 = await ctx.with_inputs({"arg1": "v1"})
     assert ctx2.inputs == {"arg1": "v1", "arg2": "value 2"}
@@ -538,7 +536,7 @@ async def test_pipeline_with_batch_action(assets: pathlib.Path) -> None:
 
     ctx3 = await ctx2.with_task("task_1", needs={})
     assert ctx3.task.id == "task_1"
-    assert ctx3.task.real_id == "task_1"
+    assert ctx3.task.full_id == ("test", "task_1")
     assert ctx3.task.needs == set()
     assert ctx3.task.title is None
     assert ctx3.task.name is None
@@ -556,7 +554,10 @@ async def test_pipeline_with_batch_action(assets: pathlib.Path) -> None:
     assert ctx3.tags == {"project:unit", "flow:batch-action-call", "task:test.task-1"}
     assert ctx3.task.life_span is None
 
-    assert ctx3.graph == {"task_1": set(), "task_2": {"task_1"}}
+    assert ctx3.graph == {
+        ("test", "task_1"): set(),
+        ("test", "task_2"): {("test", "task_1")},
+    }
     assert ctx3.matrix == {}
     assert ctx3.strategy.max_parallel == 10
     assert not ctx3.strategy.fail_fast
