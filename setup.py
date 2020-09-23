@@ -13,6 +13,7 @@ with fname.open(encoding="utf8") as fp:
     except IndexError:
         raise RuntimeError("Unable to determine version.")
 
+
 setup(
     name="neuro-flow",
     version=version,
@@ -47,5 +48,9 @@ setup(
         "Topic :: Utilities",
         "License :: OSI Approved :: Apache Software License",
     ],
-    entry_points={"console_scripts": ["neuro-flow=neuro_flow.cli:main"]},
+    entry_points={
+        "console_scripts": [
+            "neuro-flow=neuro_flow.cli:main",
+        ]
+    },
 )
