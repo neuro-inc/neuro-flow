@@ -288,7 +288,8 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                     outputs,
                 )
                 click.echo(f"Action {'.'.join(st.id)} is finished")
-                topo.done(st.id)
+                parent_ctx, parent_topo = topos[st.id[:-1]]
+                parent_topo.done(st.id)
 
     def _build_needs(
         self,

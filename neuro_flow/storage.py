@@ -427,7 +427,7 @@ class BatchFSStorage(BatchStorage):
                     when=datetime.datetime.fromisoformat(data["when"]),
                 )
                 continue
-            raise ValueError(f"Unexpected name {attempt_url / fs.name}")
+            raise ValueError(f"Unexpected name {attempt_url / fname}")
         assert finished.keys() <= started.keys()
         return started, finished, skipped
 
