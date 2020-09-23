@@ -25,11 +25,15 @@ if sys.version_info < (3, 7):
 
 log = logging.getLogger(__name__)
 
-STARTED_RE: Final = re.compile(r"\A\d+\.(?P<id>[a-zA-Z][a-zA-Z0-9_\-]*).started.json\Z")
-FINISHED_RE: Final = re.compile(
-    r"\A\d+\.(?P<id>[a-zA-Z][a-zA-Z0-9_\-]*).finished.json\Z"
+STARTED_RE: Final = re.compile(
+    r"\A\d+\.(?P<id>[a-zA-Z][a-zA-Z0-9_\-\.]*).started.json\Z"
 )
-SKIPPED_RE: Final = re.compile(r"\A\d+\.(?P<id>[a-zA-Z][a-zA-Z0-9_\-]*).skipped.json\Z")
+FINISHED_RE: Final = re.compile(
+    r"\A\d+\.(?P<id>[a-zA-Z][a-zA-Z0-9_\-\.]*).finished.json\Z"
+)
+SKIPPED_RE: Final = re.compile(
+    r"\A\d+\.(?P<id>[a-zA-Z][a-zA-Z0-9_\-\.]*).skipped.json\Z"
+)
 DIGITS = 4
 
 
