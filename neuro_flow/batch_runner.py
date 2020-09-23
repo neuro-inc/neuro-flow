@@ -181,11 +181,13 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                 # The missing events subsystem would be great for this task :)
                 await asyncio.sleep(1)
 
-            click.echo(f"Attempt #{attempt.number} finished")
+            attempt_status = self._accumulate_result(finished.values())
+            str_attempt_status = format_job_status(attempt_status)
             await self._storage.finish_attempt(
                 attempt,
-                self._accumulate_result(finished.values()),
+                attempt_status,
             )
+            click.echo(f"Attempt #{attempt.number} {str_attempt_status}")
 
     def _next_task_no(
         self,
@@ -211,12 +213,14 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             tid = full_id[-1]
             needs = self._build_needs(prefix, ctx.graph[full_id], finished, skipped)
             assert full_id[:-1] == prefix
+            str_full_id = click.style(".".join(full_id), bold=True)
             if not await ctx.is_enabled(tid, needs=needs):
                 # Make task started and immediatelly skipped
                 skipped_task = await self._skip_task(
                     attempt, self._next_task_no(started, finished, skipped), full_id
                 )
-                click.echo(f"Task {'.'.join(skipped_task.id)} is skipped")
+                str_skipped = click.style("skipped", fg="magenta")
+                click.echo(f"Task {str_full_id} is {str_skipped}")
                 skipped[skipped_task.id] = skipped_task
                 topo.done(full_id)
                 continue
@@ -226,7 +230,8 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                 st = await self._storage.start_batch_action(
                     attempt, self._next_task_no(started, finished, skipped), full_id
                 )
-                click.echo(f"Action {'.'.join(st.id)} [{st.raw_id}] is started")
+                str_started = click.style("started", fg="cyan")
+                click.echo(f"Action {str_full_id} is {str_started}")
                 started[st.id] = st
                 yield full_id, action_ctx
             else:
@@ -237,7 +242,9 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                         self._next_task_no(started, finished, skipped),
                         task_ctx,
                     )
-                    click.echo(f"Task {'.'.join(st.id)} [{st.raw_id}] is started")
+                    str_started = click.style("started", fg="cyan")
+                    raw_id = click.style(st.raw_id, dim=True)
+                    click.echo(f"Task {str_full_id} [{raw_id}] is {str_started}")
                     started[st.id] = st
 
     async def _process_started(
@@ -253,6 +260,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                 continue
             if st.id in skipped:
                 continue
+            str_full_id = click.style(".".join(st.id), bold=True)
             if st.raw_id:
                 ctx, topo = topos[st.id[:-1]]
                 # (sub)task
@@ -264,7 +272,9 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                         st,
                         status,
                     )
-                    click.echo(f"Task {'.'.join(st.id)} [{st.raw_id}] is finished")
+                    str_status = format_job_status(finished[st.id].status)
+                    raw_id = click.style(st.raw_id, dim=True)
+                    click.echo(f"Task {str_full_id} [{raw_id}] is {str_status}")
                     topo.done(st.id)
             else:
                 # (sub)action
@@ -287,7 +297,8 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                     st,
                     outputs,
                 )
-                click.echo(f"Action {'.'.join(st.id)} is finished")
+                str_status = format_job_status(finished[st.id].status)
+                click.echo(f"Action {str_full_id} is {str_status}")
                 parent_ctx, parent_topo = topos[st.id[:-1]]
                 parent_topo.done(st.id)
 
