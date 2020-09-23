@@ -266,7 +266,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                 # (sub)task
                 status = await self._client.jobs.status(st.raw_id)
                 if status.status in TERMINATED_JOB_STATUSES:
-                    finished[st.id] = await self._finish_task(
+                    finished[st.id] = fd = await self._finish_task(
                         attempt,
                         self._next_task_no(started, finished, skipped),
                         st,
@@ -274,7 +274,13 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                     )
                     str_status = fmt_status(finished[st.id].status)
                     raw_id = fmt_raw_id(st.raw_id)
-                    click.echo(f"Task {str_full_id} [{raw_id}] is {str_status}")
+                    click.echo(
+                        f"Task {str_full_id} [{raw_id}] is {str_status}"
+                        + (" with following outputs:" if fd.outputs else "")
+                    )
+                    for key, value in fd.outputs.items():
+                        click.echo(f"f{key}: {value}")
+
                     topo.done(st.id)
             else:
                 # (sub)action
@@ -291,14 +297,20 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                 )
                 outputs = await ctx.calc_outputs(needs)
 
-                finished[st.id] = await self._storage.finish_batch_action(
+                finished[st.id] = fd = await self._storage.finish_batch_action(
                     attempt,
                     self._next_task_no(started, finished, skipped),
                     st,
                     outputs,
                 )
                 str_status = fmt_status(finished[st.id].status)
-                click.echo(f"Action {str_full_id} is {str_status}")
+                click.echo(
+                    f"Action {str_full_id} is {str_status}"
+                    + (" with following outputs:" if fd.outputs else "")
+                )
+                for key, value in fd.outputs.items():
+                    click.echo(f"f{key}: {value}")
+
                 parent_ctx, parent_topo = topos[st.id[:-1]]
                 parent_topo.done(st.id)
 
