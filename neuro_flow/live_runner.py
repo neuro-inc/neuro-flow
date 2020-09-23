@@ -16,7 +16,13 @@ from typing_extensions import AsyncContextManager
 from .context import ImageCtx, LiveContext, UnknownJob, VolumeCtx
 from .parser import parse_live
 from .types import LocalPath
-from .utils import RUNNING_JOB_STATUSES, TERMINATED_JOB_STATUSES, format_job_status
+from .utils import (
+    RUNNING_JOB_STATUSES,
+    TERMINATED_JOB_STATUSES,
+    fmt_id,
+    fmt_raw_id,
+    fmt_status,
+)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -92,16 +98,16 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
                 if suffix is None:
                     if not skip_check:
                         raise click.BadArgumentUsage(
-                            f"Please provide a suffix for multi-job {job_id}"
+                            f"Please provide a suffix for multi-job {fmt_id(job_id)}"
                         )
             else:
                 if suffix is not None:
                     raise click.BadArgumentUsage(
-                        f"Suffix is not allowed for non-multijob {job_id}"
+                        f"Suffix is not allowed for non-multijob {fmt_id(job_id)}"
                     )
             return ctx
         except UnknownJob:
-            click.secho(f"Unknown job {click.style(job_id, bold=True)}", fg="red")
+            click.secho(f"Unknown job {fmt_id(job_id)}", fg="red")
             jobs_str = ",".join(self.ctx.job_ids)
             click.secho(f"Existing jobs: {jobs_str}", dim=True)
             sys.exit(1)
@@ -195,9 +201,9 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
                         when_humanized = humanize.naturaldate(info.when.astimezone())
                 rows.append(
                     [
-                        info.id,
-                        format_job_status(info.status),
-                        info.raw_id or "N/A",
+                        fmt_id(info.id),
+                        fmt_status(info.status),
+                        fmt_raw_id(info.raw_id or "N/A"),
                         when_humanized,
                     ]
                 )
@@ -211,7 +217,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
             async for descr in self._resolve_jobs(meta_ctx, suffix):
                 await self._run_subproc("neuro", "status", descr.id)
         except ResourceNotFound:
-            click.echo(f"Job {click.style(job_id, bold=True)} is not running")
+            click.echo(f"Job {fmt_id(job_id)} is not running")
             sys.exit(1)
 
     async def run(
@@ -232,16 +238,10 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
                     # There is the only job for non-multi mode
                     pass
                 if descr.status == JobStatus.PENDING:
-                    click.echo(
-                        f"Job {click.style(job_id, bold=True)} is pending, "
-                        "try again later"
-                    )
+                    click.echo(f"Job {fmt_id(job_id)} is pending, " "try again later")
                     sys.exit(2)
                 if descr.status == JobStatus.RUNNING:
-                    click.echo(
-                        f"Job {click.style(job_id, bold=True)} is running, "
-                        "connecting..."
-                    )
+                    click.echo(f"Job {fmt_id(job_id)} is running, " "connecting...")
                     job_ctx = await meta_ctx.with_job(job_id)
                     job = job_ctx.job
                     # attach to job if needed, browse first
@@ -317,7 +317,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
             async for descr in self._resolve_jobs(meta_ctx, suffix):
                 await self._run_subproc("neuro", "logs", descr.id)
         except ResourceNotFound:
-            click.echo(f"Job {click.style(job_id, bold=True)} is not running")
+            click.echo(f"Job {fmt_id(job_id)} is not running")
             sys.exit(1)
 
     async def kill_job(self, job_id: str, suffix: Optional[str]) -> bool:
@@ -340,9 +340,9 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
     async def kill(self, job_id: str, suffix: Optional[str]) -> None:
         """Kill named job"""
         if await self.kill_job(job_id, suffix):
-            click.echo(f"Killed job {click.style(job_id, bold=True)}")
+            click.echo(f"Killed job {fmt_id(job_id)}")
         else:
-            click.echo(f"Job {click.style(job_id, bold=True)} is not running")
+            click.echo(f"Job {fmt_id(job_id)} is not running")
 
     async def kill_all(self) -> None:
         """Kill all jobs"""
@@ -376,7 +376,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
             tasks.append(loop.create_task(kill(descr)))
 
         for job_id, ret in await asyncio.gather(*tasks):
-            click.echo(f"Killed job {click.style(job_id, bold=True)}")
+            click.echo(f"Killed job {fmt_id(job_id)}")
 
     # volumes subsystem
 
@@ -440,7 +440,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
         for volume in self.ctx.volumes.values():
             if volume.local is not None:
                 volume_ctx = await self.find_volume(volume.id)
-                click.echo(f"Create volume {click.style(volume.id, bold=True)}")
+                click.echo(f"Create volume {fmt_id(volume.id)}")
                 await self._run_subproc(
                     "neuro",
                     "mkdir",
