@@ -482,7 +482,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                     ]
                 )
             elif task_id in skipped:
-                rows.append([fmt_id(task_id), fmt_status(JobStatus.CANCELLED)]), ""
+                rows.append([fmt_id(task_id), fmt_status(JobStatus.CANCELLED), ""])
             elif task_id in started:
                 info = await self._client.jobs.status(raw_id)
                 rows.append(
@@ -490,7 +490,9 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                 )
             else:
                 # Unreachable currently
-                rows.append([fmt_id(task_id), fmt_status(JobStatus.UNKNOWN)], "")
+                rows.append(
+                    [fmt_id(task_id), fmt_status(JobStatus.UNKNOWN), ""],
+                )
 
         for line in ftable.table(rows):
             click.echo(line)
