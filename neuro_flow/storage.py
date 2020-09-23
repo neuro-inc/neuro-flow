@@ -217,6 +217,15 @@ class BatchStorage(abc.ABC):
         pass
 
     @abc.abstractmethod
+    async def cancel_task(
+        self,
+        attempt: Attempt,
+        task_no: int,
+        task: StartedTask,
+    ) -> FinishedTask:
+        pass
+
+    @abc.abstractmethod
     async def skip_task(
         self,
         attempt: Attempt,
@@ -572,6 +581,30 @@ class BatchFSStorage(BatchStorage):
             finish_reason="",
             finish_description="",
             outputs=result.outputs,
+        )
+        await self._write_finish(attempt, task_no, ret)
+        return ret
+
+    async def cancel_task(
+        self,
+        attempt: Attempt,
+        task_no: int,
+        task: StartedTask,
+    ) -> FinishedTask:
+        now = datetime.datetime.now(datetime.timezone.utc)
+        ret = FinishedTask(
+            attempt=attempt,
+            id=task.id,
+            raw_id="",
+            when=now,
+            status=JobStatus.CANCELLED,
+            exit_code=None,
+            created_at=task.created_at,
+            started_at=task.created_at,
+            finished_at=now,
+            finish_reason="",
+            finish_description="",
+            outputs={},
         )
         await self._write_finish(attempt, task_no, ret)
         return ret
