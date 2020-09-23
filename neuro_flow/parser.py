@@ -443,6 +443,8 @@ def parse_image(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Image:
             "context": OptLocalPathExpr,
             "dockerfile": OptLocalPathExpr,
             "build_args": SimpleSeq(StrExpr),
+            "env": SimpleMapping(StrExpr),
+            "volumes": SimpleSeq(OptStrExpr),
         },
         ast.Image,
     )

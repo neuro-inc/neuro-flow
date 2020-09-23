@@ -212,6 +212,8 @@ class ImageCtx:
     dockerfile: Optional[LocalPath]
     full_dockerfile_path: Optional[LocalPath]
     build_args: Sequence[str]
+    env: Mapping[str, str]
+    volumes: Sequence[str]
 
 
 @dataclass(frozen=True)
@@ -402,6 +404,7 @@ class BaseFlowContext(BaseContext):
                     local=local_path,
                     full_local_path=calc_full_path(ctx, local_path),
                 )
+
         images = {}
         if ast_flow.images is not None:
             for k, i in ast_flow.images.items():
@@ -411,6 +414,18 @@ class BaseFlowContext(BaseContext):
                     build_args = [await v.eval(ctx) for v in i.build_args]
                 else:
                     build_args = []
+
+                image_env = {}
+                if i.env is not None:
+                    image_env.update({k: await v.eval(ctx) for k, v in i.env.items()})
+
+                image_volumes = []
+                if i.volumes is not None:
+                    for vol in i.volumes:
+                        value = await vol.eval(ctx)
+                        if value:
+                            image_volumes.append(value)
+
                 images[k] = ImageCtx(
                     id=k,
                     ref=await i.ref.eval(ctx),
@@ -419,6 +434,8 @@ class BaseFlowContext(BaseContext):
                     dockerfile=dockerfile_path,
                     full_dockerfile_path=calc_full_path(ctx, dockerfile_path),
                     build_args=build_args,
+                    env=image_env,
+                    volumes=image_volumes,
                 )
         return cast(
             _CtxT,

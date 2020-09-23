@@ -9,6 +9,10 @@ images:
     - --arg1
     - val1
     - --arg2=val2
+    env:
+      SECRET_ENV: secret:key
+    volumes:
+      - secret:key:/var/secret/key.txt
 volumes:
   volume_a:
     remote: storage:dir

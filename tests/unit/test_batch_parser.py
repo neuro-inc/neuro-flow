@@ -60,6 +60,8 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
                         Pos(0, 0, config_file), Pos(0, 0, config_file), "--arg2=val2"
                     ),
                 ],
+                env=None,
+                volumes=None,
             )
         },
         volumes={
