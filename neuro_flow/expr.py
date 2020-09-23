@@ -150,11 +150,11 @@ async def fmt(ctx: CallCtx, spec: str, *args: TypeT) -> str:
 
 
 class JSONEncoder(json.JSONEncoder):
-    def default(self, obj: Any) -> TypeT:
+    def default(self, obj: Any) -> Any:
         if dataclasses.is_dataclass(obj):
             return dataclasses.asdict(obj)
         # Let the base class default method raise the TypeError
-        return super().default(self, obj)
+        return super().default(obj)
 
 
 async def to_json(ctx: CallCtx, arg: TypeT) -> str:
