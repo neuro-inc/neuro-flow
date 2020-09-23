@@ -14,7 +14,7 @@ from typing_extensions import Final
 from yarl import URL
 
 from .context import DepCtx
-from .types import FullID
+from .types import FullID, TaskStatus
 
 
 if sys.version_info < (3, 7):
@@ -559,12 +559,16 @@ class BatchFSStorage(BatchStorage):
         result: DepCtx,
     ) -> FinishedTask:
         now = datetime.datetime.now(datetime.timezone.utc)
+        assert (
+            result.result != TaskStatus.DISABLED
+        ), "Finished task cannot have disabled state, use .skip_task() instead"
+        status = JobStatus(result.result)
         ret = FinishedTask(
             attempt=attempt,
             id=task.id,
             raw_id="",
             when=now,
-            status=result.result,
+            status=status,
             exit_code=None,
             created_at=task.created_at,
             started_at=task.created_at,

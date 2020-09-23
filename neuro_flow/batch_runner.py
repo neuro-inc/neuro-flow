@@ -31,7 +31,7 @@ from .commands import CmdProcessor
 from .context import BatchActionContext, BatchContext, DepCtx, NeedsCtx, TaskContext
 from .parser import ConfigDir, parse_batch
 from .storage import Attempt, BatchStorage, FinishedTask, SkippedTask, StartedTask
-from .types import FullID, LocalPath
+from .types import FullID, LocalPath, TaskStatus
 from .utils import TERMINATED_JOB_STATUSES, fmt_id, fmt_raw_id, fmt_status
 
 
@@ -313,12 +313,12 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         for full_id in deps:
             dep_id = full_id[-1]
             if full_id in skipped:
-                needs[dep_id] = DepCtx(JobStatus.CANCELLED, {})
+                needs[dep_id] = DepCtx(TaskStatus.DISABLED, {})
             else:
                 dep = finished.get(full_id)
                 if dep is None:
                     raise NotFinished(full_id)
-                needs[dep_id] = DepCtx(dep.status, dep.outputs)
+                needs[dep_id] = DepCtx(TaskStatus(dep.status), dep.outputs)
         return needs
 
     async def _build_topo(

@@ -4,7 +4,6 @@ from dataclasses import dataclass, field, replace
 import itertools
 import shlex
 import warnings
-from neuromation.api import JobStatus
 from typing import (
     AbstractSet,
     ClassVar,
@@ -25,7 +24,7 @@ from yarl import URL
 from . import ast
 from .expr import EvalError, LiteralT, OptBoolExpr, RootABC, StrExpr, TypeT
 from .parser import parse_action, parse_project
-from .types import FullID, LocalPath, RemotePath
+from .types import FullID, LocalPath, RemotePath, TaskStatus
 
 
 # Neuro-flow contexts (variables available during expressions calculation).
@@ -93,7 +92,7 @@ class Neuro:
 
 @dataclass(frozen=True)
 class DepCtx:
-    result: JobStatus
+    result: TaskStatus
     outputs: Mapping[str, str]
 
 
@@ -845,7 +844,7 @@ class TaskContext(BaseContext):
             enable = await prep_task.enable.eval(ctx)
             if enable is None:
                 enable = all(
-                    dep_ctx.result == JobStatus.SUCCEEDED for dep_ctx in needs.values()
+                    dep_ctx.result == TaskStatus.SUCCEEDED for dep_ctx in needs.values()
                 )
             return enable
         except KeyError:
@@ -1225,10 +1224,10 @@ class BatchActionContext(TaskContext, ActionContext):
         return cast(_CtxT, replace(ctx, _prefix=prefix, _prep_tasks=prep_tasks))
 
     async def calc_outputs(self, needs: NeedsCtx) -> DepCtx:
-        if any(i.result == JobStatus.CANCELLED for i in needs.values()):
-            return DepCtx(JobStatus.CANCELLED, {})
-        elif any(i.result == JobStatus.FAILED for i in needs.values()):
-            return DepCtx(JobStatus.FAILED, {})
+        if any(i.result == TaskStatus.CANCELLED for i in needs.values()):
+            return DepCtx(TaskStatus.CANCELLED, {})
+        elif any(i.result == TaskStatus.FAILED for i in needs.values()):
+            return DepCtx(TaskStatus.FAILED, {})
         else:
             ret = {}
             assert isinstance(self._ast, ast.BatchAction)
@@ -1238,7 +1237,7 @@ class BatchActionContext(TaskContext, ActionContext):
                     val = await descr.value.eval(ctx)
                     assert val is not None
                     ret[name] = val
-            return DepCtx(JobStatus.SUCCEEDED, ret)
+            return DepCtx(TaskStatus.SUCCEEDED, ret)
 
 
 def calc_full_path(
