@@ -32,7 +32,7 @@ from .context import BatchActionContext, BatchContext, DepCtx, NeedsCtx, TaskCon
 from .parser import ConfigDir, parse_batch
 from .storage import Attempt, BatchStorage, FinishedTask, SkippedTask, StartedTask
 from .types import FullID, LocalPath
-from .utils import TERMINATED_JOB_STATUSES, format_job_status
+from .utils import TERMINATED_JOB_STATUSES, fmt_id, fmt_raw_id, fmt_status
 
 
 if sys.version_info >= (3, 9):
@@ -182,7 +182,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                 await asyncio.sleep(1)
 
             attempt_status = self._accumulate_result(finished.values())
-            str_attempt_status = format_job_status(attempt_status)
+            str_attempt_status = fmt_status(attempt_status)
             await self._storage.finish_attempt(
                 attempt,
                 attempt_status,
@@ -213,7 +213,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             tid = full_id[-1]
             needs = self._build_needs(prefix, ctx.graph[full_id], finished, skipped)
             assert full_id[:-1] == prefix
-            str_full_id = click.style(".".join(full_id), bold=True)
+            str_full_id = fmt_id(full_id)
             if not await ctx.is_enabled(tid, needs=needs):
                 # Make task started and immediatelly skipped
                 skipped_task = await self._skip_task(
@@ -243,7 +243,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                         task_ctx,
                     )
                     str_started = click.style("started", fg="cyan")
-                    raw_id = click.style(st.raw_id, dim=True)
+                    raw_id = fmt_raw_id(st.raw_id)
                     click.echo(f"Task {str_full_id} [{raw_id}] is {str_started}")
                     started[st.id] = st
 
@@ -260,7 +260,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                 continue
             if st.id in skipped:
                 continue
-            str_full_id = click.style(".".join(st.id), bold=True)
+            str_full_id = fmt_id(st.id)
             if st.raw_id:
                 ctx, topo = topos[st.id[:-1]]
                 # (sub)task
@@ -272,8 +272,8 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                         st,
                         status,
                     )
-                    str_status = format_job_status(finished[st.id].status)
-                    raw_id = click.style(st.raw_id, dim=True)
+                    str_status = fmt_status(finished[st.id].status)
+                    raw_id = fmt_raw_id(st.raw_id)
                     click.echo(f"Task {str_full_id} [{raw_id}] is {str_status}")
                     topo.done(st.id)
             else:
@@ -297,7 +297,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                     st,
                     outputs,
                 )
-                str_status = format_job_status(finished[st.id].status)
+                str_status = fmt_status(finished[st.id].status)
                 click.echo(f"Action {str_full_id} is {str_status}")
                 parent_ctx, parent_topo = topos[st.id[:-1]]
                 parent_topo.done(st.id)
@@ -439,7 +439,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             except ValueError:
                 click.secho(f"Bake {bake} is malformed, skipping", fg="yellow")
             else:
-                rows.append([bake.bake_id, format_job_status(attempt.result)])
+                rows.append([fmt_id(bake.bake_id), fmt_status(attempt.result)])
 
         rows.sort()
 
@@ -449,7 +449,13 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
 
     async def inspect(self, bake_id: str, *, attempt_no: int = -1) -> None:
         rows: List[List[str]] = []
-        rows.append([click.style("ID", bold=True), click.style("Status", bold=True)])
+        rows.append(
+            [
+                click.style("ID", bold=True),
+                click.style("Raw ID", bold=True),
+                click.style("Status", bold=True),
+            ]
+        )
 
         bake = await self._storage.fetch_bake_by_id(self.project, bake_id)
         attempt = await self._storage.find_attempt(bake, attempt_no)
@@ -457,26 +463,34 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         click.echo(
             " ".join(
                 [
-                    click.style(f"Attempt #{attempt.number}", bold=True),
-                    format_job_status(attempt.result),
+                    fmt_id(f"Attempt #{attempt.number}"),
+                    fmt_status(attempt.result),
                 ]
             )
         )
 
         started, finished, skipped = await self._storage.fetch_attempt(attempt)
-        for task_id in started:
+        for task in started.values():
+            task_id = task.id
+            raw_id = task.raw_id
             if task_id in finished:
                 rows.append(
-                    [".".join(task_id), format_job_status(finished[task_id].status)]
+                    [
+                        fmt_id(task_id),
+                        fmt_raw_id(raw_id),
+                        fmt_status(finished[task_id].status),
+                    ]
                 )
             elif task_id in skipped:
-                rows.append([".".join(task_id), format_job_status(JobStatus.CANCELLED)])
+                rows.append([fmt_id(task_id), "", fmt_status(JobStatus.CANCELLED)])
             elif task_id in started:
-                info = await self._client.jobs.status(started[task_id].raw_id)
-                rows.append([".".join(task_id), format_job_status(info.status.value)])
+                info = await self._client.jobs.status(raw_id)
+                rows.append(
+                    [fmt_id(task_id), fmt_raw_id(raw_id), fmt_status(info.status.value)]
+                )
             else:
                 # Unreachable currently
-                rows.append([".".join(task_id), format_job_status(JobStatus.UNKNOWN)])
+                rows.append([fmt_id(task_id), "", fmt_status(JobStatus.UNKNOWN)])
 
         for line in ftable.table(rows):
             click.echo(line)
@@ -501,16 +515,16 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         click.echo(
             " ".join(
                 [
-                    click.style(f"Attempt #{attempt.number}", bold=True),
-                    format_job_status(attempt.result),
+                    fmt_id(f"Attempt #{attempt.number}"),
+                    fmt_status(attempt.result),
                 ]
             )
         )
         click.echo(
             " ".join(
                 [
-                    click.style(f"Task {task_id}", bold=True),
-                    format_job_status(task.status),
+                    (f"Task {fmt_id(task_id)}"),
+                    fmt_status(task.status),
                 ]
             )
         )
