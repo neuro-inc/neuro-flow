@@ -12,9 +12,10 @@ from neuro_flow.expr import (
     SimpleOptBoolExpr,
     SimpleOptIdExpr,
     SimpleOptStrExpr,
+    SimpleStrExpr,
     StrExpr,
 )
-from neuro_flow.parser import parse_action, parse_live
+from neuro_flow.parser import parse_action, parse_batch, parse_live
 from neuro_flow.tokenizer import Pos
 from neuro_flow.types import LocalPath
 
@@ -24,7 +25,7 @@ def test_parse_live_action(assets: LocalPath) -> None:
     action = parse_action(config_file)
     assert action == ast.LiveAction(
         Pos(0, 0, config_file),
-        Pos(16, 0, config_file),
+        Pos(13, 0, config_file),
         kind=ast.ActionKind.LIVE,
         name=SimpleOptStrExpr(
             Pos(0, 0, config_file),
@@ -63,19 +64,9 @@ def test_parse_live_action(assets: LocalPath) -> None:
                 ),
             ),
         },
-        outputs={
-            "res": ast.Output(
-                Pos(12, 4, config_file),
-                Pos(13, 0, config_file),
-                descr=SimpleOptStrExpr(
-                    Pos(0, 0, config_file), Pos(0, 0, config_file), "action result"
-                ),
-                value=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
-            )
-        },
         job=ast.Job(
-            Pos(14, 2, config_file),
-            Pos(16, 0, config_file),
+            Pos(11, 2, config_file),
+            Pos(13, 0, config_file),
             name=OptStrExpr(Pos(3, 4, config_file), Pos(5, 0, config_file), None),
             image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
             preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
@@ -413,7 +404,7 @@ def test_parse_live_call(assets: LocalPath) -> None:
             "test": ast.JobActionCall(
                 Pos(3, 4, config_file),
                 Pos(6, 0, config_file),
-                action=StrExpr(
+                action=SimpleStrExpr(
                     Pos(3, 4, config_file),
                     Pos(5, 0, config_file),
                     "workspace:live-action",
@@ -425,4 +416,49 @@ def test_parse_live_call(assets: LocalPath) -> None:
                 },
             )
         },
+    )
+
+
+def test_parse_batch_call(assets: LocalPath) -> None:
+    workspace = assets
+    config_file = workspace / "batch-action-call.yml"
+    flow = parse_batch(workspace, config_file)
+    assert flow == ast.BatchFlow(
+        Pos(0, 0, config_file),
+        Pos(6, 0, config_file),
+        args=None,
+        id=SimpleOptIdExpr(
+            Pos(0, 0, config_file),
+            Pos(0, 0, config_file),
+            None,
+        ),
+        kind=ast.FlowKind.BATCH,
+        title=SimpleOptStrExpr(
+            Pos(0, 0, config_file),
+            Pos(0, 0, config_file),
+            None,
+        ),
+        images=None,
+        volumes=None,
+        defaults=None,
+        tasks=[
+            ast.TaskActionCall(
+                Pos(2, 2, config_file),
+                Pos(6, 0, config_file),
+                id=OptIdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "test"),
+                needs=None,
+                strategy=None,
+                enable=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                action=SimpleStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "ws:batch-action"
+                ),
+                args={
+                    "arg1": StrExpr(
+                        Pos(0, 0, config_file), Pos(0, 0, config_file), "val 1"
+                    )
+                },
+            )
+        ],
     )

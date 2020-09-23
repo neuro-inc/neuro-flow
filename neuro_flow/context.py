@@ -17,14 +17,15 @@ from typing import (
     Tuple,
     Type,
     TypeVar,
+    Union,
     cast,
 )
 from yarl import URL
 
 from . import ast
-from .expr import EvalError, LiteralT, RootABC, TypeT
+from .expr import EvalError, LiteralT, OptBoolExpr, RootABC, StrExpr, TypeT
 from .parser import parse_action, parse_project
-from .types import LocalPath, RemotePath
+from .types import FullID, LocalPath, RemotePath
 
 
 # Neuro-flow contexts (variables available during expressions calculation).
@@ -146,22 +147,32 @@ class JobMetaCtx:
 
 
 @dataclass(frozen=True)
-class PreparedTaskCtx:
+class BasePrepTaskCtx:
     id: Optional[str]
     real_id: str
 
     needs: AbstractSet[str]  # A set of batch.id
     matrix: MatrixCtx
     strategy: StrategyCtx
+    enable: OptBoolExpr
 
+
+@dataclass(frozen=True)
+class PrepTaskCtx(BasePrepTaskCtx):
     ast: ast.Task
+
+
+@dataclass(frozen=True)
+class PrepBatchCallCtx(BasePrepTaskCtx):
+    action: str
+    args: Mapping[str, StrExpr]
 
 
 @dataclass(frozen=True)
 class TaskCtx(ExecUnitCtx):
     # executed task
     id: Optional[str]
-    real_id: str
+    full_id: FullID
 
     needs: AbstractSet[str]  # A set of batch.id
 
@@ -207,9 +218,9 @@ class ImageCtx:
 
 @dataclass(frozen=True)
 class DefaultsCtx:
-    workdir: Optional[RemotePath]
-    life_span: Optional[float]
-    preset: Optional[str]
+    workdir: Optional[RemotePath] = None
+    life_span: Optional[float] = None
+    preset: Optional[str] = None
 
 
 # @dataclass(frozen=True)
@@ -248,7 +259,37 @@ EMPTY_ROOT = EmptyRoot()
 
 @dataclass(frozen=True)
 class BaseContext(RootABC):
-    LOOKUP_KEYS: ClassVar[Tuple[str, ...]] = field(init=False, default=())
+    LOOKUP_KEYS: ClassVar[Tuple[str, ...]] = field(
+        init=False,
+        default=(
+            "env",
+            "tags",
+            "defaults",
+        ),
+    )
+
+    _workspace: LocalPath
+    _env: Optional[Mapping[str, str]] = None
+    _tags: Optional[AbstractSet[str]] = None
+    _defaults: Optional[DefaultsCtx] = None
+
+    @property
+    def env(self) -> Mapping[str, str]:
+        if self._env is None:
+            raise NotAvailable("env")
+        return self._env
+
+    @property
+    def tags(self) -> AbstractSet[str]:
+        if self._tags is None:
+            raise NotAvailable("tags")
+        return self._tags
+
+    @property
+    def defaults(self) -> DefaultsCtx:
+        if self._defaults is None:
+            raise NotAvailable("defaults")
+        return self._defaults
 
     def lookup(self, name: str) -> TypeT:
         if name not in self.LOOKUP_KEYS:
@@ -256,6 +297,21 @@ class BaseContext(RootABC):
         ret = getattr(self, name)
         # assert isinstance(ret, (ContainerT, SequenceT, MappingT)), ret
         return cast(TypeT, ret)
+
+    async def fetch_action(self, action_name: str) -> ast.BaseAction:
+        scheme, sep, spec = action_name.partition(":")
+        if not sep:
+            raise ValueError(f"{action_name} has no schema")
+        if scheme in ("ws", "workspace"):
+            assert self._workspace is not None
+            path = self._workspace / spec
+            if not path.exists():
+                path = path.with_suffix(".yml")
+            if not path.exists():
+                raise ValueError(f"Action {action_name} does not exist")
+            return parse_action(path)
+        else:
+            raise ValueError(f"Unsupported scheme '{scheme}'")
 
 
 @dataclass(frozen=True)
@@ -266,21 +322,13 @@ class BaseFlowContext(BaseContext):
         default=BaseContext.LOOKUP_KEYS
         + (
             "flow",
-            "defaults",
             "volumes",
             "images",
-            "env",
-            "tags",
-            "job",
-            "batch",
         ),
     )
 
-    _ast_flow: ast.BaseFlow
-    flow: FlowCtx
-    _defaults: Optional[DefaultsCtx] = None
-    _env: Optional[Mapping[str, str]] = None
-    _tags: Optional[AbstractSet[str]] = None
+    _ast_flow: Optional[ast.BaseFlow] = None
+    _flow: Optional[FlowCtx] = None
 
     _images: Optional[Mapping[str, ImageCtx]] = None
     _volumes: Optional[Mapping[str, VolumeCtx]] = None
@@ -309,7 +357,7 @@ class BaseFlowContext(BaseContext):
             title=flow_title or flow_id,
         )
 
-        ctx = cls(_ast_flow=ast_flow, flow=flow)
+        ctx = cls(_ast_flow=ast_flow, _flow=flow, _workspace=flow.workspace)
         ctx = await ctx._with_args()
 
         ast_defaults = ast_flow.defaults
@@ -389,37 +437,20 @@ class BaseFlowContext(BaseContext):
                     env=image_env,
                     volumes=image_volumes,
                 )
-        return replace(  # type: ignore[return-value]
-            ctx,
-            _volumes=volumes,
-            _images=images,
+        return cast(
+            _CtxT,
+            replace(
+                ctx,
+                _volumes=volumes,
+                _images=images,
+            ),
         )
 
-    async def fetch_action(self, action_name: str) -> ast.BaseAction:
-        scheme, sep, spec = action_name.partition(":")
-        if not sep:
-            raise ValueError(f"{action_name} has no schema")
-        if scheme in ("ws", "workspace"):
-            path = self.flow.workspace / spec
-            if not path.exists():
-                path = path.with_suffix(".yml")
-            if not path.exists():
-                raise ValueError(f"Action {action_name} does not exist")
-            return parse_action(path)
-        else:
-            raise ValueError(f"Unsupported scheme '{scheme}'")
-
     @property
-    def env(self) -> Mapping[str, str]:
-        if self._env is None:
-            raise NotAvailable("env")
-        return self._env
-
-    @property
-    def defaults(self) -> DefaultsCtx:
-        if self._defaults is None:
-            raise NotAvailable("defaults")
-        return self._defaults
+    def flow(self) -> FlowCtx:
+        if self._flow is None:
+            raise NotAvailable("flow")
+        return self._flow
 
     @property
     def volumes(self) -> Mapping[str, VolumeCtx]:
@@ -433,12 +464,6 @@ class BaseFlowContext(BaseContext):
             raise NotAvailable("images")
         return self._images
 
-    @property
-    def tags(self) -> AbstractSet[str]:
-        if self._tags is None:
-            raise NotAvailable("tags")
-        return self._tags
-
     async def _with_args(self: _CtxT) -> _CtxT:
         # Calculate batch args context early, no-op for live mode
         return self
@@ -448,7 +473,7 @@ class BaseFlowContext(BaseContext):
 class LiveContext(BaseFlowContext):
     FLOW_TYPE: ClassVar[Type[ast.LiveFlow]] = field(init=False, default=ast.LiveFlow)
     LOOKUP_KEYS: ClassVar[Tuple[str, ...]] = field(
-        init=False, default=BaseFlowContext.LOOKUP_KEYS + ("job", "multi", "meta")
+        init=False, default=BaseFlowContext.LOOKUP_KEYS + ("multi", "meta")
     )
     _job: Optional[JobCtx] = None
     _meta: Optional[JobMetaCtx] = None
@@ -539,27 +564,26 @@ class LiveContext(BaseFlowContext):
         job = self._ast_flow.jobs[job_id]
 
         if isinstance(job, ast.JobActionCall):
-            action = await self.fetch_action(await job.action.eval(self))
-            if action.kind != ast.ActionKind.LIVE:
-                raise TypeError(
-                    f"Invalid action '{action}' "
-                    f"type {action.kind.value} for live flow"
-                )
-            assert isinstance(action, ast.LiveAction)
-            action_ctx = await ActionContext.create(action)
+            action_ctx = await LiveActionContext.create(
+                (self.flow.flow_id, job_id),  # unused
+                await job.action.eval(EMPTY_ROOT),
+                self._workspace,
+                self.tags,
+            )
+            assert isinstance(action_ctx._ast, ast.LiveAction)
             args = {}
             if job.args is not None:
                 for k, v in job.args.items():
                     args[k] = await v.eval(self)
 
             action_ctx = await action_ctx.with_inputs(args)
-            assert isinstance(action.job, ast.Job)
+            assert isinstance(action_ctx._ast, ast.LiveAction)
+            assert isinstance(action_ctx._ast.job, ast.Job)
             job_ctx, env, tags = await self._calc_job(
                 action_ctx,
                 self.flow.flow_id,
                 job_id,
-                action.job,
-                self.defaults,
+                action_ctx._ast.job,
                 self.meta.multi,
             )
         else:
@@ -568,7 +592,6 @@ class LiveContext(BaseFlowContext):
                 self.flow.flow_id,
                 job_id,
                 job,
-                self.defaults,
                 self.meta.multi,
             )
 
@@ -587,11 +610,10 @@ class LiveContext(BaseFlowContext):
     @classmethod
     async def _calc_job(
         cls,
-        ctx: RootABC,
+        ctx: BaseContext,
         flow_id: str,
         job_id: str,
         job: ast.Job,
-        defaults: DefaultsCtx,
         multi: bool,
     ) -> Tuple[JobCtx, Mapping[str, str], AbstractSet[str]]:
 
@@ -609,7 +631,7 @@ class LiveContext(BaseFlowContext):
         if title is None:
             title = f"{flow_id}.{job_id}"
 
-        workdir = (await job.workdir.eval(ctx)) or defaults.workdir
+        workdir = (await job.workdir.eval(ctx)) or ctx.defaults.workdir
 
         volumes = []
         if job.volumes is not None:
@@ -618,9 +640,9 @@ class LiveContext(BaseFlowContext):
                 if val:
                     volumes.append(val)
 
-        life_span = (await job.life_span.eval(ctx)) or defaults.life_span
+        life_span = (await job.life_span.eval(ctx)) or ctx.defaults.life_span
 
-        preset = (await job.preset.eval(ctx)) or defaults.preset
+        preset = (await job.preset.eval(ctx)) or ctx.defaults.preset
         port_forward = []
         if job.port_forward is not None:
             port_forward = [await val.eval(ctx) for val in job.port_forward]
@@ -647,51 +669,44 @@ class LiveContext(BaseFlowContext):
 
 
 @dataclass(frozen=True)
-class BatchContext(BaseFlowContext):
-    FLOW_TYPE: ClassVar[Type[ast.BatchFlow]] = field(init=False, default=ast.BatchFlow)
+class TaskContext(BaseContext):
     LOOKUP_KEYS: ClassVar[Tuple[str, ...]] = field(
         init=False,
-        default=BaseFlowContext.LOOKUP_KEYS
-        + ("args", "batch", "needs", "matrix", "strategy"),
+        default=BaseContext.LOOKUP_KEYS + ("needs", "matrix", "strategy"),
     )
-    _args: Optional[Mapping[str, str]] = None
+
     _task: Optional[TaskCtx] = None
     _needs: Optional[NeedsCtx] = None
-    _prep_tasks: Optional[Mapping[str, PreparedTaskCtx]] = None
-    _graph: Optional[Mapping[str, AbstractSet[str]]] = None
+    _prep_tasks: Optional[Mapping[str, BasePrepTaskCtx]] = None
     _matrix: Optional[MatrixCtx] = None
     _strategy: Optional[StrategyCtx] = None
+    _prefix: FullID = ()
+    _graph: Optional[Mapping[FullID, AbstractSet[FullID]]] = None
 
-    @classmethod
-    async def create(
-        cls: Type[_CtxT],
-        ast_flow: ast.BaseFlow,
-        workspace: LocalPath,
-        config_file: LocalPath,
-    ) -> _CtxT:
-        ctx = await super(cls, BatchContext).create(ast_flow, workspace, config_file)
-        assert isinstance(ctx._ast_flow, ast.BatchFlow)
-        prep_tasks = {}
+    async def _prepare(
+        self, tasks: Sequence[Union[ast.Task, ast.TaskActionCall]]
+    ) -> Dict[str, BasePrepTaskCtx]:
+        prep_tasks: Dict[str, BasePrepTaskCtx] = {}
         last_needs: Set[str] = set()
-        for num, ast_task in enumerate(ctx._ast_flow.tasks, 1):
-            assert isinstance(ast_task, ast.Task)
+        for num, ast_task in enumerate(tasks, 1):
+            assert isinstance(ast_task, (ast.Task, ast.TaskActionCall))
 
             # eval matrix
             matrix: Sequence[MatrixCtx]
             strategy: StrategyCtx
             default_strategy = StrategyCtx()
             if ast_task.strategy is not None:
-                fail_fast = await ast_task.strategy.fail_fast.eval(ctx)
+                fail_fast = await ast_task.strategy.fail_fast.eval(self)
                 if fail_fast is None:
                     fail_fast = default_strategy.fail_fast
-                max_parallel = await ast_task.strategy.max_parallel.eval(ctx)
+                max_parallel = await ast_task.strategy.max_parallel.eval(self)
                 if max_parallel is None:
                     max_parallel = default_strategy.max_parallel
                 strategy = StrategyCtx(fail_fast=fail_fast, max_parallel=max_parallel)
                 if ast_task.strategy.matrix is not None:
-                    matrix = await ctx._build_matrix(ast_task.strategy)
-                    matrix = await ctx._exclude(ast_task.strategy, matrix)
-                    matrix = await ctx._include(ast_task.strategy, matrix)
+                    matrix = await self._build_matrix(ast_task.strategy)
+                    matrix = await self._exclude(ast_task.strategy, matrix)
+                    matrix = await self._include(ast_task.strategy, matrix)
 
                     if len(matrix) > 256:
                         raise EvalError(
@@ -708,7 +723,7 @@ class BatchContext(BaseFlowContext):
             real_ids = set()
             for row in matrix:
                 # make prep patch(es)
-                matrix_ctx = await ctx.with_matrix(row)
+                matrix_ctx = await self.with_matrix(strategy, row)
                 task_id = await ast_task.id.eval(matrix_ctx)
                 if task_id is None:
                     # Dash is not allowed in identifier, so the generated read id
@@ -724,50 +739,34 @@ class BatchContext(BaseFlowContext):
                 else:
                     needs = last_needs
 
-                prep = PreparedTaskCtx(
-                    id=task_id,
-                    real_id=real_id,
-                    needs=needs,
-                    matrix=row,
-                    strategy=strategy,
-                    ast=ast_task,
-                )
-                prep_tasks[real_id] = prep
+                if isinstance(ast_task, ast.Task):
+                    prep_task = PrepTaskCtx(
+                        id=task_id,
+                        real_id=real_id,
+                        needs=needs,
+                        matrix=row,
+                        strategy=strategy,
+                        enable=ast_task.enable,
+                        ast=ast_task,
+                    )
+                    prep_tasks[real_id] = prep_task
+                else:
+                    assert isinstance(ast_task, ast.TaskActionCall)
+                    prep_call = PrepBatchCallCtx(
+                        id=task_id,
+                        real_id=real_id,
+                        needs=needs,
+                        matrix=row,
+                        strategy=strategy,
+                        enable=ast_task.enable,
+                        action=await ast_task.action.eval(EMPTY_ROOT),
+                        args=ast_task.args or {},
+                    )
+                    prep_tasks[real_id] = prep_call
                 real_ids.add(real_id)
 
             last_needs = real_ids
-
-        graph: Dict[str, AbstractSet[str]] = {}
-        for key, val in prep_tasks.items():
-            graph[key] = val.needs
-
-        return replace(  # type: ignore[return-value]
-            ctx, _prep_tasks=prep_tasks, _graph=graph
-        )
-
-    async def _with_args(self: _CtxT) -> _CtxT:
-        # Calculate batch args context early, no-op for live mode
-        assert isinstance(self, BaseFlowContext)
-        assert isinstance(self._ast_flow, ast.BatchFlow)
-        args = {}
-        if self._ast_flow.args is not None:
-            for k, v in self._ast_flow.args.items():
-                default = await v.default.eval(EMPTY_ROOT)
-                # descr = await v.descr.eval(EMPTY_ROOT)
-                if default is None:
-                    raise EvalError(
-                        f"Arg {k} is not initialized and has no default value",
-                        v._start,
-                        v._end,
-                    )
-                args[k] = default
-        return replace(self, _args=args)  # type: ignore[return-value]
-
-    @property
-    def args(self) -> Mapping[str, str]:
-        if self._args is None:
-            raise NotAvailable("args")
-        return self._args
+        return prep_tasks
 
     @property
     def task(self) -> TaskCtx:
@@ -794,8 +793,16 @@ class BatchContext(BaseFlowContext):
         return self._strategy
 
     @property
-    def graph(self) -> Mapping[str, AbstractSet[str]]:
-        # Mapping between task id and its needs set
+    def graph(self) -> Mapping[FullID, AbstractSet[FullID]]:
+        # Dependency graph for the context's tasks
+        assert self._prep_tasks is not None
+        if self._graph is None:
+            ret = {}
+            for key, val in self._prep_tasks.items():
+                ret[self._prefix + (key,)] = set(self._prefix + (i,) for i in val.needs)
+            # Use the hack with direct setattr
+            # to cheat the frozen dataclass write protection
+            object.__setattr__(self, "_graph", ret)
         assert self._graph is not None
         return self._graph
 
@@ -804,22 +811,50 @@ class BatchContext(BaseFlowContext):
         prep_task = self._prep_tasks[real_id]
         return prep_task.needs
 
-    async def with_matrix(self, matrix: MatrixCtx) -> "BatchContext":
+    async def with_matrix(
+        self: _CtxT, strategy: StrategyCtx, matrix: MatrixCtx
+    ) -> _CtxT:
+        assert isinstance(self, TaskContext)
         if self._matrix is not None:
             raise TypeError(
                 "Cannot enter into the matrix context if "
                 "the matrix is already initialized"
             )
-        return replace(self, _matrix=matrix)
+        if self._strategy is not None:
+            raise TypeError(
+                "Cannot enter into the strategy context if "
+                "the strategy is already initialized"
+            )
+        return cast(_CtxT, replace(self, _strategy=strategy, _matrix=matrix))
 
-    async def with_task(self, real_id: str, *, needs: NeedsCtx) -> "BatchContext":
-        # real_id -- the task's real id
-        #
-        # outputs -- real_id -> (output_name -> value) mapping for all task ids
-        # enumerated in needs.
-        #
-        # TODO: multi-state tasks require 'state' mapping (state_name -> value)
+    async def is_action(self, real_id: str) -> bool:
         assert self._prep_tasks is not None
+        try:
+            prep_task = self._prep_tasks[real_id]
+            return isinstance(prep_task, PrepBatchCallCtx)
+        except KeyError:
+            raise UnknownTask(real_id)
+
+    async def is_enabled(self, real_id: str, *, needs: NeedsCtx) -> bool:
+        assert self._prep_tasks is not None
+        assert self._task is None
+        try:
+            prep_task = self._prep_tasks[real_id]
+            ctx = await self.with_matrix(prep_task.strategy, prep_task.matrix)
+            ctx = replace(ctx, _needs=needs)
+            enable = await prep_task.enable.eval(ctx)
+            if enable is None:
+                enable = all(
+                    dep_ctx.result == JobStatus.SUCCEEDED for dep_ctx in needs.values()
+                )
+            return enable
+        except KeyError:
+            raise UnknownTask(real_id)
+
+    def _with_task_pre(self, real_id: str, *, needs: NeedsCtx) -> BasePrepTaskCtx:
+        assert isinstance(self, TaskContext)
+        assert self._prep_tasks is not None
+        assert self._prefix is not None
 
         if self._task is not None:
             raise TypeError(
@@ -840,9 +875,60 @@ class BatchContext(BaseFlowContext):
             if missing:
                 err.append(f"missing keys {missing}")
             raise ValueError(" ".join(err))
+        return prep_task
 
-        ctx = await self.with_matrix(prep_task.matrix)
-        ctx = replace(ctx, _needs=needs, _strategy=prep_task.strategy)
+    async def with_action(
+        self: _CtxT, real_id: str, *, needs: NeedsCtx
+    ) -> "BatchActionContext":
+        # real_id -- the task's real id
+        #
+        # outputs -- real_id -> (output_name -> value) mapping for all task ids
+        # enumerated in needs.
+        #
+        # TODO: multi-state tasks require 'state' mapping (state_name -> value)
+        assert isinstance(self, TaskContext)
+        assert self._prep_tasks is not None
+        prep_task = self._with_task_pre(real_id, needs=needs)
+
+        if isinstance(prep_task, PrepTaskCtx):
+            raise RuntimeError("Use .with_task() for calling an task-typed task")
+
+        assert isinstance(prep_task, PrepBatchCallCtx)
+        action = await self.fetch_action(prep_task.action)
+        if action.kind != ast.ActionKind.BATCH:
+            raise TypeError(
+                f"Invalid action '{action}' " f"type {action.kind.value} for batch flow"
+            )
+        parent_ctx = await self.with_matrix(prep_task.strategy, prep_task.matrix)
+        full_id = self._prefix + (prep_task.real_id,)
+        ctx = await BatchActionContext.create(
+            full_id,
+            prep_task.action,
+            self._workspace,
+            parent_ctx.tags,
+            {k: await v.eval(parent_ctx) for k, v in prep_task.args.items()},
+        )
+        return ctx
+
+    async def with_task(self: _CtxT, real_id: str, *, needs: NeedsCtx) -> _CtxT:
+        # real_id -- the task's real id
+        #
+        # outputs -- real_id -> (output_name -> value) mapping for all task ids
+        # enumerated in needs.
+        #
+        # TODO: multi-state tasks require 'state' mapping (state_name -> value)
+        assert isinstance(self, TaskContext)
+        assert self._prep_tasks is not None
+        prep_task = self._with_task_pre(real_id, needs=needs)
+
+        if isinstance(prep_task, PrepBatchCallCtx):
+            raise RuntimeError("Use .with_action() for calling an action-typed task")
+
+        assert isinstance(prep_task, PrepTaskCtx), prep_task
+        ctx = await self.with_matrix(prep_task.strategy, prep_task.matrix)
+        ctx = replace(ctx, _needs=needs)
+
+        full_id = self._prefix + (prep_task.real_id,)
 
         env = dict(ctx.env)
         if prep_task.ast.env is not None:
@@ -850,14 +936,14 @@ class BatchContext(BaseFlowContext):
 
         title = await prep_task.ast.title.eval(ctx)
         if title is None:
-            title = f"{ctx.flow.flow_id}.{real_id}"
+            title = ".".join(full_id)
         title = await prep_task.ast.title.eval(ctx)
 
         tags = set()
         if prep_task.ast.tags is not None:
             tags = {await v.eval(ctx) for v in prep_task.ast.tags}
         if not tags:
-            tags = {f"task:{_id2tag(real_id)}"}
+            tags = {"task:" + _id2tag(".".join(full_id))}
 
         workdir = (await prep_task.ast.workdir.eval(ctx)) or ctx.defaults.workdir
 
@@ -872,15 +958,11 @@ class BatchContext(BaseFlowContext):
 
         preset = (await prep_task.ast.preset.eval(ctx)) or ctx.defaults.preset
 
-        enable = await prep_task.ast.enable.eval(ctx)
-        if enable is None:
-            enable = all(
-                dep_ctx.result == JobStatus.SUCCEEDED for dep_ctx in needs.values()
-            )
+        enable = await self.is_enabled(real_id, needs=needs)
 
         task_ctx = TaskCtx(
             id=prep_task.id,
-            real_id=prep_task.real_id,
+            full_id=full_id,
             needs=prep_task.needs,
             title=title,
             name=(await prep_task.ast.name.eval(ctx)),
@@ -895,11 +977,14 @@ class BatchContext(BaseFlowContext):
             http_auth=await prep_task.ast.http_auth.eval(ctx),
             enable=enable,
         )
-        return replace(
-            ctx,
-            _task=task_ctx,
-            _env=env,
-            _tags=ctx.tags | tags,
+        return cast(
+            _CtxT,
+            replace(
+                ctx,
+                _task=task_ctx,
+                _env=env,
+                _tags=ctx.tags | tags,
+            ),
         )
 
     async def _build_matrix(self, strategy: ast.Strategy) -> Sequence[MatrixCtx]:
@@ -950,32 +1035,106 @@ class BatchContext(BaseFlowContext):
 
 
 @dataclass(frozen=True)
+class BatchContext(TaskContext, BaseFlowContext):
+    FLOW_TYPE: ClassVar[Type[ast.BatchFlow]] = field(init=False, default=ast.BatchFlow)
+    LOOKUP_KEYS: ClassVar[Tuple[str, ...]] = field(
+        init=False,
+        default=BaseFlowContext.LOOKUP_KEYS
+        + TaskContext.LOOKUP_KEYS
+        + ("args", "needs"),
+    )
+    _args: Optional[Mapping[str, str]] = None
+
+    @classmethod
+    async def create(
+        cls: Type[_CtxT],
+        ast_flow: ast.BaseFlow,
+        workspace: LocalPath,
+        config_file: LocalPath,
+    ) -> _CtxT:
+        ctx = await super(cls, BatchContext).create(
+            ast_flow,
+            workspace,
+            config_file,
+        )
+        assert issubclass(cls, BatchContext), cls
+        assert isinstance(ctx._ast_flow, ast.BatchFlow)
+
+        prep_tasks = await ctx._prepare(ctx._ast_flow.tasks)
+
+        return cast(_CtxT, replace(ctx, _prefix=(), _prep_tasks=prep_tasks))
+
+    async def _with_args(self: _CtxT) -> _CtxT:
+        # Calculate batch args context early, no-op for live mode
+        assert isinstance(self, BaseFlowContext)
+        assert isinstance(self._ast_flow, ast.BatchFlow)
+        args = {}
+        if self._ast_flow.args is not None:
+            for k, v in self._ast_flow.args.items():
+                default = await v.default.eval(EMPTY_ROOT)
+                # descr = await v.descr.eval(EMPTY_ROOT)
+                if default is None:
+                    raise EvalError(
+                        f"Arg {k} is not initialized and has no default value",
+                        v._start,
+                        v._end,
+                    )
+                args[k] = default
+        return cast(_CtxT, replace(self, _args=args))
+
+    @property
+    def args(self) -> Mapping[str, str]:
+        if self._args is None:
+            raise NotAvailable("args")
+        return self._args
+
+
+@dataclass(frozen=True)
 class ActionContext(BaseContext):
     LOOKUP_KEYS: ClassVar[Tuple[str, ...]] = field(
         init=False,
         default=BaseContext.LOOKUP_KEYS + ("inputs",),
     )
 
-    _ast: ast.BaseAction
+    _ast: Optional[ast.BaseAction] = None
+    _name: str = ""
 
-    outputs: Mapping[str, str]
-    state: Mapping[str, str]
     _inputs: Optional[Mapping[str, str]] = None
+    _prefix: FullID = ()
     # Add a context with global flow info, e.g. ctx.flow.id maybe?
 
     @classmethod
     async def create(
         cls: Type[_CtxT],
-        ast_action: ast.BaseAction,
+        prefix: FullID,
+        action: str,
+        workspace: LocalPath,
+        tags: AbstractSet[str],
     ) -> _CtxT:
         assert issubclass(cls, ActionContext)
-        assert isinstance(ast_action, ast.BaseAction)
-        return cls(  # type: ignore[return-value]
-            _ast=ast_action,
-            _inputs=None,
-            outputs={},
-            state={},
+        ctx = cls(
+            _workspace=workspace,
+            _name=action,
         )
+        ast_action = await ctx.fetch_action(action)
+        assert isinstance(ast_action, ast.BaseAction)
+
+        return cast(
+            _CtxT,
+            replace(
+                ctx,
+                _prefix=prefix,
+                _ast=ast_action,
+                _inputs=None,
+                _env={},
+                _tags=set(tags),
+                _defaults=DefaultsCtx(),
+            ),
+        )
+
+    @property
+    def prefix(self) -> FullID:
+        return self._prefix
 
     @property
     def inputs(self) -> Mapping[str, str]:
@@ -990,11 +1149,12 @@ class ActionContext(BaseContext):
                 "Cannot enter into the task context if "
                 "the task is already initialized"
             )
+        assert self._ast is not None
         if self._ast.inputs is None:
             if inputs:
                 raise ValueError(f"Unsupported input(s): {','.join(sorted(inputs))}")
             else:
-                return self  # type: ignore[return-value]
+                return cast(_CtxT, self)
         new_inputs = dict(inputs)
         for name, inp in self._ast.inputs.items():
             if name not in new_inputs and inp.default.pattern is not None:
@@ -1009,22 +1169,76 @@ class ActionContext(BaseContext):
         missing = self._ast.inputs.keys() - new_inputs.keys()
         if missing:
             raise ValueError(f"Required input(s): {','.join(sorted(missing))}")
-        return replace(self, _inputs=new_inputs)  # type: ignore[return-value]
+        return cast(_CtxT, replace(self, _inputs=new_inputs))
 
-    async def with_state(
-        self: _CtxT,
-        state: Mapping[str, str],
+    def _check_kind(self, required: ast.ActionKind) -> None:
+        assert self._ast is not None
+        if self._ast.kind != required:
+            raise TypeError(
+                f"Invalid action '{self._name}' "
+                f"type {self._ast.kind.value}, {required.value} is required"
+            )
+
+
+@dataclass(frozen=True)
+class LiveActionContext(ActionContext):
+    @classmethod
+    async def create(
+        cls: Type[_CtxT],
+        prefix: FullID,
+        action: str,
+        workspace: LocalPath,
+        tags: AbstractSet[str],
     ) -> _CtxT:
-        assert isinstance(self, ActionContext)
-        new_state = dict(self.state)
-        new_state.update(state)
-        return replace(self, state=new_state)  # type: ignore[return-value]
+        ret = await super(cls, LiveActionContext).create(
+            prefix, action, workspace, tags
+        )
+        ret._check_kind(ast.ActionKind.LIVE)
+        return cast(_CtxT, ret)
 
-    async def with_outputs(self: _CtxT, outputs: Mapping[str, str]) -> _CtxT:
-        assert isinstance(self, ActionContext)
-        new_outputs = dict(self.outputs)
-        new_outputs.update(outputs)
-        return replace(self, outputs=new_outputs)  # type: ignore[return-value]
+
+@dataclass(frozen=True)
+class BatchActionContext(TaskContext, ActionContext):
+    LOOKUP_KEYS: ClassVar[Tuple[str, ...]] = field(
+        init=False,
+        default=ActionContext.LOOKUP_KEYS + TaskContext.LOOKUP_KEYS,
+    )
+
+    @classmethod
+    async def create(  # type:ignore[override]
+        cls: Type[_CtxT],
+        prefix: FullID,
+        action: str,
+        workspace: LocalPath,
+        tags: AbstractSet[str],
+        inputs: Mapping[str, str],
+    ) -> _CtxT:
+        ctx = await super(cls, BatchActionContext).create(  # type:ignore[call-arg]
+            prefix, action, workspace, tags
+        )
+        ctx._check_kind(ast.ActionKind.BATCH)
+        ctx = await ctx.with_inputs(inputs)
+        assert isinstance(ctx, BatchActionContext)
+        assert isinstance(ctx._ast, ast.BatchAction)
+        prep_tasks = await ctx._prepare(ctx._ast.tasks)
+
+        return cast(_CtxT, replace(ctx, _prefix=prefix, _prep_tasks=prep_tasks))
+
+    async def calc_outputs(self, needs: NeedsCtx) -> DepCtx:
+        if any(i.result == JobStatus.CANCELLED for i in needs.values()):
+            return DepCtx(JobStatus.CANCELLED, {})
+        elif any(i.result == JobStatus.FAILED for i in needs.values()):
+            return DepCtx(JobStatus.FAILED, {})
+        else:
+            ret = {}
+            assert isinstance(self._ast, ast.BatchAction)
+            ctx = replace(self, _needs=needs)
+            if self._ast.outputs is not None:
+                for name, descr in self._ast.outputs.items():
+                    val = await descr.value.eval(ctx)
+                    assert val is not None
+                    ret[name] = val
+            return DepCtx(JobStatus.SUCCEEDED, ret)
 
 
 def calc_full_path(

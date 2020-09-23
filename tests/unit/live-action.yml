@@ -8,9 +8,6 @@ inputs:
   arg2:
     descr: param 2
     default: value 2
-outputs:
-  res:
-    descr: action result
 job:
   image: ubuntu
   bash: echo A ${{ inputs.arg1 }} B ${{ inputs.arg2 }} C

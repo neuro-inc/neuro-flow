@@ -51,6 +51,7 @@ from .expr import (
     SimpleOptBoolExpr,
     SimpleOptIdExpr,
     SimpleOptStrExpr,
+    SimpleStrExpr,
     StrExpr,
     URIExpr,
 )
@@ -567,7 +568,7 @@ JOB = {
 }
 
 JOB_ACTION_CALL = {
-    "action": StrExpr,
+    "action": SimpleStrExpr,
     "args": SimpleMapping(StrExpr),
 }
 
@@ -658,8 +659,50 @@ TASK = {
 }
 
 
-def parse_task(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Task:
-    return parse_dict(ctor, node, TASK, ast.Task, preprocess=select_shells)
+TASK_ACTION_CALL = {
+    "id": OptIdExpr,
+    "needs": SimpleSeq(IdExpr),
+    "strategy": None,
+    "action": SimpleStrExpr,
+    "args": SimpleMapping(StrExpr),
+}
+
+
+TASK_OR_ACTION = {**TASK, **TASK_ACTION_CALL}
+
+
+def select_task_or_action(
+    ctor: BaseConstructor, node: yaml.MappingNode, dct: Dict[str, Any]
+) -> Dict[str, Any]:
+    if "action" in dct:
+        return {k: v for k, v in dct.items() if k in TASK_ACTION_CALL}
+    else:
+        dct2 = {k: v for k, v in dct.items() if k in TASK}
+        return select_shells(ctor, node, dct2)
+
+
+def find_task_type(
+    ctor: BaseConstructor,
+    node: yaml.MappingNode,
+    res_type: Type[ast.Base],
+    arg: Dict[str, Any],
+) -> Union[Type[ast.Task], Type[ast.TaskActionCall]]:
+    action = arg.get("action")
+    if action is None:
+        return ast.Task
+    else:
+        return ast.TaskActionCall
+
+
+def parse_task(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Base:
+    return parse_dict(
+        ctor,
+        node,
+        TASK_OR_ACTION,
+        ast.Base,
+        preprocess=select_task_or_action,
+        find_res_type=find_task_type,
+    )
 
 
 FlowLoader.add_path_resolver(  # type: ignore[no-untyped-call]
@@ -929,6 +972,18 @@ def parse_job_in_live_action(ctor: BaseConstructor, node: yaml.MappingNode) -> a
 
 ActionLoader.add_path_resolver("action:job", [(dict, "job")])  # type: ignore
 ActionLoader.add_constructor("action:job", parse_job_in_live_action)  # type: ignore
+
+ActionLoader.add_path_resolver(  # type: ignore
+    "action:matrix",
+    [(dict, "tasks"), (list, None), (dict, "strategy"), (dict, "matrix")],
+)
+ActionLoader.add_constructor("action:matrix", parse_matrix)  # type: ignore
+
+ActionLoader.add_path_resolver(  # type: ignore
+    "action:strategy", [(dict, "tasks"), (list, None), (dict, "strategy")]
+)
+ActionLoader.add_constructor("action:strategy", parse_strategy)  # type: ignore
+
 
 ActionLoader.add_path_resolver(  # type: ignore[no-untyped-call]
     "action:task", [(dict, "tasks"), (list, None)]
