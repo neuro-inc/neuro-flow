@@ -131,7 +131,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
             async for job in self.client.jobs.list(
                 tags=tags,
                 reverse=True,
-                limit=100,  # fixme: limit should be 1 but it doesn't work
+                limit=1,
             ):
                 found = True
                 yield job
@@ -220,6 +220,55 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
             click.echo(f"Job {fmt_id(job_id)} is not running")
             sys.exit(1)
 
+    async def _try_attach_to_running(
+        self, job_id: str, suffix: Optional[str], args: Optional[Tuple[str]]
+    ) -> bool:
+        is_multi = await self.ctx.is_multi(job_id)
+
+        if not is_multi or suffix:
+            meta_ctx = await self._ensure_meta(job_id, suffix)
+            try:
+                jobs = []
+                async for descr in self._resolve_jobs(meta_ctx, suffix):
+                    jobs.append(descr)
+                if len(jobs) > 1:
+                    # Should never happen, but just in case
+                    raise click.ClickException(
+                        f"Found multiple running jobs for id {job_id} and"
+                        f" suffix {suffix}:\n"
+                        "\n".join(job.id for job in jobs)
+                    )
+                assert len(jobs) == 1
+                descr = jobs[0]
+                if is_multi and args:
+                    raise click.ClickException(
+                        "Multi job with such suffix is already running."
+                    )
+                if descr.status == JobStatus.PENDING:
+                    click.echo(f"Job {fmt_id(job_id)} is pending, " "try again later")
+                    sys.exit(2)
+                if descr.status == JobStatus.RUNNING:
+                    click.echo(f"Job {fmt_id(job_id)} is running, " "connecting...")
+                    if not is_multi:
+                        job_ctx = await meta_ctx.with_job(job_id)
+                        job = job_ctx.job
+                    else:
+                        assert suffix is not None
+                        multi_ctx = await meta_ctx.with_multi(suffix=suffix, args=())
+                        job_ctx = await multi_ctx.with_job(job_id)
+                        job = job_ctx.job
+                    # attach to job if needed, browse first
+                    if job.browse:
+                        await self._run_subproc("neuro", "job", "browse", descr.id)
+                    if not job.detach:
+                        await self._run_subproc("neuro", "attach", descr.id)
+                    return True
+                # Here the status is SUCCEED, CANCELLED or FAILED, restart
+            except ResourceNotFound:
+                # Job does not exist, run it
+                pass
+        return False
+
     async def run(
         self, job_id: str, suffix: Optional[str], args: Optional[Tuple[str]]
     ) -> None:
@@ -227,33 +276,16 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
 
         is_multi = await self.ctx.is_multi(job_id)
 
+        if not is_multi and args:
+            raise click.BadArgumentUsage(
+                "Additional job arguments are supported by multi-jobs only"
+            )
+
+        if await self._try_attach_to_running(job_id, suffix, args):
+            return  # Attached to running job
+
         if not is_multi:
             meta_ctx = await self._ensure_meta(job_id, suffix)
-            if args:
-                raise click.BadArgumentUsage(
-                    "Additional job arguments are supported by multi-jobs only"
-                )
-            try:
-                async for descr in self._resolve_jobs(meta_ctx, suffix):
-                    # There is the only job for non-multi mode
-                    pass
-                if descr.status == JobStatus.PENDING:
-                    click.echo(f"Job {fmt_id(job_id)} is pending, " "try again later")
-                    sys.exit(2)
-                if descr.status == JobStatus.RUNNING:
-                    click.echo(f"Job {fmt_id(job_id)} is running, " "connecting...")
-                    job_ctx = await meta_ctx.with_job(job_id)
-                    job = job_ctx.job
-                    # attach to job if needed, browse first
-                    if job.browse:
-                        await self._run_subproc("neuro", "job", "browse", descr.id)
-                    if not job.detach:
-                        await self._run_subproc("neuro", "attach", descr.id)
-                    return
-                # Here the status is SUCCEED, CANCELLED or FAILED, restart
-            except ResourceNotFound:
-                # Job does not exist, run it
-                pass
             job_ctx = await meta_ctx.with_job(job_id)
             job = job_ctx.job
         else:
@@ -263,10 +295,6 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
             multi_ctx = await meta_ctx.with_multi(suffix=suffix, args=args)
             job_ctx = await multi_ctx.with_job(job_id)
             job = job_ctx.job
-            if not job.detach:
-                raise RuntimeError(
-                    f"Multi-job {job_id} should use `detach: true` in config file"
-                )
 
         run_args = ["run"]
         if job.title:
