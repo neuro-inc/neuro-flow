@@ -13,7 +13,6 @@ with fname.open(encoding="utf8") as fp:
     except IndexError:
         raise RuntimeError("Unable to determine version.")
 
-
 setup(
     name="neuro-flow",
     version=version,
