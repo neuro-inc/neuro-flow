@@ -1230,6 +1230,15 @@ class BatchActionContext(TaskContext, ActionContext):
 
         return cast(_CtxT, replace(ctx, _prefix=prefix, _prep_tasks=prep_tasks))
 
+    async def get_output_needs(self) -> AbstractSet[FullID]:
+        assert isinstance(self._ast, ast.BatchAction)
+        if self._ast.outputs and self._ast.outputs.needs is not None:
+            return {
+                self._prefix + (await need.eval(self),)
+                for need in self._ast.outputs.needs
+            }
+        return self.graph.keys()
+
     async def calc_outputs(self, needs: NeedsCtx) -> DepCtx:
         if any(i.result == TaskStatus.DISABLED for i in needs.values()):
             return DepCtx(TaskStatus.DISABLED, {})
@@ -1241,8 +1250,8 @@ class BatchActionContext(TaskContext, ActionContext):
             ret = {}
             assert isinstance(self._ast, ast.BatchAction)
             ctx = replace(self, _needs=needs)
-            if self._ast.outputs is not None:
-                for name, descr in self._ast.outputs.items():
+            if self._ast.outputs and self._ast.outputs.values is not None:
+                for name, descr in self._ast.outputs.values.items():
                     val = await descr.value.eval(ctx)
                     assert val is not None
                     ret[name] = val

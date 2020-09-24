@@ -9,6 +9,7 @@ inputs:
     descr: param 2
     default: value 2
 outputs:
+  needs: ["task_1_${{ inputs.arg1 }}_second", task_2]
   res1:
     descr: action result 1
     value: ${{ to_json(needs) }}

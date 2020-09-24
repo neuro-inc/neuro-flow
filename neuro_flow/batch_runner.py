@@ -478,7 +478,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                 assert isinstance(ctx, BatchActionContext)
 
                 needs = self._build_needs(
-                    ctx.prefix, ctx.graph.keys(), finished, skipped
+                    ctx.prefix, await ctx.get_output_needs(), finished, skipped
                 )
                 outputs = await ctx.calc_outputs(needs)
 

@@ -33,6 +33,7 @@ from yaml.resolver import Resolver as BaseResolver
 from yaml.scanner import Scanner
 
 from . import ast
+from .ast import BatchActionOutputs
 from .expr import (
     Expr,
     IdExpr,
@@ -964,13 +965,22 @@ def parse_action_output(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Ou
 
 def parse_action_outputs(
     ctor: BaseConstructor, node: yaml.MappingNode
-) -> Dict[str, ast.Output]:
-    ret = {}
+) -> ast.BatchActionOutputs:
+    values = {}
+    needs = None
     for k, v in node.value:
         key = ctor.construct_id(k)
-        value = parse_action_output(ctor, v)
-        ret[key] = value
-    return ret
+        if key == "needs" and isinstance(v, yaml.SequenceNode):
+            needs = SimpleSeq(IdExpr).construct(ctor, v)
+        else:
+            value = parse_action_output(ctor, v)
+            values[key] = value
+    return ast.BatchActionOutputs(
+        _start=mark2pos(node.start_mark),
+        _end=mark2pos(node.end_mark),
+        needs=needs,  # type: ignore[arg-type]
+        values=values,
+    )
 
 
 ActionLoader.add_path_resolver("action:outputs", [(dict, "outputs")])  # type: ignore
@@ -1043,6 +1053,26 @@ ACTION = {
 }
 
 
+def preprocess_action(
+    ctor: BaseConstructor, node: yaml.MappingNode, dct: Dict[str, Any]
+) -> Dict[str, Any]:
+    kind = dct.get("kind")
+    if kind is None:
+        raise ConstructorError(
+            f"missing mandatory key 'kind'",
+            node.start_mark,
+        )
+    results: Optional[BatchActionOutputs] = dct.get("outputs")
+    if results and kind != ast.ActionKind.BATCH:
+        if results.needs is not None:
+            raise ConnectionError(
+                f"outputs.needs list is not supported " f"for {kind.value} action kind",
+                node.start_mark,
+            )
+        dct["outputs"] = results.values
+    return dct
+
+
 def find_action_type(
     ctor: BaseConstructor,
     node: yaml.MappingNode,
@@ -1069,7 +1099,7 @@ def find_action_type(
             if val.value.pattern is not None:
                 raise ConnectionError(
                     f"outputs.{name}.value is not supported "
-                    "for {kind.value} action kind",
+                    f"for {kind.value} action kind",
                     node.start_mark,
                 )
     return ret
@@ -1081,6 +1111,7 @@ def parse_action_main(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Base
         node,
         ACTION,
         ast.BaseAction,
+        preprocess=preprocess_action,
         find_res_type=find_action_type,
     )
     return ret

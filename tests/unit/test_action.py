@@ -1,7 +1,9 @@
 from unittest.mock import ANY
 
 from neuro_flow import ast
+from neuro_flow.ast import BatchActionOutputs
 from neuro_flow.expr import (
+    IdExpr,
     OptBashExpr,
     OptBoolExpr,
     OptIdExpr,
@@ -103,7 +105,7 @@ def test_parse_batch_action(assets: LocalPath) -> None:
     action = parse_action(config_file)
     assert action == ast.BatchAction(
         Pos(0, 0, config_file),
-        Pos(24, 0, config_file),
+        Pos(25, 0, config_file),
         kind=ast.ActionKind.BATCH,
         name=SimpleOptStrExpr(
             Pos(0, 0, config_file),
@@ -142,36 +144,48 @@ def test_parse_batch_action(assets: LocalPath) -> None:
                 ),
             ),
         },
-        outputs={
-            "res1": ast.Output(
-                Pos(ANY, ANY, config_file),
-                Pos(ANY, ANY, config_file),
-                descr=SimpleOptStrExpr(
-                    Pos(0, 0, config_file), Pos(0, 0, config_file), "action result 1"
+        outputs=BatchActionOutputs(
+            Pos(ANY, ANY, config_file),
+            Pos(ANY, ANY, config_file),
+            needs=[
+                IdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "task_1"),
+                IdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "task_2"),
+            ],
+            values={
+                "res1": ast.Output(
+                    Pos(ANY, ANY, config_file),
+                    Pos(ANY, ANY, config_file),
+                    descr=SimpleOptStrExpr(
+                        Pos(0, 0, config_file),
+                        Pos(0, 0, config_file),
+                        "action result 1",
+                    ),
+                    value=OptStrExpr(
+                        Pos(0, 0, config_file),
+                        Pos(0, 0, config_file),
+                        "${{ task_1.task1 }}",
+                    ),
                 ),
-                value=OptStrExpr(
-                    Pos(0, 0, config_file),
-                    Pos(0, 0, config_file),
-                    "${{ task_1.task1 }}",
+                "res2": ast.Output(
+                    Pos(ANY, ANY, config_file),
+                    Pos(ANY, ANY, config_file),
+                    descr=SimpleOptStrExpr(
+                        Pos(0, 0, config_file),
+                        Pos(0, 0, config_file),
+                        "action result 2",
+                    ),
+                    value=OptStrExpr(
+                        Pos(0, 0, config_file),
+                        Pos(0, 0, config_file),
+                        "${{ task_2.task2 }}",
+                    ),
                 ),
-            ),
-            "res2": ast.Output(
-                Pos(ANY, ANY, config_file),
-                Pos(ANY, ANY, config_file),
-                descr=SimpleOptStrExpr(
-                    Pos(0, 0, config_file), Pos(0, 0, config_file), "action result 2"
-                ),
-                value=OptStrExpr(
-                    Pos(0, 0, config_file),
-                    Pos(0, 0, config_file),
-                    "${{ task_2.task2 }}",
-                ),
-            ),
-        },
+            },
+        ),
         tasks=[
             ast.Task(
-                Pos(18, 2, config_file),
-                Pos(21, 0, config_file),
+                Pos(19, 2, config_file),
+                Pos(22, 0, config_file),
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
@@ -207,8 +221,8 @@ def test_parse_batch_action(assets: LocalPath) -> None:
                 ),
             ),
             ast.Task(
-                Pos(21, 2, config_file),
-                Pos(24, 0, config_file),
+                Pos(22, 2, config_file),
+                Pos(25, 0, config_file),
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
