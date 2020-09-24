@@ -1,6 +1,5 @@
 import pathlib
 import pytest
-from neuromation.api import JobStatus
 from textwrap import dedent
 from yarl import URL
 
@@ -13,7 +12,7 @@ from neuro_flow.context import (
 )
 from neuro_flow.expr import EvalError
 from neuro_flow.parser import parse_batch, parse_live
-from neuro_flow.types import LocalPath, RemotePath
+from neuro_flow.types import LocalPath, RemotePath, TaskStatus
 
 
 def test_inavailable_context_ctor() -> None:
@@ -225,7 +224,7 @@ async def test_pipeline_seq(assets: pathlib.Path) -> None:
     ctx = await BatchContext.create(flow, workspace, config_file)
 
     ctx2 = await ctx.with_task(
-        "task-2", needs={"task-1": DepCtx(JobStatus.SUCCEEDED, {})}
+        "task-2", needs={"task-1": DepCtx(TaskStatus.SUCCEEDED, {})}
     )
     assert ctx2.task.id is None
     assert ctx2.task.full_id == ("task-2",)
@@ -256,7 +255,7 @@ async def test_pipeline_needs(assets: pathlib.Path) -> None:
     ctx = await BatchContext.create(flow, workspace, config_file)
 
     ctx2 = await ctx.with_task(
-        "task-2", needs={"task_a": DepCtx(JobStatus.SUCCEEDED, {})}
+        "task-2", needs={"task_a": DepCtx(TaskStatus.SUCCEEDED, {})}
     )
     assert ctx2.task.id is None
     assert ctx2.task.full_id == ("task-2",)
@@ -371,7 +370,7 @@ async def test_pipeline_matrix_2(assets: pathlib.Path) -> None:
     }
 
     ctx2 = await ctx.with_task(
-        "task-2-a-1", needs={"task_a": DepCtx(JobStatus.SUCCEEDED, {"name": "value"})}
+        "task-2-a-1", needs={"task_a": DepCtx(TaskStatus.SUCCEEDED, {"name": "value"})}
     )
     assert ctx2.task.id is None
     assert ctx2.task.full_id == ("task-2-a-1",)
@@ -507,11 +506,18 @@ async def test_pipeline_enable_default_with_needs(assets: pathlib.Path) -> None:
     flow = parse_batch(workspace, config_file)
     ctx = await BatchContext.create(flow, workspace, config_file)
 
-    ctx2 = await ctx.with_task("task-2", needs={"task_a": DepCtx(JobStatus.FAILED, {})})
+    ctx2 = await ctx.with_task(
+        "task-2", needs={"task_a": DepCtx(TaskStatus.FAILED, {})}
+    )
     assert not ctx2.task.enable
 
     ctx2 = await ctx.with_task(
-        "task-2", needs={"task_a": DepCtx(JobStatus.SUCCEEDED, {})}
+        "task-2", needs={"task_a": DepCtx(TaskStatus.DISABLED, {})}
+    )
+    assert not ctx2.task.enable
+
+    ctx2 = await ctx.with_task(
+        "task-2", needs={"task_a": DepCtx(TaskStatus.SUCCEEDED, {})}
     )
     assert ctx2.task.enable
 
@@ -522,11 +528,18 @@ async def test_pipeline_enable_success(assets: pathlib.Path) -> None:
     flow = parse_batch(workspace, config_file)
     ctx = await BatchContext.create(flow, workspace, config_file)
 
-    ctx2 = await ctx.with_task("task-2", needs={"task_a": DepCtx(JobStatus.FAILED, {})})
+    ctx2 = await ctx.with_task(
+        "task-2", needs={"task_a": DepCtx(TaskStatus.FAILED, {})}
+    )
     assert not ctx2.task.enable
 
     ctx2 = await ctx.with_task(
-        "task-2", needs={"task_a": DepCtx(JobStatus.SUCCEEDED, {})}
+        "task-2", needs={"task_a": DepCtx(TaskStatus.DISABLED, {})}
+    )
+    assert not ctx2.task.enable
+
+    ctx2 = await ctx.with_task(
+        "task-2", needs={"task_a": DepCtx(TaskStatus.SUCCEEDED, {})}
     )
     assert ctx2.task.enable
 
