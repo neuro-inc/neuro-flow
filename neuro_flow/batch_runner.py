@@ -150,7 +150,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             if isinstance(task, ast.BaseActionCall):
                 action_name = await task.action.eval(EMPTY_ROOT)
                 action_path = self._parse_action_name(action_name)
-                result += [LocalPath(action_name)]
+                result += [LocalPath(action_path)]
                 result += await self._collect_subaction_configs(
                     parse_action(action_path)
                 )
