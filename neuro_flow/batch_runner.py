@@ -182,16 +182,26 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                 # Check for cancellation
                 attempt = await self._storage.find_attempt(bake, attempt.number)
                 if attempt.result == JobStatus.CANCELLED:
+                    killed = []
                     for st in started.values():
-                        if st.raw_id:
+                        if st.raw_id and st.id not in finished:
                             await self._client.jobs.kill(st.raw_id)
-                        finished[st.id] = await self._storage.cancel_task(
-                            attempt, self._next_task_no(started, finished, skipped), st
+                            killed.append(st.id)
+                    while any(k_id not in finished for k_id in killed):
+                        await self._process_started(
+                            attempt, topos, started, finished, skipped
                         )
-                        str_full_id = fmt_id(st.id)
-                        raw_id = fmt_raw_id(st.raw_id)
-                        str_status = fmt_status(finished[st.id].status)
-                        click.echo(f"Task {str_full_id} [{raw_id}] is {str_status}")
+                        await asyncio.sleep(1)  # Check comment about delay below
+                    # All jobs stopped, mark as canceled started actions
+                    for st in started.values():
+                        if st.id not in finished:
+                            assert not st.raw_id
+                            await self._storage.finish_batch_action(
+                                attempt,
+                                self._next_task_no(started, finished, skipped),
+                                st,
+                                DepCtx(JobStatus.CANCELLED, {}),
+                            )
                     click.echo(
                         f"Attempt #{attempt.number} {fmt_status(JobStatus.CANCELLED)}"
                     )
