@@ -23,7 +23,6 @@ from funcparserlib.parser import (
     skip,
     some,
 )
-from neuromation.api import JobStatus
 from typing import (
     Any,
     Awaitable,
@@ -45,7 +44,7 @@ from typing_extensions import Final, Protocol, runtime_checkable
 from yarl import URL
 
 from .tokenizer import Pos, Token, tokenize
-from .types import LocalPath, RemotePath
+from .types import LocalPath, RemotePath, TaskStatus
 
 
 _T = TypeVar("_T")
@@ -172,26 +171,56 @@ def _check_has_needs(ctx: CallCtx, *, func_name: str) -> None:
         raise ValueError(f"{func_name}() is only available inside a task definition")
 
 
-def _get_needs_statuses(root: RootABC) -> List[JobStatus]:
+def _get_needs_statuses(root: RootABC) -> Dict[str, TaskStatus]:
     needs = root.lookup("needs")
     assert isinstance(needs, MappingT)
-    result: List[JobStatus] = []
+    result: Dict[str, TaskStatus] = {}
     for dependency in needs:
         dep_ctx = needs[dependency]
-        result.append(dep_ctx.result)  # type: ignore
+        result[dependency] = dep_ctx.result  # type: ignore
     return result
 
 
-async def success(ctx: CallCtx) -> bool:
+async def success(ctx: CallCtx, *args: str) -> bool:
+    # When called without arguments, checks that all dependency task
+    # succeeded. If arguments are passed, they should be strings that
+    # name some task from `needs:` field. Function will return true
+    # if all of those tasks succeded.
     _check_has_needs(ctx, func_name="success")
     needs_statuses = _get_needs_statuses(ctx.root)
-    return all(status == JobStatus.SUCCEEDED for status in needs_statuses)
+    if not args:
+        return all(status == TaskStatus.SUCCEEDED for status in needs_statuses.values())
+    else:
+        if not all(isinstance(arg, str) for arg in args):
+            raise ValueError("success() function only accept string arguments")
+        try:
+            return all(needs_statuses[need] == TaskStatus.SUCCEEDED for need in args)
+        except KeyError as e:
+            raise ValueError(
+                "success() function got argument, that"
+                f'is not a defined as dependency: "{e.args[0]}"'
+            )
 
 
-async def failure(ctx: CallCtx) -> bool:
+async def failure(ctx: CallCtx, *args: str) -> bool:
+    # When called without arguments, checks if any of dependency task
+    # failed. If arguments are passed, they should be strings that
+    # name some task from `needs:` field. Function will return true
+    # if any of those tasks failure.
     _check_has_needs(ctx, func_name="failure")
     needs_statuses = _get_needs_statuses(ctx.root)
-    return any(status == JobStatus.FAILED for status in needs_statuses)
+    if not args:
+        return any(status == TaskStatus.FAILED for status in needs_statuses.values())
+    else:
+        if not all(isinstance(arg, str) for arg in args):
+            raise ValueError("failure() function only accept string arguments")
+        try:
+            return any(needs_statuses[need] == TaskStatus.FAILED for need in args)
+        except KeyError as e:
+            raise ValueError(
+                "failure() function got argument, that"
+                f'is not a defined as dependency: "{e.args[0]}"'
+            )
 
 
 FUNCTIONS = _build_signatures(

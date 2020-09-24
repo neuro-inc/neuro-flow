@@ -2,20 +2,23 @@ import click
 from neuromation.api import JobStatus
 from typing import Union
 
-from .types import FullID
+from .types import FullID, TaskStatus
 
 
 COLORS = {
-    JobStatus.PENDING: "cyan",
-    JobStatus.RUNNING: "blue",
-    JobStatus.SUCCEEDED: "green",
-    JobStatus.CANCELLED: "yellow",
-    JobStatus.FAILED: "red",
-    JobStatus.UNKNOWN: "bright_black",
+    TaskStatus.PENDING: "cyan",
+    TaskStatus.RUNNING: "blue",
+    TaskStatus.SUCCEEDED: "green",
+    TaskStatus.CANCELLED: "yellow",
+    TaskStatus.DISABLED: "magenta",
+    TaskStatus.FAILED: "red",
+    TaskStatus.UNKNOWN: "bright_black",
 }
 
 
-def fmt_status(status: JobStatus) -> str:
+def fmt_status(status: Union[JobStatus, TaskStatus]) -> str:
+    if isinstance(status, JobStatus):
+        status = TaskStatus(status)
     return click.style(status.value, fg=COLORS.get(status, "reset"))
 
 

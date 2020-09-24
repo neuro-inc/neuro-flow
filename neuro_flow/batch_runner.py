@@ -52,7 +52,7 @@ from .storage import (
     SkippedTask,
     StartedTask,
 )
-from .types import FullID, LocalPath
+from .types import FullID, LocalPath, TaskStatus
 from .utils import TERMINATED_JOB_STATUSES, fmt_id, fmt_raw_id, fmt_status
 
 
@@ -269,6 +269,10 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
 
             click.echo("Find last attempt")
             attempt = await self._storage.find_attempt(bake)
+            if attempt.result in TERMINATED_JOB_STATUSES:
+                str_attempt_status = fmt_status(attempt.result)
+                click.echo(f"Attempt #{attempt.number} is already {str_attempt_status}")
+
             click.echo(f"Fetch attempt #{attempt.number}")
             started, finished, skipped = await self._storage.fetch_attempt(attempt)
 
@@ -293,6 +297,34 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                             topos[new_prefix] = (new_ctx, new_topo)
 
                 await self._process_started(attempt, topos, started, finished, skipped)
+
+                # Check for cancellation
+                attempt = await self._storage.find_attempt(bake, attempt.number)
+                if attempt.result == JobStatus.CANCELLED:
+                    killed = []
+                    for st in started.values():
+                        if st.raw_id and st.id not in finished:
+                            await self._client.jobs.kill(st.raw_id)
+                            killed.append(st.id)
+                    while any(k_id not in finished for k_id in killed):
+                        await self._process_started(
+                            attempt, topos, started, finished, skipped
+                        )
+                        await asyncio.sleep(1)  # Check comment about delay below
+                    # All jobs stopped, mark as canceled started actions
+                    for st in started.values():
+                        if st.id not in finished:
+                            assert not st.raw_id
+                            await self._storage.finish_batch_action(
+                                attempt,
+                                self._next_task_no(started, finished, skipped),
+                                st,
+                                DepCtx(TaskStatus.CANCELLED, {}),
+                            )
+                    click.echo(
+                        f"Attempt #{attempt.number} {fmt_status(JobStatus.CANCELLED)}"
+                    )
+                    return
 
                 # AS: I have no idea what timeout is better;
                 # too short value bombards servers,
@@ -355,16 +387,15 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                 yield full_id, action_ctx
             else:
                 task_ctx = await ctx.with_task(tid, needs=needs)
-                if task_ctx.task.enable:
-                    st = await self._start_task(
-                        attempt,
-                        self._next_task_no(started, finished, skipped),
-                        task_ctx,
-                    )
-                    str_started = click.style("started", fg="cyan")
-                    raw_id = fmt_raw_id(st.raw_id)
-                    click.echo(f"Task {str_full_id} [{raw_id}] is {str_started}")
-                    started[st.id] = st
+                st = await self._start_task(
+                    attempt,
+                    self._next_task_no(started, finished, skipped),
+                    task_ctx,
+                )
+                str_started = click.style("started", fg="cyan")
+                raw_id = fmt_raw_id(st.raw_id)
+                click.echo(f"Task {str_full_id} [{raw_id}] is {str_started}")
+                started[st.id] = st
 
     async def _process_started(
         self,
@@ -432,12 +463,12 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         for full_id in deps:
             dep_id = full_id[-1]
             if full_id in skipped:
-                needs[dep_id] = DepCtx(JobStatus.CANCELLED, {})
+                needs[dep_id] = DepCtx(TaskStatus.DISABLED, {})
             else:
                 dep = finished.get(full_id)
                 if dep is None:
                     raise NotFinished(full_id)
-                needs[dep_id] = DepCtx(dep.status, dep.outputs)
+                needs[dep_id] = DepCtx(TaskStatus(dep.status), dep.outputs)
         return needs
 
     async def _build_topo(
@@ -660,3 +691,11 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                         click.echo(line.decode("utf-8", "replace"), nl=False)
                 async for line in proc.feed_eof():
                     click.echo(line.decode("utf-8", "replace"), nl=False)
+
+    async def cancel(self, bake_id: str, *, attempt_no: int = -1) -> None:
+        bake = await self._storage.fetch_bake_by_id(self.project, bake_id)
+        attempt = await self._storage.find_attempt(bake, attempt_no)
+        if attempt.result in TERMINATED_JOB_STATUSES:
+            raise click.BadArgumentUsage(f"This bake attempt is already stopped.")
+        await self._storage.finish_attempt(attempt, JobStatus.CANCELLED)
+        click.echo(f"Attempt #{attempt.number} of bake {bake.bake_id} was cancelled.")

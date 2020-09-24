@@ -346,5 +346,29 @@ async def show(
         await runner.logs(bake_id, task_id, attempt_no=attempt, raw=raw)
 
 
+@main.command()
+@click.argument("bake_id")
+@click.option(
+    "-a",
+    "--attempt",
+    type=int,
+    default=-1,
+    help="Attempt number, the last attempt by default",
+)
+@wrap_async
+async def cancel(config_dir: ConfigDir, bake_id: str, attempt: int) -> None:
+    """Cancel a bake.
+
+    Cancel a bake execution by stopping all started tasks.
+    """
+    async with AsyncExitStack() as stack:
+        client = await stack.enter_async_context(api_get())
+        storage: BatchStorage = await stack.enter_async_context(BatchFSStorage(client))
+        runner = await stack.enter_async_context(
+            BatchRunner(config_dir, client, storage)
+        )
+        await runner.cancel(bake_id, attempt_no=attempt)
+
+
 if __name__ == "__main__":
     main()
