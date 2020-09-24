@@ -396,13 +396,14 @@ def parse_project(
 
 
 class FlowLoader(Reader, Scanner, Parser, Composer, BaseConstructor, BaseResolver):
-    def __init__(self, stream: TextIO) -> None:
+    def __init__(self, stream: TextIO, *, kind: ast.FlowKind) -> None:
         Reader.__init__(self, stream)
         Scanner.__init__(self)
         Parser.__init__(self)
         Composer.__init__(self)
         BaseConstructor.__init__(self)
         BaseResolver.__init__(self)
+        self._kind = kind
 
 
 def parse_volume(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Volume:
@@ -715,21 +716,37 @@ FlowLoader.add_path_resolver("flow:tasks", [(dict, "tasks")])  # type: ignore
 FlowLoader.add_constructor("flow:tasks", FlowLoader.construct_sequence)  # type: ignore
 
 
-def parse_flow_defaults(
-    ctor: BaseConstructor, node: yaml.MappingNode
-) -> ast.FlowDefaults:
-    return parse_dict(
-        ctor,
-        node,
-        {
-            "tags": SimpleSeq(StrExpr),
-            "env": SimpleMapping(StrExpr),
-            "workdir": OptRemotePathExpr,
-            "life_span": OptLifeSpanExpr,
-            "preset": OptStrExpr,
-        },
-        ast.FlowDefaults,
-    )
+def parse_flow_defaults(ctor: FlowLoader, node: yaml.MappingNode) -> ast.FlowDefaults:
+    if ctor._kind == ast.FlowKind.LIVE:
+        return parse_dict(
+            ctor,
+            node,
+            {
+                "tags": SimpleSeq(StrExpr),
+                "env": SimpleMapping(StrExpr),
+                "workdir": OptRemotePathExpr,
+                "life_span": OptLifeSpanExpr,
+                "preset": OptStrExpr,
+            },
+            ast.FlowDefaults,
+        )
+    elif ctor._kind == ast.FlowKind.BATCH:
+        return parse_dict(
+            ctor,
+            node,
+            {
+                "tags": SimpleSeq(StrExpr),
+                "env": SimpleMapping(StrExpr),
+                "workdir": OptRemotePathExpr,
+                "life_span": OptLifeSpanExpr,
+                "preset": OptStrExpr,
+                "fail_fast": OptBoolExpr,
+                "max_parallel": OptIntExpr,
+            },
+            ast.BatchFlowDefaults,
+        )
+    else:
+        raise ValueError("Unknown kind {ctor._kind}")
 
 
 FlowLoader.add_path_resolver("flow:defaults", [(dict, "defaults")])  # type: ignore
@@ -822,7 +839,7 @@ FlowLoader.add_constructor("flow:main", parse_flow_main)  # type: ignore
 def parse_live(workspace: LocalPath, config_file: LocalPath) -> ast.LiveFlow:
     # Parse live flow config file
     with config_file.open() as f:
-        loader = FlowLoader(f)
+        loader = FlowLoader(f, kind=ast.FlowKind.LIVE)
         try:
             ret = loader.get_single_data()  # type: ignore[no-untyped-call]
             assert isinstance(ret, ast.LiveFlow)
@@ -835,7 +852,7 @@ def parse_live(workspace: LocalPath, config_file: LocalPath) -> ast.LiveFlow:
 def parse_batch(workspace: LocalPath, config_file: LocalPath) -> ast.BatchFlow:
     # Parse pipeline flow config file
     with config_file.open() as f:
-        loader = FlowLoader(f)
+        loader = FlowLoader(f, kind=ast.FlowKind.BATCH)
         try:
             ret = loader.get_single_data()  # type: ignore[no-untyped-call]
             assert isinstance(ret, ast.BatchFlow)

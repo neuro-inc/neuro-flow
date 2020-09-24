@@ -159,10 +159,10 @@ class FlowDefaults(Base):
     preset: OptStrExpr
 
 
-# @dataclass(frozen=True)
-# class BatchFlowDefaults(FlowDefaults):
-#     fail_fast: OptBoolExpr
-#     max_parallel: OptIntExpr
+@dataclass(frozen=True)
+class BatchFlowDefaults(FlowDefaults):
+    fail_fast: OptBoolExpr
+    max_parallel: OptIntExpr
 
 
 @dataclass(frozen=True)
@@ -201,6 +201,8 @@ class BatchFlow(BaseFlow):
     # self.kind == Kind.Batch
     args: Optional[Mapping[str, Arg]] = field(metadata={"allow_none": True})
     tasks: Sequence[Union[Task, TaskActionCall]]
+
+    defaults: Optional[BatchFlowDefaults] = field(metadata={"allow_none": True})
 
 
 # Action

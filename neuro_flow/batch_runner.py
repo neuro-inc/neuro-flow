@@ -296,31 +296,21 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                         ):
                             topos[new_prefix] = (new_ctx, new_topo)
 
-                await self._process_started(attempt, topos, started, finished, skipped)
+                ok = await self._process_started(
+                    attempt, topos, started, finished, skipped
+                )
+                if not ok:
+                    await self._do_cancellation(
+                        attempt, topos, started, finished, skipped
+                    )
+                    break
 
                 # Check for cancellation
                 attempt = await self._storage.find_attempt(bake, attempt.number)
                 if attempt.result == JobStatus.CANCELLED:
-                    killed = []
-                    for st in started.values():
-                        if st.raw_id and st.id not in finished:
-                            await self._client.jobs.kill(st.raw_id)
-                            killed.append(st.id)
-                    while any(k_id not in finished for k_id in killed):
-                        await self._process_started(
-                            attempt, topos, started, finished, skipped
-                        )
-                        await asyncio.sleep(1)  # Check comment about delay below
-                    # All jobs stopped, mark as canceled started actions
-                    for st in started.values():
-                        if st.id not in finished:
-                            assert not st.raw_id
-                            await self._storage.finish_batch_action(
-                                attempt,
-                                self._next_task_no(started, finished, skipped),
-                                st,
-                                DepCtx(TaskStatus.CANCELLED, {}),
-                            )
+                    await self._do_cancellation(
+                        attempt, topos, started, finished, skipped
+                    )
                     click.echo(
                         f"Attempt #{attempt.number} {fmt_status(JobStatus.CANCELLED)}"
                     )
@@ -340,6 +330,33 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             )
             click.echo(f"Attempt #{attempt.number} {str_attempt_status}")
 
+    async def _do_cancellation(
+        self,
+        attempt: Attempt,
+        topos: Dict[FullID, Tuple[TaskContext, "graphlib.TopologicalSorter[FullID]"]],
+        started: Dict[FullID, StartedTask],
+        finished: Dict[FullID, FinishedTask],
+        skipped: Dict[FullID, SkippedTask],
+    ) -> None:
+        killed = []
+        for st in started.values():
+            if st.raw_id and st.id not in finished:
+                await self._client.jobs.kill(st.raw_id)
+                killed.append(st.id)
+        while any(k_id not in finished for k_id in killed):
+            await self._process_started(attempt, topos, started, finished, skipped)
+            await asyncio.sleep(1)  # Check comment about delay above
+        # All jobs stopped, mark as canceled started actions
+        for st in started.values():
+            if st.id not in finished:
+                assert not st.raw_id
+                await self._storage.finish_batch_action(
+                    attempt,
+                    self._next_task_no(started, finished, skipped),
+                    st,
+                    DepCtx(TaskStatus.CANCELLED, {}),
+                )
+
     def _next_task_no(
         self,
         started: Dict[FullID, StartedTask],
@@ -358,6 +375,15 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         finished: Dict[FullID, FinishedTask],
         skipped: Dict[FullID, SkippedTask],
     ) -> AsyncIterator[Tuple[FullID, TaskContext]]:
+        running_tasks = {
+            k: v
+            for k, v in started.items()
+            if k not in finished and k not in skipped and v.raw_id
+        }
+        budget = ctx.strategy.max_parallel - len(running_tasks)
+        if budget <= 0:
+            return
+
         for full_id in topo.get_ready():
             if full_id in started:
                 continue
@@ -396,6 +422,9 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                 raw_id = fmt_raw_id(st.raw_id)
                 click.echo(f"Task {str_full_id} [{raw_id}] is {str_started}")
                 started[st.id] = st
+                budget -= 1
+                if budget <= 0:
+                    return
 
     async def _process_started(
         self,
@@ -404,7 +433,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         started: Dict[FullID, StartedTask],
         finished: Dict[FullID, FinishedTask],
         skipped: Dict[FullID, SkippedTask],
-    ) -> None:
+    ) -> bool:
         for st in started.values():
             if st.id in finished:
                 continue
@@ -426,6 +455,8 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                     raw_id = fmt_raw_id(st.raw_id)
                     click.echo(f"Task {str_full_id} [{raw_id}] is {str_status}")
                     topo.done(st.id)
+                    if status.status != JobStatus.SUCCEEDED and ctx.strategy.fail_fast:
+                        return False
             else:
                 # (sub)action
                 ctx, topo = topos[st.id]
@@ -451,6 +482,12 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                 click.echo(f"Action {str_full_id} is {str_status}")
                 parent_ctx, parent_topo = topos[st.id[:-1]]
                 parent_topo.done(st.id)
+                if (
+                    finished[st.id].status != JobStatus.SUCCEEDED
+                    and parent_ctx.strategy.fail_fast
+                ):
+                    return False
+        return True
 
     def _build_needs(
         self,
