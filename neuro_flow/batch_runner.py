@@ -44,8 +44,15 @@ from .context import (
     TaskContext,
 )
 from .parser import ConfigDir, parse_action, parse_batch
-from .storage import Attempt, BatchStorage, FinishedTask, SkippedTask, StartedTask
-from .types import FullID, LocalPath, RemotePath
+from .storage import (
+    Attempt,
+    BatchStorage,
+    ConfigFile,
+    FinishedTask,
+    SkippedTask,
+    StartedTask,
+)
+from .types import FullID, LocalPath
 from .utils import TERMINATED_JOB_STATUSES, fmt_id, fmt_raw_id, fmt_status
 
 
@@ -187,9 +194,9 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         toposorter.prepare()
 
         configs = [config_file, *await self._collect_additional_configs(flow)]
-        configs_data = [
-            (
-                RemotePath(path.relative_to(self._config_dir.workspace)),
+        configs_files = [
+            ConfigFile(
+                path.relative_to(self._config_dir.workspace),
                 path.read_text(),
             )
             for path in configs
@@ -202,7 +209,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             self.project,
             batch_name,
             config_file.name,
-            configs_data,
+            configs_files,
         )
         click.echo(f"Bake {bake} created")
 
@@ -221,10 +228,12 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             await self.run_subproc(
                 "neuro",
                 "run",
+                "--restart=on-failure",
                 "--pass-config",
                 EXECUTOR_IMAGE,
                 "neuro-flow",
-                "--fake-workspace" "execute",
+                "--fake-workspace",
+                "execute",
                 param,
             )
 
@@ -246,10 +255,10 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             )
 
             click.echo("Fetch configs")
-            for path, config_content in await self._storage.fetch_configs(bake):
-                file = workspace / path
+            for config in await self._storage.fetch_configs(bake):
+                file = workspace / config.path
                 file.parent.mkdir(parents=True, exist_ok=True)
-                file.write_text(config_content)
+                file.write_text(config.content)
 
             click.echo("Parse baked config")
             config_file = config_dir / bake.config_name

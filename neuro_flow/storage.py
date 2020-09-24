@@ -7,23 +7,13 @@ import logging
 import re
 import secrets
 import sys
-from neuromation.api import Client, FileStatusType, JobDescription, JobStatus
+from neuromation.api import Client, JobDescription, JobStatus
 from types import TracebackType
-from typing import (
-    Any,
-    AsyncIterator,
-    Dict,
-    Iterable,
-    List,
-    Mapping,
-    Optional,
-    Tuple,
-    Type,
-)
+from typing import Any, AsyncIterator, Dict, Mapping, Optional, Sequence, Tuple, Type
 from typing_extensions import Final
 from yarl import URL
 
-from neuro_flow.types import RemotePath
+from neuro_flow.types import LocalPath
 
 from .context import DepCtx
 from .types import FullID
@@ -56,6 +46,7 @@ class Bake:
     when: datetime.datetime
     suffix: str
     config_name: str
+    configs_files: Sequence[LocalPath]
 
     def __str__(self) -> str:
         folder = "_".join([self.batch, _dt2str(self.when), self.suffix])
@@ -110,6 +101,12 @@ class SkippedTask:
     when: datetime.datetime
 
 
+@dataclasses.dataclass(frozen=True)
+class ConfigFile:
+    path: LocalPath
+    content: str
+
+
 # A storage abstraction
 #
 # There is a possibility to add Postgres storage class later, for example
@@ -133,12 +130,14 @@ class BatchStorage(abc.ABC):
 
     @abc.abstractmethod
     async def list_bakes(self, project: str) -> AsyncIterator[Bake]:
+        # This is here to make this real aiter for type checker
         bake = Bake(
             project="project",
             batch="batch",
             when=datetime.datetime.now(),
             suffix="suffix",
             config_name="config_name",
+            configs_files=[],
         )
         yield bake
 
@@ -148,7 +147,7 @@ class BatchStorage(abc.ABC):
         project: str,
         batch: str,
         config_name: str,
-        configs: Iterable[Tuple[RemotePath, str]],
+        configs: Sequence[ConfigFile],
     ) -> Bake:
         pass
 
@@ -163,7 +162,7 @@ class BatchStorage(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def fetch_configs(self, bake: Bake) -> List[Tuple[RemotePath, str]]:
+    async def fetch_configs(self, bake: Bake) -> Sequence[ConfigFile]:
         pass
 
     @abc.abstractmethod
@@ -299,7 +298,7 @@ class BatchFSStorage(BatchStorage):
         project: str,
         batch: str,
         config_name: str,
-        configs: Iterable[Tuple[RemotePath, str]],
+        configs: Sequence[ConfigFile],
     ) -> Bake:
         when = _now()
         bake = Bake(
@@ -308,6 +307,7 @@ class BatchFSStorage(BatchStorage):
             when=when,
             suffix=secrets.token_hex(3),
             config_name=config_name,
+            configs_files=[config.path for config in configs],
         )
         bake_uri = _mk_bake_uri(bake)
         await self._client.storage.mkdir(bake_uri, parents=True)
@@ -315,11 +315,11 @@ class BatchFSStorage(BatchStorage):
         # Upload all configs
         configs_dir = bake_uri / "configs"
         await self._client.storage.mkdir(configs_dir, parents=True)
-        for config_path, config_content in configs:
+        for config in configs:
             await self._client.storage.mkdir(
-                configs_dir / str(config_path.parent), parents=True
+                configs_dir / str(config.path.parent), parents=True
             )
-            await self._write_file(configs_dir / str(config_path), config_content)
+            await self._write_file(configs_dir / str(config.path), config.content)
 
         await self._write_json(bake_uri / "00.init.json", _bake_to_json(bake))
         # TODO: make the bake and the first attempt creation atomic to avoid
@@ -343,18 +343,12 @@ class BatchFSStorage(BatchStorage):
         data = await self._read_json(url / "00.init.json")
         return _bake_from_json(data)
 
-    async def fetch_configs(self, bake: Bake) -> List[Tuple[RemotePath, str]]:
+    async def fetch_configs(self, bake: Bake) -> Sequence[ConfigFile]:
         configs_dir_uri = _mk_bake_uri(bake) / "configs"
-        result: List[Tuple[RemotePath, str]] = []
-        dirs_to_process = [(RemotePath(""), configs_dir_uri)]
-        while dirs_to_process:
-            base_path, dir_uri = dirs_to_process.pop()
-            async for fs in self._client.storage.ls(dir_uri):
-                if fs.type == FileStatusType.DIRECTORY:
-                    dirs_to_process.append((base_path / fs.path, fs.uri))
-                else:
-                    result.append((base_path / fs.path, await self._read_file(fs.uri)))
-        return result
+        return [
+            ConfigFile(path, await self._read_file(configs_dir_uri / str(path)))
+            for path in bake.configs_files
+        ]
 
     async def create_attempt(self, bake: Bake, attempt_no: int) -> Attempt:
         assert 0 < attempt_no < 100, attempt_no
@@ -693,6 +687,7 @@ def _bake_to_json(bake: Bake) -> Dict[str, Any]:
         "when": _dt2str(bake.when),
         "suffix": bake.suffix,
         "config_name": bake.config_name,
+        "config_files": [str(path) for path in bake.configs_files],
     }
 
 
@@ -703,6 +698,7 @@ def _bake_from_json(data: Dict[str, Any]) -> Bake:
         when=datetime.datetime.fromisoformat(data["when"]),
         suffix=data["suffix"],
         config_name=data["config_name"],
+        configs_files=[LocalPath(path) for path in data["config_files"]],
     )
 
 
