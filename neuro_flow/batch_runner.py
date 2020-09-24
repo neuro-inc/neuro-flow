@@ -345,7 +345,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                 killed.append(st.id)
         while any(k_id not in finished for k_id in killed):
             await self._process_started(attempt, topos, started, finished, skipped)
-            await asyncio.sleep(1)  # Check comment about delay below
+            await asyncio.sleep(1)  # Check comment about delay above
         # All jobs stopped, mark as canceled started actions
         for st in started.values():
             if st.id not in finished:
