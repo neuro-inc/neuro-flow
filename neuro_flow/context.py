@@ -104,7 +104,7 @@ MatrixCtx = Mapping[str, LiteralT]
 
 @dataclass(frozen=True)
 class StrategyCtx:
-    fail_fast: bool = False
+    fail_fast: bool = True
     max_parallel: int = 10
 
 
@@ -222,12 +222,6 @@ class DefaultsCtx:
     preset: Optional[str] = None
 
 
-# @dataclass(frozen=True)
-# class BatchDefaultsCtx(DefaultsCtx):
-#     fail_fast: Optional[bool]
-#     max_parallel: Optional[int]
-
-
 @dataclass(frozen=True)
 class FlowCtx:
     flow_id: str
@@ -263,7 +257,6 @@ class BaseContext(RootABC):
         default=(
             "env",
             "tags",
-            "defaults",
         ),
     )
 
@@ -693,7 +686,7 @@ class TaskContext(BaseContext):
             # eval matrix
             matrix: Sequence[MatrixCtx]
             strategy: StrategyCtx
-            default_strategy = StrategyCtx()
+            default_strategy = self.strategy
             if ast_task.strategy is not None:
                 fail_fast = await ast_task.strategy.fail_fast.eval(self)
                 if fail_fast is None:
@@ -819,11 +812,6 @@ class TaskContext(BaseContext):
                 "Cannot enter into the matrix context if "
                 "the matrix is already initialized"
             )
-        if self._strategy is not None:
-            raise TypeError(
-                "Cannot enter into the strategy context if "
-                "the strategy is already initialized"
-            )
         return cast(_CtxT, replace(self, _strategy=strategy, _matrix=matrix))
 
     async def is_action(self, real_id: str) -> bool:
@@ -906,6 +894,7 @@ class TaskContext(BaseContext):
             self._workspace,
             parent_ctx.tags,
             {k: await v.eval(parent_ctx) for k, v in prep_task.args.items()},
+            parent_ctx.strategy,
         )
         return ctx
 
@@ -1056,6 +1045,21 @@ class BatchContext(TaskContext, BaseFlowContext):
             workspace,
             config_file,
         )
+        ast_defaults = ast_flow.defaults
+        if ast_defaults is not None:
+            assert isinstance(ast_defaults, ast.BatchFlowDefaults), ast_defaults
+            fail_fast = await ast_defaults.fail_fast.eval(ctx)
+            if fail_fast is None:
+                fail_fast = StrategyCtx.fail_fast
+            max_parallel = await ast_defaults.max_parallel.eval(ctx)
+            if max_parallel is None:
+                max_parallel = StrategyCtx.max_parallel
+            strategy = StrategyCtx(fail_fast=fail_fast, max_parallel=max_parallel)
+        else:
+            strategy = StrategyCtx()
+
+        ctx = replace(ctx, _strategy=strategy)
+
         assert issubclass(cls, BatchContext), cls
         assert isinstance(ctx._ast_flow, ast.BatchFlow)
 
@@ -1211,12 +1215,15 @@ class BatchActionContext(TaskContext, ActionContext):
         workspace: LocalPath,
         tags: AbstractSet[str],
         inputs: Mapping[str, str],
+        default_strategy: StrategyCtx,
     ) -> _CtxT:
         ctx = await super(cls, BatchActionContext).create(  # type:ignore[call-arg]
             prefix, action, workspace, tags
         )
         ctx._check_kind(ast.ActionKind.BATCH)
         ctx = await ctx.with_inputs(inputs)
+        ctx = replace(ctx, _strategy=default_strategy)
+
         assert isinstance(ctx, BatchActionContext)
         assert isinstance(ctx._ast, ast.BatchAction)
         prep_tasks = await ctx._prepare(ctx._ast.tasks)
