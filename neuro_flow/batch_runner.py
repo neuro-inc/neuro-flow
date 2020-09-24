@@ -303,7 +303,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                     await self._do_cancellation(
                         attempt, topos, started, finished, skipped
                     )
-                    return
+                    break
 
                 # Check for cancellation
                 attempt = await self._storage.find_attempt(bake, attempt.number)
