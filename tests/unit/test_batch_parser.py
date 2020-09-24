@@ -27,7 +27,7 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
     flow = parse_batch(workspace, config_file)
     assert flow == ast.BatchFlow(
         Pos(0, 0, config_file),
-        Pos(49, 0, config_file),
+        Pos(51, 0, config_file),
         id=SimpleOptIdExpr(
             Pos(0, 0, config_file),
             Pos(0, 0, config_file),
@@ -98,9 +98,9 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
                 ),
             ),
         },
-        defaults=ast.FlowDefaults(
+        defaults=ast.BatchFlowDefaults(
             _start=Pos(21, 2, config_file),
-            _end=Pos(28, 0, config_file),
+            _end=Pos(30, 0, config_file),
             tags=[
                 StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "tag-a"),
                 StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "tag-b"),
@@ -122,11 +122,13 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
             preset=OptStrExpr(
                 Pos(0, 0, config_file), Pos(0, 0, config_file), "cpu-large"
             ),
+            fail_fast=OptBoolExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), True),
+            max_parallel=OptIntExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), 10),
         ),
         tasks=[
             ast.Task(
-                _start=Pos(29, 4, config_file),
-                _end=Pos(49, 0, config_file),
+                _start=Pos(31, 4, config_file),
+                _end=Pos(51, 0, config_file),
                 id=OptIdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "test_a"),
                 title=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "Batch title"
@@ -702,7 +704,7 @@ def test_parse_args(assets: pathlib.Path) -> None:
         },
         images=None,
         volumes=None,
-        defaults=ast.FlowDefaults(
+        defaults=ast.BatchFlowDefaults(
             _start=Pos(7, 2, config_file),
             _end=Pos(10, 0, config_file),
             tags=[
@@ -721,6 +723,10 @@ def test_parse_args(assets: pathlib.Path) -> None:
                 Pos(0, 0, config_file), Pos(0, 0, config_file), None
             ),
             preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+            fail_fast=OptBoolExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+            max_parallel=OptIntExpr(
+                Pos(0, 0, config_file), Pos(0, 0, config_file), None
+            ),
         ),
         tasks=[
             ast.Task(
