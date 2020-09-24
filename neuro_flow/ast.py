@@ -222,7 +222,7 @@ class Input(Base):
 class Output(Base):
     descr: SimpleOptStrExpr
     # TODO: split Output class to BatchOutput with value and an Output without it
-    value: OptStrExpr  # valid for composite actions only
+    value: OptStrExpr  # valid for BatchAction only
 
 
 @dataclass(frozen=True)
