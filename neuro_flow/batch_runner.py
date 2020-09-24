@@ -279,7 +279,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                         + (" with following outputs:" if fd.outputs else "")
                     )
                     for key, value in fd.outputs.items():
-                        click.echo(f"f{key}: {value}")
+                        click.echo(f"  {key}: {value}")
 
                     topo.done(st.id)
             else:
@@ -309,7 +309,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                     + (" with following outputs:" if fd.outputs else "")
                 )
                 for key, value in fd.outputs.items():
-                    click.echo(f"f{key}: {value}")
+                    click.echo(f"  {key}: {value}")
 
                 parent_ctx, parent_topo = topos[st.id[:-1]]
                 parent_topo.done(st.id)
