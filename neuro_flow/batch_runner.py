@@ -330,7 +330,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             )
             click.echo(f"Attempt #{attempt.number} {str_attempt_status}")
 
-    def _do_cancellation(
+    async def _do_cancellation(
         self,
         attempt: Attempt,
         topos: Dict[FullID, Tuple[TaskContext, "graphlib.TopologicalSorter[FullID]"]],
@@ -455,7 +455,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                     raw_id = fmt_raw_id(st.raw_id)
                     click.echo(f"Task {str_full_id} [{raw_id}] is {str_status}")
                     topo.done(st.id)
-                    if status != JobStatus.SUCCEEDED and ctx.fail_fast:
+                    if status.status != JobStatus.SUCCEEDED and ctx.strategy.fail_fast:
                         return False
             else:
                 # (sub)action
@@ -484,7 +484,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                 parent_topo.done(st.id)
                 if (
                     finished[st.id].status != JobStatus.SUCCEEDED
-                    and parent_ctx.fail_fast
+                    and parent_ctx.strategy.fail_fast
                 ):
                     return False
         return True
