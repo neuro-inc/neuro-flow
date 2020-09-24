@@ -32,9 +32,22 @@ class Base:
     _end: Pos
 
 
+class CacheStrategy(enum.Enum):
+    NONE = "none"
+    DEFAULT = "default"
+
+
+@dataclass(frozen=True)
+class Cache(Base):
+    strategy: CacheStrategy
+    life_span: OptLifeSpanExpr
+    # TODO: maybe add extra key->value mapping for additional cache keys later
+
+
 @dataclass(frozen=True)
 class Project(Base):
     id: SimpleIdExpr
+    cache: Optional[Cache] = field(metadata={"allow_none": True})
 
 
 # There are 'batch' for pipelined mode and 'live' for interactive one
@@ -125,6 +138,8 @@ class TaskBase(Base):
     # continue_on_error: OptBoolExpr
     enable: OptBoolExpr
 
+    cache: Optional[Cache] = field(metadata={"allow_none": True})
+
 
 @dataclass(frozen=True)
 class Task(ExecUnit, TaskBase):
@@ -158,11 +173,12 @@ class FlowDefaults(Base):
 
     preset: OptStrExpr
 
-
 # @dataclass(frozen=True)
 # class BatchFlowDefaults(FlowDefaults):
 #     fail_fast: OptBoolExpr
 #     max_parallel: OptIntExpr
+#    cache: Optional[Cache] = field(metadata={"allow_none": True})
+
 
 
 @dataclass(frozen=True)
@@ -243,6 +259,7 @@ class LiveAction(BaseAction):
 @dataclass(frozen=True)
 class BatchAction(BaseAction):
     outputs: Optional[Mapping[str, Output]] = field(metadata={"allow_none": True})
+    cache: Optional[Cache] = field(metadata={"allow_none": True})
 
     tasks: Sequence[Task]
 
