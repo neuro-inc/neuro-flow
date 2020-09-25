@@ -132,7 +132,8 @@ jobs:
     - name: Build
       run: |
         docker build -t neuromation/neuro-flow:${{ needs.lint.outputs.version }} \
-            --build-arg NEURO_FLOW_VERSION=${{ needs.lint.outputs.version }}
+            --build-arg NEURO_FLOW_VERSION=${{ needs.lint.outputs.version }} \
+            .
     - name: Push
       run: |
          docker push neuromation/neuro-flow:${{ needs.lint.outputs.version }}
