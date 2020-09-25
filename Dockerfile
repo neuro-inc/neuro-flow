@@ -2,6 +2,8 @@ FROM python:3.7-stretch as requirements
 
 ARG NEURO_FLOW_VERSION
 
+ENV PATH=/root/.local/bin:$PATH
+
 RUN pip install --user \
     neuro-flow==$NEURO_FLOW_VERSION
 

@@ -478,7 +478,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                 assert isinstance(ctx, BatchActionContext)
 
                 needs = self._build_needs(
-                    ctx.prefix, ctx.graph.keys(), finished, skipped
+                    ctx.prefix, await ctx.get_output_needs(), finished, skipped
                 )
                 outputs = await ctx.calc_outputs(needs)
 
@@ -578,7 +578,8 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             tpu_type=preset.tpu_type,
             tpu_software_version=preset.tpu_software_version,
         )
-        volumes, secret_files = self._client.parse.volumes(task.volumes)
+        volumes_parsed = self._client.parse.volumes(task.volumes)
+        volumes, secret_files = volumes_parsed.volumes, volumes_parsed.secret_files
 
         http_auth = task.http_auth
         if http_auth is None:
