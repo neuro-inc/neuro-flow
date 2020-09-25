@@ -133,6 +133,6 @@ jobs:
         push: true
         tags: |
           neuromation/neuro-flow:latest
-          neuromation/neuro-flow:${{ jobs.deploy.outputs.version }}
+          neuromation/neuro-flow:${{ needs.deploy.outputs.version }}
     - name: Image digest
       run: echo ${{ steps.docker_build.outputs.digest }}      
