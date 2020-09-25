@@ -59,7 +59,7 @@ jobs:
     steps:
     - name: Show version
       run: |
-          echo ${{ jobs.lint.outputs.version }}
+          echo ${{ needs.lint.outputs.version }}
     - name: Checkout
       uses: actions/checkout@v2
     - name: Setup Python ${{ matrix.python-version }}
