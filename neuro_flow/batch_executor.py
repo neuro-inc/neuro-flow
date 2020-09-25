@@ -116,10 +116,7 @@ class BatchExecutor:
                 self._skipped,
             ) = await self._storage.fetch_attempt(attempt)
 
-            async for prefix, ctx, topo in self._build_topo(
-                (),
-                top_ctx,
-            ):
+            async for prefix, ctx, topo in self._build_topo((), top_ctx):
                 self._topos[prefix] = (ctx, topo, [])
 
             top_topo = self._topos[()][1]
@@ -134,14 +131,11 @@ class BatchExecutor:
                         ctx,
                     ):
                         async for new_prefix, new_ctx, new_topo in self._build_topo(
-                            action_pre,
-                            action_ctx,
+                            action_pre, action_ctx
                         ):
                             self._topos[new_prefix] = (new_ctx, new_topo, [])
 
-                ok = await self._process_started(
-                    attempt,
-                )
+                ok = await self._process_started(attempt)
                 if not ok:
                     await self._do_cancellation(attempt)
                     break
@@ -163,10 +157,7 @@ class BatchExecutor:
 
             attempt_status = self._accumulate_result()
             str_attempt_status = fmt_status(attempt_status)
-            await self._storage.finish_attempt(
-                attempt,
-                attempt_status,
-            )
+            await self._storage.finish_attempt(attempt, attempt_status)
             click.echo(f"Attempt #{attempt.number} {str_attempt_status}")
 
     async def _do_cancellation(
@@ -179,9 +170,7 @@ class BatchExecutor:
                 await self._client.jobs.kill(st.raw_id)
                 killed.append(st.id)
         while any(k_id not in self._finished for k_id in killed):
-            await self._process_started(
-                attempt,
-            )
+            await self._process_started(attempt)
             await asyncio.sleep(1)  # Check comment about delay above
         # All jobs stopped, mark as canceled started actions
         for st in self._started.values():
@@ -352,10 +341,7 @@ class BatchExecutor:
             elif await ctx.is_action(full_id[-1]):
                 if full_id not in self._started:
                     continue
-                needs = self._build_needs(
-                    prefix,
-                    graph[full_id],
-                )
+                needs = self._build_needs(prefix, graph[full_id])
                 action_ctx = await ctx.with_action(full_id[-1], needs=needs)
                 async for sub_pre, sub_ctx, sub_topo in self._build_topo(
                     full_id, action_ctx
