@@ -37,6 +37,13 @@ jobs:
     - name: Run linters
       run: |
         make lint
+    - name: Save the package version
+      id: version
+      run: |
+          ::set-output name=version::$(python setup.py --version)"
+    - name: Show version
+      run: |
+          echo ${{ steps.version.outputs.version }}
 
   unit:
     name: Unit
@@ -107,14 +114,10 @@ jobs:
         TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
       run: |
         twine upload dist/*
-    - name: Save the package version
-      id: version
-      run: |
-          echo "::set-output name=version::$(python setup.py --version)"
 
   image:
     name: Build Docker Image
-    needs: [deploy]
+    needs: [lint, deploy]
     runs-on: ubuntu-latest
     steps:
     - name: Setup QEMU
@@ -133,6 +136,6 @@ jobs:
         push: true
         tags: |
           neuromation/neuro-flow:latest
-          neuromation/neuro-flow:${{ needs.deploy.outputs.version }}
+          neuromation/neuro-flow:${{ needs.lint.outputs.version }}
     - name: Image digest
       run: echo ${{ steps.docker_build.outputs.digest }}      
