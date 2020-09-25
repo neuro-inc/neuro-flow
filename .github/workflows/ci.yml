@@ -40,7 +40,7 @@ jobs:
     - name: Save the package version
       id: version
       run: |
-          ::set-output name=version::$(python setup.py --version)"
+         echo "::set-output name=version::$(python setup.py --version)"
     - name: Show version
       run: |
           echo ${{ steps.version.outputs.version }}
