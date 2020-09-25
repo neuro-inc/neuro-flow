@@ -98,8 +98,10 @@ jobs:
       run: |
         if [ "refs/tags/v${{ needs.lint.outputs.version }}" != "${{ github.ref }}" ]
         then
-          echo "Tag ${{ github.ref }} mismatches with {{ needs.lint.outputs.version }}"
+          echo "Tag ${{ github.ref }} mismatches with ${{ needs.lint.outputs.version }}"
           exit 1
+        else
+          echo "Tag matches version ${{ needs.lint.outputs.version }}"
         fi
     - name: Checkout
       uses: actions/checkout@v2
