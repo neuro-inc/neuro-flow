@@ -101,7 +101,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
 
         click.echo(f"Use config file {config_file}")
 
-        click.echo("Check config")
+        click.echo("Check config... ", nl=False)
         # Check that the yaml is parseable
         flow = parse_batch(self._config_dir.workspace, config_file)
         assert isinstance(flow, ast.BatchFlow)
@@ -125,7 +125,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             for path in configs
         ]
 
-        click.echo("Config is correct")
+        click.echo("ok")
 
         click.echo("Create bake")
         bake = await self._storage.create_bake(
@@ -134,7 +134,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             config_file.name,
             configs_files,
         )
-        click.echo(f"Bake {bake} created")
+        click.echo(f"Bake {fmt_id(str(bake))} is created")
 
         data = ExecutorData(
             project=bake.project,
