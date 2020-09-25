@@ -71,9 +71,7 @@ class BatchExecutor:
         self._finished: Dict[FullID, FinishedTask] = {}
         self._skipped: Dict[FullID, SkippedTask] = {}
 
-    async def run(
-        self,
-    ) -> None:
+    async def run(self) -> None:
         with tempfile.TemporaryDirectory(prefix="bake") as tmp:
             root_dir = LocalPath(tmp)
             click.echo(f"Root dir {root_dir}")
@@ -160,10 +158,7 @@ class BatchExecutor:
             await self._storage.finish_attempt(attempt, attempt_status)
             click.echo(f"Attempt #{attempt.number} {str_attempt_status}")
 
-    async def _do_cancellation(
-        self,
-        attempt: Attempt,
-    ) -> None:
+    async def _do_cancellation(self, attempt: Attempt) -> None:
         killed = []
         for st in self._started.values():
             if st.raw_id and st.id not in self._finished:
@@ -183,9 +178,7 @@ class BatchExecutor:
                     DepCtx(TaskStatus.CANCELLED, {}),
                 )
 
-    def _next_task_no(
-        self,
-    ) -> int:
+    def _next_task_no(self) -> int:
         return len(self._started) + len(self._finished) + len(self._skipped)
 
     async def _process_topo(
@@ -249,10 +242,7 @@ class BatchExecutor:
                 if budget <= 0:
                     return
 
-    async def _process_started(
-        self,
-        attempt: Attempt,
-    ) -> bool:
+    async def _process_started(self, attempt: Attempt) -> bool:
         for st in self._started.values():
             if st.id in self._finished:
                 continue
@@ -306,11 +296,7 @@ class BatchExecutor:
                     return False
         return True
 
-    def _build_needs(
-        self,
-        prefix: FullID,
-        deps: AbstractSet[FullID],
-    ) -> NeedsCtx:
+    def _build_needs(self, prefix: FullID, deps: AbstractSet[FullID]) -> NeedsCtx:
         needs = {}
         for full_id in deps:
             dep_id = full_id[-1]
@@ -324,9 +310,7 @@ class BatchExecutor:
         return needs
 
     async def _build_topo(
-        self,
-        prefix: FullID,
-        ctx: TaskContext,
+        self, prefix: FullID, ctx: TaskContext
     ) -> AsyncIterator[
         Tuple[FullID, TaskContext, "graphlib.TopologicalSorter[FullID]"]
     ]:
