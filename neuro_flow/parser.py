@@ -333,6 +333,21 @@ def parse_dict(
     )
 
 
+# #### Generics ####
+
+
+def parse_cache(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Cache:
+    return parse_dict(
+        ctor,
+        node,
+        {
+            "strategy": ast.CacheStrategy,
+            "life_span": OptLifeSpanExpr,
+        },
+        ast.Cache,
+    )
+
+
 # #### Project parser ####
 
 
@@ -346,9 +361,11 @@ class ProjectLoader(Reader, Scanner, Parser, Composer, BaseConstructor, BaseReso
         BaseResolver.__init__(self)
 
 
-PROJECT = {
-    "id": None,
-}
+ProjectLoader.add_path_resolver("project:cache", [(dict, "cache")])  # type: ignore
+ProjectLoader.add_constructor("project:cache", parse_cache)  # type: ignore
+
+
+PROJECT = {"id": None, "cache": None}
 
 
 def parse_project_main(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Project:
@@ -389,6 +406,7 @@ def parse_project(
                 Pos(0, 0, LocalPath("<default>")),
                 workspace.stem.replace("-", "_"),
             ),
+            cache=None,
         )
 
 
@@ -396,13 +414,14 @@ def parse_project(
 
 
 class FlowLoader(Reader, Scanner, Parser, Composer, BaseConstructor, BaseResolver):
-    def __init__(self, stream: TextIO) -> None:
+    def __init__(self, stream: TextIO, *, kind: ast.FlowKind) -> None:
         Reader.__init__(self, stream)
         Scanner.__init__(self)
         Parser.__init__(self)
         Composer.__init__(self)
         BaseConstructor.__init__(self)
         BaseResolver.__init__(self)
+        self._kind = kind
 
 
 def parse_volume(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Volume:
@@ -539,6 +558,10 @@ FlowLoader.add_path_resolver(  # type: ignore
 )
 FlowLoader.add_constructor("flow:strategy", parse_strategy)  # type: ignore
 
+FlowLoader.add_path_resolver(  # type: ignore
+    "flow:cache", [(dict, "tasks"), (list, None), (dict, "cache")]
+)
+FlowLoader.add_constructor("flow:cache", parse_cache)  # type: ignore
 
 EXEC_UNIT = {
     "title": OptStrExpr,
@@ -655,6 +678,7 @@ TASK = {
     "needs": SimpleSeq(IdExpr),
     "strategy": None,
     "enable": OptBoolExpr,
+    "cache": None,
     **EXEC_UNIT,
 }
 
@@ -665,6 +689,7 @@ TASK_ACTION_CALL = {
     "strategy": None,
     "action": SimpleStrExpr,
     "args": SimpleMapping(StrExpr),
+    "cache": None,
 }
 
 
@@ -715,21 +740,37 @@ FlowLoader.add_path_resolver("flow:tasks", [(dict, "tasks")])  # type: ignore
 FlowLoader.add_constructor("flow:tasks", FlowLoader.construct_sequence)  # type: ignore
 
 
-def parse_flow_defaults(
-    ctor: BaseConstructor, node: yaml.MappingNode
-) -> ast.FlowDefaults:
-    return parse_dict(
-        ctor,
-        node,
-        {
-            "tags": SimpleSeq(StrExpr),
-            "env": SimpleMapping(StrExpr),
-            "workdir": OptRemotePathExpr,
-            "life_span": OptLifeSpanExpr,
-            "preset": OptStrExpr,
-        },
-        ast.FlowDefaults,
-    )
+def parse_flow_defaults(ctor: FlowLoader, node: yaml.MappingNode) -> ast.FlowDefaults:
+    if ctor._kind == ast.FlowKind.LIVE:
+        return parse_dict(
+            ctor,
+            node,
+            {
+                "tags": SimpleSeq(StrExpr),
+                "env": SimpleMapping(StrExpr),
+                "workdir": OptRemotePathExpr,
+                "life_span": OptLifeSpanExpr,
+                "preset": OptStrExpr,
+            },
+            ast.FlowDefaults,
+        )
+    elif ctor._kind == ast.FlowKind.BATCH:
+        return parse_dict(
+            ctor,
+            node,
+            {
+                "tags": SimpleSeq(StrExpr),
+                "env": SimpleMapping(StrExpr),
+                "workdir": OptRemotePathExpr,
+                "life_span": OptLifeSpanExpr,
+                "preset": OptStrExpr,
+                "fail_fast": OptBoolExpr,
+                "max_parallel": OptIntExpr,
+            },
+            ast.BatchFlowDefaults,
+        )
+    else:
+        raise ValueError("Unknown kind {ctor._kind}")
 
 
 FlowLoader.add_path_resolver("flow:defaults", [(dict, "defaults")])  # type: ignore
@@ -822,7 +863,7 @@ FlowLoader.add_constructor("flow:main", parse_flow_main)  # type: ignore
 def parse_live(workspace: LocalPath, config_file: LocalPath) -> ast.LiveFlow:
     # Parse live flow config file
     with config_file.open() as f:
-        loader = FlowLoader(f)
+        loader = FlowLoader(f, kind=ast.FlowKind.LIVE)
         try:
             ret = loader.get_single_data()  # type: ignore[no-untyped-call]
             assert isinstance(ret, ast.LiveFlow)
@@ -835,7 +876,7 @@ def parse_live(workspace: LocalPath, config_file: LocalPath) -> ast.LiveFlow:
 def parse_batch(workspace: LocalPath, config_file: LocalPath) -> ast.BatchFlow:
     # Parse pipeline flow config file
     with config_file.open() as f:
-        loader = FlowLoader(f)
+        loader = FlowLoader(f, kind=ast.FlowKind.BATCH)
         try:
             ret = loader.get_single_data()  # type: ignore[no-untyped-call]
             assert isinstance(ret, ast.BatchFlow)
@@ -985,6 +1026,13 @@ ActionLoader.add_path_resolver(  # type: ignore
 ActionLoader.add_constructor("action:strategy", parse_strategy)  # type: ignore
 
 
+FlowLoader.add_path_resolver("action:cache", [(dict, "cache")])  # type: ignore
+FlowLoader.add_path_resolver(  # type: ignore
+    "action:cache", [(dict, "tasks"), (list, None), (dict, "cache")]
+)
+FlowLoader.add_constructor("action:cache", parse_cache)  # type: ignore
+
+
 ActionLoader.add_path_resolver(  # type: ignore[no-untyped-call]
     "action:task", [(dict, "tasks"), (list, None)]
 )
@@ -1016,8 +1064,10 @@ ACTION = {
     # Live action
     "job": None,
     # Batch action
+    "cache": None,
     "tasks": None,
     # Sateful action
+    "cache": None,
     "pre": None,
     "pre_if": OptBoolExpr,
     "main": None,

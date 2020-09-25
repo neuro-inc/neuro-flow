@@ -7,7 +7,9 @@ from neuromation.api import get as api_get
 from neuromation.cli.asyncio_utils import Runner
 from typing import Any, Awaitable, Callable, Optional, Tuple, TypeVar
 
-from .batch_runner import BatchRunner
+from neuro_flow.types import LocalPath
+
+from .batch_runner import BatchRunner, ExecutorData
 from .live_runner import LiveRunner
 from .parser import ConfigDir, find_live_config, find_workspace
 from .storage import BatchFSStorage, BatchStorage
@@ -49,10 +51,23 @@ def wrap_async(
     default=None,
     metavar="PATH",
 )
+@click.option(
+    "--fake-workspace",
+    hidden=True,
+    is_flag=True,
+    default=False,
+    required=False,
+)
 @click.pass_context
-def main(ctx: click.Context, config: Optional[str]) -> None:
+def main(ctx: click.Context, config: Optional[str], fake_workspace: bool) -> None:
     logging.basicConfig(level=logging.INFO)
-    config_dir = find_workspace(config)
+    if fake_workspace:
+        config_dir = ConfigDir(
+            LocalPath("running-with-fake-workspace"),
+            LocalPath("running-with-fake-workspace"),
+        )
+    else:
+        config_dir = find_workspace(config)
     ctx.obj = config_dir
 
 
@@ -221,9 +236,12 @@ async def build(config_dir: ConfigDir, image: str) -> None:
 
 
 @main.command()
+@click.option(
+    "--local-executor", is_flag=True, default=False, help="Run primary job locally"
+)
 @click.argument("batch")
 @wrap_async
-async def bake(config_dir: ConfigDir, batch: str) -> None:
+async def bake(config_dir: ConfigDir, batch: str, local_executor: bool) -> None:
     """Start a batch.
 
     Run BATCH pipeline remotely on the cluster.
@@ -234,7 +252,25 @@ async def bake(config_dir: ConfigDir, batch: str) -> None:
         runner = await stack.enter_async_context(
             BatchRunner(config_dir, client, storage)
         )
-        await runner.bake(batch)
+        await runner.bake(batch, local_executor)
+
+
+@main.command(hidden=True)
+@click.argument("executor_data")
+@wrap_async
+async def execute(config_dir: ConfigDir, executor_data: str) -> None:
+    """Start a batch.
+
+    Run BATCH pipeline remotely on the cluster.
+    """
+    async with AsyncExitStack() as stack:
+        data = ExecutorData.parse(executor_data)
+        client = await stack.enter_async_context(api_get())
+        storage: BatchStorage = await stack.enter_async_context(BatchFSStorage(client))
+        runner = await stack.enter_async_context(
+            BatchRunner(config_dir, client, storage)
+        )
+        await runner.process(data)
 
 
 @main.command()

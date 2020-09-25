@@ -34,3 +34,9 @@ clean:
 .PHONY: test
 test:
 	pytest tests/unit
+
+
+build:
+	docker build -t neuromation/neuro-flow:latest \
+	    --build-arg NEURO_FLOW_VERSION="$(shell python setup.py --version)" \
+	    .

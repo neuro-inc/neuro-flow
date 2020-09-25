@@ -173,12 +173,12 @@ class FlowDefaults(Base):
 
     preset: OptStrExpr
 
-# @dataclass(frozen=True)
-# class BatchFlowDefaults(FlowDefaults):
-#     fail_fast: OptBoolExpr
-#     max_parallel: OptIntExpr
-#    cache: Optional[Cache] = field(metadata={"allow_none": True})
 
+@dataclass(frozen=True)
+class BatchFlowDefaults(FlowDefaults):
+    fail_fast: OptBoolExpr
+    max_parallel: OptIntExpr
+    cache: Optional[Cache] = field(metadata={"allow_none": True})
 
 
 @dataclass(frozen=True)
@@ -218,6 +218,8 @@ class BatchFlow(BaseFlow):
     args: Optional[Mapping[str, Arg]] = field(metadata={"allow_none": True})
     tasks: Sequence[Union[Task, TaskActionCall]]
 
+    defaults: Optional[BatchFlowDefaults] = field(metadata={"allow_none": True})
+
 
 # Action
 
@@ -238,7 +240,7 @@ class Input(Base):
 class Output(Base):
     descr: SimpleOptStrExpr
     # TODO: split Output class to BatchOutput with value and an Output without it
-    value: OptStrExpr  # valid for composite actions only
+    value: OptStrExpr  # valid for BatchAction only
 
 
 @dataclass(frozen=True)
@@ -267,6 +269,7 @@ class BatchAction(BaseAction):
 @dataclass(frozen=True)
 class StatefulAction(BaseAction):
     outputs: Optional[Mapping[str, Output]] = field(metadata={"allow_none": True})
+    cache: Optional[Cache] = field(metadata={"allow_none": True})
 
     pre: Optional[ExecUnit] = field(metadata={"allow_none": True})
     pre_if: OptBoolExpr
