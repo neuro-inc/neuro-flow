@@ -150,7 +150,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             if isinstance(task, ast.BaseActionCall):
                 action_name = await task.action.eval(EMPTY_ROOT)
                 action_path = self._parse_action_name(action_name)
-                result += [LocalPath(action_name)]
+                result += [LocalPath(action_path)]
                 result += await self._collect_subaction_configs(
                     parse_action(action_path)
                 )
@@ -277,24 +277,25 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             started, finished, skipped = await self._storage.fetch_attempt(attempt)
 
             topos: Dict[
-                FullID, Tuple[TaskContext, "graphlib.TopologicalSorter[FullID]"]
+                FullID,
+                Tuple[TaskContext, "graphlib.TopologicalSorter[FullID]", List[FullID]],
             ] = {}
             async for prefix, ctx, topo in self._build_topo(
                 (), top_ctx, started, finished, skipped
             ):
-                topos[prefix] = (ctx, topo)
+                topos[prefix] = (ctx, topo, [])
 
             top_topo = topos[()][1]
 
             while top_topo.is_active():
-                for prefix, (ctx, topo) in topos.copy().items():
+                for prefix, (ctx, topo, ready) in topos.copy().items():
                     async for action_pre, action_ctx in self._process_topo(
-                        attempt, prefix, topo, ctx, started, finished, skipped
+                        attempt, prefix, topo, ready, ctx, started, finished, skipped
                     ):
                         async for new_prefix, new_ctx, new_topo in self._build_topo(
                             action_pre, action_ctx, started, finished, skipped
                         ):
-                            topos[new_prefix] = (new_ctx, new_topo)
+                            topos[new_prefix] = (new_ctx, new_topo, [])
 
                 ok = await self._process_started(
                     attempt, topos, started, finished, skipped
@@ -333,7 +334,10 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
     async def _do_cancellation(
         self,
         attempt: Attempt,
-        topos: Dict[FullID, Tuple[TaskContext, "graphlib.TopologicalSorter[FullID]"]],
+        topos: Dict[
+            FullID,
+            Tuple[TaskContext, "graphlib.TopologicalSorter[FullID]", List[FullID]],
+        ],
         started: Dict[FullID, StartedTask],
         finished: Dict[FullID, FinishedTask],
         skipped: Dict[FullID, SkippedTask],
@@ -370,6 +374,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         attempt: Attempt,
         prefix: FullID,
         topo: graphlib.TopologicalSorter[FullID],
+        ready: List[FullID],
         ctx: TaskContext,
         started: Dict[FullID, StartedTask],
         finished: Dict[FullID, FinishedTask],
@@ -384,7 +389,9 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         if budget <= 0:
             return
 
-        for full_id in topo.get_ready():
+        ready.extend(topo.get_ready())
+
+        for full_id in ready:
             if full_id in started:
                 continue
             tid = full_id[-1]
@@ -429,7 +436,10 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
     async def _process_started(
         self,
         attempt: Attempt,
-        topos: Dict[FullID, Tuple[TaskContext, "graphlib.TopologicalSorter[FullID]"]],
+        topos: Dict[
+            FullID,
+            Tuple[TaskContext, "graphlib.TopologicalSorter[FullID]", List[FullID]],
+        ],
         started: Dict[FullID, StartedTask],
         finished: Dict[FullID, FinishedTask],
         skipped: Dict[FullID, SkippedTask],
@@ -441,7 +451,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                 continue
             str_full_id = fmt_id(st.id)
             if st.raw_id:
-                ctx, topo = topos[st.id[:-1]]
+                ctx, topo, ready = topos[st.id[:-1]]
                 # (sub)task
                 status = await self._client.jobs.status(st.raw_id)
                 if status.status in TERMINATED_JOB_STATUSES:
@@ -459,7 +469,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                         return False
             else:
                 # (sub)action
-                ctx, topo = topos[st.id]
+                ctx, topo, ready = topos[st.id]
                 if topo.is_active():
                     # the action is still in progress
                     continue
@@ -480,7 +490,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                 )
                 str_status = fmt_status(finished[st.id].status)
                 click.echo(f"Action {str_full_id} is {str_status}")
-                parent_ctx, parent_topo = topos[st.id[:-1]]
+                parent_ctx, parent_topo, parent_ready = topos[st.id[:-1]]
                 parent_topo.done(st.id)
                 if (
                     finished[st.id].status != JobStatus.SUCCEEDED

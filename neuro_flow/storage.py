@@ -317,7 +317,9 @@ class BatchFSStorage(BatchStorage):
         await self._client.storage.mkdir(configs_dir, parents=True)
         for config in configs:
             await self._client.storage.mkdir(
-                configs_dir / str(config.path.parent), parents=True
+                configs_dir / str(config.path.parent),
+                parents=True,
+                exist_ok=True,
             )
             await self._write_file(configs_dir / str(config.path), config.content)
 
