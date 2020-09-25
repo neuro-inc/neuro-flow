@@ -57,6 +57,9 @@ jobs:
     runs-on: ${{ matrix.os }}-latest
     timeout-minutes: 10
     steps:
+    - name: Show version
+      run: |
+          echo ${{ jobs.lint.outputs.version }}
     - name: Checkout
       uses: actions/checkout@v2
     - name: Setup Python ${{ matrix.python-version }}
