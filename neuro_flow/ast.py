@@ -246,7 +246,7 @@ class LiveAction(BaseAction):
 class BatchActionOutputs(Base):
     # AST class is slightly different from YAML representation,
     # in YAML `values` mapping is embedded into the outputs itself.
-    needs: Optional[Sequence[IdExpr]] = field(metadata={"allow_none": True})
+    needs: Sequence[IdExpr]
     values: Optional[Mapping[str, Output]] = field(metadata={"allow_none": True})
 
 

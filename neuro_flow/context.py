@@ -1232,7 +1232,7 @@ class BatchActionContext(TaskContext, ActionContext):
 
     async def get_output_needs(self) -> AbstractSet[FullID]:
         assert isinstance(self._ast, ast.BatchAction)
-        if self._ast.outputs and self._ast.outputs.needs is not None:
+        if self._ast.outputs:
             return {
                 self._prefix + (await need.eval(self),)
                 for need in self._ast.outputs.needs

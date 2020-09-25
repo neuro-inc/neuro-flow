@@ -963,9 +963,16 @@ def parse_action_output(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Ou
     return ret
 
 
+@dataclasses.dataclass(frozen=True)
+class ParsedActionOutputs(ast.Base):
+    # Temporary container. Mapped to real ast in preprocess_action
+    needs: Optional[Sequence[IdExpr]]
+    values: Optional[Mapping[str, ast.Output]]
+
+
 def parse_action_outputs(
     ctor: BaseConstructor, node: yaml.MappingNode
-) -> ast.BatchActionOutputs:
+) -> ParsedActionOutputs:
     values = {}
     needs = None
     for k, v in node.value:
@@ -975,7 +982,7 @@ def parse_action_outputs(
         else:
             value = parse_action_output(ctor, v)
             values[key] = value
-    return ast.BatchActionOutputs(
+    return ParsedActionOutputs(
         _start=mark2pos(node.start_mark),
         _end=mark2pos(node.end_mark),
         needs=needs,  # type: ignore[arg-type]
@@ -1062,14 +1069,26 @@ def preprocess_action(
             f"missing mandatory key 'kind'",
             node.start_mark,
         )
-    results: Optional[BatchActionOutputs] = dct.get("outputs")
-    if results and kind != ast.ActionKind.BATCH:
-        if results.needs is not None:
+    outputs_tmp: Optional[BatchActionOutputs] = dct.get("outputs")
+    if outputs_tmp and kind != ast.ActionKind.BATCH:
+        if outputs_tmp.needs is not None:
             raise ConnectionError(
                 f"outputs.needs list is not supported " f"for {kind.value} action kind",
                 node.start_mark,
             )
-        dct["outputs"] = results.values
+        dct["outputs"] = outputs_tmp.values
+    elif outputs_tmp:
+        if outputs_tmp.needs is None:
+            raise ConnectionError(
+                f"outputs.needs list is required " f"for {kind.value} action kind",
+                node.start_mark,
+            )
+        dct["outputs"] = ast.BatchActionOutputs(
+            _start=outputs_tmp._start,
+            _end=outputs_tmp._end,
+            needs=outputs_tmp.needs,
+            values=outputs_tmp.values,
+        )
     return dct
 
 
