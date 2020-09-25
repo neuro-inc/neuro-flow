@@ -137,7 +137,8 @@ jobs:
       with:
         push: true
         tags: |
-          neuromation/neuro-flow:latest
           neuromation/neuro-flow:${{ needs.lint.outputs.version }}
+        build-args: |
+          NEURO_FLOW_VERSION=${{ needs.lint.outputs.version }}
     - name: Image digest
       run: echo ${{ steps.docker_build.outputs.digest }}      
