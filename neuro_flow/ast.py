@@ -243,8 +243,16 @@ class LiveAction(BaseAction):
 
 
 @dataclass(frozen=True)
+class BatchActionOutputs(Base):
+    # AST class is slightly different from YAML representation,
+    # in YAML `values` mapping is embedded into the outputs itself.
+    needs: Sequence[IdExpr]
+    values: Optional[Mapping[str, Output]] = field(metadata={"allow_none": True})
+
+
+@dataclass(frozen=True)
 class BatchAction(BaseAction):
-    outputs: Optional[Mapping[str, Output]] = field(metadata={"allow_none": True})
+    outputs: Optional[BatchActionOutputs] = field(metadata={"allow_none": True})
 
     tasks: Sequence[Task]
 
