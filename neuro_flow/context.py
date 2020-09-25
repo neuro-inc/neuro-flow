@@ -1237,7 +1237,7 @@ class BatchActionContext(TaskContext, ActionContext):
                 self._prefix + (await need.eval(self),)
                 for need in self._ast.outputs.needs
             }
-        return self.graph.keys()
+        return set()
 
     async def calc_outputs(self, needs: NeedsCtx) -> DepCtx:
         if any(i.result == TaskStatus.DISABLED for i in needs.values()):
