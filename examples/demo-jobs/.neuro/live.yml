@@ -42,7 +42,7 @@ jobs:
 
   test:
     image: ubuntu
-    cmd: echo test
+    cmd: echo ${{ flow.id }}
 
   bash:
     image: ubuntu
