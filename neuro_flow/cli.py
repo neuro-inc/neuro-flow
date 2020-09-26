@@ -9,7 +9,8 @@ from typing import Any, Awaitable, Callable, Optional, Tuple, TypeVar
 
 from neuro_flow.types import LocalPath
 
-from .batch_runner import BatchRunner, ExecutorData
+from .batch_executor import ExecutorData
+from .batch_runner import BatchRunner
 from .live_runner import LiveRunner
 from .parser import ConfigDir, find_live_config, find_workspace
 from .storage import BatchFSStorage, BatchStorage

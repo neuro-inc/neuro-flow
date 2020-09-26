@@ -42,7 +42,8 @@ jobs:
 
   test:
     image: ubuntu
-    cmd: echo test
+    # ${{ flow.id }} calculation displays a yellow warning for deprecated flow.id attr
+    cmd: echo ${{ flow.id }}
 
   bash:
     image: ubuntu

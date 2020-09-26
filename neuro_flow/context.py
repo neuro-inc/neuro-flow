@@ -3,7 +3,6 @@ from dataclasses import dataclass, field, replace
 
 import itertools
 import shlex
-import warnings
 from typing import (
     AbstractSet,
     ClassVar,
@@ -231,10 +230,12 @@ class FlowCtx:
 
     @property
     def id(self) -> str:
-        warnings.warn(
+        # TODO: add a custom warning API to report with config file name and
+        # line numbers instead of bare printing
+        import click
+        click.secho(
             "flow.id attribute is deprecated, use flow.flow_id instead",
-            DeprecationWarning,
-            stacklevel=2,
+            fg="yellow",
         )
         return self.flow_id
 
