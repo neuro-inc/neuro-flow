@@ -124,6 +124,7 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
             ),
             fail_fast=OptBoolExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), True),
             max_parallel=OptIntExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), 10),
+            cache=None,
         ),
         tasks=[
             ast.Task(
@@ -517,6 +518,7 @@ def test_parse_matrix(assets: pathlib.Path) -> None:
                     max_parallel=OptIntExpr(
                         Pos(0, 0, config_file), Pos(0, 0, config_file), None
                     ),
+                    cache=None,
                 ),
                 enable=OptBoolExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
@@ -532,7 +534,7 @@ def test_parse_matrix_with_strategy(assets: pathlib.Path) -> None:
     flow = parse_batch(workspace, config_file)
     assert flow == ast.BatchFlow(
         Pos(0, 0, config_file),
-        Pos(20, 0, config_file),
+        Pos(26, 0, config_file),
         id=SimpleOptIdExpr(
             Pos(0, 0, config_file),
             Pos(0, 0, config_file),
@@ -549,7 +551,7 @@ def test_parse_matrix_with_strategy(assets: pathlib.Path) -> None:
         volumes=None,
         defaults=ast.BatchFlowDefaults(
             Pos(2, 2, config_file),
-            Pos(4, 0, config_file),
+            Pos(7, 0, config_file),
             tags=None,
             env=None,
             workdir=OptRemotePathExpr(
@@ -561,11 +563,19 @@ def test_parse_matrix_with_strategy(assets: pathlib.Path) -> None:
             preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
             fail_fast=OptBoolExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), True),
             max_parallel=OptIntExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), 15),
+            cache=ast.Cache(
+                Pos(5, 4, config_file),
+                Pos(7, 0, config_file),
+                strategy=ast.CacheStrategy.NONE,
+                life_span=OptLifeSpanExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "2h30m"
+                ),
+            ),
         ),
         tasks=[
             ast.Task(
-                _start=Pos(5, 4, config_file),
-                _end=Pos(20, 0, config_file),
+                _start=Pos(8, 4, config_file),
+                _end=Pos(26, 0, config_file),
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
@@ -594,11 +604,11 @@ def test_parse_matrix_with_strategy(assets: pathlib.Path) -> None:
                 id=OptIdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 needs=None,
                 strategy=ast.Strategy(
-                    _start=Pos(6, 6, config_file),
-                    _end=Pos(18, 4, config_file),
+                    Pos(9, 6, config_file),
+                    Pos(24, 4, config_file),
                     matrix=ast.Matrix(
-                        _start=Pos(7, 8, config_file),
-                        _end=Pos(16, 6, config_file),
+                        Pos(10, 8, config_file),
+                        Pos(19, 6, config_file),
                         products={
                             "one": [
                                 StrExpr(
@@ -646,6 +656,14 @@ def test_parse_matrix_with_strategy(assets: pathlib.Path) -> None:
                     ),
                     max_parallel=OptIntExpr(
                         Pos(0, 0, config_file), Pos(0, 0, config_file), 5
+                    ),
+                    cache=ast.Cache(
+                        Pos(22, 8, config_file),
+                        Pos(24, 4, config_file),
+                        strategy=ast.CacheStrategy.DEFAULT,
+                        life_span=OptLifeSpanExpr(
+                            Pos(0, 0, config_file), Pos(0, 0, config_file), "1h30m"
+                        ),
                     ),
                 ),
                 enable=OptBoolExpr(
@@ -741,6 +759,7 @@ def test_parse_args(assets: pathlib.Path) -> None:
             max_parallel=OptIntExpr(
                 Pos(0, 0, config_file), Pos(0, 0, config_file), None
             ),
+            cache=None,
         ),
         tasks=[
             ast.Task(

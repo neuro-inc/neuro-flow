@@ -108,6 +108,12 @@ class StrategyCtx:
 
 
 @dataclass(frozen=True)
+class CacheCtx:
+    strategy: ast.CacheStrategy = ast.CacheStrategy.DEFAULT
+    life_span: float = 14 * 24 * 3600
+
+
+@dataclass(frozen=True)
 class ExecUnitCtx:
     title: Optional[str]
     name: Optional[str]
@@ -153,6 +159,7 @@ class BasePrepTaskCtx:
     matrix: MatrixCtx
     strategy: StrategyCtx
     enable: OptBoolExpr
+    cache: CacheCtx
 
 
 @dataclass(frozen=True)
@@ -233,6 +240,7 @@ class FlowCtx:
         # TODO: add a custom warning API to report with config file name and
         # line numbers instead of bare printing
         import click
+
         click.secho(
             "flow.id attribute is deprecated, use flow.flow_id instead",
             fg="yellow",
@@ -675,6 +683,7 @@ class TaskContext(BaseContext):
     _strategy: Optional[StrategyCtx] = None
     _prefix: FullID = ()
     _graph: Optional[Mapping[FullID, AbstractSet[FullID]]] = None
+    _cache: Optional[CacheCtx] = None
 
     async def _prepare(
         self, tasks: Sequence[Union[ast.Task, ast.TaskActionCall]]
@@ -688,6 +697,7 @@ class TaskContext(BaseContext):
             matrix: Sequence[MatrixCtx]
             strategy: StrategyCtx
             default_strategy = self.strategy
+            default_cache = self.cache
             if ast_task.strategy is not None:
                 fail_fast = await ast_task.strategy.fail_fast.eval(self)
                 if fail_fast is None:
@@ -696,6 +706,9 @@ class TaskContext(BaseContext):
                 if max_parallel is None:
                     max_parallel = default_strategy.max_parallel
                 strategy = StrategyCtx(fail_fast=fail_fast, max_parallel=max_parallel)
+                cache = await self._build_cache(
+                    ast_task.strategy.cache, ast.CacheStrategy.INHERIT
+                )
                 if ast_task.strategy.matrix is not None:
                     matrix = await self._build_matrix(ast_task.strategy)
                     matrix = await self._exclude(ast_task.strategy, matrix)
@@ -712,6 +725,7 @@ class TaskContext(BaseContext):
             else:
                 strategy = default_strategy  # default
                 matrix = [{}]  # dummy
+                cache = default_cache
 
             real_ids = set()
             for row in matrix:
@@ -739,6 +753,7 @@ class TaskContext(BaseContext):
                         needs=needs,
                         matrix=row,
                         strategy=strategy,
+                        cache=cache,
                         enable=ast_task.enable,
                         ast=ast_task,
                     )
@@ -751,6 +766,7 @@ class TaskContext(BaseContext):
                         needs=needs,
                         matrix=row,
                         strategy=strategy,
+                        cache=cache,
                         enable=ast_task.enable,
                         action=await ast_task.action.eval(EMPTY_ROOT),
                         args=ast_task.args or {},
@@ -760,6 +776,12 @@ class TaskContext(BaseContext):
 
             last_needs = real_ids
         return prep_tasks
+
+    @property
+    def cache(self) -> CacheCtx:
+        if self._cache is None:
+            raise NotAvailable("cache")
+        return self._cache
 
     @property
     def task(self) -> TaskCtx:
@@ -896,6 +918,7 @@ class TaskContext(BaseContext):
             parent_ctx.tags,
             {k: await v.eval(parent_ctx) for k, v in prep_task.args.items()},
             parent_ctx.strategy,
+            prep_task.cache,
         )
         return ctx
 
@@ -915,7 +938,7 @@ class TaskContext(BaseContext):
 
         assert isinstance(prep_task, PrepTaskCtx), prep_task
         ctx = await self.with_matrix(prep_task.strategy, prep_task.matrix)
-        ctx = replace(ctx, _needs=needs)
+        ctx = replace(ctx, _needs=needs, _cache=prep_task.cache)
 
         full_id = self._prefix + (prep_task.real_id,)
 
@@ -1022,6 +1045,23 @@ class TaskContext(BaseContext):
             ret.append({k: await v.eval(self) for k, v in dct.items()})
         return ret
 
+    async def _build_cache(
+        self, ast_cache: Optional[ast.Cache], default: ast.CacheStrategy
+    ) -> CacheCtx:
+        if ast_cache is None:
+            return self.cache
+        strategy = ast_cache.strategy
+        if strategy is None:
+            strategy = default
+        if strategy == ast.CacheStrategy.INHERIT:
+            strategy = self.cache.strategy
+        life_span = await ast_cache.life_span.eval(self)
+        if life_span is None:
+            life_span = self.cache.life_span
+        else:
+            life_span = min(self.cache.life_span, life_span)
+        return CacheCtx(strategy=strategy, life_span=life_span)
+
 
 @dataclass(frozen=True)
 class BatchContext(TaskContext, BaseFlowContext):
@@ -1047,6 +1087,7 @@ class BatchContext(TaskContext, BaseFlowContext):
             config_file,
         )
         ast_defaults = ast_flow.defaults
+        ctx = replace(ctx, _cache=CacheCtx())
         if ast_defaults is not None:
             assert isinstance(ast_defaults, ast.BatchFlowDefaults), ast_defaults
             fail_fast = await ast_defaults.fail_fast.eval(ctx)
@@ -1056,10 +1097,14 @@ class BatchContext(TaskContext, BaseFlowContext):
             if max_parallel is None:
                 max_parallel = StrategyCtx.max_parallel
             strategy = StrategyCtx(fail_fast=fail_fast, max_parallel=max_parallel)
+            cache = await ctx._build_cache(
+                ast_defaults.cache, ast.CacheStrategy.DEFAULT
+            )
         else:
             strategy = StrategyCtx()
+            cache = ctx.cache
 
-        ctx = replace(ctx, _strategy=strategy)
+        ctx = replace(ctx, _strategy=strategy, _cache=cache)
 
         assert issubclass(cls, BatchContext), cls
         assert isinstance(ctx._ast_flow, ast.BatchFlow)
@@ -1217,13 +1262,17 @@ class BatchActionContext(TaskContext, ActionContext):
         tags: AbstractSet[str],
         inputs: Mapping[str, str],
         default_strategy: StrategyCtx,
+        default_cache: CacheCtx,
     ) -> _CtxT:
         ctx = await super(cls, BatchActionContext).create(  # type:ignore[call-arg]
             prefix, action, workspace, tags
         )
         ctx._check_kind(ast.ActionKind.BATCH)
         ctx = await ctx.with_inputs(inputs)
-        ctx = replace(ctx, _strategy=default_strategy)
+        ctx = replace(ctx, _strategy=default_strategy, _cache=default_cache)
+        assert isinstance(ctx._ast, ast.BatchAction)
+        cache = await ctx._build_cache(ctx._ast.cache, ast.CacheStrategy.INHERIT)
+        ctx = replace(ctx, _cache=cache)
 
         assert isinstance(ctx, BatchActionContext)
         assert isinstance(ctx._ast, ast.BatchAction)

@@ -35,11 +35,14 @@ class Base:
 class CacheStrategy(enum.Enum):
     NONE = "none"
     DEFAULT = "default"
+    INHERIT = "inherit"
 
 
 @dataclass(frozen=True)
 class Cache(Base):
-    strategy: CacheStrategy
+    # 'default' for root BatchFlowDefaults,
+    # 'inherit' for task definitions and actions
+    strategy: Optional[CacheStrategy] = field(metadata={"allow_none": True})
     life_span: OptLifeSpanExpr
     # TODO: maybe add extra key->value mapping for additional cache keys later
 
@@ -108,6 +111,7 @@ class Strategy(Base):
     matrix: Matrix
     fail_fast: OptBoolExpr
     max_parallel: OptIntExpr
+    cache: Optional[Cache] = field(metadata={"allow_none": True})
 
 
 @dataclass(frozen=True)
@@ -137,8 +141,6 @@ class TaskBase(Base):
 
     # continue_on_error: OptBoolExpr
     enable: OptBoolExpr
-
-    cache: Optional[Cache] = field(metadata={"allow_none": True})
 
 
 @dataclass(frozen=True)
