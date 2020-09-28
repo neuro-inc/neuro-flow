@@ -50,7 +50,6 @@ class Cache(Base):
 @dataclass(frozen=True)
 class Project(Base):
     id: SimpleIdExpr
-    cache: Optional[Cache] = field(metadata={"allow_none": True})
 
 
 # There are 'batch' for pipelined mode and 'live' for interactive one

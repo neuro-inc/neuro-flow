@@ -365,11 +365,7 @@ class ProjectLoader(Reader, Scanner, Parser, Composer, BaseConstructor, BaseReso
         BaseResolver.__init__(self)
 
 
-ProjectLoader.add_path_resolver("project:cache", [(dict, "cache")])  # type: ignore
-ProjectLoader.add_constructor("project:cache", parse_cache)  # type: ignore
-
-
-PROJECT = {"id": None, "cache": None}
+PROJECT = {"id": None}
 
 
 def parse_project_main(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Project:
@@ -410,7 +406,6 @@ def parse_project(
                 Pos(0, 0, LocalPath("<default>")),
                 workspace.stem.replace("-", "_"),
             ),
-            cache=None,
         )
 
 

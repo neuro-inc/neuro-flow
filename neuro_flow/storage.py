@@ -15,8 +15,9 @@ from yarl import URL
 
 from neuro_flow.types import LocalPath
 
-from .context import DepCtx
+from .context import DepCtx, BatchContext
 from .types import FullID, TaskStatus
+from . import ast
 
 
 if sys.version_info < (3, 7):
@@ -234,6 +235,23 @@ class BatchStorage(abc.ABC):
         task_no: int,
         task_id: FullID,
     ) -> SkippedTask:
+        pass
+
+    @abc.abstractmethod
+    async def fetch_task_cache(
+        self,
+        ast: ast.BatchFlow,
+        ctx: BatchContext,
+    ) -> DepCtx:
+        pass
+
+    @abc.abstractmethod
+    async def write_task_cache(
+        self,
+        ast: ast.BatchFlow,
+        ctx: BatchContext,
+        result: DepCtx,
+    ) -> None:
         pass
 
 

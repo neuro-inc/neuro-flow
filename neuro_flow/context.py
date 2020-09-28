@@ -1070,7 +1070,7 @@ class BatchContext(TaskContext, BaseFlowContext):
         init=False,
         default=BaseFlowContext.LOOKUP_KEYS
         + TaskContext.LOOKUP_KEYS
-        + ("args", "needs"),
+        + ("args",),
     )
     _args: Optional[Mapping[str, str]] = None
 
