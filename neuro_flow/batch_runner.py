@@ -5,14 +5,14 @@ from neuromation.api import Client, JobStatus
 from neuromation.cli.formatters import ftable  # TODO: extract into a separate library
 from types import TracebackType
 from typing import List, Optional, Sequence, Type, Union
-from typing_extensions import AsyncContextManager
+from typing_extensions import AsyncContextManager, AsyncIterator
 
 from . import __version__, ast
 from .batch_executor import BatchExecutor, ExecutorData
 from .commands import CmdProcessor
 from .context import EMPTY_ROOT, BatchContext
 from .parser import ConfigDir, parse_action, parse_batch
-from .storage import BatchStorage, ConfigFile
+from .storage import Attempt, Bake, BatchStorage, ConfigFile
 from .types import LocalPath
 from .utils import TERMINATED_JOB_STATUSES, fmt_id, fmt_raw_id, fmt_status
 
@@ -166,6 +166,13 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
     ) -> None:
         executor = BatchExecutor(data, self._client, self._storage)
         await executor.run()
+
+    def get_bakes(self) -> AsyncIterator[Bake]:
+        return self._storage.list_bakes(self.project)
+
+    async def get_bake_attempt(self, bake_id: str, *, attempt_no: int = -1) -> Attempt:
+        bake = await self._storage.fetch_bake_by_id(self.project, bake_id)
+        return await self._storage.find_attempt(bake, attempt_no)
 
     async def list_bakes(self) -> None:
         rows: List[List[str]] = []
