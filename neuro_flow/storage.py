@@ -754,7 +754,9 @@ class BatchFSStorage(BatchStorage):
         data = await self._read_file(url)
         return json.loads(data)
 
-    async def _write_file(self, url: URL, body: str, *, overwrite=False) -> None:
+    async def _write_file(
+        self, url: URL, body: str, *, overwrite: bool = False
+    ) -> None:
         # TODO: Prevent overriding the target on the storage.
         #
         # It might require platform_storage_api change.
@@ -770,7 +772,7 @@ class BatchFSStorage(BatchStorage):
         await self._client.storage.create(url, body.encode("utf-8"))
 
     async def _write_json(
-        self, url: URL, data: Dict[str, Any], *, overwrite=False
+        self, url: URL, data: Dict[str, Any], *, overwrite: bool = False
     ) -> None:
         if not data.get("when"):
             data["when"] = _dt2str(_now())

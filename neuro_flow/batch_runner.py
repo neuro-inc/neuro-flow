@@ -75,7 +75,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                 action_path = self._parse_action_name(action_name)
                 result += [LocalPath(action_path)]
                 result += await self._collect_subaction_configs(
-                    parse_action(action_path)
+                    parse_action(action_path)[0]
                 )
         return result
 

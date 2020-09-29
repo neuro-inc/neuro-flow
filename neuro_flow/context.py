@@ -299,7 +299,7 @@ class BaseContext(RootABC):
         # assert isinstance(ret, (ContainerT, SequenceT, MappingT)), ret
         return cast(TypeT, ret)
 
-    async def fetch_action(self, action_name: str) -> ast.BaseAction:
+    async def fetch_action(self, action_name: str) -> Tuple[ast.BaseAction, str]:
         scheme, sep, spec = action_name.partition(":")
         if not sep:
             raise ValueError(f"{action_name} has no schema")
@@ -538,7 +538,7 @@ class LiveContext(BaseFlowContext):
             raise UnknownJob(job_id)
 
         if isinstance(job, ast.JobActionCall):
-            action = await self.fetch_action(await job.action.eval(self))
+            action, digest = await self.fetch_action(await job.action.eval(self))
             if action.kind != ast.ActionKind.LIVE:
                 raise TypeError(
                     f"Invalid action '{action}' "
@@ -904,7 +904,7 @@ class TaskContext(BaseContext):
             raise RuntimeError("Use .with_task() for calling an task-typed task")
 
         assert isinstance(prep_task, PrepBatchCallCtx)
-        action = await self.fetch_action(prep_task.action)
+        action, digest = await self.fetch_action(prep_task.action)
         if action.kind != ast.ActionKind.BATCH:
             raise TypeError(
                 f"Invalid action '{action}' " f"type {action.kind.value} for batch flow"
@@ -1145,6 +1145,7 @@ class ActionContext(BaseContext):
 
     _ast: Optional[ast.BaseAction] = None
     _action: str = ""
+    _digest: str = ""
 
     _inputs: Optional[Mapping[str, str]] = None
     _prefix: FullID = ()
@@ -1163,7 +1164,7 @@ class ActionContext(BaseContext):
             _workspace=workspace,
             _action=action,
         )
-        ast_action = await ctx.fetch_action(action)
+        ast_action, digest = await ctx.fetch_action(action)
         assert isinstance(ast_action, ast.BaseAction)
 
         return cast(

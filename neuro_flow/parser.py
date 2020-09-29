@@ -9,6 +9,7 @@ import dataclasses
 
 import abc
 import enum
+import hashlib
 import yaml
 from typing import (
     Any,
@@ -20,6 +21,7 @@ from typing import (
     Optional,
     Sequence,
     TextIO,
+    Tuple,
     Type,
     TypeVar,
     Union,
@@ -1192,14 +1194,21 @@ ActionLoader.add_path_resolver("action:main", [])  # type: ignore
 ActionLoader.add_constructor("action:main", parse_action_main)  # type: ignore
 
 
-def parse_action(action_file: LocalPath) -> ast.BaseAction:
+def parse_action(action_file: LocalPath) -> Tuple[ast.BaseAction, str]:
     # Parse project config file
     ret: ast.Project
+    hasher = hashlib.new("sha256")
+    with action_file.open("rb") as bf:
+        while True:
+            chunk = bf.read(256 * 1024)
+            if not chunk:
+                break
+            hasher.update(chunk)
     with action_file.open() as f:
         loader = ActionLoader(f)
         try:
             ret = loader.get_single_data()  # type: ignore[no-untyped-call]
             assert isinstance(ret, ast.BaseAction)
-            return ret
+            return ret, hasher.hexdigest()
         finally:
             loader.dispose()  # type: ignore[no-untyped-call]
