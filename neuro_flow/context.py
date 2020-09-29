@@ -1068,9 +1068,7 @@ class BatchContext(TaskContext, BaseFlowContext):
     FLOW_TYPE: ClassVar[Type[ast.BatchFlow]] = field(init=False, default=ast.BatchFlow)
     LOOKUP_KEYS: ClassVar[Tuple[str, ...]] = field(
         init=False,
-        default=BaseFlowContext.LOOKUP_KEYS
-        + TaskContext.LOOKUP_KEYS
-        + ("args",),
+        default=BaseFlowContext.LOOKUP_KEYS + TaskContext.LOOKUP_KEYS + ("args",),
     )
     _args: Optional[Mapping[str, str]] = None
 
@@ -1146,7 +1144,7 @@ class ActionContext(BaseContext):
     )
 
     _ast: Optional[ast.BaseAction] = None
-    _name: str = ""
+    _action: str = ""
 
     _inputs: Optional[Mapping[str, str]] = None
     _prefix: FullID = ()
@@ -1163,7 +1161,7 @@ class ActionContext(BaseContext):
         assert issubclass(cls, ActionContext)
         ctx = cls(
             _workspace=workspace,
-            _name=action,
+            _action=action,
         )
         ast_action = await ctx.fetch_action(action)
         assert isinstance(ast_action, ast.BaseAction)
@@ -1184,6 +1182,10 @@ class ActionContext(BaseContext):
     @property
     def prefix(self) -> FullID:
         return self._prefix
+
+    @property
+    def action(self) -> str:
+        return self._action
 
     @property
     def inputs(self) -> Mapping[str, str]:
@@ -1224,7 +1226,7 @@ class ActionContext(BaseContext):
         assert self._ast is not None
         if self._ast.kind != required:
             raise TypeError(
-                f"Invalid action '{self._name}' "
+                f"Invalid action '{self._action}' "
                 f"type {self._ast.kind.value}, {required.value} is required"
             )
 

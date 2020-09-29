@@ -203,6 +203,10 @@ class BatchExecutor:
         for full_id in ready:
             if full_id in self._started:
                 continue
+            if full_id in self._finished:
+                continue
+            if full_id in self._skipped:
+                continue
             tid = full_id[-1]
             needs = self._build_needs(prefix, ctx.graph[full_id])
             assert full_id[:-1] == prefix
@@ -229,18 +233,30 @@ class BatchExecutor:
                 yield full_id, action_ctx
             else:
                 task_ctx = await ctx.with_task(tid, needs=needs)
-                st = await self._start_task(
-                    attempt,
-                    self._next_task_no(),
-                    task_ctx,
+                ft = await self._storage.check_task_cache(
+                    attempt, self._next_task_no(), task_ctx
                 )
-                str_started = click.style("started", fg="cyan")
-                raw_id = fmt_raw_id(st.raw_id)
-                click.echo(f"Task {str_full_id} [{raw_id}] is {str_started}")
-                self._started[st.id] = st
-                budget -= 1
-                if budget <= 0:
-                    return
+                if ft is not None:
+                    str_cached = click.style("cached", fg="magenta")
+                    click.echo(
+                        f"Task {fmt_id(ft.id)} [{fmt_raw_id(ft.raw_id)}] "
+                        f"is {str_cached}"
+                    )
+                    assert ft.status == JobStatus.SUCCEEDED
+                    await self._do_finish_task(attempt, ft)
+                else:
+                    st = await self._start_task(
+                        attempt,
+                        self._next_task_no(),
+                        task_ctx,
+                    )
+                    str_started = click.style("started", fg="cyan")
+                    raw_id = fmt_raw_id(st.raw_id)
+                    click.echo(f"Task {str_full_id} [{raw_id}] is {str_started}")
+                    self._started[st.id] = st
+                    budget -= 1
+                    if budget <= 0:
+                        return
 
     async def _process_started(self, attempt: Attempt) -> bool:
         for st in self._started.values():
@@ -254,17 +270,12 @@ class BatchExecutor:
                 # (sub)task
                 status = await self._client.jobs.status(st.raw_id)
                 if status.status in TERMINATED_JOB_STATUSES:
-                    self._finished[st.id] = await self._finish_task(
+                    if not await self._finish_task(
                         attempt,
                         self._next_task_no(),
                         st,
                         status,
-                    )
-                    str_status = fmt_status(self._finished[st.id].status)
-                    raw_id = fmt_raw_id(st.raw_id)
-                    click.echo(f"Task {str_full_id} [{raw_id}] is {str_status}")
-                    topo.done(st.id)
-                    if status.status != JobStatus.SUCCEEDED and ctx.strategy.fail_fast:
+                    ):
                         return False
             else:
                 # (sub)action
@@ -404,16 +415,34 @@ class BatchExecutor:
         task_no: int,
         task: StartedTask,
         descr: JobDescription,
-    ) -> FinishedTask:
+    ) -> bool:
         async with CmdProcessor() as proc:
             async for chunk in self._client.jobs.monitor(task.raw_id):
                 async for line in proc.feed_chunk(chunk):
                     pass
             async for line in proc.feed_eof():
                 pass
-        return await self._storage.finish_task(
+        ft = await self._storage.finish_task(
             attempt, task_no, task, descr, proc.outputs
         )
+        await self._do_finish_task(attempt, ft)
+        prefix = ft.id[:-1]
+        ctx, topo, ready = self._topos[prefix]
+        needs = self._build_needs(prefix, ctx.graph[ft.id])
+        task_ctx = await ctx.with_task(ft.id[-1], needs=needs)
+        await self._storage.write_task_cache(attempt, task_ctx, ft)
+        str_status = fmt_status(ft.status)
+        raw_id = fmt_raw_id(ft.raw_id)
+        click.echo(f"Task {fmt_id(ft.id)} [{raw_id}] is {str_status}")
+        if descr.status != JobStatus.SUCCEEDED and ctx.strategy.fail_fast:
+            return False
+        else:
+            return True
+
+    async def _do_finish_task(self, attempt: Attempt, ft: FinishedTask) -> None:
+        self._finished[ft.id] = ft
+        ctx, topo, ready = self._topos[ft.id[:-1]]
+        topo.done(ft.id)
 
     async def run_subproc(self, exe: str, *args: str) -> None:
         proc = await asyncio.create_subprocess_exec(exe, *args)
