@@ -9,12 +9,14 @@ import secrets
 import sys
 from neuromation.api import Client, JobDescription, JobStatus
 from types import TracebackType
-from typing import Any, AsyncIterator, Dict, Mapping, Optional, Tuple, Type
+from typing import Any, AsyncIterator, Dict, Mapping, Optional, Sequence, Tuple, Type
 from typing_extensions import Final
 from yarl import URL
 
+from neuro_flow.types import LocalPath
+
 from .context import DepCtx
-from .types import FullID
+from .types import FullID, TaskStatus
 
 
 if sys.version_info < (3, 7):
@@ -44,6 +46,7 @@ class Bake:
     when: datetime.datetime
     suffix: str
     config_name: str
+    configs_files: Sequence[LocalPath]
 
     def __str__(self) -> str:
         folder = "_".join([self.batch, _dt2str(self.when), self.suffix])
@@ -98,6 +101,12 @@ class SkippedTask:
     when: datetime.datetime
 
 
+@dataclasses.dataclass(frozen=True)
+class ConfigFile:
+    path: LocalPath
+    content: str
+
+
 # A storage abstraction
 #
 # There is a possibility to add Postgres storage class later, for example
@@ -121,12 +130,14 @@ class BatchStorage(abc.ABC):
 
     @abc.abstractmethod
     async def list_bakes(self, project: str) -> AsyncIterator[Bake]:
+        # This is here to make this real aiter for type checker
         bake = Bake(
             project="project",
             batch="batch",
             when=datetime.datetime.now(),
             suffix="suffix",
             config_name="config_name",
+            configs_files=[],
         )
         yield bake
 
@@ -136,7 +147,7 @@ class BatchStorage(abc.ABC):
         project: str,
         batch: str,
         config_name: str,
-        config_content: str,
+        configs: Sequence[ConfigFile],
     ) -> Bake:
         pass
 
@@ -151,7 +162,7 @@ class BatchStorage(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def fetch_config(self, bake: Bake) -> str:
+    async def fetch_configs(self, bake: Bake) -> Sequence[ConfigFile]:
         pass
 
     @abc.abstractmethod
@@ -240,7 +251,11 @@ class BatchFSStorage(BatchStorage):
     # The FS structure:
     # storage:.flow
     # +-- bake_id
-    #     +-- config.yml
+    #     +-- configs
+    #         +-- project.yml
+    #         +-- batch_config.yml
+    #         +-- action1_config.yml
+    #         +-- dir/action2_config.yml
     #     +-- 00.init.json
     #     +-- 01.attempt
     #         +-- 000.init.json
@@ -283,7 +298,7 @@ class BatchFSStorage(BatchStorage):
         project: str,
         batch: str,
         config_name: str,
-        config_content: str,
+        configs: Sequence[ConfigFile],
     ) -> Bake:
         when = _now()
         bake = Bake(
@@ -292,11 +307,21 @@ class BatchFSStorage(BatchStorage):
             when=when,
             suffix=secrets.token_hex(3),
             config_name=config_name,
+            configs_files=[config.path for config in configs],
         )
         bake_uri = _mk_bake_uri(bake)
         await self._client.storage.mkdir(bake_uri, parents=True)
-        config_uri = bake_uri / config_name
-        await self._write_file(config_uri, config_content)
+
+        # Upload all configs
+        configs_dir = bake_uri / "configs"
+        await self._client.storage.mkdir(configs_dir, parents=True)
+        for config in configs:
+            await self._client.storage.mkdir(
+                configs_dir / str(config.path.parent),
+                parents=True,
+                exist_ok=True,
+            )
+            await self._write_file(configs_dir / str(config.path), config.content)
 
         await self._write_json(bake_uri / "00.init.json", _bake_to_json(bake))
         # TODO: make the bake and the first attempt creation atomic to avoid
@@ -320,8 +345,12 @@ class BatchFSStorage(BatchStorage):
         data = await self._read_json(url / "00.init.json")
         return _bake_from_json(data)
 
-    async def fetch_config(self, bake: Bake) -> str:
-        return await self._read_file(_mk_bake_uri(bake) / bake.config_name)
+    async def fetch_configs(self, bake: Bake) -> Sequence[ConfigFile]:
+        configs_dir_uri = _mk_bake_uri(bake) / "configs"
+        return [
+            ConfigFile(path, await self._read_file(configs_dir_uri / str(path)))
+            for path in bake.configs_files
+        ]
 
     async def create_attempt(self, bake: Bake, attempt_no: int) -> Attempt:
         assert 0 < attempt_no < 100, attempt_no
@@ -559,12 +588,16 @@ class BatchFSStorage(BatchStorage):
         result: DepCtx,
     ) -> FinishedTask:
         now = datetime.datetime.now(datetime.timezone.utc)
+        assert (
+            result.result != TaskStatus.DISABLED
+        ), "Finished task cannot have disabled state, use .skip_task() instead"
+        status = JobStatus(result.result)
         ret = FinishedTask(
             attempt=attempt,
             id=task.id,
             raw_id="",
             when=now,
-            status=result.result,
+            status=status,
             exit_code=None,
             created_at=task.created_at,
             started_at=task.created_at,
@@ -660,6 +693,7 @@ def _bake_to_json(bake: Bake) -> Dict[str, Any]:
         "when": _dt2str(bake.when),
         "suffix": bake.suffix,
         "config_name": bake.config_name,
+        "config_files": [str(path) for path in bake.configs_files],
     }
 
 
@@ -670,6 +704,7 @@ def _bake_from_json(data: Dict[str, Any]) -> Bake:
         when=datetime.datetime.fromisoformat(data["when"]),
         suffix=data["suffix"],
         config_name=data["config_name"],
+        configs_files=[LocalPath(path) for path in data["config_files"]],
     )
 
 

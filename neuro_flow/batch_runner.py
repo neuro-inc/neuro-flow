@@ -1,37 +1,19 @@
 import asyncio
 import click
-import datetime
 import sys
-import tempfile
-from neuromation.api import (
-    Client,
-    Container,
-    HTTPPort,
-    JobDescription,
-    JobStatus,
-    Resources,
-)
+from neuromation.api import Client, JobStatus
 from neuromation.cli.formatters import ftable  # TODO: extract into a separate library
 from types import TracebackType
-from typing import (
-    AbstractSet,
-    AsyncIterator,
-    Dict,
-    Iterable,
-    List,
-    Mapping,
-    Optional,
-    Tuple,
-    Type,
-)
-from typing_extensions import AsyncContextManager
+from typing import List, Optional, Sequence, Type, Union
+from typing_extensions import AsyncContextManager, AsyncIterator
 
-from . import ast
+from . import __version__, ast
+from .batch_executor import BatchExecutor, ExecutorData
 from .commands import CmdProcessor
-from .context import BatchActionContext, BatchContext, DepCtx, NeedsCtx, TaskContext
-from .parser import ConfigDir, parse_batch
-from .storage import Attempt, BatchStorage, FinishedTask, SkippedTask, StartedTask
-from .types import FullID, LocalPath
+from .context import EMPTY_ROOT, BatchContext
+from .parser import ConfigDir, parse_action, parse_batch
+from .storage import Attempt, Bake, BatchStorage, ConfigFile
+from .types import LocalPath
 from .utils import TERMINATED_JOB_STATUSES, fmt_id, fmt_raw_id, fmt_status
 
 
@@ -40,9 +22,7 @@ if sys.version_info >= (3, 9):
 else:
     from . import backport_graphlib as graphlib
 
-
-class NotFinished(ValueError):
-    pass
+EXECUTOR_IMAGE = f"neuromation/neuro-flow:{__version__}"
 
 
 class BatchRunner(AsyncContextManager["BatchRunner"]):
@@ -71,27 +51,57 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
     ) -> None:
         await self.close()
 
-    async def run_subproc(self, exe: str, *args: str) -> None:
-        proc = await asyncio.create_subprocess_exec(exe, *args)
-        try:
-            retcode = await proc.wait()
-            if retcode:
-                raise SystemExit(retcode)
-        finally:
-            if proc.returncode is None:
-                # Kill neuro process if not finished
-                # (e.g. if KeyboardInterrupt or cancellation was received)
-                proc.kill()
-                await proc.wait()
+    def _parse_action_name(self, action_name: str) -> LocalPath:
+        scheme, sep, spec = action_name.partition(":")
+        if not sep:
+            raise ValueError(f"{action_name} has no schema")
+        if scheme in ("ws", "workspace"):
+            path = self._config_dir.workspace / spec
+            if not path.exists():
+                path = path.with_suffix(".yml")
+            if not path.exists():
+                raise ValueError(f"Action {action_name} does not exist")
+            return path
+        else:
+            raise ValueError(f"Unsupported scheme '{scheme}'")
 
-    async def bake(self, batch_name: str) -> None:
+    async def _collect_configs_for_task(
+        self, tasks: Sequence[Union[ast.Task, ast.TaskActionCall]]
+    ) -> List[LocalPath]:
+        result: List[LocalPath] = []
+        for task in tasks:
+            if isinstance(task, ast.BaseActionCall):
+                action_name = await task.action.eval(EMPTY_ROOT)
+                action_path = self._parse_action_name(action_name)
+                result += [LocalPath(action_path)]
+                result += await self._collect_subaction_configs(
+                    parse_action(action_path)
+                )
+        return result
+
+    async def _collect_subaction_configs(
+        self, action: ast.BaseAction
+    ) -> List[LocalPath]:
+        if isinstance(action, ast.BatchAction):
+            return await self._collect_configs_for_task(action.tasks)
+        else:
+            return []
+
+    async def _collect_additional_configs(self, flow: ast.BatchFlow) -> List[LocalPath]:
+        result = []
+        project_file = self._config_dir.workspace / "project.yml"
+        if project_file.exists():
+            result = [project_file]
+        return result + await self._collect_configs_for_task(flow.tasks)
+
+    async def bake(self, batch_name: str, local_executor: bool = False) -> None:
         # batch_name is a name of yaml config inside self._workspace / .neuro
         # folder without the file extension
         config_file = (self._config_dir.config_dir / (batch_name + ".yml")).resolve()
 
         click.echo(f"Use config file {config_file}")
 
-        click.echo("Check config")
+        click.echo("Check config... ", nl=False)
         # Check that the yaml is parseable
         flow = parse_batch(self._config_dir.workspace, config_file)
         assert isinstance(flow, ast.BatchFlow)
@@ -106,342 +116,63 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         # check fast for the graph cycle error
         toposorter.prepare()
 
-        click.echo("Config is correct")
+        configs = [config_file, *await self._collect_additional_configs(flow)]
+        configs_files = [
+            ConfigFile(
+                path.relative_to(self._config_dir.workspace),
+                path.read_text(),
+            )
+            for path in configs
+        ]
 
-        config_content = config_file.read_text()
+        click.echo("ok")
 
         click.echo("Create bake")
         bake = await self._storage.create_bake(
             self.project,
             batch_name,
             config_file.name,
-            config_content,
+            configs_files,
         )
-        click.echo(f"Bake {bake} created")
-        # TODO: run this function in a job
-        await self.process(bake.project, bake.batch, bake.when, bake.suffix)
+        click.echo(f"Bake {fmt_id(str(bake))} is created")
+
+        data = ExecutorData(
+            project=bake.project,
+            batch=bake.batch,
+            when=bake.when,
+            suffix=bake.suffix,
+        )
+        if local_executor:
+            click.echo(f"Using local executor")
+            await self.process(data)
+        else:
+            click.echo(f"Starting remove executor")
+            param = data.serialize()
+            await self.run_subproc(
+                "neuro",
+                "run",
+                "--restart=on-failure",
+                "--pass-config",
+                EXECUTOR_IMAGE,
+                "neuro-flow",
+                "--fake-workspace",
+                "execute",
+                param,
+            )
 
     async def process(
-        self, project: str, batch: str, when: datetime.datetime, suffix: str
+        self,
+        data: ExecutorData,
     ) -> None:
-        with tempfile.TemporaryDirectory(prefix="bake") as tmp:
-            root_dir = LocalPath(tmp)
-            click.echo(f"Root dir {root_dir}")
-            workspace = root_dir / project
-            workspace.mkdir()
-            config_dir = workspace / ".neuro"
-            config_dir.mkdir()
+        executor = BatchExecutor(data, self._client, self._storage)
+        await executor.run()
 
-            click.echo("Fetch bake init")
-            bake = await self._storage.fetch_bake(project, batch, when, suffix)
-            ("Process %s", bake)
-            click.echo("Fetch baked config")
-            config_content = await self._storage.fetch_config(bake)
-            config_file = config_dir / bake.config_name
-            config_file.write_text(config_content)
+    def get_bakes(self) -> AsyncIterator[Bake]:
+        return self._storage.list_bakes(self.project)
 
-            click.echo("Parse baked config")
-            flow = parse_batch(workspace, config_file)
-            assert isinstance(flow, ast.BatchFlow)
-
-            top_ctx = await BatchContext.create(
-                flow, self._config_dir.workspace, config_file
-            )
-
-            click.echo("Find last attempt")
-            attempt = await self._storage.find_attempt(bake)
-            click.echo(f"Fetch attempt #{attempt.number}")
-            started, finished, skipped = await self._storage.fetch_attempt(attempt)
-
-            topos: Dict[
-                FullID, Tuple[TaskContext, "graphlib.TopologicalSorter[FullID]"]
-            ] = {}
-            async for prefix, ctx, topo in self._build_topo(
-                (), top_ctx, started, finished, skipped
-            ):
-                topos[prefix] = (ctx, topo)
-
-            top_topo = topos[()][1]
-
-            while top_topo.is_active():
-                for prefix, (ctx, topo) in topos.copy().items():
-                    async for action_pre, action_ctx in self._process_topo(
-                        attempt, prefix, topo, ctx, started, finished, skipped
-                    ):
-                        async for new_prefix, new_ctx, new_topo in self._build_topo(
-                            action_pre, action_ctx, started, finished, skipped
-                        ):
-                            topos[new_prefix] = (new_ctx, new_topo)
-
-                await self._process_started(attempt, topos, started, finished, skipped)
-
-                # AS: I have no idea what timeout is better;
-                # too short value bombards servers,
-                # too long timeout makes the waiting longer than expected
-                # The missing events subsystem would be great for this task :)
-                await asyncio.sleep(1)
-
-            attempt_status = self._accumulate_result(finished.values())
-            str_attempt_status = fmt_status(attempt_status)
-            await self._storage.finish_attempt(
-                attempt,
-                attempt_status,
-            )
-            click.echo(f"Attempt #{attempt.number} {str_attempt_status}")
-
-    def _next_task_no(
-        self,
-        started: Dict[FullID, StartedTask],
-        finished: Dict[FullID, FinishedTask],
-        skipped: Dict[FullID, SkippedTask],
-    ) -> int:
-        return len(started) + len(finished) + len(skipped)
-
-    async def _process_topo(
-        self,
-        attempt: Attempt,
-        prefix: FullID,
-        topo: graphlib.TopologicalSorter[FullID],
-        ctx: TaskContext,
-        started: Dict[FullID, StartedTask],
-        finished: Dict[FullID, FinishedTask],
-        skipped: Dict[FullID, SkippedTask],
-    ) -> AsyncIterator[Tuple[FullID, TaskContext]]:
-        for full_id in topo.get_ready():
-            if full_id in started:
-                continue
-            tid = full_id[-1]
-            needs = self._build_needs(prefix, ctx.graph[full_id], finished, skipped)
-            assert full_id[:-1] == prefix
-            str_full_id = fmt_id(full_id)
-            if not await ctx.is_enabled(tid, needs=needs):
-                # Make task started and immediatelly skipped
-                skipped_task = await self._skip_task(
-                    attempt, self._next_task_no(started, finished, skipped), full_id
-                )
-                str_skipped = click.style("skipped", fg="magenta")
-                click.echo(f"Task {str_full_id} is {str_skipped}")
-                skipped[skipped_task.id] = skipped_task
-                topo.done(full_id)
-                continue
-
-            if await ctx.is_action(tid):
-                action_ctx = await ctx.with_action(tid, needs=needs)
-                st = await self._storage.start_batch_action(
-                    attempt, self._next_task_no(started, finished, skipped), full_id
-                )
-                str_started = click.style("started", fg="cyan")
-                click.echo(f"Action {str_full_id} is {str_started}")
-                started[st.id] = st
-                yield full_id, action_ctx
-            else:
-                task_ctx = await ctx.with_task(tid, needs=needs)
-                if task_ctx.task.enable:
-                    st = await self._start_task(
-                        attempt,
-                        self._next_task_no(started, finished, skipped),
-                        task_ctx,
-                    )
-                    str_started = click.style("started", fg="cyan")
-                    raw_id = fmt_raw_id(st.raw_id)
-                    click.echo(f"Task {str_full_id} [{raw_id}] is {str_started}")
-                    started[st.id] = st
-
-    async def _process_started(
-        self,
-        attempt: Attempt,
-        topos: Dict[FullID, Tuple[TaskContext, "graphlib.TopologicalSorter[FullID]"]],
-        started: Dict[FullID, StartedTask],
-        finished: Dict[FullID, FinishedTask],
-        skipped: Dict[FullID, SkippedTask],
-    ) -> None:
-        for st in started.values():
-            if st.id in finished:
-                continue
-            if st.id in skipped:
-                continue
-            str_full_id = fmt_id(st.id)
-            if st.raw_id:
-                ctx, topo = topos[st.id[:-1]]
-                # (sub)task
-                status = await self._client.jobs.status(st.raw_id)
-                if status.status in TERMINATED_JOB_STATUSES:
-                    finished[st.id] = fd = await self._finish_task(
-                        attempt,
-                        self._next_task_no(started, finished, skipped),
-                        st,
-                        status,
-                    )
-                    str_status = fmt_status(finished[st.id].status)
-                    raw_id = fmt_raw_id(st.raw_id)
-                    click.echo(
-                        f"Task {str_full_id} [{raw_id}] is {str_status}"
-                        + (" with following outputs:" if fd.outputs else "")
-                    )
-                    for key, value in fd.outputs.items():
-                        click.echo(f"  {key}: {value}")
-
-                    topo.done(st.id)
-            else:
-                # (sub)action
-                ctx, topo = topos[st.id]
-                if topo.is_active():
-                    # the action is still in progress
-                    continue
-
-                # done, make it finished
-                assert isinstance(ctx, BatchActionContext)
-
-                needs = self._build_needs(
-                    ctx.prefix, ctx.graph.keys(), finished, skipped
-                )
-                outputs = await ctx.calc_outputs(needs)
-
-                finished[st.id] = fd = await self._storage.finish_batch_action(
-                    attempt,
-                    self._next_task_no(started, finished, skipped),
-                    st,
-                    outputs,
-                )
-                str_status = fmt_status(finished[st.id].status)
-                click.echo(
-                    f"Action {str_full_id} is {str_status}"
-                    + (" with following outputs:" if fd.outputs else "")
-                )
-                for key, value in fd.outputs.items():
-                    click.echo(f"  {key}: {value}")
-
-                parent_ctx, parent_topo = topos[st.id[:-1]]
-                parent_topo.done(st.id)
-
-    def _build_needs(
-        self,
-        prefix: FullID,
-        deps: AbstractSet[FullID],
-        finished: Mapping[FullID, FinishedTask],
-        skipped: Mapping[FullID, SkippedTask],
-    ) -> NeedsCtx:
-        needs = {}
-        for full_id in deps:
-            dep_id = full_id[-1]
-            if full_id in skipped:
-                needs[dep_id] = DepCtx(JobStatus.CANCELLED, {})
-            else:
-                dep = finished.get(full_id)
-                if dep is None:
-                    raise NotFinished(full_id)
-                needs[dep_id] = DepCtx(dep.status, dep.outputs)
-        return needs
-
-    async def _build_topo(
-        self,
-        prefix: FullID,
-        ctx: TaskContext,
-        started: Mapping[FullID, StartedTask],
-        finished: Mapping[FullID, FinishedTask],
-        skipped: Mapping[FullID, SkippedTask],
-    ) -> AsyncIterator[
-        Tuple[FullID, TaskContext, "graphlib.TopologicalSorter[FullID]"]
-    ]:
-        graph = ctx.graph
-        topo = graphlib.TopologicalSorter(graph)
-        topo.prepare()
-        for full_id in graph:
-            if full_id in skipped:
-                topo.done(full_id)
-            if full_id in finished:
-                topo.done(full_id)
-            elif await ctx.is_action(full_id[-1]):
-                if full_id not in started:
-                    continue
-                needs = self._build_needs(prefix, graph[full_id], finished, skipped)
-                action_ctx = await ctx.with_action(full_id[-1], needs=needs)
-                async for sub_pre, sub_ctx, sub_topo in self._build_topo(
-                    full_id, action_ctx, started, finished, skipped
-                ):
-                    yield sub_pre, sub_ctx, sub_topo
-        yield prefix, ctx, topo
-
-    def _accumulate_result(self, finished: Iterable[FinishedTask]) -> JobStatus:
-        for task in finished:
-            if task.status == JobStatus.CANCELLED:
-                return JobStatus.CANCELLED
-            elif task.status == JobStatus.FAILED:
-                return JobStatus.FAILED
-
-        return JobStatus.SUCCEEDED
-
-    async def _start_task(
-        self, attempt: Attempt, task_no: int, task_ctx: TaskContext
-    ) -> StartedTask:
-        task = task_ctx.task
-
-        preset_name = task.preset
-        if preset_name is None:
-            preset_name = next(iter(self._client.config.presets))
-        preset = self._client.config.presets[preset_name]
-
-        env_dict, secret_env_dict = self._client.parse.env(
-            [f"{k}={v}" for k, v in task_ctx.env.items()]
-        )
-        resources = Resources(
-            memory_mb=preset.memory_mb,
-            cpu=preset.cpu,
-            gpu=preset.gpu,
-            gpu_model=preset.gpu_model,
-            shm=True,
-            tpu_type=preset.tpu_type,
-            tpu_software_version=preset.tpu_software_version,
-        )
-        volumes, secret_files = self._client.parse.volumes(task.volumes)
-
-        http_auth = task.http_auth
-        if http_auth is None:
-            http_auth = HTTPPort.requires_auth
-
-        container = Container(
-            image=self._client.parse.remote_image(task.image),
-            entrypoint=task.entrypoint,
-            command=task.cmd,
-            http=HTTPPort(task.http_port, http_auth) if task.http_port else None,
-            resources=resources,
-            env=env_dict,
-            volumes=list(volumes),
-            secret_env=secret_env_dict,
-            secret_files=list(secret_files),
-            tty=False,
-        )
-        job = await self._client.jobs.run(
-            container,
-            is_preemptible=preset.is_preemptible,
-            name=task.name,
-            tags=list(task_ctx.tags),
-            description=task.title,
-            life_span=task.life_span,
-        )
-        return await self._storage.start_task(attempt, task_no, task.full_id, job)
-
-    async def _skip_task(
-        self, attempt: Attempt, task_no: int, full_id: FullID
-    ) -> SkippedTask:
-        return await self._storage.skip_task(attempt, task_no, full_id)
-
-    async def _finish_task(
-        self,
-        attempt: Attempt,
-        task_no: int,
-        task: StartedTask,
-        descr: JobDescription,
-    ) -> FinishedTask:
-        async with CmdProcessor() as proc:
-            async for chunk in self._client.jobs.monitor(task.raw_id):
-                async for line in proc.feed_chunk(chunk):
-                    pass
-            async for line in proc.feed_eof():
-                pass
-        return await self._storage.finish_task(
-            attempt, task_no, task, descr, proc.outputs
-        )
+    async def get_bake_attempt(self, bake_id: str, *, attempt_no: int = -1) -> Attempt:
+        bake = await self._storage.fetch_bake_by_id(self.project, bake_id)
+        return await self._storage.find_attempt(bake, attempt_no)
 
     async def list_bakes(self) -> None:
         rows: List[List[str]] = []
@@ -553,3 +284,24 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                         click.echo(line.decode("utf-8", "replace"), nl=False)
                 async for line in proc.feed_eof():
                     click.echo(line.decode("utf-8", "replace"), nl=False)
+
+    async def cancel(self, bake_id: str, *, attempt_no: int = -1) -> None:
+        bake = await self._storage.fetch_bake_by_id(self.project, bake_id)
+        attempt = await self._storage.find_attempt(bake, attempt_no)
+        if attempt.result in TERMINATED_JOB_STATUSES:
+            raise click.BadArgumentUsage(f"This bake attempt is already stopped.")
+        await self._storage.finish_attempt(attempt, JobStatus.CANCELLED)
+        click.echo(f"Attempt #{attempt.number} of bake {bake.bake_id} was cancelled.")
+
+    async def run_subproc(self, exe: str, *args: str) -> None:
+        proc = await asyncio.create_subprocess_exec(exe, *args)
+        try:
+            retcode = await proc.wait()
+            if retcode:
+                raise SystemExit(retcode)
+        finally:
+            if proc.returncode is None:
+                # Kill neuro process if not finished
+                # (e.g. if KeyboardInterrupt or cancellation was received)
+                proc.kill()
+                await proc.wait()

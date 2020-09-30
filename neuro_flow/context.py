@@ -3,8 +3,6 @@ from dataclasses import dataclass, field, replace
 
 import itertools
 import shlex
-import warnings
-from neuromation.api import JobStatus
 from typing import (
     AbstractSet,
     ClassVar,
@@ -25,7 +23,7 @@ from yarl import URL
 from . import ast
 from .expr import EvalError, LiteralT, OptBoolExpr, RootABC, StrExpr, TypeT
 from .parser import parse_action, parse_project
-from .types import FullID, LocalPath, RemotePath
+from .types import FullID, LocalPath, RemotePath, TaskStatus
 
 
 # Neuro-flow contexts (variables available during expressions calculation).
@@ -93,7 +91,7 @@ class Neuro:
 
 @dataclass(frozen=True)
 class DepCtx:
-    result: JobStatus
+    result: TaskStatus
     outputs: Mapping[str, str]
 
 
@@ -105,7 +103,7 @@ MatrixCtx = Mapping[str, LiteralT]
 
 @dataclass(frozen=True)
 class StrategyCtx:
-    fail_fast: bool = False
+    fail_fast: bool = True
     max_parallel: int = 10
 
 
@@ -223,12 +221,6 @@ class DefaultsCtx:
     preset: Optional[str] = None
 
 
-# @dataclass(frozen=True)
-# class BatchDefaultsCtx(DefaultsCtx):
-#     fail_fast: Optional[bool]
-#     max_parallel: Optional[int]
-
-
 @dataclass(frozen=True)
 class FlowCtx:
     flow_id: str
@@ -238,10 +230,13 @@ class FlowCtx:
 
     @property
     def id(self) -> str:
-        warnings.warn(
+        # TODO: add a custom warning API to report with config file name and
+        # line numbers instead of bare printing
+        import click
+
+        click.secho(
             "flow.id attribute is deprecated, use flow.flow_id instead",
-            DeprecationWarning,
-            stacklevel=2,
+            fg="yellow",
         )
         return self.flow_id
 
@@ -264,7 +259,6 @@ class BaseContext(RootABC):
         default=(
             "env",
             "tags",
-            "defaults",
         ),
     )
 
@@ -694,7 +688,7 @@ class TaskContext(BaseContext):
             # eval matrix
             matrix: Sequence[MatrixCtx]
             strategy: StrategyCtx
-            default_strategy = StrategyCtx()
+            default_strategy = self.strategy
             if ast_task.strategy is not None:
                 fail_fast = await ast_task.strategy.fail_fast.eval(self)
                 if fail_fast is None:
@@ -820,11 +814,6 @@ class TaskContext(BaseContext):
                 "Cannot enter into the matrix context if "
                 "the matrix is already initialized"
             )
-        if self._strategy is not None:
-            raise TypeError(
-                "Cannot enter into the strategy context if "
-                "the strategy is already initialized"
-            )
         return cast(_CtxT, replace(self, _strategy=strategy, _matrix=matrix))
 
     async def is_action(self, real_id: str) -> bool:
@@ -845,7 +834,7 @@ class TaskContext(BaseContext):
             enable = await prep_task.enable.eval(ctx)
             if enable is None:
                 enable = all(
-                    dep_ctx.result == JobStatus.SUCCEEDED for dep_ctx in needs.values()
+                    dep_ctx.result == TaskStatus.SUCCEEDED for dep_ctx in needs.values()
                 )
             return enable
         except KeyError:
@@ -907,6 +896,7 @@ class TaskContext(BaseContext):
             self._workspace,
             parent_ctx.tags,
             {k: await v.eval(parent_ctx) for k, v in prep_task.args.items()},
+            parent_ctx.strategy,
         )
         return ctx
 
@@ -1057,6 +1047,21 @@ class BatchContext(TaskContext, BaseFlowContext):
             workspace,
             config_file,
         )
+        ast_defaults = ast_flow.defaults
+        if ast_defaults is not None:
+            assert isinstance(ast_defaults, ast.BatchFlowDefaults), ast_defaults
+            fail_fast = await ast_defaults.fail_fast.eval(ctx)
+            if fail_fast is None:
+                fail_fast = StrategyCtx.fail_fast
+            max_parallel = await ast_defaults.max_parallel.eval(ctx)
+            if max_parallel is None:
+                max_parallel = StrategyCtx.max_parallel
+            strategy = StrategyCtx(fail_fast=fail_fast, max_parallel=max_parallel)
+        else:
+            strategy = StrategyCtx()
+
+        ctx = replace(ctx, _strategy=strategy)
+
         assert issubclass(cls, BatchContext), cls
         assert isinstance(ctx._ast_flow, ast.BatchFlow)
 
@@ -1212,33 +1217,47 @@ class BatchActionContext(TaskContext, ActionContext):
         workspace: LocalPath,
         tags: AbstractSet[str],
         inputs: Mapping[str, str],
+        default_strategy: StrategyCtx,
     ) -> _CtxT:
         ctx = await super(cls, BatchActionContext).create(  # type:ignore[call-arg]
             prefix, action, workspace, tags
         )
         ctx._check_kind(ast.ActionKind.BATCH)
         ctx = await ctx.with_inputs(inputs)
+        ctx = replace(ctx, _strategy=default_strategy)
+
         assert isinstance(ctx, BatchActionContext)
         assert isinstance(ctx._ast, ast.BatchAction)
         prep_tasks = await ctx._prepare(ctx._ast.tasks)
 
         return cast(_CtxT, replace(ctx, _prefix=prefix, _prep_tasks=prep_tasks))
 
+    async def get_output_needs(self) -> AbstractSet[FullID]:
+        assert isinstance(self._ast, ast.BatchAction)
+        if self._ast.outputs:
+            return {
+                self._prefix + (await need.eval(self),)
+                for need in self._ast.outputs.needs
+            }
+        return set()
+
     async def calc_outputs(self, needs: NeedsCtx) -> DepCtx:
-        if any(i.result == JobStatus.CANCELLED for i in needs.values()):
-            return DepCtx(JobStatus.CANCELLED, {})
-        elif any(i.result == JobStatus.FAILED for i in needs.values()):
-            return DepCtx(JobStatus.FAILED, {})
+        if any(i.result == TaskStatus.DISABLED for i in needs.values()):
+            return DepCtx(TaskStatus.DISABLED, {})
+        elif any(i.result == TaskStatus.CANCELLED for i in needs.values()):
+            return DepCtx(TaskStatus.CANCELLED, {})
+        elif any(i.result == TaskStatus.FAILED for i in needs.values()):
+            return DepCtx(TaskStatus.FAILED, {})
         else:
             ret = {}
             assert isinstance(self._ast, ast.BatchAction)
             ctx = replace(self, _needs=needs)
-            if self._ast.outputs is not None:
-                for name, descr in self._ast.outputs.items():
+            if self._ast.outputs and self._ast.outputs.values is not None:
+                for name, descr in self._ast.outputs.values.items():
                     val = await descr.value.eval(ctx)
                     assert val is not None
                     ret[name] = val
-            return DepCtx(JobStatus.SUCCEEDED, ret)
+            return DepCtx(TaskStatus.SUCCEEDED, ret)
 
 
 def calc_full_path(

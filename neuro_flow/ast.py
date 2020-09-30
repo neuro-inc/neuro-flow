@@ -159,10 +159,10 @@ class FlowDefaults(Base):
     preset: OptStrExpr
 
 
-# @dataclass(frozen=True)
-# class BatchFlowDefaults(FlowDefaults):
-#     fail_fast: OptBoolExpr
-#     max_parallel: OptIntExpr
+@dataclass(frozen=True)
+class BatchFlowDefaults(FlowDefaults):
+    fail_fast: OptBoolExpr
+    max_parallel: OptIntExpr
 
 
 @dataclass(frozen=True)
@@ -202,6 +202,8 @@ class BatchFlow(BaseFlow):
     args: Optional[Mapping[str, Arg]] = field(metadata={"allow_none": True})
     tasks: Sequence[Union[Task, TaskActionCall]]
 
+    defaults: Optional[BatchFlowDefaults] = field(metadata={"allow_none": True})
+
 
 # Action
 
@@ -222,7 +224,7 @@ class Input(Base):
 class Output(Base):
     descr: SimpleOptStrExpr
     # TODO: split Output class to BatchOutput with value and an Output without it
-    value: OptStrExpr  # valid for composite actions only
+    value: OptStrExpr  # valid for BatchAction only
 
 
 @dataclass(frozen=True)
@@ -241,8 +243,16 @@ class LiveAction(BaseAction):
 
 
 @dataclass(frozen=True)
+class BatchActionOutputs(Base):
+    # AST class is slightly different from YAML representation,
+    # in YAML `values` mapping is embedded into the outputs itself.
+    needs: Sequence[IdExpr]
+    values: Optional[Mapping[str, Output]] = field(metadata={"allow_none": True})
+
+
+@dataclass(frozen=True)
 class BatchAction(BaseAction):
-    outputs: Optional[Mapping[str, Output]] = field(metadata={"allow_none": True})
+    outputs: Optional[BatchActionOutputs] = field(metadata={"allow_none": True})
 
     tasks: Sequence[Task]
 

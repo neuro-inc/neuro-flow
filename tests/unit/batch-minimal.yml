@@ -26,6 +26,8 @@ defaults:
   workdir: /global/dir
   life_span: 1d4h
   preset: cpu-large
+  fail_fast: true
+  max_parallel: 10
 tasks:
   - id: test_a
     title: Batch title

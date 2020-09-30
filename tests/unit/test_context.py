@@ -1,6 +1,5 @@
 import pathlib
 import pytest
-from neuromation.api import JobStatus
 from textwrap import dedent
 from yarl import URL
 
@@ -10,10 +9,11 @@ from neuro_flow.context import (
     DepCtx,
     LiveContext,
     NotAvailable,
+    StrategyCtx,
 )
 from neuro_flow.expr import EvalError
 from neuro_flow.parser import parse_batch, parse_live
-from neuro_flow.types import LocalPath, RemotePath
+from neuro_flow.types import LocalPath, RemotePath, TaskStatus
 
 
 def test_inavailable_context_ctor() -> None:
@@ -215,7 +215,7 @@ async def test_pipeline_minimal_ctx(assets: pathlib.Path) -> None:
     assert ctx.graph == {("test_a",): set()}
     assert ctx2.matrix == {}
     assert ctx2.strategy.max_parallel == 10
-    assert not ctx2.strategy.fail_fast
+    assert ctx2.strategy.fail_fast
 
 
 async def test_pipeline_seq(assets: pathlib.Path) -> None:
@@ -225,7 +225,7 @@ async def test_pipeline_seq(assets: pathlib.Path) -> None:
     ctx = await BatchContext.create(flow, workspace, config_file)
 
     ctx2 = await ctx.with_task(
-        "task-2", needs={"task-1": DepCtx(JobStatus.SUCCEEDED, {})}
+        "task-2", needs={"task-1": DepCtx(TaskStatus.SUCCEEDED, {})}
     )
     assert ctx2.task.id is None
     assert ctx2.task.full_id == ("task-2",)
@@ -246,7 +246,7 @@ async def test_pipeline_seq(assets: pathlib.Path) -> None:
     assert ctx.graph == {("task-2",): {("task-1",)}, ("task-1",): set()}
     assert ctx2.matrix == {}
     assert ctx2.strategy.max_parallel == 10
-    assert not ctx2.strategy.fail_fast
+    assert ctx2.strategy.fail_fast
 
 
 async def test_pipeline_needs(assets: pathlib.Path) -> None:
@@ -256,7 +256,7 @@ async def test_pipeline_needs(assets: pathlib.Path) -> None:
     ctx = await BatchContext.create(flow, workspace, config_file)
 
     ctx2 = await ctx.with_task(
-        "task-2", needs={"task_a": DepCtx(JobStatus.SUCCEEDED, {})}
+        "task-2", needs={"task_a": DepCtx(TaskStatus.SUCCEEDED, {})}
     )
     assert ctx2.task.id is None
     assert ctx2.task.full_id == ("task-2",)
@@ -277,7 +277,7 @@ async def test_pipeline_needs(assets: pathlib.Path) -> None:
     assert ctx.graph == {("task-2",): {("task_a",)}, ("task_a",): set()}
     assert ctx2.matrix == {}
     assert ctx2.strategy.max_parallel == 10
-    assert not ctx2.strategy.fail_fast
+    assert ctx2.strategy.fail_fast
 
 
 async def test_pipeline_matrix(assets: pathlib.Path) -> None:
@@ -312,7 +312,7 @@ async def test_pipeline_matrix(assets: pathlib.Path) -> None:
 
     assert ctx2.matrix == {"one": "o2", "two": "t2"}
     assert ctx2.strategy.max_parallel == 10
-    assert not ctx2.strategy.fail_fast
+    assert ctx2.strategy.fail_fast
 
 
 async def test_pipeline_matrix_with_strategy(assets: pathlib.Path) -> None:
@@ -320,6 +320,9 @@ async def test_pipeline_matrix_with_strategy(assets: pathlib.Path) -> None:
     config_file = workspace / "batch-matrix-with-strategy.yml"
     flow = parse_batch(workspace, config_file)
     ctx = await BatchContext.create(flow, workspace, config_file)
+
+    assert ctx.strategy.max_parallel == 15
+    assert ctx.strategy.fail_fast
 
     assert ctx.graph == {
         ("task-1-e3-o3-t3",): set(),
@@ -351,7 +354,7 @@ async def test_pipeline_matrix_with_strategy(assets: pathlib.Path) -> None:
 
     assert ctx2.matrix == {"extra": "e3", "one": "o3", "two": "t3"}
     assert ctx2.strategy.max_parallel == 5
-    assert ctx2.strategy.fail_fast
+    assert not ctx2.strategy.fail_fast
 
 
 async def test_pipeline_matrix_2(assets: pathlib.Path) -> None:
@@ -371,7 +374,7 @@ async def test_pipeline_matrix_2(assets: pathlib.Path) -> None:
     }
 
     ctx2 = await ctx.with_task(
-        "task-2-a-1", needs={"task_a": DepCtx(JobStatus.SUCCEEDED, {"name": "value"})}
+        "task-2-a-1", needs={"task_a": DepCtx(TaskStatus.SUCCEEDED, {"name": "value"})}
     )
     assert ctx2.task.id is None
     assert ctx2.task.full_id == ("task-2-a-1",)
@@ -410,7 +413,7 @@ async def test_pipeline_args(assets: pathlib.Path) -> None:
 async def test_batch_action_default(assets: pathlib.Path) -> None:
     workspace = assets
     ctx = await BatchActionContext.create(
-        (), "ws:batch-action.yml", workspace, set(), {"arg1": "val 1"}
+        (), "ws:batch-action.yml", workspace, set(), {"arg1": "val 1"}, StrategyCtx()
     )
     assert ctx.inputs == {"arg1": "val 1", "arg2": "value 2"}
 
@@ -424,6 +427,7 @@ async def test_batch_action_with_inputs_unsupported(assets: pathlib.Path) -> Non
             workspace,
             set(),
             {"unknown": "value", "other": "val"},
+            StrategyCtx(),
         )
 
 
@@ -431,7 +435,12 @@ async def test_batch_action_without_inputs_unsupported(assets: pathlib.Path) -> 
     workspace = assets
     with pytest.raises(ValueError, match=r"Unsupported input\(s\): unknown"):
         await BatchActionContext.create(
-            (), "ws:batch-action-without-inputs", workspace, set(), {"unknown": "value"}
+            (),
+            "ws:batch-action-without-inputs",
+            workspace,
+            set(),
+            {"unknown": "value"},
+            StrategyCtx(),
         )
 
 
@@ -439,14 +448,19 @@ async def test_batch_action_with_inputs_no_default(assets: pathlib.Path) -> None
     workspace = assets
     with pytest.raises(ValueError, match=r"Required input\(s\): arg1"):
         await BatchActionContext.create(
-            (), "ws:batch-action.yml", workspace, set(), {"arg2": "val2"}
+            (), "ws:batch-action.yml", workspace, set(), {"arg2": "val2"}, StrategyCtx()
         )
 
 
 async def test_batch_action_with_inputs_ok(assets: pathlib.Path) -> None:
     workspace = assets
     ctx = await BatchActionContext.create(
-        (), "ws:batch-action", workspace, set(), {"arg1": "v1", "arg2": "v2"}
+        (),
+        "ws:batch-action",
+        workspace,
+        set(),
+        {"arg1": "v1", "arg2": "v2"},
+        StrategyCtx(),
     )
 
     assert ctx.inputs == {"arg1": "v1", "arg2": "v2"}
@@ -455,7 +469,7 @@ async def test_batch_action_with_inputs_ok(assets: pathlib.Path) -> None:
 async def test_batch_action_with_inputs_default_ok(assets: pathlib.Path) -> None:
     workspace = assets
     ctx = await BatchActionContext.create(
-        (), "ws:batch-action", workspace, set(), {"arg1": "v1"}
+        (), "ws:batch-action", workspace, set(), {"arg1": "v1"}, StrategyCtx()
     )
 
     assert ctx.inputs == {"arg1": "v1", "arg2": "value 2"}
@@ -507,11 +521,18 @@ async def test_pipeline_enable_default_with_needs(assets: pathlib.Path) -> None:
     flow = parse_batch(workspace, config_file)
     ctx = await BatchContext.create(flow, workspace, config_file)
 
-    ctx2 = await ctx.with_task("task-2", needs={"task_a": DepCtx(JobStatus.FAILED, {})})
+    ctx2 = await ctx.with_task(
+        "task-2", needs={"task_a": DepCtx(TaskStatus.FAILED, {})}
+    )
     assert not ctx2.task.enable
 
     ctx2 = await ctx.with_task(
-        "task-2", needs={"task_a": DepCtx(JobStatus.SUCCEEDED, {})}
+        "task-2", needs={"task_a": DepCtx(TaskStatus.DISABLED, {})}
+    )
+    assert not ctx2.task.enable
+
+    ctx2 = await ctx.with_task(
+        "task-2", needs={"task_a": DepCtx(TaskStatus.SUCCEEDED, {})}
     )
     assert ctx2.task.enable
 
@@ -522,11 +543,18 @@ async def test_pipeline_enable_success(assets: pathlib.Path) -> None:
     flow = parse_batch(workspace, config_file)
     ctx = await BatchContext.create(flow, workspace, config_file)
 
-    ctx2 = await ctx.with_task("task-2", needs={"task_a": DepCtx(JobStatus.FAILED, {})})
+    ctx2 = await ctx.with_task(
+        "task-2", needs={"task_a": DepCtx(TaskStatus.FAILED, {})}
+    )
     assert not ctx2.task.enable
 
     ctx2 = await ctx.with_task(
-        "task-2", needs={"task_a": DepCtx(JobStatus.SUCCEEDED, {})}
+        "task-2", needs={"task_a": DepCtx(TaskStatus.DISABLED, {})}
+    )
+    assert not ctx2.task.enable
+
+    ctx2 = await ctx.with_task(
+        "task-2", needs={"task_a": DepCtx(TaskStatus.SUCCEEDED, {})}
     )
     assert ctx2.task.enable
 
@@ -567,4 +595,4 @@ async def test_pipeline_with_batch_action(assets: pathlib.Path) -> None:
     }
     assert ctx3.matrix == {}
     assert ctx3.strategy.max_parallel == 10
-    assert not ctx3.strategy.fail_fast
+    assert ctx3.strategy.fail_fast

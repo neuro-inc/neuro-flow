@@ -1,4 +1,7 @@
 kind: batch
+defaults:
+  fail_fast: true
+  max_parallel: 15
 tasks:
   - strategy:
       matrix:
@@ -11,7 +14,7 @@ tasks:
           - one: o3
             two: t3
             extra: e3
-      fail_fast: true
+      fail_fast: false
       max_parallel: 5
     image: ubuntu
     cmd: echo abc
