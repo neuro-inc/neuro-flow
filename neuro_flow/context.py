@@ -23,7 +23,7 @@ from yarl import URL
 from . import ast
 from .expr import EvalError, LiteralT, OptBoolExpr, RootABC, StrExpr, TypeT
 from .parser import parse_action, parse_project
-from .types import FullID, LocalPath, RemotePath, TaskStatus
+from .types import Digest, FullID, LocalPath, RemotePath, TaskStatus
 
 
 # Neuro-flow contexts (variables available during expressions calculation).
@@ -329,6 +329,7 @@ class BaseFlowContext(BaseContext):
     )
 
     _ast_flow: Optional[ast.BaseFlow] = None
+    _digest: Optional[Digest] = None
     _flow: Optional[FlowCtx] = None
 
     _images: Optional[Mapping[str, ImageCtx]] = None
@@ -338,6 +339,7 @@ class BaseFlowContext(BaseContext):
     async def create(
         cls: Type[_CtxT],
         ast_flow: ast.BaseFlow,
+        flow_digest: Digest,
         workspace: LocalPath,
         config_file: LocalPath,
     ) -> _CtxT:
@@ -358,7 +360,12 @@ class BaseFlowContext(BaseContext):
             title=flow_title or flow_id,
         )
 
-        ctx = cls(_ast_flow=ast_flow, _flow=flow, _workspace=flow.workspace)
+        ctx = cls(
+            _ast_flow=ast_flow,
+            _flow=flow,
+            _digest=flow_digest,
+            _workspace=flow.workspace,
+        )
         ctx = await ctx._with_args()
 
         ast_defaults = ast_flow.defaults
@@ -1076,11 +1083,13 @@ class BatchContext(TaskContext, BaseFlowContext):
     async def create(
         cls: Type[_CtxT],
         ast_flow: ast.BaseFlow,
+        flow_digest: Digest,
         workspace: LocalPath,
         config_file: LocalPath,
     ) -> _CtxT:
         ctx = await super(cls, BatchContext).create(
             ast_flow,
+            flow_digest,
             workspace,
             config_file,
         )
@@ -1145,7 +1154,7 @@ class ActionContext(BaseContext):
 
     _ast: Optional[ast.BaseAction] = None
     _action: str = ""
-    _digest: str = ""
+    _digest: Digest = cast(Digest, "")
 
     _inputs: Optional[Mapping[str, str]] = None
     _prefix: FullID = ()
