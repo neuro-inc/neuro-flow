@@ -254,7 +254,7 @@ class BatchExecutor:
                 # (sub)task
                 status = await self._client.jobs.status(st.raw_id)
                 if status.status in TERMINATED_JOB_STATUSES:
-                    self._finished[st.id] = await self._finish_task(
+                    self._finished[st.id] = fd = await self._finish_task(
                         attempt,
                         self._next_task_no(),
                         st,
@@ -262,7 +262,12 @@ class BatchExecutor:
                     )
                     str_status = fmt_status(self._finished[st.id].status)
                     raw_id = fmt_raw_id(st.raw_id)
-                    click.echo(f"Task {str_full_id} [{raw_id}] is {str_status}")
+                    click.echo(
+                        f"Task {str_full_id} [{raw_id}] is {str_status}"
+                        + (" with following outputs:" if fd.outputs else "")
+                    )
+                    for key, value in fd.outputs.items():
+                        click.echo(f"  {key}: {value}")
                     topo.done(st.id)
                     if status.status != JobStatus.SUCCEEDED and ctx.strategy.fail_fast:
                         return False
@@ -279,14 +284,19 @@ class BatchExecutor:
                 needs = self._build_needs(ctx.prefix, await ctx.get_output_needs())
                 outputs = await ctx.calc_outputs(needs)
 
-                self._finished[st.id] = await self._storage.finish_batch_action(
+                self._finished[st.id] = fd = await self._storage.finish_batch_action(
                     attempt,
                     self._next_task_no(),
                     st,
                     outputs,
                 )
                 str_status = fmt_status(self._finished[st.id].status)
-                click.echo(f"Action {str_full_id} is {str_status}")
+                click.echo(
+                    f"Action {str_full_id} is {str_status}"
+                    + (" with following outputs:" if fd.outputs else "")
+                )
+                for key, value in fd.outputs.items():
+                    click.echo(f"  {key}: {value}")
                 parent_ctx, parent_topo, parent_ready = self._topos[st.id[:-1]]
                 parent_topo.done(st.id)
                 if (
