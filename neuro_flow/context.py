@@ -270,6 +270,7 @@ class BaseContext(RootABC):
     )
 
     _workspace: LocalPath
+    _digest: Optional[Digest] = None
     _env: Optional[Mapping[str, str]] = None
     _tags: Optional[AbstractSet[str]] = None
     _defaults: Optional[DefaultsCtx] = None
@@ -291,6 +292,11 @@ class BaseContext(RootABC):
         if self._defaults is None:
             raise NotAvailable("defaults")
         return self._defaults
+
+    @property
+    def digest(self) -> Digest:
+        assert self._digest is not None
+        return self._digest
 
     def lookup(self, name: str) -> TypeT:
         if name not in self.LOOKUP_KEYS:
@@ -329,7 +335,6 @@ class BaseFlowContext(BaseContext):
     )
 
     _ast_flow: Optional[ast.BaseFlow] = None
-    _digest: Optional[Digest] = None
     _flow: Optional[FlowCtx] = None
 
     _images: Optional[Mapping[str, ImageCtx]] = None
@@ -1154,7 +1159,6 @@ class ActionContext(BaseContext):
 
     _ast: Optional[ast.BaseAction] = None
     _action: str = ""
-    _digest: Digest = Digest("")
 
     _inputs: Optional[Mapping[str, str]] = None
     _prefix: FullID = ()
@@ -1182,6 +1186,7 @@ class ActionContext(BaseContext):
                 ctx,
                 _prefix=prefix,
                 _ast=ast_action,
+                _digest=digest,
                 _inputs=None,
                 _env={},
                 _tags=set(tags),

@@ -19,7 +19,7 @@ from yarl import URL
 from neuro_flow.types import LocalPath
 
 from . import ast
-from .context import DepCtx, TaskContext
+from .context import ActionContext, BaseContext, DepCtx, TaskContext
 from .types import FullID, RemotePath, TaskStatus
 
 
@@ -245,6 +245,7 @@ class BatchStorage(abc.ABC):
         self,
         attempt: Attempt,
         task_no: int,
+        task_id: FullID,
         ctx: TaskContext,
     ) -> Optional[FinishedTask]:
         pass
@@ -658,13 +659,13 @@ class BatchFSStorage(BatchStorage):
         self,
         attempt: Attempt,
         task_no: int,
+        task_id: FullID,
         ctx: TaskContext,
     ) -> Optional[FinishedTask]:
         cache_strategy = ctx.cache.strategy
         if cache_strategy == ast.CacheStrategy.NONE:
             return None
         assert cache_strategy == ast.CacheStrategy.DEFAULT
-        task_id = ctx.task.full_id
 
         url = _mk_cache_uri(attempt, task_id)
 
@@ -714,12 +715,10 @@ class BatchFSStorage(BatchStorage):
             return
         if ft.status != JobStatus.SUCCEEDED:
             return
-        task_id = ctx.task.full_id
-        assert task_id == ft.id
 
         ctx_digest = _hash(ctx)
         cache_life_span = ctx.cache.life_span
-        url = _mk_cache_uri(attempt, task_id)
+        url = _mk_cache_uri(attempt, ft.id)
         assert ft.raw_id is not None, (ft.id, ft.raw_id)
 
         data = {
@@ -862,15 +861,28 @@ def _hash(val: Any) -> str:
 
 
 def _ctx_default(val: Any) -> Any:
-    if isinstance(val, TaskContext):
-        return {
+    if isinstance(val, BaseContext):
+        ret: Dict[str, Any] = {
             "env": val.env,
             "tags": val.tags,
-            "needs": val.needs,
-            "matrix": val.matrix,
-            "strategy": val.strategy,
-            "task": val.task,
+            "digest": val.digest,
         }
+        if isinstance(val, ActionContext):
+            ret.update(
+                {
+                    "inputs": val.inputs,
+                }
+            )
+        elif isinstance(val, TaskContext):
+            ret.update(
+                {
+                    "needs": val.needs,
+                    "matrix": val.matrix,
+                    "strategy": val.strategy,
+                    "task": val.task,
+                }
+            )
+        return ret
     elif dataclasses.is_dataclass(val):
         return dataclasses.asdict(val)
     elif isinstance(val, enum.Enum):

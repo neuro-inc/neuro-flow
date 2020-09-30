@@ -103,10 +103,12 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
 
         click.echo("Check config... ", nl=False)
         # Check that the yaml is parseable
-        flow = parse_batch(self._config_dir.workspace, config_file)
+        flow, digest = parse_batch(self._config_dir.workspace, config_file)
         assert isinstance(flow, ast.BatchFlow)
 
-        ctx = await BatchContext.create(flow, self._config_dir.workspace, config_file)
+        ctx = await BatchContext.create(
+            flow, digest, self._config_dir.workspace, config_file
+        )
         for volume in ctx.volumes.values():
             if volume.local is not None:
                 # TODO: sync volumes if needed

@@ -96,10 +96,10 @@ class BatchExecutor:
 
             click.echo("Parse baked config")
             config_file = config_dir / bake.config_name
-            flow = parse_batch(workspace, config_file)
+            flow, digest = parse_batch(workspace, config_file)
             assert isinstance(flow, ast.BatchFlow)
 
-            top_ctx = await BatchContext.create(flow, workspace, config_file)
+            top_ctx = await BatchContext.create(flow, digest, workspace, config_file)
 
             click.echo("Find last attempt")
             attempt = await self._storage.find_attempt(bake)
@@ -223,9 +223,8 @@ class BatchExecutor:
 
             if await ctx.is_action(tid):
                 action_ctx = await ctx.with_action(tid, needs=needs)
-                task_ctx = await ctx.with_task(tid, needs=needs)
                 ft = await self._storage.check_cache(
-                    attempt, self._next_task_no(), task_ctx
+                    attempt, self._next_task_no(), full_id, action_ctx
                 )
                 if ft is not None:
                     str_cached = click.style("cached", fg="magenta")
@@ -243,7 +242,7 @@ class BatchExecutor:
             else:
                 task_ctx = await ctx.with_task(tid, needs=needs)
                 ft = await self._storage.check_cache(
-                    attempt, self._next_task_no(), task_ctx
+                    attempt, self._next_task_no(), full_id, task_ctx
                 )
                 if ft is not None:
                     str_cached = click.style("cached", fg="magenta")

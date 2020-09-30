@@ -12,7 +12,7 @@ outputs:
   needs: ["task_1_${{ inputs.arg1 }}_second", task_2]
   res1:
     descr: action result 1
-    value: ${{ to_json(needs) }}
+    value: ${{ fmt('task_1_', 'inputs.arg1', '_second') }}.needs.task1 task_2.needs.task2
   res2:
     descr: action result 2
     value: ${{ needs.task_2.outputs.task2 }}
