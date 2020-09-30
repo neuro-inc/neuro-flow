@@ -893,12 +893,3 @@ def _ctx_default(val: Any) -> Any:
         return sorted(val)
     else:
         raise TypeError(f"Cannot dump {val!r}")
-
-
-def _result_default(val: Any) -> Any:
-    if isinstance(val, DepCtx):
-        return dataclasses.asdict(val)
-    elif isinstance(val, enum.Enum):
-        return val.value
-    else:
-        raise TypeError(f"Cannot dump {val!r}")
