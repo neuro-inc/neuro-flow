@@ -241,7 +241,7 @@ class BatchStorage(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def check_task_cache(
+    async def check_cache(
         self,
         attempt: Attempt,
         task_no: int,
@@ -250,7 +250,7 @@ class BatchStorage(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def write_task_cache(
+    async def write_cache(
         self,
         attempt: Attempt,
         ctx: TaskContext,
@@ -654,7 +654,7 @@ class BatchFSStorage(BatchStorage):
         await self._write_json(attempt_url / f"{pre}.{data['id']}.skipped.json", data)
         return ret
 
-    async def check_task_cache(
+    async def check_cache(
         self,
         attempt: Attempt,
         task_no: int,
@@ -703,7 +703,7 @@ class BatchFSStorage(BatchStorage):
             # e.g. the structure doesn't match the expected schema
             return None
 
-    async def write_task_cache(
+    async def write_cache(
         self,
         attempt: Attempt,
         ctx: TaskContext,
