@@ -62,7 +62,7 @@ class BatchExecutor:
         executor_data: ExecutorData,
         client: Client,
         storage: BatchStorage,
-        pooling_timeout: float = 1,
+        polling_timeout: float = 1,
     ) -> None:
         self._executor_data = executor_data
         self._client = client
@@ -80,7 +80,7 @@ class BatchExecutor:
         # too short value bombards servers,
         # too long timeout makes the waiting longer than expected
         # The missing events subsystem would be great for this task :)
-        self._pooling_timeout = pooling_timeout
+        self._polling_timeout = polling_timeout
 
     async def run(self) -> None:
         with tempfile.TemporaryDirectory(prefix="bake") as tmp:
@@ -156,7 +156,7 @@ class BatchExecutor:
                     )
                     return
 
-                await asyncio.sleep(self._pooling_timeout)
+                await asyncio.sleep(self._polling_timeout)
 
             attempt_status = self._accumulate_result()
             str_attempt_status = fmt_status(attempt_status)
@@ -171,7 +171,7 @@ class BatchExecutor:
                 killed.append(st.id)
         while any(k_id not in self._finished for k_id in killed):
             await self._process_started(attempt)
-            await asyncio.sleep(self._pooling_timeout)
+            await asyncio.sleep(self._polling_timeout)
         # All jobs stopped, mark as canceled started actions
         for st in self._started.values():
             if st.id not in self._finished:
@@ -206,7 +206,7 @@ class BatchExecutor:
         ready.extend(topo.get_ready())
 
         for full_id in ready:
-            if full_id in self._started:
+            if full_id in self._started or full_id in self._skipped:
                 continue
             if full_id in self._finished:
                 continue

@@ -102,7 +102,8 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             result = [project_file]
         return result + await self._collect_configs_for_task(flow.tasks)
 
-    async def prepare_executor_data(self, batch_name: str) -> ExecutorData:
+    # Next function is also used in tests:
+    async def _setup_exc_data(self, batch_name: str) -> ExecutorData:
         # batch_name is a name of yaml config inside self._workspace / .neuro
         # folder without the file extension
         config_file = (self._config_dir.config_dir / (batch_name + ".yml")).resolve()
@@ -152,7 +153,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         )
 
     async def bake(self, batch_name: str, local_executor: bool = False) -> None:
-        data = await self.prepare_executor_data(batch_name)
+        data = await self._setup_exc_data(batch_name)
         if local_executor:
             click.echo(f"Using local executor")
             await self.process(data)

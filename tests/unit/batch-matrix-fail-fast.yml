@@ -1,0 +1,10 @@
+kind: batch
+tasks:
+  - strategy:
+      matrix:
+        one: [o1, o2]
+        two: [t1, t2]
+        fail_fast: true
+        max_parallel: 1
+    image: ubuntu
+    cmd: echo ${{matrix.one}}-${{matrix.two}}
