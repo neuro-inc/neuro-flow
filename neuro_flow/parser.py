@@ -403,7 +403,7 @@ def parse_project(
             try:
                 ret = loader.get_single_data()  # type: ignore[no-untyped-call]
                 assert isinstance(ret, ast.Project)
-                return (ret, cast(Digest, hasher.hexdigest()))
+                return (ret, Digest(hasher.hexdigest()))
             finally:
                 loader.dispose()  # type: ignore[no-untyped-call]
     except FileNotFoundError:
@@ -417,7 +417,7 @@ def parse_project(
                     workspace.stem.replace("-", "_"),
                 ),
             ),
-            cast(Digest, ""),
+            Digest(""),
         )
 
 
@@ -891,7 +891,7 @@ def parse_live(
             ret = loader.get_single_data()  # type: ignore[no-untyped-call]
             assert isinstance(ret, ast.LiveFlow)
             assert ret.kind == ast.FlowKind.LIVE
-            return (ret, cast(Digest, hasher.digest()))
+            return (ret, Digest(hasher.hexdigest()))
         finally:
             loader.dispose()  # type: ignore[no-untyped-call]
 
@@ -913,7 +913,7 @@ def parse_batch(
             ret = loader.get_single_data()  # type: ignore[no-untyped-call]
             assert isinstance(ret, ast.BatchFlow)
             assert ret.kind == ast.FlowKind.BATCH
-            return (ret, cast(Digest, hasher.digest()))
+            return (ret, Digest(hasher.hexdigest()))
         finally:
             loader.dispose()  # type: ignore[no-untyped-call]
 

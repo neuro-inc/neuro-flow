@@ -1154,7 +1154,7 @@ class ActionContext(BaseContext):
 
     _ast: Optional[ast.BaseAction] = None
     _action: str = ""
-    _digest: Digest = cast(Digest, "")
+    _digest: Digest = Digest("")
 
     _inputs: Optional[Mapping[str, str]] = None
     _prefix: FullID = ()
