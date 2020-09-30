@@ -27,7 +27,7 @@ def test_inavailable_context_ctor() -> None:
 async def test_ctx_flow(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "live-minimal.yml"
-    flow = parse_live(workspace, config_file)
+    flow, digest = parse_live(workspace, config_file)
     ctx = await LiveContext.create(flow, workspace, config_file)
     assert ctx.flow.flow_id == "live_minimal"
     assert ctx.flow.project_id == "unit"
@@ -38,7 +38,7 @@ async def test_ctx_flow(assets: pathlib.Path) -> None:
 async def test_env_defaults(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "live-full.yml"
-    flow = parse_live(workspace, config_file)
+    flow, digest = parse_live(workspace, config_file)
     ctx = await LiveContext.create(flow, workspace, config_file)
     assert ctx.env == {"global_a": "val-a", "global_b": "val-b"}
 
@@ -46,7 +46,7 @@ async def test_env_defaults(assets: pathlib.Path) -> None:
 async def test_env_from_job(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "live-full.yml"
-    flow = parse_live(workspace, config_file)
+    flow, digest = parse_live(workspace, config_file)
     ctx = await LiveContext.create(flow, workspace, config_file)
     ctx = await ctx.with_meta("test_a")
     ctx2 = await ctx.with_job("test_a")
@@ -61,7 +61,7 @@ async def test_env_from_job(assets: pathlib.Path) -> None:
 async def test_volumes(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "live-full.yml"
-    flow = parse_live(workspace, config_file)
+    flow, digest = parse_live(workspace, config_file)
     ctx = await LiveContext.create(flow, workspace, config_file)
     assert ctx.volumes.keys() == {"volume_a", "volume_b"}
 
@@ -89,7 +89,7 @@ async def test_volumes(assets: pathlib.Path) -> None:
 async def test_images(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "live-full.yml"
-    flow = parse_live(workspace, config_file)
+    flow, digest = parse_live(workspace, config_file)
     ctx = await LiveContext.create(flow, workspace, config_file)
     assert ctx.images.keys() == {"image_a"}
 
@@ -107,7 +107,7 @@ async def test_images(assets: pathlib.Path) -> None:
 async def test_defaults(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "live-full.yml"
-    flow = parse_live(workspace, config_file)
+    flow, digest = parse_live(workspace, config_file)
     ctx = await LiveContext.create(flow, workspace, config_file)
     assert ctx.tags == {"tag-a", "tag-b", "project:unit", "flow:live-full"}
     assert ctx.defaults.workdir == RemotePath("/global/dir")
@@ -118,7 +118,7 @@ async def test_defaults(assets: pathlib.Path) -> None:
 async def test_job_root_ctx(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "live-full.yml"
-    flow = parse_live(workspace, config_file)
+    flow, digest = parse_live(workspace, config_file)
     ctx = await LiveContext.create(flow, workspace, config_file)
     with pytest.raises(NotAvailable):
         ctx.job
@@ -127,7 +127,7 @@ async def test_job_root_ctx(assets: pathlib.Path) -> None:
 async def test_job(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "live-full.yml"
-    flow = parse_live(workspace, config_file)
+    flow, digest = parse_live(workspace, config_file)
     ctx = await LiveContext.create(flow, workspace, config_file)
     ctx = await ctx.with_meta("test_a")
 
@@ -162,7 +162,7 @@ async def test_bad_expr_type_after_eval(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "live-bad-expr-type-after-eval.yml"
 
-    flow = parse_live(workspace, config_file)
+    flow, digest = parse_live(workspace, config_file)
     ctx = await LiveContext.create(flow, workspace, config_file)
     ctx = await ctx.with_meta("test")
 
@@ -178,7 +178,7 @@ async def test_bad_expr_type_after_eval(assets: pathlib.Path) -> None:
 async def test_pipline_root_ctx(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "batch-minimal.yml"
-    flow = parse_batch(workspace, config_file)
+    flow, digest = parse_batch(workspace, config_file)
     ctx = await BatchContext.create(flow, workspace, config_file)
     with pytest.raises(NotAvailable):
         ctx.task
@@ -187,7 +187,7 @@ async def test_pipline_root_ctx(assets: pathlib.Path) -> None:
 async def test_pipeline_minimal_ctx(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "batch-minimal.yml"
-    flow = parse_batch(workspace, config_file)
+    flow, digest = parse_batch(workspace, config_file)
     ctx = await BatchContext.create(flow, workspace, config_file)
 
     ctx2 = await ctx.with_task("test_a", needs={})
@@ -223,7 +223,7 @@ async def test_pipeline_minimal_ctx(assets: pathlib.Path) -> None:
 async def test_pipeline_seq(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "batch-seq.yml"
-    flow = parse_batch(workspace, config_file)
+    flow, digest = parse_batch(workspace, config_file)
     ctx = await BatchContext.create(flow, workspace, config_file)
 
     ctx2 = await ctx.with_task(
@@ -254,7 +254,7 @@ async def test_pipeline_seq(assets: pathlib.Path) -> None:
 async def test_pipeline_needs(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "batch-needs.yml"
-    flow = parse_batch(workspace, config_file)
+    flow, digest = parse_batch(workspace, config_file)
     ctx = await BatchContext.create(flow, workspace, config_file)
 
     ctx2 = await ctx.with_task(
@@ -285,7 +285,7 @@ async def test_pipeline_needs(assets: pathlib.Path) -> None:
 async def test_pipeline_matrix(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "batch-matrix.yml"
-    flow = parse_batch(workspace, config_file)
+    flow, digest = parse_batch(workspace, config_file)
     ctx = await BatchContext.create(flow, workspace, config_file)
     assert ctx.cache == CacheCtx(
         strategy=ast.CacheStrategy.DEFAULT,
@@ -324,7 +324,7 @@ async def test_pipeline_matrix(assets: pathlib.Path) -> None:
 async def test_pipeline_matrix_with_strategy(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "batch-matrix-with-strategy.yml"
-    flow = parse_batch(workspace, config_file)
+    flow, digest = parse_batch(workspace, config_file)
     ctx = await BatchContext.create(flow, workspace, config_file)
 
     assert ctx.strategy.max_parallel == 15
@@ -374,7 +374,7 @@ async def test_pipeline_matrix_with_strategy(assets: pathlib.Path) -> None:
 async def test_pipeline_matrix_2(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "batch-matrix-with-deps.yml"
-    flow = parse_batch(workspace, config_file)
+    flow, digest = parse_batch(workspace, config_file)
     ctx = await BatchContext.create(flow, workspace, config_file)
 
     assert ctx.graph == {
@@ -426,7 +426,7 @@ async def test_pipeline_matrix_2(assets: pathlib.Path) -> None:
 async def test_pipeline_args(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "batch-args.yml"
-    flow = parse_batch(workspace, config_file)
+    flow, digest = parse_batch(workspace, config_file)
     ctx = await BatchContext.create(flow, workspace, config_file)
 
     assert ctx.args == {"arg1": "val1", "arg2": "val2"}
@@ -522,7 +522,7 @@ async def test_batch_action_with_inputs_default_ok(assets: pathlib.Path) -> None
 async def test_job_with_live_action(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "live-action-call.yml"
-    flow = parse_live(workspace, config_file)
+    flow, digest = parse_live(workspace, config_file)
     ctx = await LiveContext.create(flow, workspace, config_file)
     ctx = await ctx.with_meta("test")
 
@@ -552,7 +552,7 @@ async def test_job_with_live_action(assets: pathlib.Path) -> None:
 async def test_pipeline_enable_default_no_needs(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "batch-enable.yml"
-    flow = parse_batch(workspace, config_file)
+    flow, digest = parse_batch(workspace, config_file)
     ctx = await BatchContext.create(flow, workspace, config_file)
 
     ctx2 = await ctx.with_task("task_a", needs={})
@@ -562,7 +562,7 @@ async def test_pipeline_enable_default_no_needs(assets: pathlib.Path) -> None:
 async def test_pipeline_enable_default_with_needs(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "batch-needs.yml"
-    flow = parse_batch(workspace, config_file)
+    flow, digest = parse_batch(workspace, config_file)
     ctx = await BatchContext.create(flow, workspace, config_file)
 
     ctx2 = await ctx.with_task(
@@ -584,7 +584,7 @@ async def test_pipeline_enable_default_with_needs(assets: pathlib.Path) -> None:
 async def test_pipeline_enable_success(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "batch-enable.yml"
-    flow = parse_batch(workspace, config_file)
+    flow, digest = parse_batch(workspace, config_file)
     ctx = await BatchContext.create(flow, workspace, config_file)
 
     ctx2 = await ctx.with_task(
@@ -606,7 +606,7 @@ async def test_pipeline_enable_success(assets: pathlib.Path) -> None:
 async def test_pipeline_with_batch_action(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "batch-action-call.yml"
-    flow = parse_batch(workspace, config_file)
+    flow, digest = parse_batch(workspace, config_file)
     ctx = await BatchContext.create(flow, workspace, config_file)
 
     assert await ctx.is_action("test")

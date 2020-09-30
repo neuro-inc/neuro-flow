@@ -38,7 +38,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
     def __init__(self, workspace: LocalPath, config_file: LocalPath) -> None:
         self._workspace = workspace
         self._config_file = config_file
-        self._flow = parse_live(workspace, config_file)
+        self._flow, digest = parse_live(workspace, config_file)
         self._ctx: Optional[LiveContext] = None
         self._client: Optional[Client] = None
 

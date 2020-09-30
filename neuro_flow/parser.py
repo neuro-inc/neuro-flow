@@ -59,7 +59,7 @@ from .expr import (
     URIExpr,
 )
 from .tokenizer import Pos
-from .types import LocalPath
+from .types import Digest, LocalPath
 
 
 _T = TypeVar("_T")
@@ -386,28 +386,38 @@ ProjectLoader.add_constructor("project:main", parse_project_main)  # type: ignor
 
 def parse_project(
     workspace: LocalPath, *, filename: str = "project.yml"
-) -> ast.Project:
+) -> Tuple[ast.Project, Digest]:
     # Parse project config file
     ret: ast.Project
     config_file = workspace / filename
+    hasher = hashlib.new("sha256")
     try:
+        with config_file.open("rb") as bf:
+            while True:
+                chunk = bf.read(256 * 1024)
+                if not chunk:
+                    break
+                hasher.update(chunk)
         with config_file.open() as f:
             loader = ProjectLoader(f)
             try:
                 ret = loader.get_single_data()  # type: ignore[no-untyped-call]
                 assert isinstance(ret, ast.Project)
-                return ret
+                return (ret, cast(Digest, hasher.hexdigest()))
             finally:
                 loader.dispose()  # type: ignore[no-untyped-call]
     except FileNotFoundError:
-        return ast.Project(
-            _start=Pos(0, 0, LocalPath("<default>")),
-            _end=Pos(0, 0, LocalPath("<default>")),
-            id=SimpleIdExpr(
-                Pos(0, 0, LocalPath("<default>")),
-                Pos(0, 0, LocalPath("<default>")),
-                workspace.stem.replace("-", "_"),
+        return (
+            ast.Project(
+                _start=Pos(0, 0, LocalPath("<default>")),
+                _end=Pos(0, 0, LocalPath("<default>")),
+                id=SimpleIdExpr(
+                    Pos(0, 0, LocalPath("<default>")),
+                    Pos(0, 0, LocalPath("<default>")),
+                    workspace.stem.replace("-", "_"),
+                ),
             ),
+            cast(Digest, ""),
         )
 
 
@@ -864,28 +874,46 @@ FlowLoader.add_path_resolver("flow:main", [])  # type: ignore
 FlowLoader.add_constructor("flow:main", parse_flow_main)  # type: ignore
 
 
-def parse_live(workspace: LocalPath, config_file: LocalPath) -> ast.LiveFlow:
+def parse_live(
+    workspace: LocalPath, config_file: LocalPath
+) -> Tuple[ast.LiveFlow, Digest]:
     # Parse live flow config file
+    hasher = hashlib.new("sha256")
+    with config_file.open("rb") as bf:
+        while True:
+            chunk = bf.read(256 * 1024)
+            if not chunk:
+                break
+            hasher.update(chunk)
     with config_file.open() as f:
         loader = FlowLoader(f, kind=ast.FlowKind.LIVE)
         try:
             ret = loader.get_single_data()  # type: ignore[no-untyped-call]
             assert isinstance(ret, ast.LiveFlow)
             assert ret.kind == ast.FlowKind.LIVE
-            return ret
+            return (ret, cast(Digest, hasher.digest()))
         finally:
             loader.dispose()  # type: ignore[no-untyped-call]
 
 
-def parse_batch(workspace: LocalPath, config_file: LocalPath) -> ast.BatchFlow:
+def parse_batch(
+    workspace: LocalPath, config_file: LocalPath
+) -> Tuple[ast.BatchFlow, Digest]:
     # Parse pipeline flow config file
+    hasher = hashlib.new("sha256")
+    with config_file.open("rb") as bf:
+        while True:
+            chunk = bf.read(256 * 1024)
+            if not chunk:
+                break
+            hasher.update(chunk)
     with config_file.open() as f:
         loader = FlowLoader(f, kind=ast.FlowKind.BATCH)
         try:
             ret = loader.get_single_data()  # type: ignore[no-untyped-call]
             assert isinstance(ret, ast.BatchFlow)
             assert ret.kind == ast.FlowKind.BATCH
-            return ret
+            return (ret, cast(Digest, hasher.digest()))
         finally:
             loader.dispose()  # type: ignore[no-untyped-call]
 

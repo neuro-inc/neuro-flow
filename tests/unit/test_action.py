@@ -24,8 +24,8 @@ from neuro_flow.types import LocalPath
 
 def test_parse_live_action(assets: LocalPath) -> None:
     config_file = assets / "live-action.yml"
-    action = parse_action(config_file)
-    assert action, ANY == ast.LiveAction(
+    action, digest = parse_action(config_file)
+    assert action == ast.LiveAction(
         Pos(0, 0, config_file),
         Pos(13, 0, config_file),
         kind=ast.ActionKind.LIVE,
@@ -102,8 +102,8 @@ def test_parse_live_action(assets: LocalPath) -> None:
 
 def test_parse_batch_action(assets: LocalPath) -> None:
     config_file = assets / "batch-action.yml"
-    action = parse_action(config_file)
-    assert action, ANY == ast.BatchAction(
+    action, digest = parse_action(config_file)
+    assert action == ast.BatchAction(
         Pos(0, 0, config_file),
         Pos(28, 0, config_file),
         kind=ast.ActionKind.BATCH,
@@ -271,8 +271,8 @@ def test_parse_batch_action(assets: LocalPath) -> None:
 
 def test_parse_stateful_action(assets: LocalPath) -> None:
     config_file = assets / "stateful-action.yml"
-    action = parse_action(config_file)
-    assert action, ANY == ast.StatefulAction(
+    action, digest = parse_action(config_file)
+    assert action == ast.StatefulAction(
         Pos(0, 0, config_file),
         Pos(24, 0, config_file),
         kind=ast.ActionKind.STATEFUL,
@@ -405,7 +405,7 @@ def test_parse_stateful_action(assets: LocalPath) -> None:
 def test_parse_live_call(assets: LocalPath) -> None:
     workspace = assets
     config_file = workspace / "live-action-call.yml"
-    flow = parse_live(workspace, config_file)
+    flow, digest = parse_live(workspace, config_file)
     assert flow == ast.LiveFlow(
         Pos(0, 0, config_file),
         Pos(6, 0, config_file),
@@ -445,7 +445,7 @@ def test_parse_live_call(assets: LocalPath) -> None:
 def test_parse_batch_call(assets: LocalPath) -> None:
     workspace = assets
     config_file = workspace / "batch-action-call.yml"
-    flow = parse_batch(workspace, config_file)
+    flow, digest = parse_batch(workspace, config_file)
     assert flow == ast.BatchFlow(
         Pos(0, 0, config_file),
         Pos(6, 0, config_file),

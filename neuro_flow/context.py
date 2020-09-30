@@ -347,7 +347,7 @@ class BaseFlowContext(BaseContext):
         if flow_id is None:
             flow_id = config_file.stem.replace("-", "_")
 
-        project = parse_project(workspace)
+        project, digest = parse_project(workspace)
         project_id = await project.id.eval(EMPTY_ROOT)
         flow_title = await ast_flow.title.eval(EMPTY_ROOT)
 

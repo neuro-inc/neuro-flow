@@ -24,7 +24,7 @@ from neuro_flow.tokenizer import Pos
 def test_parse_minimal(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "batch-minimal.yml"
-    flow = parse_batch(workspace, config_file)
+    flow, digest = parse_batch(workspace, config_file)
     assert flow == ast.BatchFlow(
         Pos(0, 0, config_file),
         Pos(51, 0, config_file),
@@ -210,7 +210,7 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
 def test_parse_seq(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "batch-seq.yml"
-    flow = parse_batch(workspace, config_file)
+    flow, digest = parse_batch(workspace, config_file)
     assert flow == ast.BatchFlow(
         Pos(0, 0, config_file),
         Pos(9, 0, config_file),
@@ -311,7 +311,7 @@ def test_parse_seq(assets: pathlib.Path) -> None:
 def test_parse_needs(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "batch-needs.yml"
-    flow = parse_batch(workspace, config_file)
+    flow, digest = parse_batch(workspace, config_file)
     assert flow == ast.BatchFlow(
         Pos(0, 0, config_file),
         Pos(11, 0, config_file),
@@ -414,7 +414,7 @@ def test_parse_needs(assets: pathlib.Path) -> None:
 def test_parse_matrix(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "batch-matrix.yml"
-    flow = parse_batch(workspace, config_file)
+    flow, digest = parse_batch(workspace, config_file)
     assert flow == ast.BatchFlow(
         Pos(0, 0, config_file),
         Pos(15, 0, config_file),
@@ -531,7 +531,7 @@ def test_parse_matrix(assets: pathlib.Path) -> None:
 def test_parse_matrix_with_strategy(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "batch-matrix-with-strategy.yml"
-    flow = parse_batch(workspace, config_file)
+    flow, digest = parse_batch(workspace, config_file)
     assert flow == ast.BatchFlow(
         Pos(0, 0, config_file),
         Pos(26, 0, config_file),
@@ -677,7 +677,7 @@ def test_parse_matrix_with_strategy(assets: pathlib.Path) -> None:
 def test_parse_args(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "batch-args.yml"
-    flow = parse_batch(workspace, config_file)
+    flow, digest = parse_batch(workspace, config_file)
     assert flow == ast.BatchFlow(
         Pos(0, 0, config_file),
         Pos(13, 0, config_file),
@@ -812,7 +812,7 @@ def test_parse_args(assets: pathlib.Path) -> None:
 def test_parse_enable(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "batch-enable.yml"
-    flow = parse_batch(workspace, config_file)
+    flow, digest = parse_batch(workspace, config_file)
     assert flow == ast.BatchFlow(
         Pos(0, 0, config_file),
         Pos(11, 0, config_file),

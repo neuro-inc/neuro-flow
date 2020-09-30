@@ -29,7 +29,7 @@ from neuro_flow.tokenizer import Pos
 def test_parse_minimal(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "live-minimal.yml"
-    flow = parse_live(workspace, config_file)
+    flow, digest = parse_live(workspace, config_file)
     assert flow == ast.LiveFlow(
         Pos(0, 0, config_file),
         Pos(5, 0, config_file),
@@ -94,7 +94,7 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
 def test_parse_full(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "live-full.yml"
-    flow = parse_live(workspace, config_file)
+    flow, digest = parse_live(workspace, config_file)
     assert flow == ast.LiveFlow(
         Pos(0, 0, config_file),
         Pos(57, 0, config_file),
@@ -294,7 +294,7 @@ def test_parse_full(assets: pathlib.Path) -> None:
 def test_parse_bash(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "live-bash.yml"
-    flow = parse_live(workspace, config_file)
+    flow, digest = parse_live(workspace, config_file)
     assert flow == ast.LiveFlow(
         Pos(0, 0, config_file),
         Pos(7, 0, config_file),
@@ -361,7 +361,7 @@ def test_parse_bash(assets: pathlib.Path) -> None:
 def test_parse_python(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "live-python.yml"
-    flow = parse_live(workspace, config_file)
+    flow, digest = parse_live(workspace, config_file)
     assert flow == ast.LiveFlow(
         Pos(0, 0, config_file),
         Pos(7, 0, config_file),
@@ -476,7 +476,7 @@ def test_bad_expr_type_before_eval(assets: pathlib.Path) -> None:
 def test_parse_multi(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "live-multi.yml"
-    flow = parse_live(workspace, config_file)
+    flow, digest = parse_live(workspace, config_file)
     assert flow == ast.LiveFlow(
         Pos(0, 0, config_file),
         Pos(6, 0, config_file),
@@ -541,7 +541,7 @@ def test_parse_multi(assets: pathlib.Path) -> None:
 def test_parse_explicit_flow_id(assets: pathlib.Path) -> None:
     workspace = assets
     config_file = workspace / "live-flow-id.yml"
-    flow = parse_live(workspace, config_file)
+    flow, digest = parse_live(workspace, config_file)
     assert flow == ast.LiveFlow(
         Pos(0, 0, config_file),
         Pos(6, 0, config_file),
