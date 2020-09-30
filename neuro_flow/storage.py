@@ -259,6 +259,10 @@ class BatchStorage(abc.ABC):
     ) -> None:
         pass
 
+    @abc.abstractmethod
+    async def clear_cache(self, project: str, batch: Optional[str] = None) -> None:
+        pass
+
 
 class BatchFSStorage(BatchStorage):
     # A storage that uses storage:.flow directory as a database
@@ -743,6 +747,9 @@ class BatchFSStorage(BatchStorage):
             await self._client.storage.mkdir(url.parent, parents=True)
             await self._write_json(url, data, overwrite=True)
 
+    async def clear_cache(self, project: str, batch: Optional[str] = None) -> None:
+        await self._client.storage.rm(_mk_cache_uri2(project, batch), recursive=True)
+
     async def _read_file(self, url: URL) -> str:
         ret = []
         async for chunk in self._client.storage.open(url):
@@ -844,13 +851,16 @@ def _attempt_from_json(
 
 
 def _mk_cache_uri(attempt: Attempt, task_id: FullID) -> URL:
-    return (
-        URL("storage:.flow")
-        / attempt.bake.project
-        / ".cache"
-        / attempt.bake.batch
-        / (".".join(task_id) + ".json")
+    return _mk_cache_uri2(attempt.bake.project, attempt.bake.batch) / (
+        ".".join(task_id) + ".json"
     )
+
+
+def _mk_cache_uri2(project: str, batch: Optional[str]) -> URL:
+    ret = URL("storage:.flow") / project / ".cache"
+    if batch:
+        ret /= batch
+    return ret
 
 
 def _hash(val: Any) -> str:
