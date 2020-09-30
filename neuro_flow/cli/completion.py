@@ -65,7 +65,7 @@ async def patch(shell: str) -> None:
         end = content.find(GENERATED_END)
         if end == -1:
             raise click.ClickException(
-                f"Malformed guarding comments. Please modify {profile_file} manually"
+                f"Malformed guarding comments. Please edit {profile_file} manually"
             )
         content = content[:start] + code + content[end + len(GENERATED_END) :]
     else:
