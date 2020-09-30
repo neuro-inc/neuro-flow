@@ -233,6 +233,7 @@ class FlowCtx:
         # TODO: add a custom warning API to report with config file name and
         # line numbers instead of bare printing
         import click
+
         click.secho(
             "flow.id attribute is deprecated, use flow.flow_id instead",
             fg="yellow",

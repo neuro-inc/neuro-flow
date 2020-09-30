@@ -10,7 +10,7 @@ import sys
 from neuromation.api import Client, Factory, JobDescription, JobStatus, ResourceNotFound
 from neuromation.cli.formatters import ftable  # TODO: extract into a separate library
 from types import TracebackType
-from typing import AsyncIterator, Iterable, List, Optional, Tuple, Type
+from typing import AbstractSet, AsyncIterator, Iterable, List, Optional, Tuple, Type
 from typing_extensions import AsyncContextManager
 
 from .context import ImageCtx, LiveContext, UnknownJob, VolumeCtx
@@ -170,6 +170,19 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
         except ResourceNotFound:
             ret.append(JobInfo(job_id, JobStatus.UNKNOWN, None, meta_ctx.tags, None))
         return ret
+
+    async def list_suffixes(self, job_id: str) -> AbstractSet[str]:
+        meta_ctx = await self._ensure_meta(job_id, None, skip_check=True)
+        result = set()
+        try:
+            async for job in self._resolve_jobs(meta_ctx, None):
+                for tag in job.tags:
+                    key, sep, val = tag.partition(":")
+                    if sep and key == "multi":
+                        result.add(val)
+        except ResourceNotFound:
+            pass
+        return result
 
     async def ps(self) -> None:
         """Return statuses for all jobs from the flow"""
