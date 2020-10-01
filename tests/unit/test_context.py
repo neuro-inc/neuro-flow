@@ -3,9 +3,11 @@ import pytest
 from textwrap import dedent
 from yarl import URL
 
+from neuro_flow import ast
 from neuro_flow.context import (
     BatchActionContext,
     BatchContext,
+    CacheCtx,
     DepCtx,
     LiveContext,
     NotAvailable,
@@ -285,6 +287,10 @@ async def test_pipeline_matrix(assets: pathlib.Path) -> None:
     config_file = workspace / "batch-matrix.yml"
     flow = parse_batch(workspace, config_file)
     ctx = await BatchContext.create(flow, workspace, config_file)
+    assert ctx.cache == CacheCtx(
+        strategy=ast.CacheStrategy.DEFAULT,
+        life_span=1209600,
+    )
 
     assert ctx.graph == {
         ("task-1-e3-o3-t3",): set(),
@@ -323,6 +329,10 @@ async def test_pipeline_matrix_with_strategy(assets: pathlib.Path) -> None:
 
     assert ctx.strategy.max_parallel == 15
     assert ctx.strategy.fail_fast
+    assert ctx.cache == CacheCtx(
+        strategy=ast.CacheStrategy.NONE,
+        life_span=9000,
+    )
 
     assert ctx.graph == {
         ("task-1-e3-o3-t3",): set(),
@@ -355,6 +365,10 @@ async def test_pipeline_matrix_with_strategy(assets: pathlib.Path) -> None:
     assert ctx2.matrix == {"extra": "e3", "one": "o3", "two": "t3"}
     assert ctx2.strategy.max_parallel == 5
     assert not ctx2.strategy.fail_fast
+    assert ctx2.cache == CacheCtx(
+        strategy=ast.CacheStrategy.DEFAULT,
+        life_span=5400,
+    )
 
 
 async def test_pipeline_matrix_2(assets: pathlib.Path) -> None:
@@ -373,6 +387,10 @@ async def test_pipeline_matrix_2(assets: pathlib.Path) -> None:
         ("task_a",): set(),
     }
 
+    assert ctx.cache == CacheCtx(
+        strategy=ast.CacheStrategy.DEFAULT,
+        life_span=1209600,
+    )
     ctx2 = await ctx.with_task(
         "task-2-a-1", needs={"task_a": DepCtx(TaskStatus.SUCCEEDED, {"name": "value"})}
     )
@@ -399,6 +417,10 @@ async def test_pipeline_matrix_2(assets: pathlib.Path) -> None:
     assert ctx2.task.life_span is None
 
     assert ctx2.matrix == {"arg1": "a", "arg2": "1"}
+    assert ctx2.cache == CacheCtx(
+        strategy=ast.CacheStrategy.DEFAULT,
+        life_span=1209600,
+    )
 
 
 async def test_pipeline_args(assets: pathlib.Path) -> None:
@@ -413,9 +435,16 @@ async def test_pipeline_args(assets: pathlib.Path) -> None:
 async def test_batch_action_default(assets: pathlib.Path) -> None:
     workspace = assets
     ctx = await BatchActionContext.create(
-        (), "ws:batch-action.yml", workspace, set(), {"arg1": "val 1"}, StrategyCtx()
+        (),
+        "ws:batch-action.yml",
+        workspace,
+        set(),
+        {"arg1": "val 1"},
+        StrategyCtx(),
+        CacheCtx(),
     )
     assert ctx.inputs == {"arg1": "val 1", "arg2": "value 2"}
+    assert ctx.cache == CacheCtx(strategy=ast.CacheStrategy.NONE, life_span=1800)
 
 
 async def test_batch_action_with_inputs_unsupported(assets: pathlib.Path) -> None:
@@ -428,6 +457,7 @@ async def test_batch_action_with_inputs_unsupported(assets: pathlib.Path) -> Non
             set(),
             {"unknown": "value", "other": "val"},
             StrategyCtx(),
+            CacheCtx(),
         )
 
 
@@ -441,6 +471,7 @@ async def test_batch_action_without_inputs_unsupported(assets: pathlib.Path) -> 
             set(),
             {"unknown": "value"},
             StrategyCtx(),
+            CacheCtx(),
         )
 
 
@@ -448,7 +479,13 @@ async def test_batch_action_with_inputs_no_default(assets: pathlib.Path) -> None
     workspace = assets
     with pytest.raises(ValueError, match=r"Required input\(s\): arg1"):
         await BatchActionContext.create(
-            (), "ws:batch-action.yml", workspace, set(), {"arg2": "val2"}, StrategyCtx()
+            (),
+            "ws:batch-action.yml",
+            workspace,
+            set(),
+            {"arg2": "val2"},
+            StrategyCtx(),
+            CacheCtx(),
         )
 
 
@@ -461,6 +498,7 @@ async def test_batch_action_with_inputs_ok(assets: pathlib.Path) -> None:
         set(),
         {"arg1": "v1", "arg2": "v2"},
         StrategyCtx(),
+        CacheCtx(),
     )
 
     assert ctx.inputs == {"arg1": "v1", "arg2": "v2"}
@@ -469,7 +507,13 @@ async def test_batch_action_with_inputs_ok(assets: pathlib.Path) -> None:
 async def test_batch_action_with_inputs_default_ok(assets: pathlib.Path) -> None:
     workspace = assets
     ctx = await BatchActionContext.create(
-        (), "ws:batch-action", workspace, set(), {"arg1": "v1"}, StrategyCtx()
+        (),
+        "ws:batch-action",
+        workspace,
+        set(),
+        {"arg1": "v1"},
+        StrategyCtx(),
+        CacheCtx(),
     )
 
     assert ctx.inputs == {"arg1": "v1", "arg2": "value 2"}

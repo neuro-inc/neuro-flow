@@ -147,3 +147,25 @@ async def cancel(config_dir: ConfigDir, bake_id: str, attempt: int) -> None:
             BatchRunner(config_dir, client, storage)
         )
         await runner.cancel(bake_id, attempt_no=attempt)
+
+
+@click.command()
+@argument("batch", type=BATCH)
+@wrap_async()
+async def clear_cache(config_dir: ConfigDir, batch: str) -> None:
+    """Clear cache.
+
+    Use `neuro-flow clear-cache <BATCH>` for cleaning up the cache for BATCH;
+
+    `neuro-flow clear-cache ALL` clears all caches.
+    """
+    async with AsyncExitStack() as stack:
+        client = await stack.enter_async_context(api_get())
+        storage: BatchStorage = await stack.enter_async_context(BatchFSStorage(client))
+        runner = await stack.enter_async_context(
+            BatchRunner(config_dir, client, storage)
+        )
+        if batch == "ALL":
+            await runner.clear_cache(None)
+        else:
+            await runner.clear_cache(batch)

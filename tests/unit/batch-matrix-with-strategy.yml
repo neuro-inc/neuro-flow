@@ -2,6 +2,9 @@ kind: batch
 defaults:
   fail_fast: true
   max_parallel: 15
+  cache:
+    strategy: none
+    life_span: 2h30m
 tasks:
   - strategy:
       matrix:
@@ -16,5 +19,8 @@ tasks:
             extra: e3
       fail_fast: false
       max_parallel: 5
+      cache:
+        strategy: default
+        life_span: 1h30m
     image: ubuntu
     cmd: echo abc

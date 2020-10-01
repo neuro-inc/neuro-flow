@@ -16,6 +16,9 @@ outputs:
   res2:
     descr: action result 2
     value: ${{ task_2.task2 }}
+cache:
+  strategy: none
+  life_span: 30m
 tasks:
 - id: task_1
   image: ubuntu

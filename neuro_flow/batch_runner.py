@@ -11,7 +11,7 @@ from . import __version__, ast
 from .batch_executor import BatchExecutor, ExecutorData
 from .commands import CmdProcessor
 from .context import EMPTY_ROOT, BatchContext
-from .parser import ConfigDir, parse_action, parse_batch
+from .parser import ConfigDir, parse_action, parse_batch, parse_project
 from .storage import Attempt, Bake, BatchStorage, ConfigFile
 from .types import LocalPath
 from .utils import TERMINATED_JOB_STATUSES, fmt_id, fmt_raw_id, fmt_status
@@ -32,15 +32,23 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         self._config_dir = config_dir
         self._client = client
         self._storage = storage
+        self._project: Optional[str] = None
 
     @property
     def project(self) -> str:
-        return self._config_dir.workspace.name
+        assert self._project is not None
+        return self._project
 
     async def close(self) -> None:
         pass
 
     async def __aenter__(self) -> "BatchRunner":
+        project_file = self._config_dir.workspace / "project.yml"
+        if project_file.exists():
+            pr = parse_project(project_file)
+            self._project = await pr.id.eval(EMPTY_ROOT)
+        else:
+            self._project = self._config_dir.workspace.name
         return self
 
     async def __aexit__(
@@ -305,3 +313,6 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                 # (e.g. if KeyboardInterrupt or cancellation was received)
                 proc.kill()
                 await proc.wait()
+
+    async def clear_cache(self, batch: Optional[str] = None) -> None:
+        await self._storage.clear_cache(self.project, batch)

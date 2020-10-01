@@ -303,6 +303,9 @@ def parse_dict(
                         node.start_mark,
                     )
                 optional_fields[f.name] = item_ctor(node_start, node_end, None)
+            elif isinstance(item_ctor, type) and issubclass(item_ctor, enum.Enum):
+                if f.metadata.get("allow_none", False):
+                    optional_fields[f.name] = None
             else:
                 raise ConstructorError(
                     f"while constructing a '{ret_name}', "
@@ -334,6 +337,21 @@ def parse_dict(
     )
 
 
+# #### Generics ####
+
+
+def parse_cache(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Cache:
+    return parse_dict(
+        ctor,
+        node,
+        {
+            "strategy": ast.CacheStrategy,
+            "life_span": OptLifeSpanExpr,
+        },
+        ast.Cache,
+    )
+
+
 # #### Project parser ####
 
 
@@ -347,9 +365,7 @@ class ProjectLoader(Reader, Scanner, Parser, Composer, BaseConstructor, BaseReso
         BaseResolver.__init__(self)
 
 
-PROJECT = {
-    "id": None,
-}
+PROJECT = {"id": None}
 
 
 def parse_project_main(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Project:
@@ -524,6 +540,7 @@ STRATEGY = {
     "matrix": None,
     "fail_fast": OptBoolExpr,
     "max_parallel": OptIntExpr,
+    "cache": None,
 }
 
 
@@ -541,6 +558,10 @@ FlowLoader.add_path_resolver(  # type: ignore
 )
 FlowLoader.add_constructor("flow:strategy", parse_strategy)  # type: ignore
 
+FlowLoader.add_path_resolver(  # type: ignore
+    "flow:cache", [(dict, "tasks"), (list, None), (dict, "strategy"), (dict, "cache")]
+)
+FlowLoader.add_constructor("flow:cache", parse_cache)  # type: ignore
 
 EXEC_UNIT = {
     "title": OptStrExpr,
@@ -743,6 +764,7 @@ def parse_flow_defaults(ctor: FlowLoader, node: yaml.MappingNode) -> ast.FlowDef
                 "preset": OptStrExpr,
                 "fail_fast": OptBoolExpr,
                 "max_parallel": OptIntExpr,
+                "cache": None,
             },
             ast.BatchFlowDefaults,
         )
@@ -750,6 +772,9 @@ def parse_flow_defaults(ctor: FlowLoader, node: yaml.MappingNode) -> ast.FlowDef
         raise ValueError("Unknown kind {ctor._kind}")
 
 
+FlowLoader.add_path_resolver(  # type: ignore
+    "flow:cache", [(dict, "defaults"), (dict, "cache")]
+)
 FlowLoader.add_path_resolver("flow:defaults", [(dict, "defaults")])  # type: ignore
 FlowLoader.add_constructor("flow:defaults", parse_flow_defaults)  # type: ignore
 
@@ -1019,6 +1044,13 @@ ActionLoader.add_path_resolver(  # type: ignore
 ActionLoader.add_constructor("action:strategy", parse_strategy)  # type: ignore
 
 
+ActionLoader.add_path_resolver("action:cache", [(dict, "cache")])  # type: ignore
+ActionLoader.add_path_resolver(  # type: ignore
+    "action:cache", [(dict, "tasks"), (list, None), (dict, "cache")]
+)
+ActionLoader.add_constructor("action:cache", parse_cache)  # type: ignore
+
+
 ActionLoader.add_path_resolver(  # type: ignore[no-untyped-call]
     "action:task", [(dict, "tasks"), (list, None)]
 )
@@ -1040,23 +1072,34 @@ ActionLoader.add_path_resolver("action:exec", [(dict, "post")])  # type: ignore
 ActionLoader.add_path_resolver("action:exec", [(dict, "main")])  # type: ignore
 ActionLoader.add_constructor("action:exec", parse_exec_unit)  # type: ignore
 
-ACTION = {
+
+BASE_ACTION = {
     "name": SimpleOptStrExpr,
     "author": SimpleOptStrExpr,
     "descr": SimpleOptStrExpr,
     "inputs": None,
     "outputs": None,
     "kind": ast.ActionKind,
-    # Live action
-    "job": None,
-    # Batch action
-    "tasks": None,
-    # Sateful action
+}
+
+LIVE_ACTION: Dict[str, Any] = {"job": None, **BASE_ACTION}
+
+BATCH_ACTION: Dict[str, Any] = {"cache": None, "tasks": None, **BASE_ACTION}
+
+STATEFUL_ACTION: Dict[str, Any] = {
+    "cache": None,
     "pre": None,
     "pre_if": OptBoolExpr,
     "main": None,
     "post": None,
     "post_if": OptBoolExpr,
+    **BASE_ACTION,
+}
+
+ACTION = {
+    **LIVE_ACTION,
+    **BATCH_ACTION,
+    **STATEFUL_ACTION,
 }
 
 
@@ -1064,11 +1107,20 @@ def preprocess_action(
     ctor: BaseConstructor, node: yaml.MappingNode, dct: Dict[str, Any]
 ) -> Dict[str, Any]:
     kind = dct.get("kind")
-    if kind is None:
+
+    ret: Dict[str, Any]
+    if kind == ast.ActionKind.LIVE:
+        ret = {k: v for k, v in dct.items() if k in LIVE_ACTION}
+    elif kind == ast.ActionKind.BATCH:
+        ret = {k: v for k, v in dct.items() if k in BATCH_ACTION}
+    elif kind == ast.ActionKind.STATEFUL:
+        ret = {k: v for k, v in dct.items() if k in STATEFUL_ACTION}
+    else:
         raise ConstructorError(
             f"missing mandatory key 'kind'",
             node.start_mark,
         )
+
     outputs_tmp: Optional[BatchActionOutputs] = dct.get("outputs")
     if outputs_tmp and kind != ast.ActionKind.BATCH:
         if outputs_tmp.needs is not None:
@@ -1076,20 +1128,20 @@ def preprocess_action(
                 f"outputs.needs list is not supported " f"for {kind.value} action kind",
                 node.start_mark,
             )
-        dct["outputs"] = outputs_tmp.values
+        ret["outputs"] = outputs_tmp.values
     elif outputs_tmp:
         if outputs_tmp.needs is None:
             raise ConnectionError(
                 f"outputs.needs list is required " f"for {kind.value} action kind",
                 node.start_mark,
             )
-        dct["outputs"] = ast.BatchActionOutputs(
+        ret["outputs"] = ast.BatchActionOutputs(
             _start=outputs_tmp._start,
             _end=outputs_tmp._end,
             needs=outputs_tmp.needs,
             values=outputs_tmp.values,
         )
-    return dct
+    return ret
 
 
 def find_action_type(

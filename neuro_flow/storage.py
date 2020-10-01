@@ -1,13 +1,16 @@
 import dataclasses
 
 import abc
+import collections
 import datetime
+import enum
+import hashlib
 import json
 import logging
 import re
 import secrets
 import sys
-from neuromation.api import Client, JobDescription, JobStatus
+from neuromation.api import Client, JobDescription, JobStatus, ResourceNotFound
 from types import TracebackType
 from typing import Any, AsyncIterator, Dict, Mapping, Optional, Sequence, Tuple, Type
 from typing_extensions import Final
@@ -15,8 +18,9 @@ from yarl import URL
 
 from neuro_flow.types import LocalPath
 
-from .context import DepCtx
-from .types import FullID, TaskStatus
+from . import ast
+from .context import ActionContext, BaseContext, DepCtx, TaskContext
+from .types import FullID, RemotePath, TaskStatus
 
 
 if sys.version_info < (3, 7):
@@ -234,6 +238,29 @@ class BatchStorage(abc.ABC):
         task_no: int,
         task_id: FullID,
     ) -> SkippedTask:
+        pass
+
+    @abc.abstractmethod
+    async def check_cache(
+        self,
+        attempt: Attempt,
+        task_no: int,
+        task_id: FullID,
+        ctx: TaskContext,
+    ) -> Optional[FinishedTask]:
+        pass
+
+    @abc.abstractmethod
+    async def write_cache(
+        self,
+        attempt: Attempt,
+        ctx: TaskContext,
+        ft: FinishedTask,
+    ) -> None:
+        pass
+
+    @abc.abstractmethod
+    async def clear_cache(self, project: str, batch: Optional[str] = None) -> None:
         pass
 
 
@@ -625,16 +652,100 @@ class BatchFSStorage(BatchStorage):
             when=datetime.datetime.now(datetime.timezone.utc),
         )
 
-        # add a record that the skipped task was started to keep the invariant:
-        # every finished task should have a starting record
-        await self.start_batch_action(attempt, task_no, task_id)
-
         data = {
             "id": ".".join(ret.id),
             "when": ret.when.isoformat(timespec="seconds"),
         }
         await self._write_json(attempt_url / f"{pre}.{data['id']}.skipped.json", data)
         return ret
+
+    async def check_cache(
+        self,
+        attempt: Attempt,
+        task_no: int,
+        task_id: FullID,
+        ctx: TaskContext,
+    ) -> Optional[FinishedTask]:
+        cache_strategy = ctx.cache.strategy
+        if cache_strategy == ast.CacheStrategy.NONE:
+            return None
+        assert cache_strategy == ast.CacheStrategy.DEFAULT
+
+        url = _mk_cache_uri(attempt, task_id)
+
+        try:
+            data = await self._read_json(url)
+        except ValueError:
+            # not found
+            return None
+        ctx_digest = _hash(ctx)
+
+        try:
+            when = datetime.datetime.fromisoformat(data["when"])
+            now = datetime.datetime.now(datetime.timezone.utc)
+            eol = when + datetime.timedelta(ctx.cache.life_span)
+            if eol < now:
+                return None
+            if data["digest"] != ctx_digest:
+                return None
+            ret = FinishedTask(
+                attempt=attempt,
+                id=task_id,
+                raw_id=data["raw_id"],
+                when=datetime.datetime.fromisoformat(data["when"]),
+                status=JobStatus(data["status"]),
+                exit_code=data["exit_code"],
+                created_at=datetime.datetime.fromisoformat(data["created_at"]),
+                started_at=datetime.datetime.fromisoformat(data["started_at"]),
+                finished_at=datetime.datetime.fromisoformat(data["finished_at"]),
+                finish_reason=data["finish_reason"],
+                finish_description=data["finish_description"],
+                outputs=data["outputs"],
+            )
+            await self._write_finish(attempt, task_no, ret)
+            return ret
+        except (KeyError, ValueError, TypeError):
+            # something is wrong with stored JSON,
+            # e.g. the structure doesn't match the expected schema
+            return None
+
+    async def write_cache(
+        self,
+        attempt: Attempt,
+        ctx: TaskContext,
+        ft: FinishedTask,
+    ) -> None:
+        cache_strategy = ctx.cache.strategy
+        if cache_strategy == ast.CacheStrategy.NONE:
+            return
+        if ft.status != JobStatus.SUCCEEDED:
+            return
+
+        ctx_digest = _hash(ctx)
+        url = _mk_cache_uri(attempt, ft.id)
+        assert ft.raw_id is not None, (ft.id, ft.raw_id)
+
+        data = {
+            "when": ft.when.isoformat(timespec="seconds"),
+            "digest": ctx_digest,
+            "raw_id": ft.raw_id,
+            "status": ft.status.value,
+            "exit_code": ft.exit_code,
+            "created_at": ft.created_at.isoformat(timespec="seconds"),
+            "started_at": ft.started_at.isoformat(timespec="seconds"),
+            "finished_at": ft.finished_at.isoformat(timespec="seconds"),
+            "finish_reason": ft.finish_reason,
+            "finish_description": ft.finish_description,
+            "outputs": ft.outputs,
+        }
+        try:
+            await self._write_json(url, data, overwrite=True)
+        except ResourceNotFound:
+            await self._client.storage.mkdir(url.parent, parents=True)
+            await self._write_json(url, data, overwrite=True)
+
+    async def clear_cache(self, project: str, batch: Optional[str] = None) -> None:
+        await self._client.storage.rm(_mk_cache_uri2(project, batch), recursive=True)
 
     async def _read_file(self, url: URL) -> str:
         ret = []
@@ -646,25 +757,30 @@ class BatchFSStorage(BatchStorage):
         data = await self._read_file(url)
         return json.loads(data)
 
-    async def _write_file(self, url: URL, body: str) -> None:
+    async def _write_file(
+        self, url: URL, body: str, *, overwrite: bool = False
+    ) -> None:
         # TODO: Prevent overriding the target on the storage.
         #
         # It might require platform_storage_api change.
         #
         # There is no clean understanding if the storage can support this strong
         # guarantee at all.
-        files = set()
-        async for fi in self._client.storage.ls(url.parent):
-            files.add(fi.name)
-        if url.name in files:
-            raise ValueError(f"File {url} already exists")
+        if not overwrite:
+            files = set()
+            async for fi in self._client.storage.ls(url.parent):
+                files.add(fi.name)
+            if url.name in files:
+                raise ValueError(f"File {url} already exists")
         await self._client.storage.create(url, body.encode("utf-8"))
 
-    async def _write_json(self, url: URL, data: Dict[str, Any]) -> None:
+    async def _write_json(
+        self, url: URL, data: Dict[str, Any], *, overwrite: bool = False
+    ) -> None:
         if not data.get("when"):
             data["when"] = _dt2str(_now())
 
-        await self._write_file(url, json.dumps(data))
+        await self._write_file(url, json.dumps(data), overwrite=overwrite)
 
 
 def _now() -> datetime.datetime:
@@ -729,3 +845,57 @@ def _attempt_from_json(
         number=init_data["number"],
         result=result,
     )
+
+
+def _mk_cache_uri(attempt: Attempt, task_id: FullID) -> URL:
+    return _mk_cache_uri2(attempt.bake.project, attempt.bake.batch) / (
+        ".".join(task_id) + ".json"
+    )
+
+
+def _mk_cache_uri2(project: str, batch: Optional[str]) -> URL:
+    ret = URL("storage:.flow") / project / ".cache"
+    if batch:
+        ret /= batch
+    return ret
+
+
+def _hash(val: Any) -> str:
+    hasher = hashlib.new("sha256")
+    data = json.dumps(val, sort_keys=True, default=_ctx_default)
+    hasher.update(data.encode("utf-8"))
+    return hasher.hexdigest()
+
+
+def _ctx_default(val: Any) -> Any:
+    if isinstance(val, BaseContext):
+        ret: Dict[str, Any] = {
+            "env": val.env,
+            "tags": val.tags,
+        }
+        if isinstance(val, ActionContext):
+            ret.update(
+                {
+                    "inputs": val.inputs,
+                }
+            )
+        elif isinstance(val, TaskContext):
+            ret.update(
+                {
+                    "needs": val.needs,
+                    "matrix": val.matrix,
+                    "strategy": val.strategy,
+                    "task": val.task,
+                }
+            )
+        return ret
+    elif dataclasses.is_dataclass(val):
+        return dataclasses.asdict(val)
+    elif isinstance(val, enum.Enum):
+        return val.value
+    elif isinstance(val, RemotePath):
+        return str(val)
+    elif isinstance(val, collections.abc.Set):
+        return sorted(val)
+    else:
+        raise TypeError(f"Cannot dump {val!r}")

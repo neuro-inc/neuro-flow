@@ -105,7 +105,7 @@ def test_parse_batch_action(assets: LocalPath) -> None:
     action = parse_action(config_file)
     assert action == ast.BatchAction(
         Pos(0, 0, config_file),
-        Pos(25, 0, config_file),
+        Pos(28, 0, config_file),
         kind=ast.ActionKind.BATCH,
         name=SimpleOptStrExpr(
             Pos(0, 0, config_file),
@@ -182,10 +182,18 @@ def test_parse_batch_action(assets: LocalPath) -> None:
                 ),
             },
         ),
+        cache=ast.Cache(
+            Pos(19, 2, config_file),
+            Pos(21, 0, config_file),
+            strategy=ast.CacheStrategy.NONE,
+            life_span=OptLifeSpanExpr(
+                Pos(0, 0, config_file), Pos(0, 0, config_file), "30m"
+            ),
+        ),
         tasks=[
             ast.Task(
-                Pos(19, 2, config_file),
-                Pos(22, 0, config_file),
+                Pos(22, 2, config_file),
+                Pos(25, 0, config_file),
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
@@ -221,8 +229,8 @@ def test_parse_batch_action(assets: LocalPath) -> None:
                 ),
             ),
             ast.Task(
-                Pos(22, 2, config_file),
-                Pos(25, 0, config_file),
+                Pos(25, 2, config_file),
+                Pos(28, 0, config_file),
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
@@ -315,6 +323,7 @@ def test_parse_stateful_action(assets: LocalPath) -> None:
                 value=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
             )
         },
+        cache=None,
         pre=ast.ExecUnit(
             Pos(14, 2, config_file),
             Pos(16, 0, config_file),

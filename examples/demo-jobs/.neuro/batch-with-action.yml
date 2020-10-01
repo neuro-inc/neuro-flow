@@ -19,4 +19,4 @@ tasks:
 
   - image: ubuntu
     bash: |
-      echo "Results: ${{ to_json(needs) }}"
+      echo "Done"

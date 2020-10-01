@@ -32,6 +32,21 @@ class Base:
     _end: Pos
 
 
+class CacheStrategy(enum.Enum):
+    NONE = "none"
+    DEFAULT = "default"
+    INHERIT = "inherit"
+
+
+@dataclass(frozen=True)
+class Cache(Base):
+    # 'default' for root BatchFlowDefaults,
+    # 'inherit' for task definitions and actions
+    strategy: Optional[CacheStrategy] = field(metadata={"allow_none": True})
+    life_span: OptLifeSpanExpr
+    # TODO: maybe add extra key->value mapping for additional cache keys later
+
+
 @dataclass(frozen=True)
 class Project(Base):
     id: SimpleIdExpr
@@ -95,6 +110,7 @@ class Strategy(Base):
     matrix: Matrix
     fail_fast: OptBoolExpr
     max_parallel: OptIntExpr
+    cache: Optional[Cache] = field(metadata={"allow_none": True})
 
 
 @dataclass(frozen=True)
@@ -163,6 +179,7 @@ class FlowDefaults(Base):
 class BatchFlowDefaults(FlowDefaults):
     fail_fast: OptBoolExpr
     max_parallel: OptIntExpr
+    cache: Optional[Cache] = field(metadata={"allow_none": True})
 
 
 @dataclass(frozen=True)
@@ -253,6 +270,7 @@ class BatchActionOutputs(Base):
 @dataclass(frozen=True)
 class BatchAction(BaseAction):
     outputs: Optional[BatchActionOutputs] = field(metadata={"allow_none": True})
+    cache: Optional[Cache] = field(metadata={"allow_none": True})
 
     tasks: Sequence[Task]
 
@@ -260,6 +278,7 @@ class BatchAction(BaseAction):
 @dataclass(frozen=True)
 class StatefulAction(BaseAction):
     outputs: Optional[Mapping[str, Output]] = field(metadata={"allow_none": True})
+    cache: Optional[Cache] = field(metadata={"allow_none": True})
 
     pre: Optional[ExecUnit] = field(metadata={"allow_none": True})
     pre_if: OptBoolExpr
