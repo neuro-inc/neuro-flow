@@ -9,6 +9,7 @@ import json
 import logging
 import re
 import secrets
+import shutil
 import sys
 from abc import abstractmethod
 from neuromation.api import (
@@ -17,8 +18,8 @@ from neuromation.api import (
     FileStatus,
     FileStatusType,
     JobDescription,
-ResourceNotFound,
     JobStatus,
+    ResourceNotFound,
 )
 from types import TracebackType
 from typing import (
@@ -308,6 +309,10 @@ class FileSystem(abc.ABC):
     async def create(self, uri: URL, data: bytes) -> None:
         pass
 
+    @abstractmethod
+    async def rm(self, uri: URL, *, recursive: bool = False) -> None:
+        pass
+
 
 class LocalFS(FileSystem):
     def __init__(self, path: LocalPath):
@@ -363,6 +368,13 @@ class LocalFS(FileSystem):
         path = self._to_path(uri)
         path.write_bytes(data)
 
+    async def rm(self, uri: URL, *, recursive: bool = False) -> None:
+        path = self._to_path(uri)
+        if recursive:
+            shutil.rmtree(path)
+        else:
+            path.unlink()
+
 
 class NeuroStorageFS(FileSystem):
     root = URL("storage:.flow")
@@ -386,6 +398,9 @@ class NeuroStorageFS(FileSystem):
 
     async def create(self, uri: URL, data: bytes) -> None:
         await self._client.storage.create(uri, data)
+
+    async def rm(self, uri: URL, *, recursive: bool = False) -> None:
+        await self._client.storage.rm(uri, recursive=recursive)
 
 
 class BatchFSStorage(BatchStorage):
@@ -866,11 +881,11 @@ class BatchFSStorage(BatchStorage):
         try:
             await self._write_json(url, data, overwrite=True)
         except ResourceNotFound:
-            await self._client.storage.mkdir(url.parent, parents=True)
+            await self._fs.mkdir(url.parent, parents=True)
             await self._write_json(url, data, overwrite=True)
 
     async def clear_cache(self, project: str, batch: Optional[str] = None) -> None:
-        await self._client.storage.rm(_mk_cache_uri2(project, batch), recursive=True)
+        await self._fs.rm(_mk_cache_uri2(project, batch), recursive=True)
 
     async def _read_file(self, url: URL) -> str:
         ret = []

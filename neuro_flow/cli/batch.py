@@ -173,7 +173,9 @@ async def clear_cache(config_dir: ConfigDir, batch: str) -> None:
     """
     async with AsyncExitStack() as stack:
         client = await stack.enter_async_context(api_get())
-        storage: BatchStorage = await stack.enter_async_context(BatchFSStorage(client))
+        storage: BatchStorage = await stack.enter_async_context(
+            BatchFSStorage(NeuroStorageFS(client))
+        )
         runner = await stack.enter_async_context(
             BatchRunner(config_dir, client, storage)
         )
