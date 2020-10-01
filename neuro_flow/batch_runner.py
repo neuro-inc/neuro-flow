@@ -327,8 +327,6 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             output = batch_name + ".gv"
         dot = Digraph(batch_name, filename=str(output), strict=True, engine="dot")
         dot.attr(compound="true")
-        dot.attr(overlap_shrink="prism")
-        dot.attr(overlap_shrink="true")
 
         await self._subgraph(dot, ctx, {})
         click.echo(f"Saving file {dot.filename}")
