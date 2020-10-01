@@ -4,7 +4,12 @@ from neuromation.api import get as api_get
 
 from neuro_flow.batch_executor import ExecutorData
 from neuro_flow.batch_runner import BatchRunner
-from neuro_flow.cli.click_types import BAKE, BATCH, FINISHED_TASK_AFTER_BAKE
+from neuro_flow.cli.click_types import (
+    BAKE,
+    BATCH,
+    BATCH_OR_ALL,
+    FINISHED_TASK_AFTER_BAKE,
+)
 from neuro_flow.cli.utils import argument, option, wrap_async
 from neuro_flow.parser import ConfigDir
 from neuro_flow.storage import BatchFSStorage, BatchStorage, NeuroStorageFS
@@ -162,7 +167,7 @@ async def cancel(config_dir: ConfigDir, bake_id: str, attempt: int) -> None:
 
 
 @click.command()
-@argument("batch", type=BATCH)
+@argument("batch", type=BATCH_OR_ALL)
 @wrap_async()
 async def clear_cache(config_dir: ConfigDir, batch: str) -> None:
     """Clear cache.
