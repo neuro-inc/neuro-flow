@@ -345,7 +345,7 @@ async def test_enable_cancels_depending_tasks(
     assets: Path,
     run_executor: Callable[[Path, str], Awaitable[None]],
 ) -> None:
-    await asyncio.wait_for(run_executor(assets, "batch-first-disabled"), timeout=0.5)
+    await asyncio.wait_for(run_executor(assets, "batch-first-disabled"), timeout=1)
 
 
 async def test_disabled_task_is_not_required(
