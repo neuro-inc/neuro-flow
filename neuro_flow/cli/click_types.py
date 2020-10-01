@@ -9,7 +9,7 @@ from typing import Callable, Generic, List, Optional, Sequence, Tuple, TypeVar, 
 from neuro_flow.batch_runner import BatchRunner
 from neuro_flow.live_runner import LiveRunner
 from neuro_flow.parser import ConfigDir, find_live_config
-from neuro_flow.storage import BatchFSStorage, BatchStorage
+from neuro_flow.storage import BatchFSStorage, BatchStorage, NeuroStorageFS
 
 
 _T = TypeVar("_T")
@@ -247,7 +247,7 @@ class BakeType(AsyncType[str]):
         async with AsyncExitStack() as stack:
             client = await stack.enter_async_context(api_get())
             storage: BatchStorage = await stack.enter_async_context(
-                BatchFSStorage(client)
+                BatchFSStorage(NeuroStorageFS(client))
             )
             runner: BatchRunner = await stack.enter_async_context(
                 BatchRunner(config_dir, client, storage)
@@ -303,7 +303,7 @@ class BakeTaskType(AsyncType[str]):
         async with AsyncExitStack() as stack:
             client = await stack.enter_async_context(api_get())
             storage: BatchStorage = await stack.enter_async_context(
-                BatchFSStorage(client)
+                BatchFSStorage(NeuroStorageFS(client))
             )
             runner: BatchRunner = await stack.enter_async_context(
                 BatchRunner(config_dir, client, storage)
