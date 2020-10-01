@@ -1,0 +1,16 @@
+kind: batch
+tasks:
+  - id: task_1
+    image: ubuntu
+    bash: echo 1
+  - id: task_2
+    enable: false
+    image: ubuntu
+    bash: echo 2
+  - id: task_3
+    needs: [task_1]
+    image: ubuntu
+    bash: echo 3
+  - id: task_4
+    image: ubuntu
+    bash: echo 4

@@ -9,7 +9,7 @@ from typing import Callable, Generic, List, Optional, Sequence, Tuple, TypeVar, 
 from neuro_flow.batch_runner import BatchRunner
 from neuro_flow.live_runner import LiveRunner
 from neuro_flow.parser import ConfigDir, find_live_config
-from neuro_flow.storage import BatchFSStorage, BatchStorage
+from neuro_flow.storage import BatchFSStorage, BatchStorage, NeuroStorageFS
 
 
 _T = TypeVar("_T")
@@ -196,6 +196,9 @@ LIVE_VOLUME_OR_ALL = LiveVolumeType(allow_all=True)
 class BatchType(AsyncType[str]):
     name = "batch"
 
+    def __init__(self, allow_all: bool = False):
+        self._allow_all = allow_all
+
     async def async_convert(
         self,
         config_dir: ConfigDir,
@@ -218,10 +221,13 @@ class BatchType(AsyncType[str]):
             # broken yaml files
             if "batch" in file.read_text():
                 variants.append(file.stem)
+        if self._allow_all:
+            variants += ["ALL"]
         return [(batch, None) for batch in variants if batch.startswith(incomplete)]
 
 
-BATCH = BatchType()
+BATCH = BatchType(allow_all=False)
+BATCH_OR_ALL = BatchType(allow_all=True)
 
 
 class BakeType(AsyncType[str]):
@@ -247,7 +253,7 @@ class BakeType(AsyncType[str]):
         async with AsyncExitStack() as stack:
             client = await stack.enter_async_context(api_get())
             storage: BatchStorage = await stack.enter_async_context(
-                BatchFSStorage(client)
+                BatchFSStorage(NeuroStorageFS(client))
             )
             runner: BatchRunner = await stack.enter_async_context(
                 BatchRunner(config_dir, client, storage)
@@ -303,7 +309,7 @@ class BakeTaskType(AsyncType[str]):
         async with AsyncExitStack() as stack:
             client = await stack.enter_async_context(api_get())
             storage: BatchStorage = await stack.enter_async_context(
-                BatchFSStorage(client)
+                BatchFSStorage(NeuroStorageFS(client))
             )
             runner: BatchRunner = await stack.enter_async_context(
                 BatchRunner(config_dir, client, storage)

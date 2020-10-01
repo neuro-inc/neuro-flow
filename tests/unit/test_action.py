@@ -163,7 +163,7 @@ def test_parse_batch_action(assets: LocalPath) -> None:
                     value=OptStrExpr(
                         Pos(0, 0, config_file),
                         Pos(0, 0, config_file),
-                        "${{ task_1.task1 }}",
+                        "${{ needs.task_1.outputs.task1 }}",
                     ),
                 ),
                 "res2": ast.Output(
@@ -177,7 +177,7 @@ def test_parse_batch_action(assets: LocalPath) -> None:
                     value=OptStrExpr(
                         Pos(0, 0, config_file),
                         Pos(0, 0, config_file),
-                        "${{ task_2.task2 }}",
+                        "${{ needs.task_2.outputs.task2 }}",
                     ),
                 ),
             },

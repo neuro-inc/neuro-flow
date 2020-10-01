@@ -58,7 +58,11 @@ class ExecutorData:
 
 class BatchExecutor:
     def __init__(
-        self, executor_data: ExecutorData, client: Client, storage: BatchStorage
+        self,
+        executor_data: ExecutorData,
+        client: Client,
+        storage: BatchStorage,
+        polling_timeout: float = 1,
     ) -> None:
         self._executor_data = executor_data
         self._client = client
@@ -71,14 +75,19 @@ class BatchExecutor:
         self._finished: Dict[FullID, FinishedTask] = {}
         self._skipped: Dict[FullID, SkippedTask] = {}
 
+        # Not about default value:
+        # AS: I have no idea what timeout is better;
+        # too short value bombards servers,
+        # too long timeout makes the waiting longer than expected
+        # The missing events subsystem would be great for this task :)
+        self._polling_timeout = polling_timeout
+
     async def run(self) -> None:
         with tempfile.TemporaryDirectory(prefix="bake") as tmp:
             root_dir = LocalPath(tmp)
             click.echo(f"Root dir {root_dir}")
             workspace = root_dir / self._executor_data.project
             workspace.mkdir()
-            config_dir = workspace / ".neuro"
-            config_dir.mkdir()
 
             click.echo("Fetch bake init")
             bake = await self._storage.fetch_bake(
@@ -95,7 +104,7 @@ class BatchExecutor:
                 file.write_text(config.content)
 
             click.echo("Parse baked config")
-            config_file = config_dir / bake.config_name
+            config_file = workspace / bake.config_path
             flow = parse_batch(workspace, config_file)
             assert isinstance(flow, ast.BatchFlow)
 
@@ -147,11 +156,7 @@ class BatchExecutor:
                     )
                     return
 
-                # AS: I have no idea what timeout is better;
-                # too short value bombards servers,
-                # too long timeout makes the waiting longer than expected
-                # The missing events subsystem would be great for this task :)
-                await asyncio.sleep(1)
+                await asyncio.sleep(self._polling_timeout)
 
             attempt_status = self._accumulate_result()
             str_attempt_status = fmt_status(attempt_status)
@@ -166,7 +171,7 @@ class BatchExecutor:
                 killed.append(st.id)
         while any(k_id not in self._finished for k_id in killed):
             await self._process_started(attempt)
-            await asyncio.sleep(1)  # Check comment about delay above
+            await asyncio.sleep(self._polling_timeout)
         # All jobs stopped, mark as canceled started actions
         for st in self._started.values():
             if st.id not in self._finished:
@@ -381,7 +386,6 @@ class BatchExecutor:
             tpu_software_version=preset.tpu_software_version,
         )
         volumes_parsed = self._client.parse.volumes(task.volumes)
-        volumes, secret_files = volumes_parsed.volumes, volumes_parsed.secret_files
 
         http_auth = task.http_auth
         if http_auth is None:
@@ -394,9 +398,10 @@ class BatchExecutor:
             http=HTTPPort(task.http_port, http_auth) if task.http_port else None,
             resources=resources,
             env=env_dict,
-            volumes=list(volumes),
             secret_env=secret_env_dict,
-            secret_files=list(secret_files),
+            volumes=list(volumes_parsed.volumes),
+            secret_files=list(volumes_parsed.secret_files),
+            disk_volumes=list(volumes_parsed.disk_volumes),
             tty=False,
         )
         job = await self._client.jobs.run(

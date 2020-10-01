@@ -1,0 +1,11 @@
+kind: batch
+tasks:
+  - strategy:
+      matrix:
+        one: [o1, o2]
+        two: [t1, t2]
+        include:
+          - one: o3
+            two: t3
+    image: ubuntu
+    cmd: echo ${{matrix.one}}-${{matrix.two}}
