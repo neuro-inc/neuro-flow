@@ -6,5 +6,5 @@ humanize==3.0.0
 backports-datetime-fromisoformat==1.0.0; python_version<"3.7"
 async_exit_stack==1.0.1; python_version<"3.7"
 neuromation==20.9.24
-neuro-extras==20.9.25
+neuro-extras==20.9.30.2
 -e .
