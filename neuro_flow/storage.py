@@ -68,7 +68,7 @@ class Bake:
     batch: str
     when: datetime.datetime
     suffix: str
-    config_name: str
+    config_path: str
     configs_files: Sequence[LocalPath]
 
     def __str__(self) -> str:
@@ -159,7 +159,7 @@ class BatchStorage(abc.ABC):
             batch="batch",
             when=datetime.datetime.now(),
             suffix="suffix",
-            config_name="config_name",
+            config_path="config_path",
             configs_files=[],
         )
         yield bake
@@ -169,7 +169,7 @@ class BatchStorage(abc.ABC):
         self,
         project: str,
         batch: str,
-        config_name: str,
+        config_path: str,
         configs: Sequence[ConfigFile],
     ) -> Bake:
         pass
@@ -444,7 +444,7 @@ class BatchFSStorage(BatchStorage):
         self,
         project: str,
         batch: str,
-        config_name: str,
+        config_path: str,
         configs: Sequence[ConfigFile],
     ) -> Bake:
         when = _now()
@@ -453,7 +453,7 @@ class BatchFSStorage(BatchStorage):
             batch=batch,
             when=when,
             suffix=secrets.token_hex(3),
-            config_name=config_name,
+            config_path=config_path,
             configs_files=[config.path for config in configs],
         )
         bake_uri = _mk_bake_uri(self._fs, bake)
@@ -929,7 +929,7 @@ def _bake_to_json(bake: Bake) -> Dict[str, Any]:
         "batch": bake.batch,
         "when": _dt2str(bake.when),
         "suffix": bake.suffix,
-        "config_name": bake.config_name,
+        "config_path": bake.config_path,
         "config_files": [str(path) for path in bake.configs_files],
     }
 
@@ -940,7 +940,7 @@ def _bake_from_json(data: Dict[str, Any]) -> Bake:
         batch=data["batch"],
         when=datetime.datetime.fromisoformat(data["when"]),
         suffix=data["suffix"],
-        config_name=data["config_name"],
+        config_path=data["config_path"],
         configs_files=[LocalPath(path) for path in data["config_files"]],
     )
 
