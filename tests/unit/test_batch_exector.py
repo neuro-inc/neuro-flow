@@ -168,9 +168,8 @@ def setup_exc_data(
             config_dir=config_loc,
         )
         # BatchRunner should not use client in this case
-        return await BatchRunner(
-            config_dir, cast(Client, None), batch_storage
-        )._setup_exc_data(batch_name)
+        async with BatchRunner(config_dir, cast(Client, None), batch_storage) as runner:
+            return await runner._setup_exc_data(batch_name)
 
     return _prepare
 
@@ -184,7 +183,8 @@ def cancel_batch(
             workspace=config_loc,
             config_dir=config_loc,
         )
-        await BatchRunner(config_dir, cast(Client, None), batch_storage).cancel(bake_id)
+        async with BatchRunner(config_dir, cast(Client, None), batch_storage) as runner:
+            await runner.cancel(bake_id)
 
     return _prepare
 

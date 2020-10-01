@@ -206,7 +206,7 @@ class BatchExecutor:
         ready.extend(topo.get_ready())
 
         for full_id in ready:
-            if full_id in self._started or full_id in self._skipped:
+            if full_id in self._started:
                 continue
             if full_id in self._finished:
                 continue

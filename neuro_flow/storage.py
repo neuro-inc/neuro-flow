@@ -366,6 +366,7 @@ class LocalFS(FileSystem):
 
     async def create(self, uri: URL, data: bytes) -> None:
         path = self._to_path(uri)
+        path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(data)
 
     async def rm(self, uri: URL, *, recursive: bool = False) -> None:
@@ -811,7 +812,7 @@ class BatchFSStorage(BatchStorage):
             return None
         assert cache_strategy == ast.CacheStrategy.DEFAULT
 
-        url = _mk_cache_uri(attempt, task_id)
+        url = _mk_cache_uri(self._fs, attempt, task_id)
 
         try:
             data = await self._read_json(url)
@@ -862,7 +863,7 @@ class BatchFSStorage(BatchStorage):
             return
 
         ctx_digest = _hash(ctx)
-        url = _mk_cache_uri(attempt, ft.id)
+        url = _mk_cache_uri(self._fs, attempt, ft.id)
         assert ft.raw_id is not None, (ft.id, ft.raw_id)
 
         data = {
@@ -885,7 +886,7 @@ class BatchFSStorage(BatchStorage):
             await self._write_json(url, data, overwrite=True)
 
     async def clear_cache(self, project: str, batch: Optional[str] = None) -> None:
-        await self._fs.rm(_mk_cache_uri2(project, batch), recursive=True)
+        await self._fs.rm(_mk_cache_uri2(self._fs, project, batch), recursive=True)
 
     async def _read_file(self, url: URL) -> str:
         ret = []
@@ -987,14 +988,14 @@ def _attempt_from_json(
     )
 
 
-def _mk_cache_uri(attempt: Attempt, task_id: FullID) -> URL:
-    return _mk_cache_uri2(attempt.bake.project, attempt.bake.batch) / (
+def _mk_cache_uri(fs: FileSystem, attempt: Attempt, task_id: FullID) -> URL:
+    return _mk_cache_uri2(fs, attempt.bake.project, attempt.bake.batch) / (
         ".".join(task_id) + ".json"
     )
 
 
-def _mk_cache_uri2(project: str, batch: Optional[str]) -> URL:
-    ret = URL("storage:.flow") / project / ".cache"
+def _mk_cache_uri2(fs: FileSystem, project: str, batch: Optional[str]) -> URL:
+    ret = fs.root / project / ".cache"
     if batch:
         ret /= batch
     return ret
