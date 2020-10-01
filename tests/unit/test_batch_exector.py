@@ -243,7 +243,7 @@ async def test_simple_batch_ok(
     assets: Path,
     run_executor: Callable[[Path, str], Awaitable[None]],
 ) -> None:
-    executor_task = asyncio.create_task(run_executor(assets, "batch-seq"))
+    executor_task = asyncio.ensure_future(run_executor(assets, "batch-seq"))
     task_descr = await jobs_mock.get_task("task-1")
     assert task_descr.container.image.name == "ubuntu"
     assert task_descr.container.command
@@ -263,7 +263,7 @@ async def test_batch_with_action_ok(
     assets: Path,
     run_executor: Callable[[Path, str], Awaitable[None]],
 ) -> None:
-    executor_task = asyncio.create_task(run_executor(assets, "batch-action-call"))
+    executor_task = asyncio.ensure_future(run_executor(assets, "batch-action-call"))
     await jobs_mock.get_task("test.task-1")
     await jobs_mock.mark_done(
         "test.task-1", "::set-output name=task1::Task 1 val 1".encode()
@@ -295,7 +295,7 @@ async def test_batch_matrix(
     batch_name: str,
     vars: List[Tuple[str, str]],
 ) -> None:
-    executor_task = asyncio.create_task(run_executor(assets, batch_name))
+    executor_task = asyncio.ensure_future(run_executor(assets, batch_name))
     for var_1, var_2 in vars:
         descr = await jobs_mock.get_task(f"task-1-{var_1}-{var_2}")
         assert descr.container.command
@@ -329,7 +329,7 @@ async def test_batch_matrix_max_parallel(
     max_parallel: int,
     vars: List[Tuple[str, str]],
 ) -> None:
-    executor_task = asyncio.create_task(run_executor(assets, batch_name))
+    executor_task = asyncio.ensure_future(run_executor(assets, batch_name))
     done, pending = await asyncio.wait(
         [jobs_mock.get_task(f"task-1-{var_1}-{var_2}") for var_1, var_2 in vars],
         return_when=asyncio.ALL_COMPLETED,
@@ -353,7 +353,7 @@ async def test_disabled_task_is_not_required(
     assets: Path,
     run_executor: Callable[[Path, str], Awaitable[None]],
 ) -> None:
-    executor_task = asyncio.create_task(
+    executor_task = asyncio.ensure_future(
         run_executor(assets, "batch-disabled-not-needed")
     )
 
@@ -372,7 +372,7 @@ async def test_cancellation(
     cancel_batch: Callable[[Path, str], Awaitable[ExecutorData]],
 ) -> None:
     data = await setup_exc_data(assets, "batch-seq")
-    executor_task = asyncio.create_task(start_executor(data))
+    executor_task = asyncio.ensure_future(start_executor(data))
     await jobs_mock.mark_done("task-1")
     descr = await jobs_mock.get_task("task-2")
     assert descr.status == JobStatus.PENDING
