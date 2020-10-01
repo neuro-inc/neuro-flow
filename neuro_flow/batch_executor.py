@@ -386,7 +386,6 @@ class BatchExecutor:
             tpu_software_version=preset.tpu_software_version,
         )
         volumes_parsed = self._client.parse.volumes(task.volumes)
-        volumes, secret_files = volumes_parsed.volumes, volumes_parsed.secret_files
 
         http_auth = task.http_auth
         if http_auth is None:
@@ -399,9 +398,10 @@ class BatchExecutor:
             http=HTTPPort(task.http_port, http_auth) if task.http_port else None,
             resources=resources,
             env=env_dict,
-            volumes=list(volumes),
             secret_env=secret_env_dict,
-            secret_files=list(secret_files),
+            volumes=list(volumes_parsed.volumes),
+            secret_files=list(volumes_parsed.secret_files),
+            disk_volumes=list(volumes_parsed.disk_volumes),
             tty=False,
         )
         job = await self._client.jobs.run(
