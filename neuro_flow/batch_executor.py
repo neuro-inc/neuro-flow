@@ -96,10 +96,10 @@ class BatchExecutor:
 
             click.echo("Parse baked config")
             config_file = config_dir / bake.config_name
-            flow, digest = parse_batch(workspace, config_file)
+            flow = parse_batch(workspace, config_file)
             assert isinstance(flow, ast.BatchFlow)
 
-            top_ctx = await BatchContext.create(flow, digest, workspace, config_file)
+            top_ctx = await BatchContext.create(flow, workspace, config_file)
 
             click.echo("Find last attempt")
             attempt = await self._storage.find_attempt(bake)
@@ -223,22 +223,13 @@ class BatchExecutor:
 
             if await ctx.is_action(tid):
                 action_ctx = await ctx.with_action(tid, needs=needs)
-                ft = await self._storage.check_cache(
-                    attempt, self._next_task_no(), full_id, action_ctx
+                st = await self._storage.start_batch_action(
+                    attempt, self._next_task_no(), full_id
                 )
-                if ft is not None:
-                    str_cached = click.style("cached", fg="magenta")
-                    click.echo(f"Action {fmt_id(ft.id)} is {str_cached}")
-                    assert ft.status == JobStatus.SUCCEEDED
-                    await self._mark_finished(attempt, ft)
-                else:
-                    st = await self._storage.start_batch_action(
-                        attempt, self._next_task_no(), full_id
-                    )
-                    str_started = click.style("started", fg="cyan")
-                    click.echo(f"Action {fmt_id(st.id)} is {str_started}")
-                    self._started[st.id] = st
-                    yield full_id, action_ctx
+                str_started = click.style("started", fg="cyan")
+                click.echo(f"Action {fmt_id(st.id)} is {str_started}")
+                self._started[st.id] = st
+                yield full_id, action_ctx
             else:
                 task_ctx = await ctx.with_task(tid, needs=needs)
                 ft = await self._storage.check_cache(
@@ -305,7 +296,6 @@ class BatchExecutor:
                     outputs,
                 )
                 self._finished[st.id] = ft
-                await self._storage.write_cache(attempt, ctx, ft)
                 str_status = fmt_status(self._finished[st.id].status)
                 click.echo(f"Action {str_full_id} is {str_status}")
                 parent_ctx, parent_topo, parent_ready = self._topos[st.id[:-1]]

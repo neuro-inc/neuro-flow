@@ -45,7 +45,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
     async def __aenter__(self) -> "BatchRunner":
         project_file = self._config_dir.workspace / "project.yml"
         if project_file.exists():
-            pr, digest = parse_project(project_file)
+            pr = parse_project(project_file)
             self._project = await pr.id.eval(EMPTY_ROOT)
         else:
             self._project = self._config_dir.workspace.name
@@ -83,7 +83,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                 action_path = self._parse_action_name(action_name)
                 result += [LocalPath(action_path)]
                 result += await self._collect_subaction_configs(
-                    parse_action(action_path)[0]
+                    parse_action(action_path)
                 )
         return result
 
@@ -111,12 +111,10 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
 
         click.echo("Check config... ", nl=False)
         # Check that the yaml is parseable
-        flow, digest = parse_batch(self._config_dir.workspace, config_file)
+        flow = parse_batch(self._config_dir.workspace, config_file)
         assert isinstance(flow, ast.BatchFlow)
 
-        ctx = await BatchContext.create(
-            flow, digest, self._config_dir.workspace, config_file
-        )
+        ctx = await BatchContext.create(flow, self._config_dir.workspace, config_file)
         for volume in ctx.volumes.values():
             if volume.local is not None:
                 # TODO: sync volumes if needed

@@ -9,12 +9,9 @@ import dataclasses
 
 import abc
 import enum
-import hashlib
-import io
 import yaml
 from typing import (
     Any,
-    BinaryIO,
     Callable,
     Dict,
     Generic,
@@ -22,7 +19,7 @@ from typing import (
     Mapping,
     Optional,
     Sequence,
-    Tuple,
+    TextIO,
     Type,
     TypeVar,
     Union,
@@ -31,7 +28,7 @@ from typing import (
 from yaml.composer import Composer
 from yaml.constructor import ConstructorError, SafeConstructor
 from yaml.parser import Parser
-from yaml.reader import Reader as BaseReader
+from yaml.reader import Reader
 from yaml.resolver import Resolver as BaseResolver
 from yaml.scanner import Scanner
 
@@ -60,7 +57,7 @@ from .expr import (
     URIExpr,
 )
 from .tokenizer import Pos
-from .types import Digest, LocalPath
+from .types import LocalPath
 
 
 _T = TypeVar("_T")
@@ -77,29 +74,6 @@ class ConfigDir:
 class ConfigPath:
     workspace: LocalPath
     config_file: LocalPath
-
-
-class Reader(BaseReader):
-    _hasher: Any  # hashlib._Hash is a private name
-
-    def __init__(self, stream: BinaryIO) -> None:
-        # parser doesn't accept str/bytes input
-        # Use io.BytesIO if you need to pass in-memory bytes object
-        assert isinstance(stream, io.BufferedIOBase)
-        self._hasher = hashlib.new("sha256")
-        BaseReader.__init__(self, stream)
-
-    def hexdigest(self) -> Digest:
-        return Digest(self._hasher.hexdigest())
-
-    def update_raw(self, size: int = 1024) -> None:
-        if self.raw_buffer:
-            prev_size = len(self.raw_buffer)
-        else:
-            prev_size = 0
-        super().update_raw(size)  # type: ignore[no-untyped-call]
-        new_size = len(self.raw_buffer)
-        self._hasher.update(self.raw_buffer[prev_size:new_size])
 
 
 class BaseConstructor(SafeConstructor):
@@ -382,7 +356,7 @@ def parse_cache(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Cache:
 
 
 class ProjectLoader(Reader, Scanner, Parser, Composer, BaseConstructor, BaseResolver):
-    def __init__(self, stream: BinaryIO) -> None:
+    def __init__(self, stream: TextIO) -> None:
         Reader.__init__(self, stream)
         Scanner.__init__(self)
         Parser.__init__(self)
@@ -410,31 +384,28 @@ ProjectLoader.add_constructor("project:main", parse_project_main)  # type: ignor
 
 def parse_project(
     workspace: LocalPath, *, filename: str = "project.yml"
-) -> Tuple[ast.Project, Digest]:
+) -> ast.Project:
     # Parse project config file
     ret: ast.Project
     config_file = workspace / filename
     try:
-        with config_file.open("rb") as f:
+        with config_file.open() as f:
             loader = ProjectLoader(f)
             try:
                 ret = loader.get_single_data()  # type: ignore[no-untyped-call]
                 assert isinstance(ret, ast.Project)
-                return (ret, loader.hexdigest())
+                return ret
             finally:
                 loader.dispose()  # type: ignore[no-untyped-call]
     except FileNotFoundError:
-        return (
-            ast.Project(
-                _start=Pos(0, 0, LocalPath("<default>")),
-                _end=Pos(0, 0, LocalPath("<default>")),
-                id=SimpleIdExpr(
-                    Pos(0, 0, LocalPath("<default>")),
-                    Pos(0, 0, LocalPath("<default>")),
-                    workspace.stem.replace("-", "_"),
-                ),
+        return ast.Project(
+            _start=Pos(0, 0, LocalPath("<default>")),
+            _end=Pos(0, 0, LocalPath("<default>")),
+            id=SimpleIdExpr(
+                Pos(0, 0, LocalPath("<default>")),
+                Pos(0, 0, LocalPath("<default>")),
+                workspace.stem.replace("-", "_"),
             ),
-            Digest(""),
         )
 
 
@@ -442,7 +413,7 @@ def parse_project(
 
 
 class FlowLoader(Reader, Scanner, Parser, Composer, BaseConstructor, BaseResolver):
-    def __init__(self, stream: BinaryIO, *, kind: ast.FlowKind) -> None:
+    def __init__(self, stream: TextIO, *, kind: ast.FlowKind) -> None:
         Reader.__init__(self, stream)
         Scanner.__init__(self)
         Parser.__init__(self)
@@ -891,32 +862,28 @@ FlowLoader.add_path_resolver("flow:main", [])  # type: ignore
 FlowLoader.add_constructor("flow:main", parse_flow_main)  # type: ignore
 
 
-def parse_live(
-    workspace: LocalPath, config_file: LocalPath
-) -> Tuple[ast.LiveFlow, Digest]:
+def parse_live(workspace: LocalPath, config_file: LocalPath) -> ast.LiveFlow:
     # Parse live flow config file
-    with config_file.open("rb") as f:
+    with config_file.open() as f:
         loader = FlowLoader(f, kind=ast.FlowKind.LIVE)
         try:
             ret = loader.get_single_data()  # type: ignore[no-untyped-call]
             assert isinstance(ret, ast.LiveFlow)
             assert ret.kind == ast.FlowKind.LIVE
-            return (ret, loader.hexdigest())
+            return ret
         finally:
             loader.dispose()  # type: ignore[no-untyped-call]
 
 
-def parse_batch(
-    workspace: LocalPath, config_file: LocalPath
-) -> Tuple[ast.BatchFlow, Digest]:
+def parse_batch(workspace: LocalPath, config_file: LocalPath) -> ast.BatchFlow:
     # Parse pipeline flow config file
-    with config_file.open("rb") as f:
+    with config_file.open() as f:
         loader = FlowLoader(f, kind=ast.FlowKind.BATCH)
         try:
             ret = loader.get_single_data()  # type: ignore[no-untyped-call]
             assert isinstance(ret, ast.BatchFlow)
             assert ret.kind == ast.FlowKind.BATCH
-            return (ret, loader.hexdigest())
+            return ret
         finally:
             loader.dispose()  # type: ignore[no-untyped-call]
 
@@ -966,7 +933,7 @@ def find_live_config(workspace: ConfigDir) -> ConfigPath:
 
 
 class ActionLoader(Reader, Scanner, Parser, Composer, BaseConstructor, BaseResolver):
-    def __init__(self, stream: BinaryIO) -> None:
+    def __init__(self, stream: TextIO) -> None:
         Reader.__init__(self, stream)
         Scanner.__init__(self)
         Parser.__init__(self)
@@ -1225,14 +1192,14 @@ ActionLoader.add_path_resolver("action:main", [])  # type: ignore
 ActionLoader.add_constructor("action:main", parse_action_main)  # type: ignore
 
 
-def parse_action(action_file: LocalPath) -> Tuple[ast.BaseAction, str]:
+def parse_action(action_file: LocalPath) -> ast.BaseAction:
     # Parse project config file
     ret: ast.Project
-    with action_file.open("rb") as f:
+    with action_file.open() as f:
         loader = ActionLoader(f)
         try:
             ret = loader.get_single_data()  # type: ignore[no-untyped-call]
             assert isinstance(ret, ast.BaseAction)
-            return (ret, loader.hexdigest())
+            return ret
         finally:
             loader.dispose()  # type: ignore[no-untyped-call]

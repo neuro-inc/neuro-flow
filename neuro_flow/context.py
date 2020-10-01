@@ -23,7 +23,7 @@ from yarl import URL
 from . import ast
 from .expr import EvalError, LiteralT, OptBoolExpr, RootABC, StrExpr, TypeT
 from .parser import parse_action, parse_project
-from .types import Digest, FullID, LocalPath, RemotePath, TaskStatus
+from .types import FullID, LocalPath, RemotePath, TaskStatus
 
 
 # Neuro-flow contexts (variables available during expressions calculation).
@@ -270,7 +270,6 @@ class BaseContext(RootABC):
     )
 
     _workspace: LocalPath
-    _digest: Optional[Digest] = None
     _env: Optional[Mapping[str, str]] = None
     _tags: Optional[AbstractSet[str]] = None
     _defaults: Optional[DefaultsCtx] = None
@@ -293,11 +292,6 @@ class BaseContext(RootABC):
             raise NotAvailable("defaults")
         return self._defaults
 
-    @property
-    def digest(self) -> Digest:
-        assert self._digest is not None
-        return self._digest
-
     def lookup(self, name: str) -> TypeT:
         if name not in self.LOOKUP_KEYS:
             raise NotAvailable(name)
@@ -305,7 +299,7 @@ class BaseContext(RootABC):
         # assert isinstance(ret, (ContainerT, SequenceT, MappingT)), ret
         return cast(TypeT, ret)
 
-    async def fetch_action(self, action_name: str) -> Tuple[ast.BaseAction, str]:
+    async def fetch_action(self, action_name: str) -> ast.BaseAction:
         scheme, sep, spec = action_name.partition(":")
         if not sep:
             raise ValueError(f"{action_name} has no schema")
@@ -344,7 +338,6 @@ class BaseFlowContext(BaseContext):
     async def create(
         cls: Type[_CtxT],
         ast_flow: ast.BaseFlow,
-        flow_digest: Digest,
         workspace: LocalPath,
         config_file: LocalPath,
     ) -> _CtxT:
@@ -354,7 +347,7 @@ class BaseFlowContext(BaseContext):
         if flow_id is None:
             flow_id = config_file.stem.replace("-", "_")
 
-        project, digest = parse_project(workspace)
+        project = parse_project(workspace)
         project_id = await project.id.eval(EMPTY_ROOT)
         flow_title = await ast_flow.title.eval(EMPTY_ROOT)
 
@@ -368,7 +361,6 @@ class BaseFlowContext(BaseContext):
         ctx = cls(
             _ast_flow=ast_flow,
             _flow=flow,
-            _digest=flow_digest,
             _workspace=flow.workspace,
         )
         ctx = await ctx._with_args()
@@ -550,7 +542,7 @@ class LiveContext(BaseFlowContext):
             raise UnknownJob(job_id)
 
         if isinstance(job, ast.JobActionCall):
-            action, digest = await self.fetch_action(await job.action.eval(self))
+            action = await self.fetch_action(await job.action.eval(self))
             if action.kind != ast.ActionKind.LIVE:
                 raise TypeError(
                     f"Invalid action '{action}' "
@@ -916,7 +908,7 @@ class TaskContext(BaseContext):
             raise RuntimeError("Use .with_task() for calling an task-typed task")
 
         assert isinstance(prep_task, PrepBatchCallCtx)
-        action, digest = await self.fetch_action(prep_task.action)
+        action = await self.fetch_action(prep_task.action)
         if action.kind != ast.ActionKind.BATCH:
             raise TypeError(
                 f"Invalid action '{action}' " f"type {action.kind.value} for batch flow"
@@ -1088,13 +1080,11 @@ class BatchContext(TaskContext, BaseFlowContext):
     async def create(
         cls: Type[_CtxT],
         ast_flow: ast.BaseFlow,
-        flow_digest: Digest,
         workspace: LocalPath,
         config_file: LocalPath,
     ) -> _CtxT:
         ctx = await super(cls, BatchContext).create(
             ast_flow,
-            flow_digest,
             workspace,
             config_file,
         )
@@ -1177,7 +1167,7 @@ class ActionContext(BaseContext):
             _workspace=workspace,
             _action=action,
         )
-        ast_action, digest = await ctx.fetch_action(action)
+        ast_action = await ctx.fetch_action(action)
         assert isinstance(ast_action, ast.BaseAction)
 
         return cast(
@@ -1186,7 +1176,6 @@ class ActionContext(BaseContext):
                 ctx,
                 _prefix=prefix,
                 _ast=ast_action,
-                _digest=digest,
                 _inputs=None,
                 _env={},
                 _tags=set(tags),

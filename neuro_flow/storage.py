@@ -681,8 +681,9 @@ class BatchFSStorage(BatchStorage):
         ctx_digest = _hash(ctx)
 
         try:
-            eol = datetime.datetime.fromisoformat(data["eol"])
+            when = datetime.datetime.fromisoformat(data["when"])
             now = datetime.datetime.now(datetime.timezone.utc)
+            eol = when + datetime.timedelta(ctx.cache.life_span)
             if eol < now:
                 return None
             if data["digest"] != ctx_digest:
@@ -721,19 +722,15 @@ class BatchFSStorage(BatchStorage):
             return
 
         ctx_digest = _hash(ctx)
-        cache_life_span = ctx.cache.life_span
         url = _mk_cache_uri(attempt, ft.id)
         assert ft.raw_id is not None, (ft.id, ft.raw_id)
 
         data = {
-            "eol": (ft.when + datetime.timedelta(seconds=cache_life_span)).isoformat(
-                timespec="seconds"
-            ),
+            "when": ft.when.isoformat(timespec="seconds"),
             "digest": ctx_digest,
             "raw_id": ft.raw_id,
             "status": ft.status.value,
             "exit_code": ft.exit_code,
-            "when": ft.when.isoformat(timespec="seconds"),
             "created_at": ft.created_at.isoformat(timespec="seconds"),
             "started_at": ft.started_at.isoformat(timespec="seconds"),
             "finished_at": ft.finished_at.isoformat(timespec="seconds"),
@@ -872,8 +869,6 @@ def _hash(val: Any) -> str:
 
 def _ctx_default(val: Any) -> Any:
     if isinstance(val, BaseContext):
-        assert val.digest
-
         ret: Dict[str, Any] = {
             "env": val.env,
             "tags": val.tags,
@@ -882,7 +877,6 @@ def _ctx_default(val: Any) -> Any:
             ret.update(
                 {
                     "inputs": val.inputs,
-                    "digest": val.digest,
                 }
             )
         elif isinstance(val, TaskContext):
