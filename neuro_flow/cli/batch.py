@@ -94,7 +94,9 @@ async def bakes(config_dir: ConfigDir) -> None:
     help="A path to with Graphviz (DOT) file.",
 )
 @wrap_async()
-async def inspect(config_dir: ConfigDir, bake_id: str, attempt: int, output: Optional[str]) -> None:
+async def inspect(
+    config_dir: ConfigDir, bake_id: str, attempt: int, output: Optional[str]
+) -> None:
     """Inspect a bake.
 
     Display a list of started/finished tasks of BAKE_ID.
