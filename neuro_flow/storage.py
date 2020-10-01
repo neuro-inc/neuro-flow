@@ -877,12 +877,12 @@ def _ctx_default(val: Any) -> Any:
         ret: Dict[str, Any] = {
             "env": val.env,
             "tags": val.tags,
-            "digest": val.digest,
         }
         if isinstance(val, ActionContext):
             ret.update(
                 {
                     "inputs": val.inputs,
+                    "digest": val.digest,
                 }
             )
         elif isinstance(val, TaskContext):
