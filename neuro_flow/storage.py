@@ -315,9 +315,13 @@ class LocalFS(FileSystem):
 
     def _to_path(self, uri: URL) -> LocalPath:
         assert uri.scheme == "file"
-        return LocalPath(uri.path)
+        path = uri.path
+        # ':' is not supported on Windows
+        path = path.replace(":", "-")
+        return LocalPath(path)
 
     def _path_to_fstatus(self, path: LocalPath) -> FileStatus:
+        path = path.resolve()
         if path.is_dir():
             fstype = FileStatusType.DIRECTORY
         elif path.is_file():
