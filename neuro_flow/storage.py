@@ -9,10 +9,30 @@ import json
 import logging
 import re
 import secrets
+import shutil
 import sys
-from neuromation.api import Client, JobDescription, JobStatus, ResourceNotFound
+from abc import abstractmethod
+from neuromation.api import (
+    Action,
+    Client,
+    FileStatus,
+    FileStatusType,
+    JobDescription,
+    JobStatus,
+    ResourceNotFound,
+)
 from types import TracebackType
-from typing import Any, AsyncIterator, Dict, Mapping, Optional, Sequence, Tuple, Type
+from typing import (
+    Any,
+    AsyncIterator,
+    Dict,
+    Mapping,
+    Optional,
+    Sequence,
+    Tuple,
+    Type,
+    cast,
+)
 from typing_extensions import Final
 from yarl import URL
 
@@ -49,7 +69,7 @@ class Bake:
     batch: str
     when: datetime.datetime
     suffix: str
-    config_name: str
+    config_path: str
     configs_files: Sequence[LocalPath]
 
     def __str__(self) -> str:
@@ -140,7 +160,7 @@ class BatchStorage(abc.ABC):
             batch="batch",
             when=datetime.datetime.now(),
             suffix="suffix",
-            config_name="config_name",
+            config_path="config_path",
             configs_files=[],
         )
         yield bake
@@ -150,7 +170,7 @@ class BatchStorage(abc.ABC):
         self,
         project: str,
         batch: str,
-        config_name: str,
+        config_path: str,
         configs: Sequence[ConfigFile],
     ) -> Bake:
         pass
@@ -264,6 +284,126 @@ class BatchStorage(abc.ABC):
         pass
 
 
+class FileSystem(abc.ABC):
+    root: URL
+
+    @abstractmethod
+    async def stat(self, uri: URL) -> FileStatus:
+        pass
+
+    @abstractmethod
+    async def ls(self, uri: URL) -> AsyncIterator[FileStatus]:
+        yield cast(FileStatus, None)  # For type check
+
+    @abstractmethod
+    async def mkdir(
+        self, uri: URL, *, parents: bool = False, exist_ok: bool = False
+    ) -> None:
+        pass
+
+    @abstractmethod
+    async def open(self, uri: URL) -> AsyncIterator[bytes]:
+        yield b""
+
+    @abstractmethod
+    async def create(self, uri: URL, data: bytes) -> None:
+        pass
+
+    @abstractmethod
+    async def rm(self, uri: URL, *, recursive: bool = False) -> None:
+        pass
+
+
+class LocalFS(FileSystem):
+    def __init__(self, path: LocalPath):
+        self.root = URL(path.as_uri())
+
+    def _to_path(self, uri: URL) -> LocalPath:
+        assert uri.scheme == "file"
+        path = uri.path
+        # ':' is not supported on Windows
+        path = path.replace(":", "-")
+        return LocalPath(path)
+
+    def _path_to_fstatus(self, path: LocalPath) -> FileStatus:
+        path = path.resolve()
+        if path.is_dir():
+            fstype = FileStatusType.DIRECTORY
+        elif path.is_file():
+            fstype = FileStatusType.FILE
+        else:
+            raise ValueError(f"The {path} is not either file or directory")
+        stat = path.stat()
+        return FileStatus(
+            path=str(path),
+            size=stat.st_size,
+            type=fstype,
+            modification_time=int(stat.st_mtime),
+            permission=Action.MANAGE,
+            uri=URL(path.as_uri()),
+        )
+
+    async def stat(self, uri: URL) -> FileStatus:
+        return self._path_to_fstatus(self._to_path(uri))
+
+    async def ls(self, uri: URL) -> AsyncIterator[FileStatus]:
+        path = self._to_path(uri)
+        for path in path.iterdir():
+            yield self._path_to_fstatus(path)
+
+    async def mkdir(
+        self, uri: URL, *, parents: bool = False, exist_ok: bool = False
+    ) -> None:
+        path = self._to_path(uri)
+        path.mkdir(parents=parents, exist_ok=exist_ok)
+
+    async def open(self, uri: URL) -> AsyncIterator[bytes]:
+        path = self._to_path(uri)
+        try:
+            yield path.read_bytes()
+        except FileNotFoundError:
+            raise ValueError
+
+    async def create(self, uri: URL, data: bytes) -> None:
+        path = self._to_path(uri)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(data)
+
+    async def rm(self, uri: URL, *, recursive: bool = False) -> None:
+        path = self._to_path(uri)
+        if recursive:
+            shutil.rmtree(path)
+        else:
+            path.unlink()
+
+
+class NeuroStorageFS(FileSystem):
+    root = URL("storage:.flow")
+
+    def __init__(self, client: Client):
+        self._client = client
+
+    async def stat(self, uri: URL) -> FileStatus:
+        return await self._client.storage.stat(uri)
+
+    def ls(self, uri: URL) -> AsyncIterator[FileStatus]:
+        return self._client.storage.ls(uri)
+
+    async def mkdir(
+        self, uri: URL, *, parents: bool = False, exist_ok: bool = False
+    ) -> None:
+        await self._client.storage.mkdir(uri, parents=parents, exist_ok=exist_ok)
+
+    def open(self, uri: URL) -> AsyncIterator[bytes]:
+        return self._client.storage.open(uri)
+
+    async def create(self, uri: URL, data: bytes) -> None:
+        await self._client.storage.create(uri, data)
+
+    async def rm(self, uri: URL, *, recursive: bool = False) -> None:
+        await self._client.storage.rm(uri, recursive=recursive)
+
+
 class BatchFSStorage(BatchStorage):
     # A storage that uses storage:.flow directory as a database
 
@@ -295,22 +435,22 @@ class BatchFSStorage(BatchStorage):
     #         +-- 002.<task_id>.finished.json
     #         +-- 999.result.json
 
-    def __init__(self, client: Client) -> None:
-        self._client = client
+    def __init__(self, fs: FileSystem) -> None:
+        self._fs = fs
 
     async def close(self) -> None:
         pass
 
     async def list_bakes(self, project: str) -> AsyncIterator[Bake]:
-        url = URL(f"storage:.flow") / project
+        url = self._fs.root / project
         try:
-            fs = await self._client.storage.stat(url)
+            fs = await self._fs.stat(url)
             if not fs.is_dir():
                 raise ValueError(f"{url} is not a directory")
         except ValueError:
             raise ValueError(f"Cannot find remote project {url}")
 
-        async for fs in self._client.storage.ls(url):
+        async for fs in self._fs.ls(url):
             name = fs.name
             try:
                 data = await self._read_json(url / name / "00.init.json")
@@ -324,7 +464,7 @@ class BatchFSStorage(BatchStorage):
         self,
         project: str,
         batch: str,
-        config_name: str,
+        config_path: str,
         configs: Sequence[ConfigFile],
     ) -> Bake:
         when = _now()
@@ -333,17 +473,17 @@ class BatchFSStorage(BatchStorage):
             batch=batch,
             when=when,
             suffix=secrets.token_hex(3),
-            config_name=config_name,
+            config_path=config_path,
             configs_files=[config.path for config in configs],
         )
-        bake_uri = _mk_bake_uri(bake)
-        await self._client.storage.mkdir(bake_uri, parents=True)
+        bake_uri = _mk_bake_uri(self._fs, bake)
+        await self._fs.mkdir(bake_uri, parents=True)
 
         # Upload all configs
         configs_dir = bake_uri / "configs"
-        await self._client.storage.mkdir(configs_dir, parents=True)
+        await self._fs.mkdir(configs_dir, parents=True)
         for config in configs:
-            await self._client.storage.mkdir(
+            await self._fs.mkdir(
                 configs_dir / str(config.path.parent),
                 parents=True,
                 exist_ok=True,
@@ -363,17 +503,18 @@ class BatchFSStorage(BatchStorage):
         self, project: str, batch: str, when: datetime.datetime, suffix: str
     ) -> Bake:
         data = await self._read_json(
-            _mk_bake_uri_from_id(project, batch, when, suffix) / "00.init.json"
+            _mk_bake_uri_from_id(self._fs, project, batch, when, suffix)
+            / "00.init.json"
         )
         return _bake_from_json(data)
 
     async def fetch_bake_by_id(self, project: str, bake_id: str) -> Bake:
-        url = URL(f"storage:.flow") / project / bake_id
+        url = self._fs.root / project / bake_id
         data = await self._read_json(url / "00.init.json")
         return _bake_from_json(data)
 
     async def fetch_configs(self, bake: Bake) -> Sequence[ConfigFile]:
-        configs_dir_uri = _mk_bake_uri(bake) / "configs"
+        configs_dir_uri = _mk_bake_uri(self._fs, bake) / "configs"
         return [
             ConfigFile(path, await self._read_file(configs_dir_uri / str(path)))
             for path in bake.configs_files
@@ -381,9 +522,9 @@ class BatchFSStorage(BatchStorage):
 
     async def create_attempt(self, bake: Bake, attempt_no: int) -> Attempt:
         assert 0 < attempt_no < 100, attempt_no
-        bake_uri = _mk_bake_uri(bake)
+        bake_uri = _mk_bake_uri(self._fs, bake)
         attempt_uri = bake_uri / f"{attempt_no:02d}.attempt"
-        await self._client.storage.mkdir(attempt_uri)
+        await self._fs.mkdir(attempt_uri)
         pre = "0".zfill(DIGITS)
         when = _now()
         ret = Attempt(bake=bake, when=when, number=attempt_no, result=JobStatus.PENDING)
@@ -391,10 +532,10 @@ class BatchFSStorage(BatchStorage):
         return ret
 
     async def find_attempt(self, bake: Bake, attempt_no: int = -1) -> Attempt:
-        bake_uri = _mk_bake_uri(bake)
+        bake_uri = _mk_bake_uri(self._fs, bake)
         if attempt_no == -1:
             files = set()
-            async for fi in self._client.storage.ls(bake_uri):
+            async for fi in self._fs.ls(bake_uri):
                 files.add(fi.name)
             for attempt_no in range(99, 0, -1):
                 fname = f"{attempt_no:02d}.attempt"
@@ -422,7 +563,7 @@ class BatchFSStorage(BatchStorage):
         Dict[FullID, FinishedTask],
         Dict[FullID, SkippedTask],
     ]:
-        bake_uri = _mk_bake_uri(attempt.bake)
+        bake_uri = _mk_bake_uri(self._fs, attempt.bake)
         attempt_url = bake_uri / f"{attempt.number:02d}.attempt"
         pre = "0".zfill(DIGITS)
         init_name = f"{pre}.init.json"
@@ -433,7 +574,7 @@ class BatchFSStorage(BatchStorage):
         finished = {}
         skipped = {}
         files = []
-        async for fs in self._client.storage.ls(attempt_url):
+        async for fs in self._fs.ls(attempt_url):
             if fs.name == init_name:
                 continue
             if fs.name == result_name:
@@ -492,7 +633,7 @@ class BatchFSStorage(BatchStorage):
         return started, finished, skipped
 
     async def finish_attempt(self, attempt: Attempt, result: JobStatus) -> None:
-        bake_uri = _mk_bake_uri(attempt.bake)
+        bake_uri = _mk_bake_uri(self._fs, attempt.bake)
         attempt_url = bake_uri / f"{attempt.number:02d}.attempt"
         pre = "9" * DIGITS
         data = {"result": result.value}
@@ -506,7 +647,7 @@ class BatchFSStorage(BatchStorage):
         descr: JobDescription,
     ) -> StartedTask:
         assert 0 <= task_no < int("9" * DIGITS) - 1, task_no
-        bake_uri = _mk_bake_uri(attempt.bake)
+        bake_uri = _mk_bake_uri(self._fs, attempt.bake)
         attempt_url = bake_uri / f"{attempt.number:02d}.attempt"
         pre = str(task_no + 1).zfill(DIGITS)
         assert descr.history.created_at is not None
@@ -534,7 +675,7 @@ class BatchFSStorage(BatchStorage):
         task_id: FullID,
     ) -> StartedTask:
         assert 0 <= task_no < int("9" * DIGITS) - 1, task_no
-        bake_uri = _mk_bake_uri(attempt.bake)
+        bake_uri = _mk_bake_uri(self._fs, attempt.bake)
         attempt_url = bake_uri / f"{attempt.number:02d}.attempt"
         pre = str(task_no + 1).zfill(DIGITS)
         now = datetime.datetime.now(datetime.timezone.utc)
@@ -589,7 +730,7 @@ class BatchFSStorage(BatchStorage):
         self, attempt: Attempt, task_no: int, ft: FinishedTask
     ) -> None:
         assert 0 <= task_no < int("9" * DIGITS) - 1, task_no
-        bake_uri = _mk_bake_uri(attempt.bake)
+        bake_uri = _mk_bake_uri(self._fs, attempt.bake)
         attempt_url = bake_uri / f"{attempt.number:02d}.attempt"
         pre = str(task_no + 1).zfill(DIGITS)
         data = {
@@ -643,7 +784,7 @@ class BatchFSStorage(BatchStorage):
         task_id: FullID,
     ) -> SkippedTask:
         assert 0 <= task_no < int("9" * DIGITS) - 1, task_no
-        bake_uri = _mk_bake_uri(attempt.bake)
+        bake_uri = _mk_bake_uri(self._fs, attempt.bake)
         attempt_url = bake_uri / f"{attempt.number:02d}.attempt"
         pre = str(task_no + 1).zfill(DIGITS)
         ret = SkippedTask(
@@ -671,7 +812,7 @@ class BatchFSStorage(BatchStorage):
             return None
         assert cache_strategy == ast.CacheStrategy.DEFAULT
 
-        url = _mk_cache_uri(attempt, task_id)
+        url = _mk_cache_uri(self._fs, attempt, task_id)
 
         try:
             data = await self._read_json(url)
@@ -722,7 +863,7 @@ class BatchFSStorage(BatchStorage):
             return
 
         ctx_digest = _hash(ctx)
-        url = _mk_cache_uri(attempt, ft.id)
+        url = _mk_cache_uri(self._fs, attempt, ft.id)
         assert ft.raw_id is not None, (ft.id, ft.raw_id)
 
         data = {
@@ -741,15 +882,15 @@ class BatchFSStorage(BatchStorage):
         try:
             await self._write_json(url, data, overwrite=True)
         except ResourceNotFound:
-            await self._client.storage.mkdir(url.parent, parents=True)
+            await self._fs.mkdir(url.parent, parents=True)
             await self._write_json(url, data, overwrite=True)
 
     async def clear_cache(self, project: str, batch: Optional[str] = None) -> None:
-        await self._client.storage.rm(_mk_cache_uri2(project, batch), recursive=True)
+        await self._fs.rm(_mk_cache_uri2(self._fs, project, batch), recursive=True)
 
     async def _read_file(self, url: URL) -> str:
         ret = []
-        async for chunk in self._client.storage.open(url):
+        async for chunk in self._fs.open(url):
             ret.append(chunk)
         return b"".join(ret).decode("utf-8")
 
@@ -768,11 +909,11 @@ class BatchFSStorage(BatchStorage):
         # guarantee at all.
         if not overwrite:
             files = set()
-            async for fi in self._client.storage.ls(url.parent):
+            async for fi in self._fs.ls(url.parent):
                 files.add(fi.name)
             if url.name in files:
                 raise ValueError(f"File {url} already exists")
-        await self._client.storage.create(url, body.encode("utf-8"))
+        await self._fs.create(url, body.encode("utf-8"))
 
     async def _write_json(
         self, url: URL, data: Dict[str, Any], *, overwrite: bool = False
@@ -792,14 +933,14 @@ def _dt2str(dt: datetime.datetime) -> str:
 
 
 def _mk_bake_uri_from_id(
-    project: str, batch: str, when: datetime.datetime, suffix: str
+    fs: FileSystem, project: str, batch: str, when: datetime.datetime, suffix: str
 ) -> URL:
     bake_id = "_".join([batch, _dt2str(when), suffix])
-    return URL("storage:.flow") / project / bake_id
+    return fs.root / project / bake_id
 
 
-def _mk_bake_uri(bake: Bake) -> URL:
-    return _mk_bake_uri_from_id(bake.project, bake.batch, bake.when, bake.suffix)
+def _mk_bake_uri(fs: FileSystem, bake: Bake) -> URL:
+    return _mk_bake_uri_from_id(fs, bake.project, bake.batch, bake.when, bake.suffix)
 
 
 def _bake_to_json(bake: Bake) -> Dict[str, Any]:
@@ -808,7 +949,7 @@ def _bake_to_json(bake: Bake) -> Dict[str, Any]:
         "batch": bake.batch,
         "when": _dt2str(bake.when),
         "suffix": bake.suffix,
-        "config_name": bake.config_name,
+        "config_path": bake.config_path,
         "config_files": [str(path) for path in bake.configs_files],
     }
 
@@ -819,7 +960,7 @@ def _bake_from_json(data: Dict[str, Any]) -> Bake:
         batch=data["batch"],
         when=datetime.datetime.fromisoformat(data["when"]),
         suffix=data["suffix"],
-        config_name=data["config_name"],
+        config_path=data["config_path"],
         configs_files=[LocalPath(path) for path in data["config_files"]],
     )
 
@@ -847,14 +988,14 @@ def _attempt_from_json(
     )
 
 
-def _mk_cache_uri(attempt: Attempt, task_id: FullID) -> URL:
-    return _mk_cache_uri2(attempt.bake.project, attempt.bake.batch) / (
+def _mk_cache_uri(fs: FileSystem, attempt: Attempt, task_id: FullID) -> URL:
+    return _mk_cache_uri2(fs, attempt.bake.project, attempt.bake.batch) / (
         ".".join(task_id) + ".json"
     )
 
 
-def _mk_cache_uri2(project: str, batch: Optional[str]) -> URL:
-    ret = URL("storage:.flow") / project / ".cache"
+def _mk_cache_uri2(fs: FileSystem, project: str, batch: Optional[str]) -> URL:
+    ret = fs.root / project / ".cache"
     if batch:
         ret /= batch
     return ret

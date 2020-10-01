@@ -82,6 +82,7 @@ jobs:
         path: requirements/ci.txt
     - name: Run unittests
       env:
+        E2E_USER_TOKEN: ${{ secrets.CLIENT_TEST_E2E_USER_NAME }}
         COLOR: 'yes'
       run: |
         make test

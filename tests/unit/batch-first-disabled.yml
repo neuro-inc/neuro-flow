@@ -1,0 +1,11 @@
+kind: batch
+tasks:
+  - image: ubuntu
+    enable: false
+    bash: echo 1
+  - image: ubuntu
+    bash: echo 2
+  - image: ubuntu
+    bash: echo 3
+  - image: ubuntu
+    bash: echo 4
