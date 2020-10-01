@@ -1,0 +1,8 @@
+kind: batch
+tasks:
+  - image: ubuntu
+    volumes:
+      - storage:folder:/mnt/storage:rw
+      - disk:disk-name:/mnt/disk:ro
+      - secret:key:/mnt/secret
+    cmd: echo abc

@@ -385,3 +385,30 @@ async def test_cancellation(
 
     descr = await jobs_mock.get_task("task-2")
     assert descr.status == JobStatus.CANCELLED
+
+
+async def test_volumes_parsing(
+    jobs_mock: JobsMock,
+    assets: Path,
+    run_executor: Callable[[Path, str], Awaitable[None]],
+) -> None:
+    executor_task = asyncio.ensure_future(run_executor(assets, "batch-volumes-parsing"))
+
+    descr = await jobs_mock.get_task("task-1")
+
+    storage_volume = descr.container.volumes[0]
+    assert "folder" in storage_volume.storage_uri.path
+    assert storage_volume.container_path == "/mnt/storage"
+    assert not storage_volume.read_only
+
+    disk_volume = descr.container.disk_volumes[0]
+    assert "disk-name" in disk_volume.disk_uri.path
+    assert disk_volume.container_path == "/mnt/disk"
+    assert disk_volume.read_only
+
+    secret_file = descr.container.secret_files[0]
+    assert "key" in secret_file.secret_uri.path
+    assert secret_file.container_path == "/mnt/secret"
+
+    await jobs_mock.mark_done("task-1")
+    await executor_task
