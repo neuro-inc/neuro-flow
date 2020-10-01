@@ -20,17 +20,18 @@ from typing import (
     Mapping,
     Optional,
     Sequence,
-    TextIO,
+    BinaryIO,
     Tuple,
     Type,
     TypeVar,
     Union,
     cast,
 )
+import io
 from yaml.composer import Composer
 from yaml.constructor import ConstructorError, SafeConstructor
 from yaml.parser import Parser
-from yaml.reader import Reader
+from yaml.reader import Reader as BaseReader
 from yaml.resolver import Resolver as BaseResolver
 from yaml.scanner import Scanner
 
@@ -76,6 +77,27 @@ class ConfigDir:
 class ConfigPath:
     workspace: LocalPath
     config_file: LocalPath
+
+
+class Reader(BaseReader):
+    def __init__(self, stream: BinaryIO) -> None:
+        # parser doesn't accept str/bytes input
+        # Use io.BytesIO if you need to pass in-memory bytes object
+        assert isinstance(stream, io.BufferedIOBase)
+        self._hasher = hashlib.new('sha256')
+        BaseReader.__init__(self, stream)
+
+    def hexdigest(self) -> Digest:
+        return Digest(self._hasher.hexdigest())
+
+    def update_raw(self, size: int=1024) -> None:
+        if self.raw_buffer:
+            prev_size = len(self.raw_buffer)
+        else:
+            prev_size = 0
+        super().update_raw(size)
+        new_size = len(self.raw_buffer)
+        self._hasher.update(self.raw_buffer[prev_size:new_size])
 
 
 class BaseConstructor(SafeConstructor):
@@ -358,7 +380,7 @@ def parse_cache(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Cache:
 
 
 class ProjectLoader(Reader, Scanner, Parser, Composer, BaseConstructor, BaseResolver):
-    def __init__(self, stream: TextIO) -> None:
+    def __init__(self, stream: BinaryIO) -> None:
         Reader.__init__(self, stream)
         Scanner.__init__(self)
         Parser.__init__(self)
@@ -390,20 +412,13 @@ def parse_project(
     # Parse project config file
     ret: ast.Project
     config_file = workspace / filename
-    hasher = hashlib.new("sha256")
     try:
-        with config_file.open("rb") as bf:
-            while True:
-                chunk = bf.read(256 * 1024)
-                if not chunk:
-                    break
-                hasher.update(chunk)
-        with config_file.open() as f:
+        with config_file.open('rb') as f:
             loader = ProjectLoader(f)
             try:
                 ret = loader.get_single_data()  # type: ignore[no-untyped-call]
                 assert isinstance(ret, ast.Project)
-                return (ret, Digest(hasher.hexdigest()))
+                return (ret, loader.hexdigest())
             finally:
                 loader.dispose()  # type: ignore[no-untyped-call]
     except FileNotFoundError:
@@ -425,7 +440,7 @@ def parse_project(
 
 
 class FlowLoader(Reader, Scanner, Parser, Composer, BaseConstructor, BaseResolver):
-    def __init__(self, stream: TextIO, *, kind: ast.FlowKind) -> None:
+    def __init__(self, stream: BinaryIO, *, kind: ast.FlowKind) -> None:
         Reader.__init__(self, stream)
         Scanner.__init__(self)
         Parser.__init__(self)
@@ -878,20 +893,13 @@ def parse_live(
     workspace: LocalPath, config_file: LocalPath
 ) -> Tuple[ast.LiveFlow, Digest]:
     # Parse live flow config file
-    hasher = hashlib.new("sha256")
-    with config_file.open("rb") as bf:
-        while True:
-            chunk = bf.read(256 * 1024)
-            if not chunk:
-                break
-            hasher.update(chunk)
-    with config_file.open() as f:
+    with config_file.open('rb') as f:
         loader = FlowLoader(f, kind=ast.FlowKind.LIVE)
         try:
             ret = loader.get_single_data()  # type: ignore[no-untyped-call]
             assert isinstance(ret, ast.LiveFlow)
             assert ret.kind == ast.FlowKind.LIVE
-            return (ret, Digest(hasher.hexdigest()))
+            return (ret, loader.hexdigest())
         finally:
             loader.dispose()  # type: ignore[no-untyped-call]
 
@@ -900,20 +908,13 @@ def parse_batch(
     workspace: LocalPath, config_file: LocalPath
 ) -> Tuple[ast.BatchFlow, Digest]:
     # Parse pipeline flow config file
-    hasher = hashlib.new("sha256")
-    with config_file.open("rb") as bf:
-        while True:
-            chunk = bf.read(256 * 1024)
-            if not chunk:
-                break
-            hasher.update(chunk)
-    with config_file.open() as f:
+    with config_file.open('rb') as f:
         loader = FlowLoader(f, kind=ast.FlowKind.BATCH)
         try:
             ret = loader.get_single_data()  # type: ignore[no-untyped-call]
             assert isinstance(ret, ast.BatchFlow)
             assert ret.kind == ast.FlowKind.BATCH
-            return (ret, Digest(hasher.hexdigest()))
+            return (ret, loader.hexdigest())
         finally:
             loader.dispose()  # type: ignore[no-untyped-call]
 
@@ -963,7 +964,7 @@ def find_live_config(workspace: ConfigDir) -> ConfigPath:
 
 
 class ActionLoader(Reader, Scanner, Parser, Composer, BaseConstructor, BaseResolver):
-    def __init__(self, stream: TextIO) -> None:
+    def __init__(self, stream: BinaryIO) -> None:
         Reader.__init__(self, stream)
         Scanner.__init__(self)
         Parser.__init__(self)
@@ -1225,18 +1226,11 @@ ActionLoader.add_constructor("action:main", parse_action_main)  # type: ignore
 def parse_action(action_file: LocalPath) -> Tuple[ast.BaseAction, str]:
     # Parse project config file
     ret: ast.Project
-    hasher = hashlib.new("sha256")
-    with action_file.open("rb") as bf:
-        while True:
-            chunk = bf.read(256 * 1024)
-            if not chunk:
-                break
-            hasher.update(chunk)
-    with action_file.open() as f:
+    with action_file.open('rb') as f:
         loader = ActionLoader(f)
         try:
             ret = loader.get_single_data()  # type: ignore[no-untyped-call]
             assert isinstance(ret, ast.BaseAction)
-            return ret, hasher.hexdigest()
+            return (ret, loader.hexdigest())
         finally:
             loader.dispose()  # type: ignore[no-untyped-call]

@@ -872,7 +872,7 @@ def _hash(val: Any) -> str:
 
 def _ctx_default(val: Any) -> Any:
     if isinstance(val, BaseContext):
-        assert val.digest is not None
+        assert val.digest
 
         ret: Dict[str, Any] = {
             "env": val.env,
