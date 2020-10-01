@@ -297,7 +297,12 @@ class BatchExecutor:
                 )
                 self._finished[st.id] = ft
                 str_status = fmt_status(self._finished[st.id].status)
-                click.echo(f"Action {str_full_id} is {str_status}")
+                click.echo(
+                    f"Action {str_full_id} is {str_status}"
+                    + (" with following outputs:" if ft.outputs else "")
+                )
+                for key, value in ft.outputs.items():
+                    click.echo(f"  {key}: {value}")
                 parent_ctx, parent_topo, parent_ready = self._topos[st.id[:-1]]
                 parent_topo.done(st.id)
                 if (
@@ -433,7 +438,12 @@ class BatchExecutor:
         await self._storage.write_cache(attempt, task_ctx, ft)
         str_status = fmt_status(ft.status)
         raw_id = fmt_raw_id(ft.raw_id)
-        click.echo(f"Task {fmt_id(ft.id)} [{raw_id}] is {str_status}")
+        click.echo(
+            f"Task {fmt_id(ft.id)} [{raw_id}] is {str_status}"
+            + (" with following outputs:" if ft.outputs else "")
+        )
+        for key, value in ft.outputs.items():
+            click.echo(f"  {key}: {value}")
         if descr.status != JobStatus.SUCCEEDED and ctx.strategy.fail_fast:
             return False
         else:
