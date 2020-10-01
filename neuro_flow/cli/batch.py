@@ -1,6 +1,7 @@
 import click
 import sys
 from neuromation.api import get as api_get
+from typing import Optional
 
 from neuro_flow.batch_executor import ExecutorData
 from neuro_flow.batch_runner import BatchRunner
@@ -8,6 +9,7 @@ from neuro_flow.cli.click_types import BAKE, BATCH, FINISHED_TASK_AFTER_BAKE
 from neuro_flow.cli.utils import argument, option, wrap_async
 from neuro_flow.parser import ConfigDir
 from neuro_flow.storage import BatchFSStorage, BatchStorage
+from neuro_flow.types import LocalPath
 
 
 if sys.version_info >= (3, 7):
@@ -169,3 +171,32 @@ async def clear_cache(config_dir: ConfigDir, batch: str) -> None:
             await runner.clear_cache(None)
         else:
             await runner.clear_cache(batch)
+
+
+@click.command()
+@argument("batch", type=BATCH)
+@click.option(
+    "-o",
+    "--output",
+    type=click.Path(file_okay=True, dir_okay=False, writable=True),
+    help="A path to with Graphviz (DOT) file.",
+)
+@wrap_async()
+async def graph(config_dir: ConfigDir, batch: str, output: Optional[str]) -> None:
+    """Build.
+
+    Use `neuro-flow clear-cache <BATCH>` for cleaning up the cache for BATCH;
+
+    `neuro-flow clear-cache ALL` clears all caches.
+    """
+    async with AsyncExitStack() as stack:
+        client = await stack.enter_async_context(api_get())
+        storage: BatchStorage = await stack.enter_async_context(BatchFSStorage(client))
+        runner = await stack.enter_async_context(
+            BatchRunner(config_dir, client, storage)
+        )
+        if output is not None:
+            real_output: Optional[LocalPath] = LocalPath(output)
+        else:
+            real_output = None
+        await runner.graph(batch, real_output)

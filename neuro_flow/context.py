@@ -782,6 +782,10 @@ class TaskContext(BaseContext):
         return prep_tasks
 
     @property
+    def prefix(self) -> FullID:
+        return self._prefix
+
+    @property
     def cache(self) -> CacheCtx:
         if self._cache is None:
             raise NotAvailable("cache")

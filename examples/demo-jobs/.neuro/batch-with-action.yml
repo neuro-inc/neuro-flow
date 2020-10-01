@@ -1,13 +1,13 @@
 kind: batch
 tasks:
-  - id: task_a
+  - id: start
     image: ubuntu
     preset: cpu-small
     bash: |
       echo "Task A"
       echo ::set-output name=name::value a
 
-  - needs: [task_a]
+  - needs: [start]
     strategy:
       matrix:
         arg1: ['a', 'b', 'c']
@@ -18,5 +18,11 @@ tasks:
       arg2: ${{ matrix.arg2 }}
 
   - image: ubuntu
+    id: post_process
     bash: |
       echo "Done"
+
+  - image: ubuntu
+    id: finish
+    bash: |
+      echo "Finish"

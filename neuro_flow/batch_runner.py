@@ -1,19 +1,20 @@
 import asyncio
 import click
 import sys
+from graphviz import Digraph
 from neuromation.api import Client, JobStatus
 from neuromation.cli.formatters import ftable  # TODO: extract into a separate library
 from types import TracebackType
-from typing import List, Optional, Sequence, Type, Union
+from typing import Dict, List, Optional, Sequence, Type, Union
 from typing_extensions import AsyncContextManager, AsyncIterator
 
 from . import __version__, ast
 from .batch_executor import BatchExecutor, ExecutorData
 from .commands import CmdProcessor
-from .context import EMPTY_ROOT, BatchContext
+from .context import EMPTY_ROOT, BatchContext, DepCtx, TaskContext
 from .parser import ConfigDir, parse_action, parse_batch, parse_project
 from .storage import Attempt, Bake, BatchStorage, ConfigFile
-from .types import LocalPath
+from .types import LocalPath, TaskStatus
 from .utils import TERMINATED_JOB_STATUSES, fmt_id, fmt_raw_id, fmt_status
 
 
@@ -316,3 +317,59 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
 
     async def clear_cache(self, batch: Optional[str] = None) -> None:
         await self._storage.clear_cache(self.project, batch)
+
+    async def graph(self, batch_name: str, output: Optional[LocalPath]) -> None:
+        config_file = (self._config_dir.config_dir / (batch_name + ".yml")).resolve()
+        flow = parse_batch(self._config_dir.workspace, config_file)
+        assert isinstance(flow, ast.BatchFlow)
+        ctx = await BatchContext.create(flow, self._config_dir.workspace, config_file)
+        if output is None:
+            output = batch_name + ".gv"
+        dot = Digraph(batch_name, filename=str(output), strict=True, engine="dot")
+        dot.attr(compound="true")
+        dot.attr(overlap_shrink="prism")
+        dot.attr(overlap_shrink="true")
+
+        await self._subgraph(dot, ctx, {})
+        click.echo(f"Saving file {dot.filename}")
+        dot.save()
+        click.echo(f"Open {dot.filename}.pdf")
+        dot.view()
+
+    async def _subgraph(
+        self, dot: Digraph, ctx: TaskContext, anchors: Dict[str, str]
+    ) -> None:
+        first = True
+        for task_id, deps in ctx.graph.items():
+            tgt = ".".join(task_id)
+            name = task_id[-1]
+
+            if first:
+                anchors[".".join(ctx.prefix)] = tgt
+                first = False
+
+            needs = {
+                key: DepCtx(TaskStatus.SUCCEEDED, {}) for key in ctx.get_dep_ids(name)
+            }
+            if await ctx.is_action(name):
+                lhead = "cluster_" + tgt
+                with dot.subgraph(name=lhead) as subdot:
+                    action_ctx = await ctx.with_action(name, needs=needs)
+                    subdot.attr(label=f"{name} [{action_ctx.action}]")
+                    subdot.attr(compound="true")
+                    await self._subgraph(subdot, action_ctx, anchors)
+                tgt = anchors[tgt]
+            else:
+                # task_ctx = await ctx.with_task(name, needs=needs)
+                dot.node(tgt, name)
+                lhead = None
+
+            for dep in deps:
+                src = ".".join(dep)
+                if src in anchors:
+                    # src is a subgraph
+                    ltail = "cluster_" + src
+                    src = anchors[src]
+                else:
+                    ltail = None
+                dot.edge(src, tgt, ltail=ltail, lhead=lhead)
