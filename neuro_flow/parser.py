@@ -10,9 +10,11 @@ import dataclasses
 import abc
 import enum
 import hashlib
+import io
 import yaml
 from typing import (
     Any,
+    BinaryIO,
     Callable,
     Dict,
     Generic,
@@ -20,14 +22,12 @@ from typing import (
     Mapping,
     Optional,
     Sequence,
-    BinaryIO,
     Tuple,
     Type,
     TypeVar,
     Union,
     cast,
 )
-import io
 from yaml.composer import Composer
 from yaml.constructor import ConstructorError, SafeConstructor
 from yaml.parser import Parser
@@ -80,22 +80,24 @@ class ConfigPath:
 
 
 class Reader(BaseReader):
+    _hasher: Any  # hashlib._Hash is a private name
+
     def __init__(self, stream: BinaryIO) -> None:
         # parser doesn't accept str/bytes input
         # Use io.BytesIO if you need to pass in-memory bytes object
         assert isinstance(stream, io.BufferedIOBase)
-        self._hasher = hashlib.new('sha256')
+        self._hasher = hashlib.new("sha256")
         BaseReader.__init__(self, stream)
 
     def hexdigest(self) -> Digest:
         return Digest(self._hasher.hexdigest())
 
-    def update_raw(self, size: int=1024) -> None:
+    def update_raw(self, size: int = 1024) -> None:
         if self.raw_buffer:
             prev_size = len(self.raw_buffer)
         else:
             prev_size = 0
-        super().update_raw(size)
+        super().update_raw(size)  # type: ignore[no-untyped-call]
         new_size = len(self.raw_buffer)
         self._hasher.update(self.raw_buffer[prev_size:new_size])
 
@@ -413,7 +415,7 @@ def parse_project(
     ret: ast.Project
     config_file = workspace / filename
     try:
-        with config_file.open('rb') as f:
+        with config_file.open("rb") as f:
             loader = ProjectLoader(f)
             try:
                 ret = loader.get_single_data()  # type: ignore[no-untyped-call]
@@ -893,7 +895,7 @@ def parse_live(
     workspace: LocalPath, config_file: LocalPath
 ) -> Tuple[ast.LiveFlow, Digest]:
     # Parse live flow config file
-    with config_file.open('rb') as f:
+    with config_file.open("rb") as f:
         loader = FlowLoader(f, kind=ast.FlowKind.LIVE)
         try:
             ret = loader.get_single_data()  # type: ignore[no-untyped-call]
@@ -908,7 +910,7 @@ def parse_batch(
     workspace: LocalPath, config_file: LocalPath
 ) -> Tuple[ast.BatchFlow, Digest]:
     # Parse pipeline flow config file
-    with config_file.open('rb') as f:
+    with config_file.open("rb") as f:
         loader = FlowLoader(f, kind=ast.FlowKind.BATCH)
         try:
             ret = loader.get_single_data()  # type: ignore[no-untyped-call]
@@ -1226,7 +1228,7 @@ ActionLoader.add_constructor("action:main", parse_action_main)  # type: ignore
 def parse_action(action_file: LocalPath) -> Tuple[ast.BaseAction, str]:
     # Parse project config file
     ret: ast.Project
-    with action_file.open('rb') as f:
+    with action_file.open("rb") as f:
         loader = ActionLoader(f)
         try:
             ret = loader.get_single_data()  # type: ignore[no-untyped-call]
