@@ -156,7 +156,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         else:
             click.echo(f"Starting remove executor")
             param = data.serialize()
-            await self.run_subproc(
+            await self._run_subproc(
                 "neuro",
                 "run",
                 "--restart=on-failure",
@@ -301,7 +301,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         await self._storage.finish_attempt(attempt, JobStatus.CANCELLED)
         click.echo(f"Attempt #{attempt.number} of bake {bake.bake_id} was cancelled.")
 
-    async def run_subproc(self, exe: str, *args: str) -> None:
+    async def _run_subproc(self, exe: str, *args: str) -> None:
         proc = await asyncio.create_subprocess_exec(exe, *args)
         try:
             retcode = await proc.wait()
