@@ -76,8 +76,14 @@ async def bakes(config_dir: ConfigDir) -> None:
     default=-1,
     help="Attempt number, the last attempt by default",
 )
+@click.option(
+    "-o",
+    "--output",
+    type=click.Path(file_okay=True, dir_okay=False, writable=True),
+    help="A path to with Graphviz (DOT) file.",
+)
 @wrap_async()
-async def inspect(config_dir: ConfigDir, bake_id: str, attempt: int) -> None:
+async def inspect(config_dir: ConfigDir, bake_id: str, attempt: int, output: Optional[str]) -> None:
     """Inspect a bake.
 
     Display a list of started/finished tasks of BAKE_ID.
@@ -88,7 +94,11 @@ async def inspect(config_dir: ConfigDir, bake_id: str, attempt: int) -> None:
         runner = await stack.enter_async_context(
             BatchRunner(config_dir, client, storage)
         )
-        await runner.inspect(bake_id, attempt_no=attempt)
+        if output is not None:
+            real_output: Optional[LocalPath] = LocalPath(output)
+        else:
+            real_output = None
+        await runner.inspect(bake_id, attempt_no=attempt, output=real_output)
 
 
 @click.command()
@@ -199,4 +209,4 @@ async def graph(config_dir: ConfigDir, batch: str, output: Optional[str]) -> Non
             real_output: Optional[LocalPath] = LocalPath(output)
         else:
             real_output = None
-        await runner.graph(batch, real_output)
+        await runner.graph(batch, output=real_output)

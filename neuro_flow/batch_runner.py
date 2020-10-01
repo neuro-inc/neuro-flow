@@ -199,7 +199,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         for line in ftable.table(rows):
             click.echo(line)
 
-    async def inspect(self, bake_id: str, *, attempt_no: int = -1) -> None:
+    async def inspect(self, bake_id: str, *, attempt_no: int = -1, output: Optional[LocalPath]=None) -> None:
         rows: List[List[str]] = []
         rows.append(
             [
@@ -318,7 +318,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
     async def clear_cache(self, batch: Optional[str] = None) -> None:
         await self._storage.clear_cache(self.project, batch)
 
-    async def graph(self, batch_name: str, output: Optional[LocalPath]) -> None:
+    async def graph(self, batch_name: str, *, output: Optional[LocalPath]=None) -> None:
         config_file = (self._config_dir.config_dir / (batch_name + ".yml")).resolve()
         flow = parse_batch(self._config_dir.workspace, config_file)
         assert isinstance(flow, ast.BatchFlow)
