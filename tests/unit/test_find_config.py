@@ -3,14 +3,15 @@ import socket
 import sys
 from pathlib import Path
 
-from neuro_flow.parser import ConfigPath, find_live_config, find_workspace
+from neuro_flow.config_loader import LiveLocalCL
+from neuro_flow.parser import find_workspace
 
 
 def test_not_exists(tmp_path: Path) -> None:
     d = tmp_path / ".neuro"
     d.mkdir()
     with pytest.raises(ValueError, match=".+ does not exist"):
-        find_live_config(find_workspace(d))
+        LiveLocalCL(find_workspace(d)).flow_path("live")
 
 
 def test_neuro_not_found(tmp_path: Path) -> None:
@@ -49,7 +50,7 @@ def test_not_a_file_implicit(tmp_path: Path) -> None:
     s.bind(str(f))
 
     with pytest.raises(ValueError, match=r".+ is not a file"):
-        find_live_config(find_workspace(d))
+        LiveLocalCL(find_workspace(d)).flow_path("live")
 
 
 def test_explicit_file(tmp_path: Path) -> None:
@@ -66,4 +67,4 @@ def test_found(tmp_path: Path) -> None:
     f = d / "live.yml"
     f.touch()
 
-    assert ConfigPath(tmp_path, f) == find_live_config(find_workspace(d))
+    assert f == LiveLocalCL(find_workspace(d)).flow_path("live")

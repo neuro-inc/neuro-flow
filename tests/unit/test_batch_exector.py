@@ -233,8 +233,6 @@ def _executor_data_to_bake_id(data: ExecutorData) -> str:
         batch=data.batch,
         when=data.when,
         suffix=data.suffix,
-        config_path="",
-        configs_files=[],
     ).bake_id
 
 

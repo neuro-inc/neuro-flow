@@ -8,7 +8,7 @@ from typing import Callable, Generic, List, Optional, Sequence, Tuple, TypeVar, 
 
 from neuro_flow.batch_runner import BatchRunner
 from neuro_flow.live_runner import LiveRunner
-from neuro_flow.parser import ConfigDir, find_live_config
+from neuro_flow.parser import ConfigDir
 from neuro_flow.storage import BatchFSStorage, BatchStorage, NeuroStorageFS
 
 
@@ -70,8 +70,7 @@ class LiveJobType(AsyncType[str]):
         args: Sequence[str],
         incomplete: str,
     ) -> List[Tuple[str, Optional[str]]]:
-        config_path = find_live_config(config_dir)
-        async with LiveRunner(config_path.workspace, config_path.config_file) as runner:
+        async with LiveRunner(config_dir) as runner:
             variants = runner.ctx.job_ids
             if self._allow_all:
                 variants += ["ALL"]
@@ -106,9 +105,8 @@ class LiveJobSuffixType(AsyncType[str]):
         args: Sequence[str],
         incomplete: str,
     ) -> List[Tuple[str, Optional[str]]]:
-        config_path = find_live_config(config_dir)
         job_id = self._args_to_job_id(args)
-        async with LiveRunner(config_path.workspace, config_path.config_file) as runner:
+        async with LiveRunner(config_dir) as runner:
             return [
                 (suffix, None)
                 for suffix in await runner.list_suffixes(job_id)
@@ -141,8 +139,7 @@ class LiveImageType(AsyncType[str]):
         args: Sequence[str],
         incomplete: str,
     ) -> List[Tuple[str, Optional[str]]]:
-        config_path = find_live_config(config_dir)
-        async with LiveRunner(config_path.workspace, config_path.config_file) as runner:
+        async with LiveRunner(config_dir) as runner:
             variants = [
                 image
                 for image, image_ctx in runner.ctx.images.items()
@@ -178,8 +175,7 @@ class LiveVolumeType(AsyncType[str]):
         args: Sequence[str],
         incomplete: str,
     ) -> List[Tuple[str, Optional[str]]]:
-        config_path = find_live_config(config_dir)
-        async with LiveRunner(config_path.workspace, config_path.config_file) as runner:
+        async with LiveRunner(config_dir) as runner:
             variants = [
                 volume.id
                 for volume in runner.ctx.volumes.values()

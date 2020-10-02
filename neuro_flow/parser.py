@@ -382,31 +382,39 @@ ProjectLoader.add_path_resolver("project:main", [])  # type: ignore
 ProjectLoader.add_constructor("project:main", parse_project_main)  # type: ignore
 
 
+def parse_project_stream(stream: TextIO) -> ast.Project:
+    ret: ast.Project
+    loader = ProjectLoader(stream)
+    try:
+        ret = loader.get_single_data()  # type: ignore[no-untyped-call]
+        assert isinstance(ret, ast.Project)
+        return ret
+    finally:
+        loader.dispose()  # type: ignore[no-untyped-call]
+
+
+def make_default_project(workspace_stem: str) -> ast.Project:
+    return ast.Project(
+        _start=Pos(0, 0, LocalPath("<default>")),
+        _end=Pos(0, 0, LocalPath("<default>")),
+        id=SimpleIdExpr(
+            Pos(0, 0, LocalPath("<default>")),
+            Pos(0, 0, LocalPath("<default>")),
+            workspace_stem.replace("-", "_"),
+        ),
+    )
+
+
 def parse_project(
     workspace: LocalPath, *, filename: str = "project.yml"
 ) -> ast.Project:
     # Parse project config file
-    ret: ast.Project
     config_file = workspace / filename
     try:
         with config_file.open() as f:
-            loader = ProjectLoader(f)
-            try:
-                ret = loader.get_single_data()  # type: ignore[no-untyped-call]
-                assert isinstance(ret, ast.Project)
-                return ret
-            finally:
-                loader.dispose()  # type: ignore[no-untyped-call]
+            return parse_project_stream(f)
     except FileNotFoundError:
-        return ast.Project(
-            _start=Pos(0, 0, LocalPath("<default>")),
-            _end=Pos(0, 0, LocalPath("<default>")),
-            id=SimpleIdExpr(
-                Pos(0, 0, LocalPath("<default>")),
-                Pos(0, 0, LocalPath("<default>")),
-                workspace.stem.replace("-", "_"),
-            ),
-        )
+        return make_default_project(workspace.stem)
 
 
 # #### Flow parser ####
@@ -862,33 +870,49 @@ FlowLoader.add_path_resolver("flow:main", [])  # type: ignore
 FlowLoader.add_constructor("flow:main", parse_flow_main)  # type: ignore
 
 
+def parse_live_stream(stream: TextIO) -> ast.LiveFlow:
+    loader = FlowLoader(stream, kind=ast.FlowKind.LIVE)
+    try:
+        ret = loader.get_single_data()  # type: ignore[no-untyped-call]
+        assert isinstance(ret, ast.LiveFlow)
+        assert ret.kind == ast.FlowKind.LIVE
+        return ret
+    finally:
+        loader.dispose()  # type: ignore[no-untyped-call]
+
+
 def parse_live(workspace: LocalPath, config_file: LocalPath) -> ast.LiveFlow:
     # Parse live flow config file
     with config_file.open() as f:
-        loader = FlowLoader(f, kind=ast.FlowKind.LIVE)
-        try:
-            ret = loader.get_single_data()  # type: ignore[no-untyped-call]
-            assert isinstance(ret, ast.LiveFlow)
-            assert ret.kind == ast.FlowKind.LIVE
-            return ret
-        finally:
-            loader.dispose()  # type: ignore[no-untyped-call]
+        return parse_live_stream(f)
+
+
+def parse_batch_stream(stream: TextIO) -> ast.BatchFlow:
+    loader = FlowLoader(stream, kind=ast.FlowKind.BATCH)
+    try:
+        ret = loader.get_single_data()  # type: ignore[no-untyped-call]
+        assert isinstance(ret, ast.BatchFlow)
+        assert ret.kind == ast.FlowKind.BATCH
+        return ret
+    finally:
+        loader.dispose()  # type: ignore[no-untyped-call]
 
 
 def parse_batch(workspace: LocalPath, config_file: LocalPath) -> ast.BatchFlow:
     # Parse pipeline flow config file
     with config_file.open() as f:
-        loader = FlowLoader(f, kind=ast.FlowKind.BATCH)
-        try:
-            ret = loader.get_single_data()  # type: ignore[no-untyped-call]
-            assert isinstance(ret, ast.BatchFlow)
-            assert ret.kind == ast.FlowKind.BATCH
-            return ret
-        finally:
-            loader.dispose()  # type: ignore[no-untyped-call]
+        return parse_batch_stream(f)
 
 
 def find_workspace(path: Optional[Union[LocalPath, str]]) -> ConfigDir:
+    # Find live config file, starting from path.
+    # Return a project root folder and a config folder.
+    #
+    # If path is a not None -- it is used as starting point, LocalPath.cwd() otherwise.
+    # The lookup searches bottom-top from path dir up to the root folder,
+    # looking for .neuro folder.
+    # If the config folder not found -- raise an exception.
+
     if path is not None:
         if not isinstance(path, LocalPath):
             path = LocalPath(path)
@@ -909,24 +933,6 @@ def find_workspace(path: Optional[Union[LocalPath, str]]) -> ConfigDir:
         path = path.parent
 
     return ConfigDir(path, path / ".neuro")
-
-
-def find_live_config(workspace: ConfigDir) -> ConfigPath:
-    # Find live config file, starting from path.
-    # Return a project root folder and a path to config file.
-    #
-    # If path is a file -- it is used as is.
-    # If path is a directory -- it is used as starting point, LocalPath.cwd() otherwise.
-    # The lookup searches bottom-top from path dir up to the root folder,
-    # looking for .neuro folder and ./neuro/live.yml
-    # If the config file not found -- raise an exception.
-
-    ret = workspace.config_dir / "live.yml"
-    if not ret.exists():
-        raise ValueError(f"{ret} does not exist")
-    if not ret.is_file():
-        raise ValueError(f"{ret} is not a file")
-    return ConfigPath(workspace.workspace, ret)
 
 
 # #### Action parser ####
@@ -1192,14 +1198,18 @@ ActionLoader.add_path_resolver("action:main", [])  # type: ignore
 ActionLoader.add_constructor("action:main", parse_action_main)  # type: ignore
 
 
+def parse_action_stream(stream: TextIO) -> ast.BaseAction:
+    ret: ast.Project
+    loader = ActionLoader(stream)
+    try:
+        ret = loader.get_single_data()  # type: ignore[no-untyped-call]
+        assert isinstance(ret, ast.BaseAction)
+        return ret
+    finally:
+        loader.dispose()  # type: ignore[no-untyped-call]
+
+
 def parse_action(action_file: LocalPath) -> ast.BaseAction:
     # Parse project config file
-    ret: ast.Project
     with action_file.open() as f:
-        loader = ActionLoader(f)
-        try:
-            ret = loader.get_single_data()  # type: ignore[no-untyped-call]
-            assert isinstance(ret, ast.BaseAction)
-            return ret
-        finally:
-            loader.dispose()  # type: ignore[no-untyped-call]
+        return parse_action_stream(f)

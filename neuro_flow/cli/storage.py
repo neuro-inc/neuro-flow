@@ -3,7 +3,7 @@ import click
 from neuro_flow.cli.click_types import LIVE_VOLUME_OR_ALL
 from neuro_flow.cli.utils import argument, wrap_async
 from neuro_flow.live_runner import LiveRunner
-from neuro_flow.parser import ConfigDir, find_live_config
+from neuro_flow.parser import ConfigDir
 
 
 @click.command()
@@ -14,8 +14,7 @@ async def upload(config_dir: ConfigDir, volume: str) -> None:
 
     Upload local files to remote for VOLUME,
     use `upload ALL` for uploading all volumes."""
-    config_path = find_live_config(config_dir)
-    async with LiveRunner(config_path.workspace, config_path.config_file) as runner:
+    async with LiveRunner(config_dir) as runner:
         if volume != "ALL":
             await runner.upload(volume)
         else:
@@ -30,8 +29,7 @@ async def download(config_dir: ConfigDir, volume: str) -> None:
 
     Download remote files to local for VOLUME,
     use `download ALL` for downloading all volumes."""
-    config_path = find_live_config(config_dir)
-    async with LiveRunner(config_path.workspace, config_path.config_file) as runner:
+    async with LiveRunner(config_dir) as runner:
         if volume != "ALL":
             await runner.download(volume)
         else:
@@ -46,8 +44,7 @@ async def clean(config_dir: ConfigDir, volume: str) -> None:
 
     Clean remote files on VOLUME,
     use `clean ALL` for cleaning up all volumes."""
-    config_path = find_live_config(config_dir)
-    async with LiveRunner(config_path.workspace, config_path.config_file) as runner:
+    async with LiveRunner(config_dir) as runner:
         if volume != "ALL":
             await runner.clean(volume)
         else:
@@ -58,6 +55,5 @@ async def clean(config_dir: ConfigDir, volume: str) -> None:
 @wrap_async()
 async def mkvolumes(config_dir: ConfigDir) -> None:
     """Create all remote folders for volumes."""
-    config_path = find_live_config(config_dir)
-    async with LiveRunner(config_path.workspace, config_path.config_file) as runner:
+    async with LiveRunner(config_dir) as runner:
         await runner.mkvolumes()
