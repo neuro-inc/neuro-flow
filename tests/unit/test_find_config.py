@@ -42,7 +42,7 @@ def test_not_a_file_explicit(tmp_path: Path) -> None:
 @pytest.mark.skipif(  # type: ignore
     sys.platform == "darwin", reason="MacOS doesn't support too long UNIX socket names"
 )
-def test_not_a_file_implicit(tmp_path: Path) -> None:
+async def test_not_a_file_implicit(tmp_path: Path) -> None:
     d = tmp_path / ".neuro"
     d.mkdir()
     f = d / "live.yml"

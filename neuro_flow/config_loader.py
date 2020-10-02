@@ -63,15 +63,16 @@ class ConfigLoader(abc.ABC):
 
 
 class StreamCL(ConfigLoader, abc.ABC):
-    @abc.abstractmethod
     @asynccontextmanager
-    def project_stream(self) -> AsyncIterator[Optional[TextIO]]:
-        pass
+    @abc.abstractmethod
+    async def project_stream(self) -> AsyncIterator[Optional[TextIO]]:
+        yield None
 
-    @abc.abstractmethod
     @asynccontextmanager
-    def action_stream(self, action_name: str) -> AsyncIterator[TextIO]:
-        pass
+    @abc.abstractmethod
+    async def action_stream(self, action_name: str) -> AsyncIterator[TextIO]:
+        # Yield for type check only in asynccontextmanager
+        yield None  # type: ignore
 
     @alru_cache()  # type: ignore
     async def fetch_project(self) -> ast.Project:
@@ -87,10 +88,11 @@ class StreamCL(ConfigLoader, abc.ABC):
 
 
 class LiveStreamCL(StreamCL, abc.ABC):
-    @abc.abstractmethod
     @asynccontextmanager
-    def flow_stream(self, name: str) -> AsyncIterator[TextIO]:
-        pass
+    @abc.abstractmethod
+    async def flow_stream(self, name: str) -> AsyncIterator[TextIO]:
+        # Yield for type check only in asynccontextmanager
+        yield None  # type: ignore
 
     @alru_cache()  # type: ignore
     async def fetch_flow(self, name: str) -> ast.LiveFlow:
@@ -99,10 +101,11 @@ class LiveStreamCL(StreamCL, abc.ABC):
 
 
 class BatchStreamCL(StreamCL, abc.ABC):
-    @abc.abstractmethod
     @asynccontextmanager
-    def flow_stream(self, name: str) -> AsyncIterator[TextIO]:
-        pass
+    @abc.abstractmethod
+    async def flow_stream(self, name: str) -> AsyncIterator[TextIO]:
+        # Yield for type check only in asynccontextmanager
+        yield None  # type: ignore
 
     @alru_cache()  # type: ignore
     async def fetch_flow(self, name: str) -> ast.BatchFlow:
