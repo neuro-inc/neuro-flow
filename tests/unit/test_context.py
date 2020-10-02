@@ -1,6 +1,7 @@
 import pathlib
 import pytest
 from textwrap import dedent
+from typing_extensions import AsyncIterator
 from yarl import URL
 
 from neuro_flow import ast
@@ -26,21 +27,29 @@ def test_inavailable_context_ctor() -> None:
 
 
 @pytest.fixture  # type: ignore
-def live_config_loader(assets: pathlib.Path) -> ConfigLoader:
+async def live_config_loader(
+    loop: None, assets: pathlib.Path
+) -> AsyncIterator[ConfigLoader]:
     config_dir = ConfigDir(
         workspace=assets,
         config_dir=assets,
     )
-    return LiveLocalCL(config_dir)
+    cl = LiveLocalCL(config_dir)
+    yield cl
+    await cl.close()
 
 
 @pytest.fixture  # type: ignore
-def batch_config_loader(assets: pathlib.Path) -> ConfigLoader:
+async def batch_config_loader(
+    loop: None, assets: pathlib.Path
+) -> AsyncIterator[ConfigLoader]:
     config_dir = ConfigDir(
         workspace=assets,
         config_dir=assets,
     )
-    return BatchLocalCL(config_dir)
+    cl = BatchLocalCL(config_dir)
+    yield cl
+    await cl.close()
 
 
 async def test_ctx_flow(live_config_loader: ConfigLoader) -> None:

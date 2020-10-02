@@ -1,14 +1,19 @@
 import dataclasses
 
 import abc
+import aiohttp
 import secrets
 import sys
+import tarfile
 from async_lru import alru_cache
-from io import StringIO
+from io import StringIO, TextIOWrapper
+from tempfile import TemporaryFile
 from typing import (
+    IO,
     Any,
     AsyncIterator,
     Awaitable,
+    BinaryIO,
     Callable,
     Dict,
     Mapping,
@@ -17,6 +22,7 @@ from typing import (
     TextIO,
     Tuple,
     Union,
+    cast,
 )
 
 from neuro_flow import ast
@@ -108,6 +114,10 @@ class LocalCL(StreamCL, abc.ABC):
     def __init__(self, config_dir: ConfigDir):
         self._workspace = config_dir.workspace.resolve()
         self._config_dir = config_dir.config_dir.resolve()
+        self._github_session = aiohttp.ClientSession()
+
+    async def close(self) -> None:
+        await self._github_session.close()
 
     @property
     def workspace(self) -> LocalPath:
@@ -148,8 +158,45 @@ class LocalCL(StreamCL, abc.ABC):
                 raise ValueError(f"Action {action_name} does not exist")
             with path.open() as f:
                 yield f
+        elif scheme in ("gh", "github"):
+            repo, sep, version = spec.partition("@")
+            if not sep:
+                raise ValueError(f"{action_name} is github action, but has no version")
+            async with self._tarball_from_github(repo, version) as tarball:
+                tar = tarfile.open(fileobj=tarball)
+                for member in tar.getmembers():
+                    member_path = LocalPath(member.name)
+                    # find action yml file
+                    if (
+                        len(member_path.parts) == 2
+                        and member_path.parts[1] == "action.yml"
+                    ):
+                        if member.isfile():
+                            file_obj = tar.extractfile(member)
+                            if file_obj is None:
+                                raise ValueError(
+                                    f"Github repo {repo} do not contain "
+                                    '"action.yml" file.'
+                                )
+                            # Cast is workaround for
+                            # https://github.com/python/typeshed/issues/4349
+                            yield TextIOWrapper(cast(BinaryIO, file_obj))
         else:
             raise ValueError(f"Unsupported scheme '{scheme}'")
+
+    @asynccontextmanager
+    async def _tarball_from_github(
+        self, repo: str, version: str
+    ) -> AsyncIterator[IO[bytes]]:
+        with TemporaryFile() as file:
+            assert self._github_session, "LocalCL was not initialised properly"
+            async with self._github_session.get(
+                url=f"https://api.github.com/repos/{repo}/tarball/{version}"
+            ) as response:
+                async for chunk in response.content:
+                    file.write(chunk)
+            file.seek(0)
+            yield file
 
 
 class LiveLocalCL(LocalCL, LiveStreamCL):

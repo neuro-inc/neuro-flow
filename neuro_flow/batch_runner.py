@@ -32,7 +32,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         self._config_dir = config_dir
         self._client = client
         self._storage = storage
-        self._config_loader = BatchLocalCL(self._config_dir)
+        self._config_loader: Optional[BatchLocalCL] = None
         self._project: Optional[str] = None
 
     @property
@@ -40,10 +40,17 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         assert self._project is not None
         return self._project
 
+    @property
+    def config_loader(self) -> BatchLocalCL:
+        assert self._config_loader is not None
+        return self._config_loader
+
     async def close(self) -> None:
-        pass
+        if self._config_loader is not None:
+            await self._config_loader.close()
 
     async def __aenter__(self) -> "BatchRunner":
+        self._config_loader = BatchLocalCL(self._config_dir)
         project_ast = await self._config_loader.fetch_project()
         self._project = await project_ast.id.eval(EMPTY_ROOT)
         return self
@@ -61,12 +68,12 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         # batch_name is a name of yaml config inside self._workspace / .neuro
         # folder without the file extension
 
-        click.echo(f"Use config file {self._config_loader.flow_path(batch_name)}")
+        click.echo(f"Use config file {self.config_loader.flow_path(batch_name)}")
 
         click.echo("Check config... ", nl=False)
 
         # Check that the yaml is parseable
-        ctx = await BatchContext.create(self._config_loader, batch_name)
+        ctx = await BatchContext.create(self.config_loader, batch_name)
 
         for volume in ctx.volumes.values():
             if volume.local is not None:
@@ -80,7 +87,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         click.echo("ok")
 
         click.echo("Create bake")
-        config_meta, configs = await self._config_loader.collect_configs(batch_name)
+        config_meta, configs = await self.config_loader.collect_configs(batch_name)
         bake = await self._storage.create_bake(
             ctx.flow.project_id, batch_name, config_meta, configs
         )

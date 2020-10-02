@@ -7,7 +7,7 @@ from neuro_flow.config_loader import LiveLocalCL
 from neuro_flow.parser import find_workspace
 
 
-def test_not_exists(tmp_path: Path) -> None:
+async def test_not_exists(tmp_path: Path) -> None:
     d = tmp_path / ".neuro"
     d.mkdir()
     with pytest.raises(ValueError, match=".+ does not exist"):
@@ -61,7 +61,7 @@ def test_explicit_file(tmp_path: Path) -> None:
         find_workspace(f)
 
 
-def test_found(tmp_path: Path) -> None:
+async def test_found(tmp_path: Path) -> None:
     d = tmp_path / ".neuro"
     d.mkdir()
     f = d / "live.yml"

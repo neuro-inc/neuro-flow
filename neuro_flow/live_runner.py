@@ -36,20 +36,23 @@ class JobInfo:
 
 class LiveRunner(AsyncContextManager["LiveRunner"]):
     def __init__(self, config_dir: ConfigDir) -> None:
-        self._workspace = config_dir.workspace
-        self._config_loader = LiveLocalCL(config_dir)
+        self._config_dir = config_dir
+        self._config_loader: Optional[LiveLocalCL] = None
         self._ctx: Optional[LiveContext] = None
         self._client: Optional[Client] = None
 
     async def post_init(self) -> None:
         if self._ctx is not None:
             return
+        self._config_loader = LiveLocalCL(self._config_dir)
         self._ctx = await LiveContext.create(self._config_loader, "live")
         self._client = await Factory().get()
 
     async def close(self) -> None:
         if self._client is not None:
             await self._client.close()
+        if self._config_loader is not None:
+            await self._config_loader.close()
 
     async def __aenter__(self) -> "LiveRunner":
         await self.post_init()
