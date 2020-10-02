@@ -13,8 +13,16 @@ from .batch_executor import BatchExecutor, ExecutorData
 from .commands import CmdProcessor
 from .context import EMPTY_ROOT, BatchContext, DepCtx, TaskContext
 from .parser import ConfigDir, parse_action, parse_batch, parse_project
-from .storage import Attempt, Bake, BatchStorage, ConfigFile
-from .types import LocalPath, TaskStatus
+from .storage import (
+    Attempt,
+    Bake,
+    BatchStorage,
+    ConfigFile,
+    FinishedTask,
+    SkippedTask,
+    StartedTask,
+)
+from .types import FullID, LocalPath, TaskStatus
 from .utils import TERMINATED_JOB_STATUSES, fmt_id, fmt_raw_id, fmt_status
 
 
@@ -24,6 +32,17 @@ else:
     from . import backport_graphlib as graphlib
 
 EXECUTOR_IMAGE = f"neuromation/neuro-flow:{__version__}"
+
+
+GRAPH_COLORS = {
+    TaskStatus.PENDING: "skyblue",
+    TaskStatus.RUNNING: "steelblue",
+    TaskStatus.SUCCEEDED: "limegreen",
+    TaskStatus.CANCELLED: "orange",
+    TaskStatus.DISABLED: "magenta",
+    TaskStatus.FAILED: "orangered",
+    TaskStatus.UNKNOWN: "crimson",
+}
 
 
 class BatchRunner(AsyncContextManager["BatchRunner"]):
@@ -255,6 +274,24 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         for line in ftable.table(rows):
             click.echo(line)
 
+        if output is not None:
+            config_file = (
+                self._config_dir.config_dir / (bake.batch + ".yml")
+            ).resolve()
+            flow = parse_batch(self._config_dir.workspace, config_file)
+            assert isinstance(flow, ast.BatchFlow)
+            ctx = await BatchContext.create(
+                flow, self._config_dir.workspace, config_file
+            )
+            dot = Digraph(bake.batch, filename=str(output), strict=True, engine="dot")
+            dot.attr(compound="true")
+
+            await self._subgraph(dot, ctx, {}, started, finished, skipped)
+            click.echo(f"Saving file {dot.filename}")
+            dot.save()
+            click.echo(f"Open {dot.filename}.pdf")
+            dot.view()
+
     async def logs(
         self, bake_id: str, task_id: str, *, attempt_no: int = -1, raw: bool = False
     ) -> None:
@@ -324,27 +361,32 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
     async def clear_cache(self, batch: Optional[str] = None) -> None:
         await self._storage.clear_cache(self.project, batch)
 
-    async def graph(
-        self, batch_name: str, *, output: Optional[LocalPath] = None
-    ) -> None:
+    async def graph(self, batch_name: str, *, output: LocalPath) -> None:
         config_file = (self._config_dir.config_dir / (batch_name + ".yml")).resolve()
         flow = parse_batch(self._config_dir.workspace, config_file)
         assert isinstance(flow, ast.BatchFlow)
         ctx = await BatchContext.create(flow, self._config_dir.workspace, config_file)
-        if output is None:
-            output = batch_name + ".gv"
         dot = Digraph(batch_name, filename=str(output), strict=True, engine="dot")
         dot.attr(compound="true")
 
-        await self._subgraph(dot, ctx, {})
+        await self._subgraph(dot, ctx, {}, {}, {}, {})
         click.echo(f"Saving file {dot.filename}")
         dot.save()
         click.echo(f"Open {dot.filename}.pdf")
         dot.view()
 
     async def _subgraph(
-        self, dot: Digraph, ctx: TaskContext, anchors: Dict[str, str]
+        self,
+        dot: Digraph,
+        ctx: TaskContext,
+        anchors: Dict[str, str],
+        started: Dict[FullID, StartedTask],
+        finished: Dict[FullID, FinishedTask],
+        skipped: Dict[FullID, SkippedTask],
     ) -> None:
+        lhead: Optional[str]
+        ltail: Optional[str]
+        color: Optional[str]
         first = True
         for task_id, deps in ctx.graph.items():
             tgt = ".".join(task_id)
@@ -363,11 +405,23 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                     action_ctx = await ctx.with_action(name, needs=needs)
                     subdot.attr(label=f"{name} [{action_ctx.action}]")
                     subdot.attr(compound="true")
-                    await self._subgraph(subdot, action_ctx, anchors)
+                    await self._subgraph(
+                        subdot, action_ctx, anchors, started, finished, skipped
+                    )
                 tgt = anchors[tgt]
             else:
                 # task_ctx = await ctx.with_task(name, needs=needs)
-                dot.node(tgt, name)
+                if task_id in skipped:
+                    color = GRAPH_COLORS[TaskStatus.DISABLED]
+                elif task_id in finished:
+                    status = TaskStatus(finished[task_id].status)
+                    color = GRAPH_COLORS[status]
+                elif task_id in started:
+                    color = GRAPH_COLORS[TaskStatus.RUNNING]
+                else:
+                    color = None
+
+                dot.node(tgt, name, color=color)
                 lhead = None
 
             for dep in deps:

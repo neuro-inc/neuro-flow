@@ -91,7 +91,7 @@ async def bakes(config_dir: ConfigDir) -> None:
     "-o",
     "--output",
     type=click.Path(file_okay=True, dir_okay=False, writable=True),
-    help="A path to with Graphviz (DOT) file.",
+    help="A path to Graphviz (DOT) file.",
 )
 @wrap_async()
 async def inspect(
@@ -210,7 +210,7 @@ async def clear_cache(config_dir: ConfigDir, batch: str) -> None:
     "-o",
     "--output",
     type=click.Path(file_okay=True, dir_okay=False, writable=True),
-    help="A path to with Graphviz (DOT) file.",
+    help="A path to Graphviz (DOT) file.",
 )
 @wrap_async()
 async def graph(config_dir: ConfigDir, batch: str, output: Optional[str]) -> None:
@@ -222,12 +222,14 @@ async def graph(config_dir: ConfigDir, batch: str, output: Optional[str]) -> Non
     """
     async with AsyncExitStack() as stack:
         client = await stack.enter_async_context(api_get())
-        storage: BatchStorage = await stack.enter_async_context(BatchFSStorage(client))
+        storage: BatchStorage = await stack.enter_async_context(
+            BatchFSStorage(NeuroStorageFS(client))
+        )
         runner = await stack.enter_async_context(
             BatchRunner(config_dir, client, storage)
         )
         if output is not None:
-            real_output: Optional[LocalPath] = LocalPath(output)
+            real_output = LocalPath(output)
         else:
-            real_output = None
+            real_output = LocalPath(batch + ".gv")
         await runner.graph(batch, output=real_output)
