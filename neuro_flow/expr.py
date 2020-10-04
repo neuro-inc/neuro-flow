@@ -53,7 +53,7 @@ _T = TypeVar("_T")
 
 LiteralT = Union[None, bool, int, float, str]
 
-TypeT = Union[LiteralT, "ContainerT", "MappingT", "SequenceT"]
+TypeT = Union[LiteralT, "ContainerT", "MappingT", "SequenceT", LocalPath]
 
 
 @runtime_checkable
