@@ -169,8 +169,11 @@ async def hash_files(ctx: CallCtx, *patterns: str) -> str:
     hasher = hashlib.new("sha256")
     flow = ctx.root.lookup("flow")
     # emulate att lookup
-    workspace: LocalPath = await AttrGetter(ctx.start, ctx.end, name="workspace").eval(
-        ctx.root, flow, start=ctx.start
+    workspace: LocalPath = cast(
+        LocalPath,
+        await AttrGetter(ctx.start, ctx.end, name="workspace").eval(
+            ctx.root, flow, start=ctx.start
+        ),
     )
     for pattern in patterns:
         for fname in workspace.glob(pattern):
