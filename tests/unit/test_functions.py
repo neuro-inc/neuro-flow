@@ -36,7 +36,7 @@ async def test_fmt():
 
 
 async def test_hash_files():
-    expr = StrExpr(POS, POS, "${{ hash_files('Dockerfile', 'requirements/**.txt') }}")
+    expr = StrExpr(POS, POS, "${{ hash_files('Dockerfile', 'requirements/*.txt') }}")
     folder = LocalPath(__file__).parent / "hash_files"
     ret = await expr.eval(Root({"flow": {"workspace": folder}}))
-    assert ret == "1 a"
+    assert ret == "8c310cbbd8acc18c57bc48bdc3da0efae33bb62ebaa87a58cf67a607dc9f35c4"
