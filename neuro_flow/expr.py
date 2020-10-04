@@ -6,6 +6,7 @@ import dataclasses
 import abc
 import asyncio
 import datetime
+import hashlib
 import inspect
 import json
 import operator
@@ -164,6 +165,23 @@ async def from_json(ctx: CallCtx, arg: str) -> TypeT:
     return cast(TypeT, json.loads(arg))
 
 
+async def hash_files(ctx: CallCtx, *patterns: str) -> str:
+    hasher = hashlib.new("sha256")
+    flow = ctx.root.lookup("flow")
+    # emulate att lookup
+    workspace: LocalPath = await AttrGetter(name="workspace").eval(
+        ctx.root, flow, start=ctx.start
+    )
+    for pattern in patterns:
+        for fname in workspace.glob(pattern):
+            with fname.open("rb") as stream:
+                data = stream.read(256 * 1024)
+                if not data:
+                    break
+                hasher.update(data)
+    return hasher.hexdigest()
+
+
 def _check_has_needs(ctx: CallCtx, *, func_name: str) -> None:
     try:
         ctx.root.lookup("needs")
@@ -232,6 +250,7 @@ FUNCTIONS = _build_signatures(
     from_json=from_json,
     success=success,
     failure=failure,
+    hash_files=hash_files,
 )
 
 
