@@ -4,15 +4,14 @@ from typing import Optional, Tuple
 from neuro_flow.cli.click_types import LIVE_JOB, LIVE_JOB_OR_ALL, SUFFIX_AFTER_LIVE_JOB
 from neuro_flow.cli.utils import argument, option, wrap_async
 from neuro_flow.live_runner import LiveRunner
-from neuro_flow.parser import ConfigDir, find_live_config
+from neuro_flow.parser import ConfigDir
 
 
 @click.command()
 @wrap_async()
 async def ps(config_dir: ConfigDir) -> None:
     """List all jobs"""
-    config_path = find_live_config(config_dir)
-    async with LiveRunner(config_path.workspace, config_path.config_file) as runner:
+    async with LiveRunner(config_dir) as runner:
         await runner.ps()
 
 
@@ -33,8 +32,7 @@ async def run(
 
     For multi-jobs an explicit job suffix can be used with explicit job arguments.
     """
-    config_path = find_live_config(config_dir)
-    async with LiveRunner(config_path.workspace, config_path.config_file) as runner:
+    async with LiveRunner(config_dir) as runner:
         await runner.run(job_id, suffix, args)
 
 
@@ -47,8 +45,7 @@ async def logs(config_dir: ConfigDir, job_id: str, suffix: Optional[str]) -> Non
 
     Display logs for JOB-ID
     """
-    config_path = find_live_config(config_dir)
-    async with LiveRunner(config_path.workspace, config_path.config_file) as runner:
+    async with LiveRunner(config_dir) as runner:
         await runner.logs(job_id, suffix)
 
 
@@ -61,8 +58,7 @@ async def status(config_dir: ConfigDir, job_id: str, suffix: Optional[str]) -> N
 
     Print status for JOB-ID
     """
-    config_path = find_live_config(config_dir)
-    async with LiveRunner(config_path.workspace, config_path.config_file) as runner:
+    async with LiveRunner(config_dir) as runner:
         await runner.status(job_id, suffix)
 
 
@@ -74,8 +70,7 @@ async def kill(config_dir: ConfigDir, job_id: str, suffix: Optional[str]) -> Non
     """Kill a job.
 
     Kill JOB-ID, use `kill ALL` for killing all jobs."""
-    config_path = find_live_config(config_dir)
-    async with LiveRunner(config_path.workspace, config_path.config_file) as runner:
+    async with LiveRunner(config_dir) as runner:
         if job_id != "ALL":
             await runner.kill(job_id, suffix)
         else:

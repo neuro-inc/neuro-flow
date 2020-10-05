@@ -4,16 +4,16 @@ import sys
 from neuromation.api import Client, JobStatus
 from neuromation.cli.formatters import ftable  # TODO: extract into a separate library
 from types import TracebackType
-from typing import List, Optional, Sequence, Type, Union
+from typing import List, Optional, Type
 from typing_extensions import AsyncContextManager, AsyncIterator
 
-from . import __version__, ast
+from . import __version__
 from .batch_executor import BatchExecutor, ExecutorData
 from .commands import CmdProcessor
+from .config_loader import BatchLocalCL
 from .context import EMPTY_ROOT, BatchContext
-from .parser import ConfigDir, parse_action, parse_batch, parse_project
-from .storage import Attempt, Bake, BatchStorage, ConfigFile
-from .types import LocalPath
+from .parser import ConfigDir
+from .storage import Attempt, Bake, BatchStorage
 from .utils import TERMINATED_JOB_STATUSES, fmt_id, fmt_raw_id, fmt_status
 
 
@@ -32,6 +32,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         self._config_dir = config_dir
         self._client = client
         self._storage = storage
+        self._config_loader: Optional[BatchLocalCL] = None
         self._project: Optional[str] = None
 
     @property
@@ -39,16 +40,19 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         assert self._project is not None
         return self._project
 
+    @property
+    def config_loader(self) -> BatchLocalCL:
+        assert self._config_loader is not None
+        return self._config_loader
+
     async def close(self) -> None:
-        pass
+        if self._config_loader is not None:
+            await self._config_loader.close()
 
     async def __aenter__(self) -> "BatchRunner":
-        project_file = self._config_dir.workspace / "project.yml"
-        if project_file.exists():
-            pr = parse_project(project_file)
-            self._project = await pr.id.eval(EMPTY_ROOT)
-        else:
-            self._project = self._config_dir.workspace.name
+        self._config_loader = BatchLocalCL(self._config_dir)
+        project_ast = await self._config_loader.fetch_project()
+        self._project = await project_ast.id.eval(EMPTY_ROOT)
         return self
 
     async def __aexit__(
@@ -59,89 +63,33 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
     ) -> None:
         await self.close()
 
-    def _parse_action_name(self, action_name: str) -> LocalPath:
-        scheme, sep, spec = action_name.partition(":")
-        if not sep:
-            raise ValueError(f"{action_name} has no schema")
-        if scheme in ("ws", "workspace"):
-            path = self._config_dir.workspace / spec
-            if not path.exists():
-                path = path.with_suffix(".yml")
-            if not path.exists():
-                raise ValueError(f"Action {action_name} does not exist")
-            return path
-        else:
-            raise ValueError(f"Unsupported scheme '{scheme}'")
-
-    async def _collect_configs_for_task(
-        self, tasks: Sequence[Union[ast.Task, ast.TaskActionCall]]
-    ) -> List[LocalPath]:
-        result: List[LocalPath] = []
-        for task in tasks:
-            if isinstance(task, ast.BaseActionCall):
-                action_name = await task.action.eval(EMPTY_ROOT)
-                action_path = self._parse_action_name(action_name)
-                result += [LocalPath(action_path)]
-                result += await self._collect_subaction_configs(
-                    parse_action(action_path)
-                )
-        return result
-
-    async def _collect_subaction_configs(
-        self, action: ast.BaseAction
-    ) -> List[LocalPath]:
-        if isinstance(action, ast.BatchAction):
-            return await self._collect_configs_for_task(action.tasks)
-        else:
-            return []
-
-    async def _collect_additional_configs(self, flow: ast.BatchFlow) -> List[LocalPath]:
-        result = []
-        project_file = self._config_dir.workspace / "project.yml"
-        if project_file.exists():
-            result = [project_file]
-        return result + await self._collect_configs_for_task(flow.tasks)
-
     # Next function is also used in tests:
     async def _setup_exc_data(self, batch_name: str) -> ExecutorData:
         # batch_name is a name of yaml config inside self._workspace / .neuro
         # folder without the file extension
-        config_file = (self._config_dir.config_dir / (batch_name + ".yml")).resolve()
 
-        click.echo(f"Use config file {config_file}")
+        click.echo(f"Use config file {self.config_loader.flow_path(batch_name)}")
 
         click.echo("Check config... ", nl=False)
-        # Check that the yaml is parseable
-        flow = parse_batch(self._config_dir.workspace, config_file)
-        assert isinstance(flow, ast.BatchFlow)
 
-        ctx = await BatchContext.create(flow, self._config_dir.workspace, config_file)
+        # Check that the yaml is parseable
+        ctx = await BatchContext.create(self.config_loader, batch_name)
+
         for volume in ctx.volumes.values():
             if volume.local is not None:
                 # TODO: sync volumes if needed
                 raise NotImplementedError("Volumes sync is not supported")
 
-        toposorter = graphlib.TopologicalSorter(ctx.graph)
         # check fast for the graph cycle error
+        toposorter = graphlib.TopologicalSorter(ctx.graph)
         toposorter.prepare()
-
-        configs = [config_file, *await self._collect_additional_configs(flow)]
-        configs_files = [
-            ConfigFile(
-                path.relative_to(self._config_dir.workspace),
-                path.read_text(),
-            )
-            for path in configs
-        ]
 
         click.echo("ok")
 
         click.echo("Create bake")
+        config_meta, configs = await self.config_loader.collect_configs(batch_name)
         bake = await self._storage.create_bake(
-            self.project,
-            batch_name,
-            str(config_file.relative_to(self._config_dir.workspace)),
-            configs_files,
+            ctx.flow.project_id, batch_name, config_meta, configs
         )
         click.echo(f"Bake {fmt_id(str(bake))} is created")
 

@@ -13,9 +13,9 @@ from types import TracebackType
 from typing import AbstractSet, AsyncIterator, Iterable, List, Optional, Tuple, Type
 from typing_extensions import AsyncContextManager
 
+from .config_loader import LiveLocalCL
 from .context import ImageCtx, LiveContext, UnknownJob, VolumeCtx
-from .parser import parse_live
-from .types import LocalPath
+from .parser import ConfigDir
 from .utils import (
     RUNNING_JOB_STATUSES,
     TERMINATED_JOB_STATUSES,
@@ -35,24 +35,24 @@ class JobInfo:
 
 
 class LiveRunner(AsyncContextManager["LiveRunner"]):
-    def __init__(self, workspace: LocalPath, config_file: LocalPath) -> None:
-        self._workspace = workspace
-        self._config_file = config_file
-        self._flow = parse_live(workspace, config_file)
+    def __init__(self, config_dir: ConfigDir) -> None:
+        self._config_dir = config_dir
+        self._config_loader: Optional[LiveLocalCL] = None
         self._ctx: Optional[LiveContext] = None
         self._client: Optional[Client] = None
 
     async def post_init(self) -> None:
         if self._ctx is not None:
             return
-        self._ctx = await LiveContext.create(
-            self._flow, self._workspace, self._config_file
-        )
+        self._config_loader = LiveLocalCL(self._config_dir)
+        self._ctx = await LiveContext.create(self._config_loader, "live")
         self._client = await Factory().get()
 
     async def close(self) -> None:
         if self._client is not None:
             await self._client.close()
+        if self._config_loader is not None:
+            await self._config_loader.close()
 
     async def __aenter__(self) -> "LiveRunner":
         await self.post_init()
