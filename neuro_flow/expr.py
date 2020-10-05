@@ -177,6 +177,8 @@ async def hash_files(ctx: CallCtx, *patterns: str) -> str:
     )
     for pattern in patterns:
         for fname in workspace.glob(pattern):
+            if fname.name == ".DS_Store":
+                continue
             with fname.open("rb") as stream:
                 data = stream.read(256 * 1024)
                 if not data:
