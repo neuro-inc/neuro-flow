@@ -168,7 +168,7 @@ async def from_json(ctx: CallCtx, arg: str) -> TypeT:
 async def hash_files(ctx: CallCtx, *patterns: str) -> str:
     hasher = hashlib.new("sha256")
     flow = ctx.root.lookup("flow")
-    # emulate att lookup
+    # emulate attr lookup
     workspace: LocalPath = cast(
         LocalPath,
         await AttrGetter(ctx.start, ctx.end, name="workspace").eval(
