@@ -74,7 +74,7 @@ class BatchExecutor:
         self._finished: Dict[FullID, FinishedTask] = {}
         self._skipped: Dict[FullID, SkippedTask] = {}
 
-        # Not about default value:
+        # A note about default value:
         # AS: I have no idea what timeout is better;
         # too short value bombards servers,
         # too long timeout makes the waiting longer than expected
