@@ -20,7 +20,7 @@ from typing import AbstractSet, AsyncIterator, Dict, List, Tuple
 from .commands import CmdProcessor
 from .config_loader import BatchRemoteCL
 from .context import BatchActionContext, BatchContext, DepCtx, NeedsCtx, TaskContext
-from .storage import Attempt, BatchStorage, FinishedTask, SkippedTask, StartedTask
+from .storage import Attempt, BatchStorage, FinishedTask, StartedTask
 from .types import AlwaysT, FullID, LocalPath, TaskStatus
 from .utils import TERMINATED_JOB_STATUSES, fmt_id, fmt_raw_id, fmt_status
 
@@ -72,7 +72,6 @@ class BatchExecutor:
         ] = {}
         self._started: Dict[FullID, StartedTask] = {}
         self._finished: Dict[FullID, FinishedTask] = {}
-        self._skipped: Dict[FullID, SkippedTask] = {}
         self._is_cancelling = False
 
         # A note about default value:
@@ -119,7 +118,6 @@ class BatchExecutor:
             (
                 self._started,
                 self._finished,
-                self._skipped,
             ) = await self._storage.fetch_attempt(attempt)
 
             async for prefix, ctx, topo in self._build_topo((), top_ctx):
@@ -176,7 +174,7 @@ class BatchExecutor:
                 await self._client.jobs.kill(st.raw_id)
 
     def _next_task_no(self) -> int:
-        return len(self._started) + len(self._finished) + len(self._skipped)
+        return len(self._started) + len(self._finished)
 
     async def _process_topo(
         self,
@@ -189,7 +187,7 @@ class BatchExecutor:
         running_tasks = {
             k: v
             for k, v in self._started.items()
-            if k not in self._finished and k not in self._skipped and v.raw_id
+            if k not in self._finished and v.raw_id
         }
         budget = ctx.strategy.max_parallel - len(running_tasks)
         if budget <= 0:
@@ -202,8 +200,6 @@ class BatchExecutor:
                 continue
             if full_id in self._finished:
                 continue
-            if full_id in self._skipped:
-                continue
             tid = full_id[-1]
             needs = self._build_needs(prefix, ctx.graph[full_id])
             assert full_id[:-1] == prefix
@@ -215,7 +211,7 @@ class BatchExecutor:
                 )
                 str_skipped = click.style("skipped", fg="magenta")
                 click.echo(f"Task {fmt_id(full_id)} is {str_skipped}")
-                self._skipped[skipped_task.id] = skipped_task
+                self._finished[skipped_task.id] = skipped_task
                 topo.done(full_id)
                 continue
 
@@ -239,7 +235,7 @@ class BatchExecutor:
                         f"Task {fmt_id(ft.id)} [{fmt_raw_id(ft.raw_id)}] "
                         f"is {str_cached}"
                     )
-                    assert ft.status == JobStatus.SUCCEEDED
+                    assert ft.status == TaskStatus.SUCCEEDED
                     await self._mark_finished(attempt, ft)
                 else:
                     st = await self._start_task(
@@ -258,8 +254,6 @@ class BatchExecutor:
     async def _process_started(self, attempt: Attempt) -> bool:
         for st in self._started.values():
             if st.id in self._finished:
-                continue
-            if st.id in self._skipped:
                 continue
             str_full_id = fmt_id(st.id)
             if st.raw_id:
@@ -306,7 +300,7 @@ class BatchExecutor:
                 parent_ctx, parent_topo, parent_ready = self._topos[st.id[:-1]]
                 parent_topo.done(st.id)
                 if (
-                    self._finished[st.id].status != JobStatus.SUCCEEDED
+                    self._finished[st.id].status != TaskStatus.SUCCEEDED
                     and parent_ctx.strategy.fail_fast
                 ):
                     return False
@@ -316,13 +310,10 @@ class BatchExecutor:
         needs = {}
         for full_id in deps:
             dep_id = full_id[-1]
-            if full_id in self._skipped:
-                needs[dep_id] = DepCtx(TaskStatus.SKIPPED, {})
-            else:
-                dep = self._finished.get(full_id)
-                if dep is None:
-                    raise NotFinished(full_id)
-                needs[dep_id] = DepCtx(TaskStatus(dep.status), dep.outputs)
+            dep = self._finished.get(full_id)
+            if dep is None:
+                raise NotFinished(full_id)
+            needs[dep_id] = DepCtx(TaskStatus(dep.status), dep.outputs)
         return needs
 
     async def _build_topo(
@@ -334,8 +325,6 @@ class BatchExecutor:
         topo = graphlib.TopologicalSorter(graph)
         topo.prepare()
         for full_id in graph:
-            if full_id in self._skipped:
-                topo.done(full_id)
             if full_id in self._finished:
                 topo.done(full_id)
             elif await ctx.is_action(full_id[-1]):
@@ -351,9 +340,9 @@ class BatchExecutor:
 
     def _accumulate_result(self) -> JobStatus:
         for task in self._finished.values():
-            if task.status == JobStatus.CANCELLED:
+            if task.status == TaskStatus.CANCELLED:
                 return JobStatus.CANCELLED
-            elif task.status == JobStatus.FAILED:
+            elif task.status == TaskStatus.FAILED:
                 return JobStatus.FAILED
 
         return JobStatus.SUCCEEDED
@@ -411,7 +400,7 @@ class BatchExecutor:
 
     async def _skip_task(
         self, attempt: Attempt, task_no: int, full_id: FullID
-    ) -> SkippedTask:
+    ) -> FinishedTask:
         return await self._storage.skip_task(attempt, task_no, full_id)
 
     async def _finish_task(
