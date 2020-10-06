@@ -4,16 +4,17 @@ import sys
 from neuromation.api import Client, JobStatus
 from neuromation.cli.formatters import ftable  # TODO: extract into a separate library
 from types import TracebackType
-from typing import List, Optional, Type
+from typing import AbstractSet, List, Mapping, Optional, Tuple, Type
 from typing_extensions import AsyncContextManager, AsyncIterator
 
 from . import __version__
 from .batch_executor import BatchExecutor, ExecutorData
 from .commands import CmdProcessor
 from .config_loader import BatchLocalCL
-from .context import EMPTY_ROOT, BatchContext
+from .context import EMPTY_ROOT, BatchContext, DepCtx, TaskContext
 from .parser import ConfigDir
 from .storage import Attempt, Bake, BatchStorage
+from .types import FullID, TaskStatus
 from .utils import TERMINATED_JOB_STATUSES, fmt_id, fmt_raw_id, fmt_status
 
 
@@ -80,16 +81,18 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                 # TODO: sync volumes if needed
                 raise NotImplementedError("Volumes sync is not supported")
 
-        # check fast for the graph cycle error
-        toposorter = graphlib.TopologicalSorter(ctx.graph)
-        toposorter.prepare()
+        graphs = await self._build_graphs(ctx)
 
         click.echo("ok")
 
         click.echo("Create bake")
         config_meta, configs = await self.config_loader.collect_configs(batch_name)
         bake = await self._storage.create_bake(
-            ctx.flow.project_id, batch_name, config_meta, configs
+            ctx.flow.project_id,
+            batch_name,
+            config_meta,
+            configs,
+            graphs=graphs,
         )
         click.echo(f"Bake {fmt_id(str(bake))} is created")
 
@@ -99,6 +102,31 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             when=bake.when,
             suffix=bake.suffix,
         )
+
+    async def _build_graphs(
+        self, ctx: TaskContext
+    ) -> Mapping[FullID, Mapping[FullID, AbstractSet[FullID]]]:
+        graphs = {}
+        to_check: List[Tuple[FullID, TaskContext]] = [((), ctx)]
+        while to_check:
+            prefix, ctx = to_check.pop(0)
+            graph = ctx.graph
+            graphs[prefix] = graph
+
+            # check fast for the graph cycle error
+            toposorter = graphlib.TopologicalSorter(graph)
+            toposorter.prepare()
+
+            for full_id in ctx.graph:
+                tid = full_id[-1]
+                if await ctx.is_action(tid):
+                    fake_needs = {
+                        key: DepCtx(TaskStatus.SUCCEEDED, {})
+                        for key in ctx.get_dep_ids(tid)
+                    }
+                    sub_ctx = await ctx.with_action(tid, needs=fake_needs)
+                    to_check.append((full_id, sub_ctx))
+        return graphs
 
     async def bake(self, batch_name: str, local_executor: bool = False) -> None:
         data = await self._setup_exc_data(batch_name)
