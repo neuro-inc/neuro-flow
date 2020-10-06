@@ -1,4 +1,5 @@
 import click
+import signal
 import sys
 from neuromation.api import get as api_get
 from typing import Optional
@@ -51,6 +52,20 @@ async def execute(config_dir: ConfigDir, executor_data: str) -> None:
 
     Run BATCH pipeline remotely on the cluster.
     """
+    # neuro-flow execute is run in linux container only,
+    # Linux signals are always defined.
+    for signame in (
+        signal.SIGHUP,
+        signal.SIGINT,
+        signal.SIGQUIT,
+        signal.SIGTSTP,
+        signal.SIGTERM,
+        signal.SIGTTIN,
+        signal.SIGTTOU,
+        signal.SIGWINCH,
+    ):
+        # ignore everything, use neuro-flow cancel to stop the master job.
+        signal.signal(signame, signal.SIG_IGN)
     async with AsyncExitStack() as stack:
         data = ExecutorData.parse(executor_data)
         client = await stack.enter_async_context(api_get())
