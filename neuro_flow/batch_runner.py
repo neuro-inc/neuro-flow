@@ -290,7 +290,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                 first = False
 
             if task_id in finished:
-                status = TaskStatus(finished[task_id].status)
+                status = finished[task_id].status
                 color = GRAPH_COLORS[status]
             elif task_id in started:
                 color = GRAPH_COLORS[TaskStatus.RUNNING]
