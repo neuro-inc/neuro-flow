@@ -423,7 +423,7 @@ async def test_graphs(
         data.project, data.batch, data.when, data.suffix
     )
     assert bake.graphs == {
-        ("",): {("test",): set()},
+        (): {("test",): set()},
         ("test",): {
             ("test", "task_1"): set(),
             ("test", "task_2"): {("test", "task_1")},

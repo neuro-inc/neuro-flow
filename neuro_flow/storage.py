@@ -964,7 +964,10 @@ def _id_to_json(full_id: FullID) -> str:
 
 
 def _id_from_json(sid: str) -> FullID:
-    return tuple(sid.split("."))
+    if not sid:
+        return ()
+    else:
+        return tuple(sid.split("."))
 
 
 def _attempt_to_json(attempt: Attempt) -> Dict[str, Any]:
