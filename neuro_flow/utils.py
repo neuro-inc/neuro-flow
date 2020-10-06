@@ -10,7 +10,7 @@ COLORS = {
     TaskStatus.RUNNING: "blue",
     TaskStatus.SUCCEEDED: "green",
     TaskStatus.CANCELLED: "yellow",
-    TaskStatus.DISABLED: "magenta",
+    TaskStatus.SKIPPED: "magenta",
     TaskStatus.FAILED: "red",
     TaskStatus.UNKNOWN: "bright_black",
 }

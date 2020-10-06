@@ -45,7 +45,7 @@ from typing_extensions import Final, Protocol, runtime_checkable
 from yarl import URL
 
 from .tokenizer import Pos, Token, tokenize
-from .types import LocalPath, RemotePath, TaskStatus
+from .types import AlwaysT, LocalPath, RemotePath, TaskStatus
 
 
 _T = TypeVar("_T")
@@ -53,7 +53,7 @@ _T = TypeVar("_T")
 
 LiteralT = Union[None, bool, int, float, str]
 
-TypeT = Union[LiteralT, "ContainerT", "MappingT", "SequenceT", LocalPath]
+TypeT = Union[LiteralT, "ContainerT", "MappingT", "SequenceT", LocalPath, AlwaysT]
 
 
 @runtime_checkable
@@ -202,6 +202,11 @@ def _get_needs_statuses(root: RootABC) -> Dict[str, TaskStatus]:
     return result
 
 
+async def always(ctx: CallCtx, *args: str) -> AlwaysT:
+    _check_has_needs(ctx, func_name="success")
+    return AlwaysT()
+
+
 async def success(ctx: CallCtx, *args: str) -> bool:
     # When called without arguments, checks that all dependency task
     # succeeded. If arguments are passed, they should be strings that
@@ -254,6 +259,7 @@ FUNCTIONS = _build_signatures(
     success=success,
     failure=failure,
     hash_files=hash_files,
+    always=always,
 )
 
 
@@ -753,6 +759,25 @@ class SimpleBoolExpr(BoolExprMixin, StrictExpr[bool]):
 
 class SimpleOptBoolExpr(BoolExprMixin, Expr[bool]):
     allow_expr = False
+    type = bool
+
+
+class EnableExprMixin:
+    @classmethod
+    def convert(cls, arg: Union[AlwaysT, str, bool]) -> Union[bool, AlwaysT]:
+        if isinstance(arg, AlwaysT) or isinstance(arg, bool):
+            return arg
+        if arg == "always()":
+            return AlwaysT()
+        tmp = parse_literal(arg, "a boolean")
+        return bool(tmp)
+
+
+class EnableExpr(EnableExprMixin, StrictExpr[Union[bool, AlwaysT]]):
+    type = bool
+
+
+class OptEnableExpr(EnableExprMixin, Expr[Union[bool, AlwaysT]]):
     type = bool
 
 

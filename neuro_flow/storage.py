@@ -37,7 +37,7 @@ from typing import (
 from typing_extensions import Final
 from yarl import URL
 
-from neuro_flow.types import LocalPath
+from neuro_flow.types import AlwaysT, LocalPath
 
 from . import ast
 from .config_loader import ConfigFile
@@ -755,9 +755,10 @@ class BatchFSStorage(BatchStorage):
         result: DepCtx,
     ) -> FinishedTask:
         now = datetime.datetime.now(datetime.timezone.utc)
-        assert (
-            result.result != TaskStatus.DISABLED
-        ), "Finished task cannot have disabled state, use .skip_task() instead"
+        assert result.result != TaskStatus.SKIPPED, (
+            "Finished task cannot be disabled (it is already started),"
+            " use .skip_task() instead"
+        )
         status = JobStatus(result.result)
         ret = FinishedTask(
             attempt=attempt,
@@ -1055,5 +1056,7 @@ def _ctx_default(val: Any) -> Any:
         return str(val)
     elif isinstance(val, collections.abc.Set):
         return sorted(val)
+    elif isinstance(val, AlwaysT):
+        return str(val)
     else:
         raise TypeError(f"Cannot dump {val!r}")
