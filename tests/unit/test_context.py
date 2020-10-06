@@ -551,7 +551,7 @@ async def test_pipeline_enable_default_with_needs(
     assert not ctx2.task.enable
 
     ctx2 = await ctx.with_task(
-        "task-2", needs={"task_a": DepCtx(TaskStatus.DISABLED, {})}
+        "task-2", needs={"task_a": DepCtx(TaskStatus.SKIPPED, {})}
     )
     assert not ctx2.task.enable
 
@@ -570,7 +570,7 @@ async def test_pipeline_enable_success(batch_config_loader: ConfigLoader) -> Non
     assert not ctx2.task.enable
 
     ctx2 = await ctx.with_task(
-        "task-2", needs={"task_a": DepCtx(TaskStatus.DISABLED, {})}
+        "task-2", needs={"task_a": DepCtx(TaskStatus.SKIPPED, {})}
     )
     assert not ctx2.task.enable
 

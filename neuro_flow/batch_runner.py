@@ -14,7 +14,7 @@ from .commands import CmdProcessor
 from .config_loader import BatchLocalCL
 from .context import EMPTY_ROOT, BatchContext, DepCtx, TaskContext
 from .parser import ConfigDir
-from .storage import Attempt, Bake, BatchStorage
+from .storage import Attempt, Bake, BatchStorage, FinishedTask, StartedTask
 from .types import FullID, LocalPath, TaskStatus
 from .utils import TERMINATED_JOB_STATUSES, fmt_id, fmt_raw_id, fmt_status
 
@@ -32,7 +32,7 @@ GRAPH_COLORS = {
     TaskStatus.RUNNING: "steelblue",
     TaskStatus.SUCCEEDED: "limegreen",
     TaskStatus.CANCELLED: "orange",
-    TaskStatus.DISABLED: "magenta",
+    TaskStatus.SKIPPED: "magenta",
     TaskStatus.FAILED: "orangered",
     TaskStatus.UNKNOWN: "crimson",
 }
@@ -191,7 +191,14 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             click.echo(line)
 
     async def inspect(
-        self, bake_id: str, *, attempt_no: int = -1, output: Optional[LocalPath] = None
+        self,
+        bake_id: str,
+        *,
+        attempt_no: int = -1,
+        output: Optional[LocalPath] = None,
+        save_dot: bool = False,
+        save_pdf: bool = False,
+        view_pdf: bool = False,
     ) -> None:
         rows: List[List[str]] = []
         rows.append(
@@ -214,7 +221,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             )
         )
 
-        started, finished, skipped = await self._storage.fetch_attempt(attempt)
+        started, finished = await self._storage.fetch_attempt(attempt)
         for task in started.values():
             task_id = task.id
             raw_id = task.raw_id
@@ -226,8 +233,6 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                         fmt_raw_id(raw_id),
                     ]
                 )
-            elif task_id in skipped:
-                rows.append([fmt_id(task_id), fmt_status(TaskStatus.DISABLED), ""])
             elif task_id in started:
                 info = await self._client.jobs.status(raw_id)
                 rows.append(
@@ -242,15 +247,24 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         for line in ftable.table(rows):
             click.echo(line)
 
-        if output is not None:
-            graphs = bake.graphs
-            dot = Digraph(bake.batch, filename=str(output), strict=True, engine="dot")
-            dot.attr(compound="true")
+        if output is None:
+            output = LocalPath(f"{bake.bake_id}_{attempt.number}").with_suffix(".gz")
 
-            await self._subgraph(dot, graphs, (), {}, started, finished, skipped)
+        graphs = bake.graphs
+        dot = Digraph(bake.batch, filename=str(output), strict=True, engine="dot")
+        dot.attr(compound="true")
+        dot.node_attr = {"style": "filled"}
+
+        await self._subgraph(dot, graphs, (), {}, started, finished)
+
+        if save_dot:
             click.echo(f"Saving file {dot.filename}")
             dot.save()
-            click.echo(f"Open {dot.filename}.pdf")
+        if save_pdf:
+            click.echo(f"Rendering {dot.filename}.pdf")
+            dot.render(view=view_pdf)
+        elif view_pdf:
+            click.echo(f"Opening {dot.filename}.pdf")
             dot.view()
 
     async def _subgraph(
@@ -261,7 +275,6 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         anchors: Dict[str, str],
         started: Dict[FullID, StartedTask],
         finished: Dict[FullID, FinishedTask],
-        skipped: Dict[FullID, SkippedTask],
     ) -> None:
         lhead: Optional[str]
         ltail: Optional[str]
@@ -276,27 +289,30 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                 anchors[".".join(prefix)] = tgt
                 first = False
 
+            if task_id in finished:
+                status = TaskStatus(finished[task_id].status)
+                color = GRAPH_COLORS[status]
+            elif task_id in started:
+                color = GRAPH_COLORS[TaskStatus.RUNNING]
+            else:
+                color = None
+
             if task_id in graphs:
                 lhead = "cluster_" + tgt
                 with dot.subgraph(name=lhead) as subdot:
                     subdot.attr(label=f"{name}")
                     subdot.attr(compound="true")
+                    subdot.attr(color=color)
                     await self._subgraph(
-                        subdot, graphs, task_id, anchors, started, finished, skipped
+                        subdot,
+                        graphs,
+                        task_id,
+                        anchors,
+                        started,
+                        finished,
                     )
                 tgt = anchors[tgt]
             else:
-                # task_ctx = await ctx.with_task(name, needs=needs)
-                if task_id in skipped:
-                    color = GRAPH_COLORS[TaskStatus.DISABLED]
-                elif task_id in finished:
-                    status = TaskStatus(finished[task_id].status)
-                    color = GRAPH_COLORS[status]
-                elif task_id in started:
-                    color = GRAPH_COLORS[TaskStatus.RUNNING]
-                else:
-                    color = None
-
                 dot.node(tgt, name, color=color)
                 lhead = None
 
@@ -310,16 +326,13 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                     ltail = None
                 dot.edge(src, tgt, ltail=ltail, lhead=lhead)
 
-
     async def logs(
         self, bake_id: str, task_id: str, *, attempt_no: int = -1, raw: bool = False
     ) -> None:
         bake = await self._storage.fetch_bake_by_id(self.project, bake_id)
         attempt = await self._storage.find_attempt(bake, attempt_no)
-        started, finished, skipped = await self._storage.fetch_attempt(attempt)
+        started, finished = await self._storage.fetch_attempt(attempt)
         full_id = tuple(task_id.split("."))
-        if full_id in skipped:
-            raise click.BadArgumentUsage(f"Task {task_id} was skipped")
         if full_id not in finished:
             if full_id not in started:
                 raise click.BadArgumentUsage(f"Unknown task {task_id}")
@@ -344,6 +357,9 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                 ]
             )
         )
+
+        if not task.raw_id:
+            return
 
         if raw:
             async for chunk in self._client.jobs.monitor(task.raw_id):
@@ -379,18 +395,3 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
 
     async def clear_cache(self, batch: Optional[str] = None) -> None:
         await self._storage.clear_cache(self.project, batch)
-
-    async def graph(self, batch_name: str, *, output: LocalPath) -> None:
-        config_file = (self._config_dir.config_dir / (batch_name + ".yml")).resolve()
-        flow = parse_batch(self._config_dir.workspace, config_file)
-        assert isinstance(flow, ast.BatchFlow)
-        ctx = await BatchContext.create(flow, self._config_dir.workspace, config_file)
-        dot = Digraph(batch_name, filename=str(output), strict=True, engine="dot")
-        dot.attr(compound="true")
-
-        await self._subgraph(dot, ctx, {}, {}, {}, {})
-        click.echo(f"Saving file {dot.filename}")
-        dot.save()
-        click.echo(f"Open {dot.filename}.pdf")
-        dot.view()
-

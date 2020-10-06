@@ -81,7 +81,6 @@ main.add_command(batch.show)
 main.add_command(batch.inspect)
 main.add_command(batch.cancel)
 main.add_command(batch.clear_cache)
-main.add_command(batch.graph)
 
 # Volumes commands
 main.add_command(storage.upload)

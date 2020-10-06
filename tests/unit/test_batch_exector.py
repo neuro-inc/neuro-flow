@@ -429,3 +429,36 @@ async def test_graphs(
             ("test", "task_2"): {("test", "task_1")},
         },
     }
+
+
+async def test_always_after_disabled(
+    jobs_mock: JobsMock,
+    assets: Path,
+    run_executor: Callable[[Path, str], Awaitable[None]],
+) -> None:
+    executor_task = asyncio.ensure_future(
+        run_executor(assets, "batch-disabled-but-always")
+    )
+
+    await jobs_mock.mark_done("task-2")
+
+    await executor_task
+
+
+async def test_always_during_cancellation(
+    jobs_mock: JobsMock,
+    assets: Path,
+    setup_exc_data: Callable[[Path, str], Awaitable[ExecutorData]],
+    start_executor: Callable[[ExecutorData], Awaitable[None]],
+    cancel_batch: Callable[[Path, str], Awaitable[ExecutorData]],
+) -> None:
+    data = await setup_exc_data(assets, "batch-last-always")
+    executor_task = asyncio.ensure_future(start_executor(data))
+    descr = await jobs_mock.get_task("task-1")
+    assert descr.status == JobStatus.PENDING
+
+    await cancel_batch(assets, _executor_data_to_bake_id(data))
+
+    await jobs_mock.mark_done("task-3")
+
+    await executor_task

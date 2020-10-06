@@ -39,6 +39,7 @@ from .expr import (
     IdExpr,
     OptBashExpr,
     OptBoolExpr,
+    OptEnableExpr,
     OptIdExpr,
     OptIntExpr,
     OptLifeSpanExpr,
@@ -685,7 +686,7 @@ TASK = {
     "id": OptIdExpr,
     "needs": SimpleSeq(IdExpr),
     "strategy": None,
-    "enable": OptBoolExpr,
+    "enable": OptEnableExpr,
     **EXEC_UNIT,
 }
 

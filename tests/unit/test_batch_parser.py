@@ -5,6 +5,7 @@ from neuro_flow.expr import (
     IdExpr,
     OptBashExpr,
     OptBoolExpr,
+    OptEnableExpr,
     OptIdExpr,
     OptIntExpr,
     OptLifeSpanExpr,
@@ -199,7 +200,7 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
                     Pos(0, 0, config_file), Pos(0, 0, config_file), False
                 ),
                 strategy=None,
-                enable=OptBoolExpr(
+                enable=OptEnableExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
             )
@@ -263,7 +264,7 @@ def test_parse_seq(assets: pathlib.Path) -> None:
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
                 strategy=None,
-                enable=OptBoolExpr(
+                enable=OptEnableExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
             ),
@@ -300,7 +301,7 @@ def test_parse_seq(assets: pathlib.Path) -> None:
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
                 strategy=None,
-                enable=OptBoolExpr(
+                enable=OptEnableExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
             ),
@@ -364,7 +365,7 @@ def test_parse_needs(assets: pathlib.Path) -> None:
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
                 strategy=None,
-                enable=OptBoolExpr(
+                enable=OptEnableExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
             ),
@@ -403,7 +404,7 @@ def test_parse_needs(assets: pathlib.Path) -> None:
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
                 strategy=None,
-                enable=OptBoolExpr(
+                enable=OptEnableExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
             ),
@@ -520,7 +521,7 @@ def test_parse_matrix(assets: pathlib.Path) -> None:
                     ),
                     cache=None,
                 ),
-                enable=OptBoolExpr(
+                enable=OptEnableExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
             )
@@ -666,7 +667,7 @@ def test_parse_matrix_with_strategy(assets: pathlib.Path) -> None:
                         ),
                     ),
                 ),
-                enable=OptBoolExpr(
+                enable=OptEnableExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
             )
@@ -801,7 +802,7 @@ def test_parse_args(assets: pathlib.Path) -> None:
                 id=OptIdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 needs=None,
                 strategy=None,
-                enable=OptBoolExpr(
+                enable=OptEnableExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
             )
@@ -865,7 +866,7 @@ def test_parse_enable(assets: pathlib.Path) -> None:
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
                 strategy=None,
-                enable=OptBoolExpr(
+                enable=OptEnableExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
             ),
@@ -904,7 +905,7 @@ def test_parse_enable(assets: pathlib.Path) -> None:
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
                 strategy=None,
-                enable=OptBoolExpr(
+                enable=OptEnableExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "${{ success() }}"
                 ),
             ),

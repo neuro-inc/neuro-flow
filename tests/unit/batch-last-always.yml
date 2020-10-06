@@ -1,0 +1,12 @@
+kind: batch
+tasks:
+  - id: task_1
+    image: ubuntu
+    bash: echo 1
+  - id: task_2
+    image: ubuntu
+    bash: echo 2
+  - id: task_3
+    enable: ${{ always() }}
+    image: ubuntu
+    bash: echo 3

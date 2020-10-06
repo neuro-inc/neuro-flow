@@ -6,6 +6,7 @@ from neuro_flow.expr import (
     IdExpr,
     OptBashExpr,
     OptBoolExpr,
+    OptEnableExpr,
     OptIdExpr,
     OptIntExpr,
     OptLifeSpanExpr,
@@ -224,7 +225,7 @@ def test_parse_batch_action(assets: LocalPath) -> None:
                 id=OptIdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "task_1"),
                 needs=None,
                 strategy=None,
-                enable=OptBoolExpr(
+                enable=OptEnableExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
             ),
@@ -261,7 +262,7 @@ def test_parse_batch_action(assets: LocalPath) -> None:
                 id=OptIdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "task_2"),
                 needs=None,
                 strategy=None,
-                enable=OptBoolExpr(
+                enable=OptEnableExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
             ),
@@ -471,7 +472,7 @@ def test_parse_batch_call(assets: LocalPath) -> None:
                 id=OptIdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "test"),
                 needs=None,
                 strategy=None,
-                enable=OptBoolExpr(
+                enable=OptEnableExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
                 action=SimpleStrExpr(
