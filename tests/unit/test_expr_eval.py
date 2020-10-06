@@ -49,7 +49,7 @@ async def test_bool_evals(expr: str, context: Dict[str, TypeT], result: bool) ->
         ("success()", [TaskStatus.SUCCEEDED], True),
         ("success()", [TaskStatus.SUCCEEDED, TaskStatus.SUCCEEDED], True),
         ("success()", [TaskStatus.SUCCEEDED, TaskStatus.FAILED], False),
-        ("success()", [TaskStatus.SUCCEEDED, TaskStatus.DISABLED], False),
+        ("success()", [TaskStatus.SUCCEEDED, TaskStatus.SKIPPED], False),
         ("success('task_1')", [TaskStatus.SUCCEEDED], True),
         (
             "success('task_1', 'task_2')",
@@ -58,7 +58,7 @@ async def test_bool_evals(expr: str, context: Dict[str, TypeT], result: bool) ->
         ),
         ("success('task_1')", [TaskStatus.SUCCEEDED, TaskStatus.FAILED], True),
         ("success('task_2')", [TaskStatus.SUCCEEDED, TaskStatus.FAILED], False),
-        ("success('task_2')", [TaskStatus.SUCCEEDED, TaskStatus.DISABLED], False),
+        ("success('task_2')", [TaskStatus.SUCCEEDED, TaskStatus.SKIPPED], False),
     ],
 )
 async def test_success_func(
@@ -81,7 +81,7 @@ async def test_success_func(
         ("failure()", [TaskStatus.SUCCEEDED], False),
         ("failure()", [TaskStatus.SUCCEEDED, TaskStatus.SUCCEEDED], False),
         ("failure()", [TaskStatus.SUCCEEDED, TaskStatus.FAILED], True),
-        ("failure()", [TaskStatus.SUCCEEDED, TaskStatus.DISABLED], False),
+        ("failure()", [TaskStatus.SUCCEEDED, TaskStatus.SKIPPED], False),
         ("failure('task_1')", [TaskStatus.SUCCEEDED], False),
         (
             "failure('task_1', 'task_2')",
@@ -95,8 +95,8 @@ async def test_success_func(
         ),
         ("failure('task_1')", [TaskStatus.SUCCEEDED, TaskStatus.FAILED], False),
         ("failure('task_2')", [TaskStatus.SUCCEEDED, TaskStatus.FAILED], True),
-        ("failure('task_2')", [TaskStatus.SUCCEEDED, TaskStatus.DISABLED], False),
-        ("failure('task_1', 'task_2')", [TaskStatus.FAILED, TaskStatus.DISABLED], True),
+        ("failure('task_2')", [TaskStatus.SUCCEEDED, TaskStatus.SKIPPED], False),
+        ("failure('task_1', 'task_2')", [TaskStatus.FAILED, TaskStatus.SKIPPED], True),
     ],
 )
 async def test_failure_func(

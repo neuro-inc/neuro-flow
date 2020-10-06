@@ -200,7 +200,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             )
         )
 
-        started, finished, skipped = await self._storage.fetch_attempt(attempt)
+        started, finished = await self._storage.fetch_attempt(attempt)
         for task in started.values():
             task_id = task.id
             raw_id = task.raw_id
@@ -212,8 +212,6 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                         fmt_raw_id(raw_id),
                     ]
                 )
-            elif task_id in skipped:
-                rows.append([fmt_id(task_id), fmt_status(JobStatus.CANCELLED), ""])
             elif task_id in started:
                 info = await self._client.jobs.status(raw_id)
                 rows.append(
@@ -233,10 +231,8 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
     ) -> None:
         bake = await self._storage.fetch_bake_by_id(self.project, bake_id)
         attempt = await self._storage.find_attempt(bake, attempt_no)
-        started, finished, skipped = await self._storage.fetch_attempt(attempt)
+        started, finished = await self._storage.fetch_attempt(attempt)
         full_id = tuple(task_id.split("."))
-        if full_id in skipped:
-            raise click.BadArgumentUsage(f"Task {task_id} was skipped")
         if full_id not in finished:
             if full_id not in started:
                 raise click.BadArgumentUsage(f"Unknown task {task_id}")
@@ -261,6 +257,9 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                 ]
             )
         )
+
+        if not task.raw_id:
+            return
 
         if raw:
             async for chunk in self._client.jobs.monitor(task.raw_id):

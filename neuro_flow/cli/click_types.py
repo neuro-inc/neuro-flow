@@ -274,13 +274,11 @@ class BakeTaskType(AsyncType[str]):
         args_to_bake_id: Callable[[Sequence[str]], str],
         args_to_attempt: Callable[[Sequence[str]], int],
         include_started: bool = True,
-        include_skipped: bool = True,
         include_finished: bool = True,
     ):
         self._args_to_bake_id = args_to_bake_id
         self._args_to_attempt = args_to_attempt
         self._include_started = include_started
-        self._include_skipped = include_skipped
         self._include_finished = include_finished
 
     async def async_convert(
@@ -311,9 +309,7 @@ class BakeTaskType(AsyncType[str]):
                 BatchRunner(config_dir, client, storage)
             )
             attempt = await runner.get_bake_attempt(bake_id, attempt_no=attempt_no)
-            started, finished, skipped = await storage.fetch_attempt(attempt)
-            if self._include_skipped:
-                variants.extend(".".join(parts) for parts in skipped.keys())
+            started, finished = await storage.fetch_attempt(attempt)
             if self._include_finished:
                 variants.extend(".".join(parts) for parts in finished.keys())
             if self._include_started:
@@ -334,7 +330,6 @@ def extract_attempt_no(args: Sequence[str]) -> int:
 
 
 FINISHED_TASK_AFTER_BAKE = BakeTaskType(
-    include_skipped=False,
     include_started=False,
     include_finished=True,
     args_to_bake_id=operator.itemgetter(-1),

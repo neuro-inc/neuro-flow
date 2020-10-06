@@ -7,6 +7,7 @@ from typing import Mapping, Optional, Sequence, Union
 from .expr import (
     IdExpr,
     OptBoolExpr,
+    OptEnableExpr,
     OptIdExpr,
     OptIntExpr,
     OptLifeSpanExpr,
@@ -139,7 +140,7 @@ class TaskBase(Base):
     strategy: Optional[Strategy] = field(metadata={"allow_none": True})
 
     # continue_on_error: OptBoolExpr
-    enable: OptBoolExpr
+    enable: OptEnableExpr
 
 
 @dataclass(frozen=True)

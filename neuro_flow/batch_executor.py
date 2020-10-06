@@ -20,8 +20,8 @@ from typing import AbstractSet, AsyncIterator, Dict, List, Tuple
 from .commands import CmdProcessor
 from .config_loader import BatchRemoteCL
 from .context import BatchActionContext, BatchContext, DepCtx, NeedsCtx, TaskContext
-from .storage import Attempt, BatchStorage, FinishedTask, SkippedTask, StartedTask
-from .types import FullID, LocalPath, TaskStatus
+from .storage import Attempt, BatchStorage, FinishedTask, StartedTask
+from .types import AlwaysT, FullID, LocalPath, TaskStatus
 from .utils import TERMINATED_JOB_STATUSES, fmt_id, fmt_raw_id, fmt_status
 
 
@@ -72,7 +72,7 @@ class BatchExecutor:
         ] = {}
         self._started: Dict[FullID, StartedTask] = {}
         self._finished: Dict[FullID, FinishedTask] = {}
-        self._skipped: Dict[FullID, SkippedTask] = {}
+        self._is_cancelling = False
 
         # A note about default value:
         # AS: I have no idea what timeout is better;
@@ -107,15 +107,17 @@ class BatchExecutor:
 
             click.echo("Find last attempt")
             attempt = await self._storage.find_attempt(bake)
-            if attempt.result in TERMINATED_JOB_STATUSES:
+            if attempt.result == JobStatus.CANCELLED:
+                self._is_cancelling = True
+            elif attempt.result in TERMINATED_JOB_STATUSES:
                 str_attempt_status = fmt_status(attempt.result)
                 click.echo(f"Attempt #{attempt.number} is already {str_attempt_status}")
+                return
 
             click.echo(f"Fetch attempt #{attempt.number}")
             (
                 self._started,
                 self._finished,
-                self._skipped,
             ) = await self._storage.fetch_attempt(attempt)
 
             async for prefix, ctx, topo in self._build_topo((), top_ctx):
@@ -138,48 +140,41 @@ class BatchExecutor:
                             self._topos[new_prefix] = (new_ctx, new_topo, [])
 
                 ok = await self._process_started(attempt)
-                if not ok:
-                    await self._do_cancellation(attempt)
-                    break
 
                 # Check for cancellation
-                attempt = await self._storage.find_attempt(bake, attempt.number)
-                if attempt.result == JobStatus.CANCELLED:
-                    await self._do_cancellation(attempt)
-                    click.echo(
-                        f"Attempt #{attempt.number} {fmt_status(JobStatus.CANCELLED)}"
-                    )
-                    return
+                if not self._is_cancelling:
+                    attempt = await self._storage.find_attempt(bake, attempt.number)
+
+                    if not ok or attempt.result == JobStatus.CANCELLED:
+                        self._is_cancelling = True
+                        await self._stop_running()
 
                 await asyncio.sleep(self._polling_timeout)
 
             attempt_status = self._accumulate_result()
             str_attempt_status = fmt_status(attempt_status)
-            await self._storage.finish_attempt(attempt, attempt_status)
+            if attempt.result not in TERMINATED_JOB_STATUSES:
+                await self._storage.finish_attempt(attempt, attempt_status)
             click.echo(f"Attempt #{attempt.number} {str_attempt_status}")
 
-    async def _do_cancellation(self, attempt: Attempt) -> None:
-        killed = []
+    async def _always_enabled(self, full_id: FullID) -> bool:
+        prefix, tid = full_id[:-1], full_id[-1]
+        ctx, _, _ = self._topos[prefix]
+        needs = self._build_needs(prefix, ctx.graph[full_id])
+        return await ctx.is_enabled(tid, needs=needs) is AlwaysT()
+
+    async def _stop_running(self) -> None:
         for st in self._started.values():
-            if st.raw_id and st.id not in self._finished:
+            if (
+                st.raw_id
+                and st.id not in self._finished
+                and not await self._always_enabled(st.id)
+            ):
+                click.echo(f"Task {fmt_id(st.id)} is being killed")
                 await self._client.jobs.kill(st.raw_id)
-                killed.append(st.id)
-        while any(k_id not in self._finished for k_id in killed):
-            await self._process_started(attempt)
-            await asyncio.sleep(self._polling_timeout)
-        # All jobs stopped, mark as canceled started actions
-        for st in self._started.values():
-            if st.id not in self._finished:
-                assert not st.raw_id
-                await self._storage.finish_batch_action(
-                    attempt,
-                    self._next_task_no(),
-                    st,
-                    DepCtx(TaskStatus.CANCELLED, {}),
-                )
 
     def _next_task_no(self) -> int:
-        return len(self._started) + len(self._finished) + len(self._skipped)
+        return len(self._started) + len(self._finished)
 
     async def _process_topo(
         self,
@@ -192,7 +187,7 @@ class BatchExecutor:
         running_tasks = {
             k: v
             for k, v in self._started.items()
-            if k not in self._finished and k not in self._skipped and v.raw_id
+            if k not in self._finished and v.raw_id
         }
         budget = ctx.strategy.max_parallel - len(running_tasks)
         if budget <= 0:
@@ -205,19 +200,18 @@ class BatchExecutor:
                 continue
             if full_id in self._finished:
                 continue
-            if full_id in self._skipped:
-                continue
             tid = full_id[-1]
             needs = self._build_needs(prefix, ctx.graph[full_id])
             assert full_id[:-1] == prefix
-            if not await ctx.is_enabled(tid, needs=needs):
+            enabled = await ctx.is_enabled(tid, needs=needs)
+            if not enabled or (self._is_cancelling and enabled is not AlwaysT()):
                 # Make task started and immediatelly skipped
                 skipped_task = await self._skip_task(
                     attempt, self._next_task_no(), full_id
                 )
                 str_skipped = click.style("skipped", fg="magenta")
                 click.echo(f"Task {fmt_id(full_id)} is {str_skipped}")
-                self._skipped[skipped_task.id] = skipped_task
+                self._finished[skipped_task.id] = skipped_task
                 topo.done(full_id)
                 continue
 
@@ -241,7 +235,7 @@ class BatchExecutor:
                         f"Task {fmt_id(ft.id)} [{fmt_raw_id(ft.raw_id)}] "
                         f"is {str_cached}"
                     )
-                    assert ft.status == JobStatus.SUCCEEDED
+                    assert ft.status == TaskStatus.SUCCEEDED
                     await self._mark_finished(attempt, ft)
                 else:
                     st = await self._start_task(
@@ -260,8 +254,6 @@ class BatchExecutor:
     async def _process_started(self, attempt: Attempt) -> bool:
         for st in self._started.values():
             if st.id in self._finished:
-                continue
-            if st.id in self._skipped:
                 continue
             str_full_id = fmt_id(st.id)
             if st.raw_id:
@@ -287,7 +279,9 @@ class BatchExecutor:
                 assert isinstance(ctx, BatchActionContext)
 
                 needs = self._build_needs(ctx.prefix, await ctx.get_output_needs())
-                outputs = await ctx.calc_outputs(needs)
+                outputs = await ctx.calc_outputs(
+                    needs, is_cancelling=self._is_cancelling
+                )
 
                 ft = await self._storage.finish_batch_action(
                     attempt,
@@ -306,7 +300,7 @@ class BatchExecutor:
                 parent_ctx, parent_topo, parent_ready = self._topos[st.id[:-1]]
                 parent_topo.done(st.id)
                 if (
-                    self._finished[st.id].status != JobStatus.SUCCEEDED
+                    self._finished[st.id].status != TaskStatus.SUCCEEDED
                     and parent_ctx.strategy.fail_fast
                 ):
                     return False
@@ -316,13 +310,10 @@ class BatchExecutor:
         needs = {}
         for full_id in deps:
             dep_id = full_id[-1]
-            if full_id in self._skipped:
-                needs[dep_id] = DepCtx(TaskStatus.DISABLED, {})
-            else:
-                dep = self._finished.get(full_id)
-                if dep is None:
-                    raise NotFinished(full_id)
-                needs[dep_id] = DepCtx(TaskStatus(dep.status), dep.outputs)
+            dep = self._finished.get(full_id)
+            if dep is None:
+                raise NotFinished(full_id)
+            needs[dep_id] = DepCtx(TaskStatus(dep.status), dep.outputs)
         return needs
 
     async def _build_topo(
@@ -334,8 +325,6 @@ class BatchExecutor:
         topo = graphlib.TopologicalSorter(graph)
         topo.prepare()
         for full_id in graph:
-            if full_id in self._skipped:
-                topo.done(full_id)
             if full_id in self._finished:
                 topo.done(full_id)
             elif await ctx.is_action(full_id[-1]):
@@ -351,9 +340,9 @@ class BatchExecutor:
 
     def _accumulate_result(self) -> JobStatus:
         for task in self._finished.values():
-            if task.status == JobStatus.CANCELLED:
+            if task.status == TaskStatus.CANCELLED:
                 return JobStatus.CANCELLED
-            elif task.status == JobStatus.FAILED:
+            elif task.status == TaskStatus.FAILED:
                 return JobStatus.FAILED
 
         return JobStatus.SUCCEEDED
@@ -411,7 +400,7 @@ class BatchExecutor:
 
     async def _skip_task(
         self, attempt: Attempt, task_no: int, full_id: FullID
-    ) -> SkippedTask:
+    ) -> FinishedTask:
         return await self._storage.skip_task(attempt, task_no, full_id)
 
     async def _finish_task(

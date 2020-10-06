@@ -22,8 +22,8 @@ from yarl import URL
 
 from . import ast
 from .config_loader import ConfigLoader
-from .expr import EvalError, LiteralT, OptBoolExpr, RootABC, StrExpr, TypeT
-from .types import FullID, LocalPath, RemotePath, TaskStatus
+from .expr import EvalError, LiteralT, OptEnableExpr, RootABC, StrExpr, TypeT
+from .types import AlwaysT, FullID, LocalPath, RemotePath, TaskStatus
 
 
 # Neuro-flow contexts (variables available during expressions calculation).
@@ -158,7 +158,7 @@ class BasePrepTaskCtx:
     needs: AbstractSet[str]  # A set of batch.id
     matrix: MatrixCtx
     strategy: StrategyCtx
-    enable: OptBoolExpr
+    enable: OptEnableExpr
     cache: CacheCtx
 
 
@@ -182,7 +182,7 @@ class TaskCtx(ExecUnitCtx):
     needs: AbstractSet[str]  # A set of batch.id
 
     # continue_on_error: OptBoolExpr
-    enable: bool
+    enable: Union[bool, AlwaysT]
 
 
 @dataclass(frozen=True)
@@ -837,7 +837,9 @@ class TaskContext(BaseContext):
         except KeyError:
             raise UnknownTask(real_id)
 
-    async def is_enabled(self, real_id: str, *, needs: NeedsCtx) -> bool:
+    async def is_enabled(
+        self, real_id: str, *, needs: NeedsCtx
+    ) -> Union[bool, AlwaysT]:
         assert self._prep_tasks is not None
         assert self._task is None
         try:
@@ -1279,13 +1281,22 @@ class BatchActionContext(TaskContext, ActionContext):
             }
         return set()
 
-    async def calc_outputs(self, needs: NeedsCtx) -> DepCtx:
-        if any(i.result == TaskStatus.DISABLED for i in needs.values()):
-            return DepCtx(TaskStatus.DISABLED, {})
+    async def calc_outputs(self, needs: NeedsCtx, *, is_cancelling: bool) -> DepCtx:
+        if any(i.result == TaskStatus.FAILED for i in needs.values()):
+            return DepCtx(TaskStatus.FAILED, {})
         elif any(i.result == TaskStatus.CANCELLED for i in needs.values()):
             return DepCtx(TaskStatus.CANCELLED, {})
-        elif any(i.result == TaskStatus.FAILED for i in needs.values()):
-            return DepCtx(TaskStatus.FAILED, {})
+        elif any(i.result == TaskStatus.SKIPPED for i in needs.values()):
+            # If some of our needs are disabled, then either
+            # action is misconfigured (and so it is failed)
+            # or cancellation is in progress.
+            # We cannot return DISABLED here, because it means
+            # that task did not start at all but this action
+            # is in progress when we are here.
+            if is_cancelling:
+                return DepCtx(TaskStatus.CANCELLED, {})
+            else:
+                return DepCtx(TaskStatus.FAILED, {})
         else:
             ret = {}
             assert isinstance(self._ast, ast.BatchAction)
