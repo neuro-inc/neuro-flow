@@ -248,7 +248,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             click.echo(line)
 
         if output is None:
-            output = LocalPath(f"{bake.bake_id}_{attempt.number}").with_suffix(".gz")
+            output = LocalPath(f"{bake.bake_id}_{attempt.number}").with_suffix(".gv")
 
         graphs = bake.graphs
         dot = Digraph(bake.batch, filename=str(output), strict=True, engine="dot")
