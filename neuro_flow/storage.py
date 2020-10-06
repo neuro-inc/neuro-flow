@@ -23,6 +23,7 @@ from neuromation.api import (
 )
 from types import TracebackType
 from typing import (
+    AbstractSet,
     Any,
     AsyncIterator,
     Dict,
@@ -39,6 +40,7 @@ from yarl import URL
 from neuro_flow.types import LocalPath
 
 from . import ast
+from .config_loader import ConfigFile
 from .context import ActionContext, BaseContext, DepCtx, TaskContext
 from .types import FullID, RemotePath, TaskStatus
 
@@ -69,8 +71,8 @@ class Bake:
     batch: str
     when: datetime.datetime
     suffix: str
-    config_path: str
-    configs_files: Sequence[LocalPath]
+    # prefix -> { id -> deps }
+    graphs: Mapping[FullID, Mapping[FullID, AbstractSet[FullID]]]
 
     def __str__(self) -> str:
         folder = "_".join([self.batch, _dt2str(self.when), self.suffix])
@@ -125,12 +127,6 @@ class SkippedTask:
     when: datetime.datetime
 
 
-@dataclasses.dataclass(frozen=True)
-class ConfigFile:
-    path: LocalPath
-    content: str
-
-
 # A storage abstraction
 #
 # There is a possibility to add Postgres storage class later, for example
@@ -160,8 +156,7 @@ class BatchStorage(abc.ABC):
             batch="batch",
             when=datetime.datetime.now(),
             suffix="suffix",
-            config_path="config_path",
-            configs_files=[],
+            graphs={},
         )
         yield bake
 
@@ -170,8 +165,9 @@ class BatchStorage(abc.ABC):
         self,
         project: str,
         batch: str,
-        config_path: str,
+        configs_meta: Mapping[str, Any],
         configs: Sequence[ConfigFile],
+        graphs: Mapping[FullID, Mapping[FullID, AbstractSet[FullID]]],
     ) -> Bake:
         pass
 
@@ -186,7 +182,11 @@ class BatchStorage(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def fetch_configs(self, bake: Bake) -> Sequence[ConfigFile]:
+    async def fetch_configs_meta(self, bake: Bake) -> Mapping[str, Any]:
+        pass
+
+    @abc.abstractmethod
+    async def fetch_config(self, bake: Bake, filename: str) -> str:
         pass
 
     @abc.abstractmethod
@@ -464,8 +464,9 @@ class BatchFSStorage(BatchStorage):
         self,
         project: str,
         batch: str,
-        config_path: str,
+        configs_meta: Mapping[str, Any],
         configs: Sequence[ConfigFile],
+        graphs: Mapping[FullID, Mapping[FullID, AbstractSet[FullID]]],
     ) -> Bake:
         when = _now()
         bake = Bake(
@@ -473,22 +474,17 @@ class BatchFSStorage(BatchStorage):
             batch=batch,
             when=when,
             suffix=secrets.token_hex(3),
-            config_path=config_path,
-            configs_files=[config.path for config in configs],
+            graphs=graphs,
         )
         bake_uri = _mk_bake_uri(self._fs, bake)
         await self._fs.mkdir(bake_uri, parents=True)
 
         # Upload all configs
+        await self._write_file(bake_uri / "configs_meta.json", json.dumps(configs_meta))
         configs_dir = bake_uri / "configs"
-        await self._fs.mkdir(configs_dir, parents=True)
+        await self._fs.mkdir(configs_dir)
         for config in configs:
-            await self._fs.mkdir(
-                configs_dir / str(config.path.parent),
-                parents=True,
-                exist_ok=True,
-            )
-            await self._write_file(configs_dir / str(config.path), config.content)
+            await self._write_file(configs_dir / config.filename, config.content)
 
         await self._write_json(bake_uri / "00.init.json", _bake_to_json(bake))
         # TODO: make the bake and the first attempt creation atomic to avoid
@@ -513,12 +509,15 @@ class BatchFSStorage(BatchStorage):
         data = await self._read_json(url / "00.init.json")
         return _bake_from_json(data)
 
-    async def fetch_configs(self, bake: Bake) -> Sequence[ConfigFile]:
-        configs_dir_uri = _mk_bake_uri(self._fs, bake) / "configs"
-        return [
-            ConfigFile(path, await self._read_file(configs_dir_uri / str(path)))
-            for path in bake.configs_files
-        ]
+    async def fetch_configs_meta(self, bake: Bake) -> Mapping[str, Any]:
+        ret = await self._read_json(_mk_bake_uri(self._fs, bake) / "configs_meta.json")
+        assert isinstance(ret, dict)
+        return cast(Mapping[str, Any], ret)
+
+    async def fetch_config(self, bake: Bake, filename: str) -> str:
+        return await self._read_file(
+            _mk_bake_uri(self._fs, bake) / "configs" / filename
+        )
 
     async def create_attempt(self, bake: Bake, attempt_no: int) -> Attempt:
         assert 0 < attempt_no < 100, attempt_no
@@ -588,7 +587,7 @@ class BatchFSStorage(BatchStorage):
             if match:
                 data = await self._read_json(attempt_url / fname)
                 assert match.group("id") == data["id"]
-                full_id = tuple(data["id"].split("."))
+                full_id = _id_from_json(data["id"])
                 started[full_id] = StartedTask(
                     attempt=attempt,
                     id=full_id,
@@ -601,7 +600,7 @@ class BatchFSStorage(BatchStorage):
             if match:
                 data = await self._read_json(attempt_url / fname)
                 assert match.group("id") == data["id"]
-                full_id = tuple(data["id"].split("."))
+                full_id = _id_from_json(data["id"])
                 finished[full_id] = FinishedTask(
                     attempt=attempt,
                     id=full_id,
@@ -621,7 +620,7 @@ class BatchFSStorage(BatchStorage):
             if match:
                 data = await self._read_json(attempt_url / fname)
                 assert match.group("id").split(".") == data["id"]
-                full_id = tuple(data["id"].split("."))
+                full_id = _id_from_json(data["id"])
                 skipped[full_id] = SkippedTask(
                     attempt=attempt,
                     id=full_id,
@@ -660,7 +659,7 @@ class BatchFSStorage(BatchStorage):
         )
 
         data = {
-            "id": ".".join(ret.id),
+            "id": _id_to_json(ret.id),
             "raw_id": ret.raw_id,
             "when": ret.when.isoformat(timespec="seconds"),
             "created_at": ret.created_at.isoformat(timespec="seconds"),
@@ -688,7 +687,7 @@ class BatchFSStorage(BatchStorage):
         )
 
         data = {
-            "id": ".".join(ret.id),
+            "id": _id_to_json(ret.id),
             "raw_id": ret.raw_id,
             "when": ret.when.isoformat(timespec="seconds"),
             "created_at": ret.created_at.isoformat(timespec="seconds"),
@@ -734,7 +733,7 @@ class BatchFSStorage(BatchStorage):
         attempt_url = bake_uri / f"{attempt.number:02d}.attempt"
         pre = str(task_no + 1).zfill(DIGITS)
         data = {
-            "id": ".".join(ft.id),
+            "id": _id_to_json(ft.id),
             "raw_id": ft.raw_id,
             "when": ft.when.isoformat(timespec="seconds"),
             "status": ft.status.value,
@@ -794,7 +793,7 @@ class BatchFSStorage(BatchStorage):
         )
 
         data = {
-            "id": ".".join(ret.id),
+            "id": _id_to_json(ret.id),
             "when": ret.when.isoformat(timespec="seconds"),
         }
         await self._write_json(attempt_url / f"{pre}.{data['id']}.skipped.json", data)
@@ -944,25 +943,43 @@ def _mk_bake_uri(fs: FileSystem, bake: Bake) -> URL:
 
 
 def _bake_to_json(bake: Bake) -> Dict[str, Any]:
+    graphs = {}
+    for pre, gr in bake.graphs.items():
+        graphs[_id_to_json(pre)] = {
+            _id_to_json(full_id): [_id_to_json(dep) for dep in deps]
+            for full_id, deps in gr.items()
+        }
     return {
         "project": bake.project,
         "batch": bake.batch,
         "when": _dt2str(bake.when),
         "suffix": bake.suffix,
-        "config_path": bake.config_path,
-        "config_files": [str(path) for path in bake.configs_files],
+        "graphs": graphs,
     }
 
 
 def _bake_from_json(data: Dict[str, Any]) -> Bake:
+    graphs = {}
+    for pre, gr in data["graphs"].items():
+        graphs[_id_from_json(pre)] = {
+            _id_from_json(full_id): set(_id_from_json(dep) for dep in deps)
+            for full_id, deps in gr.items()
+        }
     return Bake(
         project=data["project"],
         batch=data["batch"],
         when=datetime.datetime.fromisoformat(data["when"]),
         suffix=data["suffix"],
-        config_path=data["config_path"],
-        configs_files=[LocalPath(path) for path in data["config_files"]],
+        graphs=graphs,
     )
+
+
+def _id_to_json(full_id: FullID) -> str:
+    return ".".join(full_id)
+
+
+def _id_from_json(sid: str) -> FullID:
+    return tuple(sid.split("."))
 
 
 def _attempt_to_json(attempt: Attempt) -> Dict[str, Any]:
@@ -990,7 +1007,7 @@ def _attempt_from_json(
 
 def _mk_cache_uri(fs: FileSystem, attempt: Attempt, task_id: FullID) -> URL:
     return _mk_cache_uri2(fs, attempt.bake.project, attempt.bake.batch) / (
-        ".".join(task_id) + ".json"
+        _id_to_json(task_id) + ".json"
     )
 
 

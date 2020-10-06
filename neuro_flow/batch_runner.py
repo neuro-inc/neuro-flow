@@ -5,23 +5,16 @@ from graphviz import Digraph
 from neuromation.api import Client, JobStatus
 from neuromation.cli.formatters import ftable  # TODO: extract into a separate library
 from types import TracebackType
-from typing import Dict, List, Optional, Sequence, Type, Union
+from typing import AbstractSet, Dict, List, Mapping, Optional, Tuple, Type
 from typing_extensions import AsyncContextManager, AsyncIterator
 
-from . import __version__, ast
+from . import __version__
 from .batch_executor import BatchExecutor, ExecutorData
 from .commands import CmdProcessor
+from .config_loader import BatchLocalCL
 from .context import EMPTY_ROOT, BatchContext, DepCtx, TaskContext
-from .parser import ConfigDir, parse_action, parse_batch, parse_project
-from .storage import (
-    Attempt,
-    Bake,
-    BatchStorage,
-    ConfigFile,
-    FinishedTask,
-    SkippedTask,
-    StartedTask,
-)
+from .parser import ConfigDir
+from .storage import Attempt, Bake, BatchStorage
 from .types import FullID, LocalPath, TaskStatus
 from .utils import TERMINATED_JOB_STATUSES, fmt_id, fmt_raw_id, fmt_status
 
@@ -52,6 +45,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         self._config_dir = config_dir
         self._client = client
         self._storage = storage
+        self._config_loader: Optional[BatchLocalCL] = None
         self._project: Optional[str] = None
 
     @property
@@ -59,16 +53,19 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         assert self._project is not None
         return self._project
 
+    @property
+    def config_loader(self) -> BatchLocalCL:
+        assert self._config_loader is not None
+        return self._config_loader
+
     async def close(self) -> None:
-        pass
+        if self._config_loader is not None:
+            await self._config_loader.close()
 
     async def __aenter__(self) -> "BatchRunner":
-        project_file = self._config_dir.workspace / "project.yml"
-        if project_file.exists():
-            pr = parse_project(project_file)
-            self._project = await pr.id.eval(EMPTY_ROOT)
-        else:
-            self._project = self._config_dir.workspace.name
+        self._config_loader = BatchLocalCL(self._config_dir)
+        project_ast = await self._config_loader.fetch_project()
+        self._project = await project_ast.id.eval(EMPTY_ROOT)
         return self
 
     async def __aexit__(
@@ -79,89 +76,35 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
     ) -> None:
         await self.close()
 
-    def _parse_action_name(self, action_name: str) -> LocalPath:
-        scheme, sep, spec = action_name.partition(":")
-        if not sep:
-            raise ValueError(f"{action_name} has no schema")
-        if scheme in ("ws", "workspace"):
-            path = self._config_dir.workspace / spec
-            if not path.exists():
-                path = path.with_suffix(".yml")
-            if not path.exists():
-                raise ValueError(f"Action {action_name} does not exist")
-            return path
-        else:
-            raise ValueError(f"Unsupported scheme '{scheme}'")
-
-    async def _collect_configs_for_task(
-        self, tasks: Sequence[Union[ast.Task, ast.TaskActionCall]]
-    ) -> List[LocalPath]:
-        result: List[LocalPath] = []
-        for task in tasks:
-            if isinstance(task, ast.BaseActionCall):
-                action_name = await task.action.eval(EMPTY_ROOT)
-                action_path = self._parse_action_name(action_name)
-                result += [LocalPath(action_path)]
-                result += await self._collect_subaction_configs(
-                    parse_action(action_path)
-                )
-        return result
-
-    async def _collect_subaction_configs(
-        self, action: ast.BaseAction
-    ) -> List[LocalPath]:
-        if isinstance(action, ast.BatchAction):
-            return await self._collect_configs_for_task(action.tasks)
-        else:
-            return []
-
-    async def _collect_additional_configs(self, flow: ast.BatchFlow) -> List[LocalPath]:
-        result = []
-        project_file = self._config_dir.workspace / "project.yml"
-        if project_file.exists():
-            result = [project_file]
-        return result + await self._collect_configs_for_task(flow.tasks)
-
     # Next function is also used in tests:
     async def _setup_exc_data(self, batch_name: str) -> ExecutorData:
         # batch_name is a name of yaml config inside self._workspace / .neuro
         # folder without the file extension
-        config_file = (self._config_dir.config_dir / (batch_name + ".yml")).resolve()
 
-        click.echo(f"Use config file {config_file}")
+        click.echo(f"Use config file {self.config_loader.flow_path(batch_name)}")
 
         click.echo("Check config... ", nl=False)
-        # Check that the yaml is parseable
-        flow = parse_batch(self._config_dir.workspace, config_file)
-        assert isinstance(flow, ast.BatchFlow)
 
-        ctx = await BatchContext.create(flow, self._config_dir.workspace, config_file)
+        # Check that the yaml is parseable
+        ctx = await BatchContext.create(self.config_loader, batch_name)
+
         for volume in ctx.volumes.values():
             if volume.local is not None:
                 # TODO: sync volumes if needed
                 raise NotImplementedError("Volumes sync is not supported")
 
-        toposorter = graphlib.TopologicalSorter(ctx.graph)
-        # check fast for the graph cycle error
-        toposorter.prepare()
-
-        configs = [config_file, *await self._collect_additional_configs(flow)]
-        configs_files = [
-            ConfigFile(
-                path.relative_to(self._config_dir.workspace),
-                path.read_text(),
-            )
-            for path in configs
-        ]
+        graphs = await self._build_graphs(ctx)
 
         click.echo("ok")
 
         click.echo("Create bake")
+        config_meta, configs = await self.config_loader.collect_configs(batch_name)
         bake = await self._storage.create_bake(
-            self.project,
+            ctx.flow.project_id,
             batch_name,
-            str(config_file.relative_to(self._config_dir.workspace)),
-            configs_files,
+            config_meta,
+            configs,
+            graphs=graphs,
         )
         click.echo(f"Bake {fmt_id(str(bake))} is created")
 
@@ -171,6 +114,31 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             when=bake.when,
             suffix=bake.suffix,
         )
+
+    async def _build_graphs(
+        self, ctx: TaskContext
+    ) -> Mapping[FullID, Mapping[FullID, AbstractSet[FullID]]]:
+        graphs = {}
+        to_check: List[Tuple[FullID, TaskContext]] = [((), ctx)]
+        while to_check:
+            prefix, ctx = to_check.pop(0)
+            graph = ctx.graph
+            graphs[prefix] = graph
+
+            # check fast for the graph cycle error
+            toposorter = graphlib.TopologicalSorter(graph)
+            toposorter.prepare()
+
+            for full_id in ctx.graph:
+                tid = full_id[-1]
+                if await ctx.is_action(tid):
+                    fake_needs = {
+                        key: DepCtx(TaskStatus.SUCCEEDED, {})
+                        for key in ctx.get_dep_ids(tid)
+                    }
+                    sub_ctx = await ctx.with_action(tid, needs=fake_needs)
+                    to_check.append((full_id, sub_ctx))
+        return graphs
 
     async def bake(self, batch_name: str, local_executor: bool = False) -> None:
         data = await self._setup_exc_data(batch_name)
@@ -259,7 +227,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                     ]
                 )
             elif task_id in skipped:
-                rows.append([fmt_id(task_id), fmt_status(JobStatus.CANCELLED), ""])
+                rows.append([fmt_id(task_id), fmt_status(TaskStatus.DISABLED), ""])
             elif task_id in started:
                 info = await self._client.jobs.status(raw_id)
                 rows.append(
@@ -275,22 +243,73 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             click.echo(line)
 
         if output is not None:
-            config_file = (
-                self._config_dir.config_dir / (bake.batch + ".yml")
-            ).resolve()
-            flow = parse_batch(self._config_dir.workspace, config_file)
-            assert isinstance(flow, ast.BatchFlow)
-            ctx = await BatchContext.create(
-                flow, self._config_dir.workspace, config_file
-            )
+            graphs = bake.graphs
             dot = Digraph(bake.batch, filename=str(output), strict=True, engine="dot")
             dot.attr(compound="true")
 
-            await self._subgraph(dot, ctx, {}, started, finished, skipped)
+            await self._subgraph(dot, graphs, (), {}, started, finished, skipped)
             click.echo(f"Saving file {dot.filename}")
             dot.save()
             click.echo(f"Open {dot.filename}.pdf")
             dot.view()
+
+    async def _subgraph(
+        self,
+        dot: Digraph,
+        graphs: Mapping[FullID, Mapping[FullID, AbstractSet[FullID]]],
+        prefix: FullID,
+        anchors: Dict[str, str],
+        started: Dict[FullID, StartedTask],
+        finished: Dict[FullID, FinishedTask],
+        skipped: Dict[FullID, SkippedTask],
+    ) -> None:
+        lhead: Optional[str]
+        ltail: Optional[str]
+        color: Optional[str]
+        first = True
+        graph = graphs[prefix]
+        for task_id, deps in graph.items():
+            tgt = ".".join(task_id)
+            name = task_id[-1]
+
+            if first:
+                anchors[".".join(prefix)] = tgt
+                first = False
+
+            if task_id in graphs:
+                lhead = "cluster_" + tgt
+                with dot.subgraph(name=lhead) as subdot:
+                    subdot.attr(label=f"{name}")
+                    subdot.attr(compound="true")
+                    await self._subgraph(
+                        subdot, graphs, task_id, anchors, started, finished, skipped
+                    )
+                tgt = anchors[tgt]
+            else:
+                # task_ctx = await ctx.with_task(name, needs=needs)
+                if task_id in skipped:
+                    color = GRAPH_COLORS[TaskStatus.DISABLED]
+                elif task_id in finished:
+                    status = TaskStatus(finished[task_id].status)
+                    color = GRAPH_COLORS[status]
+                elif task_id in started:
+                    color = GRAPH_COLORS[TaskStatus.RUNNING]
+                else:
+                    color = None
+
+                dot.node(tgt, name, color=color)
+                lhead = None
+
+            for dep in deps:
+                src = ".".join(dep)
+                if src in anchors:
+                    # src is a subgraph
+                    ltail = "cluster_" + src
+                    src = anchors[src]
+                else:
+                    ltail = None
+                dot.edge(src, tgt, ltail=ltail, lhead=lhead)
+
 
     async def logs(
         self, bake_id: str, task_id: str, *, attempt_no: int = -1, raw: bool = False
@@ -375,61 +394,3 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         click.echo(f"Open {dot.filename}.pdf")
         dot.view()
 
-    async def _subgraph(
-        self,
-        dot: Digraph,
-        ctx: TaskContext,
-        anchors: Dict[str, str],
-        started: Dict[FullID, StartedTask],
-        finished: Dict[FullID, FinishedTask],
-        skipped: Dict[FullID, SkippedTask],
-    ) -> None:
-        lhead: Optional[str]
-        ltail: Optional[str]
-        color: Optional[str]
-        first = True
-        for task_id, deps in ctx.graph.items():
-            tgt = ".".join(task_id)
-            name = task_id[-1]
-
-            if first:
-                anchors[".".join(ctx.prefix)] = tgt
-                first = False
-
-            needs = {
-                key: DepCtx(TaskStatus.SUCCEEDED, {}) for key in ctx.get_dep_ids(name)
-            }
-            if await ctx.is_action(name):
-                lhead = "cluster_" + tgt
-                with dot.subgraph(name=lhead) as subdot:
-                    action_ctx = await ctx.with_action(name, needs=needs)
-                    subdot.attr(label=f"{name} [{action_ctx.action}]")
-                    subdot.attr(compound="true")
-                    await self._subgraph(
-                        subdot, action_ctx, anchors, started, finished, skipped
-                    )
-                tgt = anchors[tgt]
-            else:
-                # task_ctx = await ctx.with_task(name, needs=needs)
-                if task_id in skipped:
-                    color = GRAPH_COLORS[TaskStatus.DISABLED]
-                elif task_id in finished:
-                    status = TaskStatus(finished[task_id].status)
-                    color = GRAPH_COLORS[status]
-                elif task_id in started:
-                    color = GRAPH_COLORS[TaskStatus.RUNNING]
-                else:
-                    color = None
-
-                dot.node(tgt, name, color=color)
-                lhead = None
-
-            for dep in deps:
-                src = ".".join(dep)
-                if src in anchors:
-                    # src is a subgraph
-                    ltail = "cluster_" + src
-                    src = anchors[src]
-                else:
-                    ltail = None
-                dot.edge(src, tgt, ltail=ltail, lhead=lhead)

@@ -233,8 +233,7 @@ def _executor_data_to_bake_id(data: ExecutorData) -> str:
         batch=data.batch,
         when=data.when,
         suffix=data.suffix,
-        config_path="",
-        configs_files=[],
+        graphs={},  # not needed for bake_id calculation
     ).bake_id
 
 
@@ -412,3 +411,21 @@ async def test_volumes_parsing(
 
     await jobs_mock.mark_done("task-1")
     await executor_task
+
+
+async def test_graphs(
+    assets: Path,
+    batch_storage: BatchStorage,
+    setup_exc_data: Callable[[Path, str], Awaitable[ExecutorData]],
+) -> None:
+    data = await setup_exc_data(assets, "batch-action-call")
+    bake = await batch_storage.fetch_bake(
+        data.project, data.batch, data.when, data.suffix
+    )
+    assert bake.graphs == {
+        ("",): {("test",): set()},
+        ("test",): {
+            ("test", "task_1"): set(),
+            ("test", "task_2"): {("test", "task_1")},
+        },
+    }

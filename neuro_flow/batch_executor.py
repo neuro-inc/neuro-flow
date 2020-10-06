@@ -17,10 +17,9 @@ from neuromation.api import (
 )
 from typing import AbstractSet, AsyncIterator, Dict, List, Tuple
 
-from . import ast
 from .commands import CmdProcessor
+from .config_loader import BatchRemoteCL
 from .context import BatchActionContext, BatchContext, DepCtx, NeedsCtx, TaskContext
-from .parser import parse_batch
 from .storage import Attempt, BatchStorage, FinishedTask, SkippedTask, StartedTask
 from .types import FullID, LocalPath, TaskStatus
 from .utils import TERMINATED_JOB_STATUSES, fmt_id, fmt_raw_id, fmt_status
@@ -75,7 +74,7 @@ class BatchExecutor:
         self._finished: Dict[FullID, FinishedTask] = {}
         self._skipped: Dict[FullID, SkippedTask] = {}
 
-        # Not about default value:
+        # A note about default value:
         # AS: I have no idea what timeout is better;
         # too short value bombards servers,
         # too long timeout makes the waiting longer than expected
@@ -98,17 +97,13 @@ class BatchExecutor:
             )
 
             click.echo("Fetch configs")
-            for config in await self._storage.fetch_configs(bake):
-                file = workspace / config.path
-                file.parent.mkdir(parents=True, exist_ok=True)
-                file.write_text(config.content)
+            meta = await self._storage.fetch_configs_meta(bake)
+            config_loader = BatchRemoteCL(
+                meta,
+                load_from_storage=lambda name: self._storage.fetch_config(bake, name),
+            )
 
-            click.echo("Parse baked config")
-            config_file = workspace / bake.config_path
-            flow = parse_batch(workspace, config_file)
-            assert isinstance(flow, ast.BatchFlow)
-
-            top_ctx = await BatchContext.create(flow, workspace, config_file)
+            top_ctx = await BatchContext.create(config_loader, bake.batch)
 
             click.echo("Find last attempt")
             attempt = await self._storage.find_attempt(bake)

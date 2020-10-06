@@ -89,7 +89,7 @@ jobs:
 
 
   deploy:
-    name: Deploy
+    name: Deploy on PyPI
     needs: [lint, unit]
     runs-on: ubuntu-latest
     # Run only on pushing a tag
@@ -128,7 +128,7 @@ jobs:
         twine upload dist/*
 
   image:
-    name: Build Docker Image
+    name: Build and Push Docker Image
     needs: [lint, deploy]
     runs-on: ubuntu-latest
     steps:

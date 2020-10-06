@@ -21,8 +21,8 @@ from typing import (
 from yarl import URL
 
 from . import ast
+from .config_loader import ConfigLoader
 from .expr import EvalError, LiteralT, OptBoolExpr, RootABC, StrExpr, TypeT
-from .parser import parse_action, parse_project
 from .types import FullID, LocalPath, RemotePath, TaskStatus
 
 
@@ -38,7 +38,7 @@ from .types import FullID, LocalPath, RemotePath, TaskStatus
 # variables.
 
 
-# neuro -- global settings (cluster, user, api entrypoint)
+# neuro -- global settings cluster, user, api entrypoint)
 
 # flow -- global flow settings, e.g. id
 
@@ -269,7 +269,7 @@ class BaseContext(RootABC):
         ),
     )
 
-    _workspace: LocalPath
+    _config_loader: ConfigLoader
     _env: Optional[Mapping[str, str]] = None
     _tags: Optional[AbstractSet[str]] = None
     _defaults: Optional[DefaultsCtx] = None
@@ -300,19 +300,7 @@ class BaseContext(RootABC):
         return cast(TypeT, ret)
 
     async def fetch_action(self, action_name: str) -> ast.BaseAction:
-        scheme, sep, spec = action_name.partition(":")
-        if not sep:
-            raise ValueError(f"{action_name} has no schema")
-        if scheme in ("ws", "workspace"):
-            assert self._workspace is not None
-            path = self._workspace / spec
-            if not path.exists():
-                path = path.with_suffix(".yml")
-            if not path.exists():
-                raise ValueError(f"Action {action_name} does not exist")
-            return parse_action(path)
-        else:
-            raise ValueError(f"Unsupported scheme '{scheme}'")
+        return await self._config_loader.fetch_action(action_name)
 
 
 @dataclass(frozen=True)
@@ -337,31 +325,31 @@ class BaseFlowContext(BaseContext):
     @classmethod
     async def create(
         cls: Type[_CtxT],
-        ast_flow: ast.BaseFlow,
-        workspace: LocalPath,
-        config_file: LocalPath,
+        config_loader: ConfigLoader,
+        config_name: str,
     ) -> _CtxT:
+        ast_flow = await config_loader.fetch_flow(config_name)
         assert issubclass(cls, BaseFlowContext)
         assert isinstance(ast_flow, cls.FLOW_TYPE)
         flow_id = await ast_flow.id.eval(EMPTY_ROOT)
         if flow_id is None:
-            flow_id = config_file.stem.replace("-", "_")
+            flow_id = config_name.replace("-", "_")
 
-        project = parse_project(workspace)
+        project = await config_loader.fetch_project()
         project_id = await project.id.eval(EMPTY_ROOT)
         flow_title = await ast_flow.title.eval(EMPTY_ROOT)
 
         flow = FlowCtx(
             flow_id=flow_id,
             project_id=project_id,
-            workspace=workspace.resolve(),
+            workspace=config_loader.workspace,
             title=flow_title or flow_id,
         )
 
         ctx = cls(
             _ast_flow=ast_flow,
             _flow=flow,
-            _workspace=flow.workspace,
+            _config_loader=config_loader,
         )
         ctx = await ctx._with_args()
 
@@ -572,7 +560,7 @@ class LiveContext(BaseFlowContext):
             action_ctx = await LiveActionContext.create(
                 (self.flow.flow_id, job_id),  # unused
                 await job.action.eval(EMPTY_ROOT),
-                self._workspace,
+                self._config_loader,
                 self.tags,
             )
             assert isinstance(action_ctx._ast, ast.LiveAction)
@@ -922,7 +910,7 @@ class TaskContext(BaseContext):
         ctx = await BatchActionContext.create(
             full_id,
             prep_task.action,
-            self._workspace,
+            self._config_loader,
             parent_ctx.tags,
             {k: await v.eval(parent_ctx) for k, v in prep_task.args.items()},
             parent_ctx.strategy,
@@ -1083,15 +1071,11 @@ class BatchContext(TaskContext, BaseFlowContext):
     @classmethod
     async def create(
         cls: Type[_CtxT],
-        ast_flow: ast.BaseFlow,
-        workspace: LocalPath,
-        config_file: LocalPath,
+        config_loader: ConfigLoader,
+        config_name: str,
     ) -> _CtxT:
-        ctx = await super(cls, BatchContext).create(
-            ast_flow,
-            workspace,
-            config_file,
-        )
+        ctx = await super(cls, BatchContext).create(config_loader, config_name)
+        ast_flow = await config_loader.fetch_flow(config_name)
         ast_defaults = ast_flow.defaults
         ctx = replace(ctx, _cache=CacheCtx())
         if ast_defaults is not None:
@@ -1163,13 +1147,13 @@ class ActionContext(BaseContext):
         cls: Type[_CtxT],
         prefix: FullID,
         action: str,
-        workspace: LocalPath,
+        config_loader: ConfigLoader,
         tags: AbstractSet[str],
     ) -> _CtxT:
         assert issubclass(cls, ActionContext)
         ctx = cls(
-            _workspace=workspace,
             _action=action,
+            _config_loader=config_loader,
         )
         ast_action = await ctx.fetch_action(action)
         assert isinstance(ast_action, ast.BaseAction)
@@ -1246,11 +1230,11 @@ class LiveActionContext(ActionContext):
         cls: Type[_CtxT],
         prefix: FullID,
         action: str,
-        workspace: LocalPath,
+        config_loader: ConfigLoader,
         tags: AbstractSet[str],
     ) -> _CtxT:
         ret = await super(cls, LiveActionContext).create(
-            prefix, action, workspace, tags
+            prefix, action, config_loader, tags
         )
         ret._check_kind(ast.ActionKind.LIVE)
         return cast(_CtxT, ret)
@@ -1268,14 +1252,14 @@ class BatchActionContext(TaskContext, ActionContext):
         cls: Type[_CtxT],
         prefix: FullID,
         action: str,
-        workspace: LocalPath,
+        config_loader: ConfigLoader,
         tags: AbstractSet[str],
         inputs: Mapping[str, str],
         default_strategy: StrategyCtx,
         default_cache: CacheCtx,
     ) -> _CtxT:
         ctx = await super(cls, BatchActionContext).create(  # type:ignore[call-arg]
-            prefix, action, workspace, tags
+            prefix, action, config_loader, tags
         )
         ctx._check_kind(ast.ActionKind.BATCH)
         ctx = await ctx.with_inputs(inputs)
