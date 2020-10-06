@@ -176,9 +176,7 @@ async def hash_files(ctx: CallCtx, *patterns: str) -> str:
         ),
     )
     for pattern in patterns:
-        for fname in workspace.glob(pattern):
-            if fname.name.startswith("."):
-                continue
+        for fname in sorted(workspace.glob(pattern)):
             with fname.open("rb") as stream:
                 data = stream.read(256 * 1024)
                 if not data:
