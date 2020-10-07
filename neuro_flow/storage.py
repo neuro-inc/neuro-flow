@@ -54,10 +54,10 @@ if sys.version_info < (3, 7):
 log = logging.getLogger(__name__)
 
 STARTED_RE: Final = re.compile(
-    r"\A\d+\.(?P<id>[a-zA-Z][a-zA-Z0-9_\-\.]*).started.json\Z"
+    r"\A(?P<no>\d+)\.(?P<id>[a-zA-Z][a-zA-Z0-9_\-\.]*).started.json\Z"
 )
 FINISHED_RE: Final = re.compile(
-    r"\A\d+\.(?P<id>[a-zA-Z][a-zA-Z0-9_\-\.]*).finished.json\Z"
+    r"\A(?P<no>\d+)\.(?P<id>[a-zA-Z][a-zA-Z0-9_\-\.]*).finished.json\Z"
 )
 DIGITS = 4
 
@@ -96,6 +96,7 @@ class Attempt:
 class StartedTask:
     attempt: Attempt
     id: FullID
+    number: int
     raw_id: str
     created_at: datetime.datetime
     when: datetime.datetime
@@ -105,6 +106,7 @@ class StartedTask:
 class FinishedTask:
     attempt: Attempt
     id: FullID
+    number: int
     raw_id: str
     when: datetime.datetime
     status: TaskStatus
@@ -197,7 +199,6 @@ class BatchStorage(abc.ABC):
     async def finish_attempt(self, attempt: Attempt, result: JobStatus) -> None:
         pass
 
-    @abc.abstractmethod
     async def start_task(
         self,
         attempt: Attempt,
@@ -205,18 +206,38 @@ class BatchStorage(abc.ABC):
         task_id: FullID,
         descr: JobDescription,
     ) -> StartedTask:
-        pass
+        assert descr.history.created_at is not None
+        ret = StartedTask(
+            attempt=attempt,
+            id=task_id,
+            number=task_no,
+            raw_id=descr.id,
+            when=datetime.datetime.now(datetime.timezone.utc),
+            created_at=descr.history.created_at,
+        )
 
-    @abc.abstractmethod
+        await self.write_start(ret)
+        return ret
+
     async def start_batch_action(
         self,
         attempt: Attempt,
         task_no: int,
         task_id: FullID,
     ) -> StartedTask:
-        pass
+        assert 0 <= task_no < int("9" * DIGITS) - 1, task_no
+        now = datetime.datetime.now(datetime.timezone.utc)
+        ret = StartedTask(
+            attempt=attempt,
+            id=task_id,
+            number=task_no,
+            raw_id="",
+            when=now,
+            created_at=now,
+        )
+        await self.write_start(ret)
+        return ret
 
-    @abc.abstractmethod
     async def finish_task(
         self,
         attempt: Attempt,
@@ -225,9 +246,29 @@ class BatchStorage(abc.ABC):
         descr: JobDescription,
         outputs: Mapping[str, str],
     ) -> FinishedTask:
-        pass
+        assert task.raw_id == descr.id
+        assert task.created_at == descr.history.created_at
+        assert descr.history.created_at is not None
+        assert descr.history.started_at is not None
+        assert descr.history.finished_at is not None
+        ret = FinishedTask(
+            attempt=attempt,
+            id=task.id,
+            number=task_no,
+            raw_id=task.raw_id,
+            when=datetime.datetime.now(datetime.timezone.utc),
+            status=TaskStatus(descr.history.status),
+            exit_code=descr.history.exit_code,
+            created_at=descr.history.created_at,
+            started_at=descr.history.started_at,
+            finished_at=descr.history.finished_at,
+            finish_reason=descr.history.reason,
+            finish_description=descr.history.description,
+            outputs=outputs,
+        )
+        await self.write_finish(ret)
+        return ret
 
-    @abc.abstractmethod
     async def finish_batch_action(
         self,
         attempt: Attempt,
@@ -235,15 +276,78 @@ class BatchStorage(abc.ABC):
         task: StartedTask,
         result: DepCtx,
     ) -> FinishedTask:
-        pass
+        now = datetime.datetime.now(datetime.timezone.utc)
+        assert result.result != TaskStatus.SKIPPED, (
+            "Finished task cannot be disabled (it is already started),"
+            " use .skip_task() instead"
+        )
+        status = TaskStatus(result.result)
+        ret = FinishedTask(
+            attempt=attempt,
+            id=task.id,
+            number=task_no,
+            raw_id="",
+            when=now,
+            status=status,
+            exit_code=None,
+            created_at=task.created_at,
+            started_at=task.created_at,
+            finished_at=now,
+            finish_reason="",
+            finish_description="",
+            outputs=result.outputs,
+        )
+        await self.write_finish(ret)
+        return ret
 
-    @abc.abstractmethod
     async def skip_task(
         self,
         attempt: Attempt,
         task_no: int,
         task_id: FullID,
     ) -> FinishedTask:
+        now = datetime.datetime.now(datetime.timezone.utc)
+
+        st = StartedTask(
+            attempt=attempt,
+            id=task_id,
+            number=task_no,
+            raw_id="",
+            when=now,
+            created_at=now,
+        )
+        await self.write_start(st)
+
+        ret = FinishedTask(
+            attempt=attempt,
+            id=task_id,
+            number=task_no + 1,
+            raw_id="",
+            when=now,
+            status=TaskStatus.SKIPPED,
+            exit_code=None,
+            created_at=now,
+            started_at=now,
+            finished_at=now,
+            finish_reason="",
+            finish_description="",
+            outputs={},
+        )
+        await self.write_finish(ret)
+        return ret
+
+    @abc.abstractmethod
+    async def write_start(
+        self,
+        task: StartedTask,
+    ) -> None:
+        pass
+
+    @abc.abstractmethod
+    async def write_finish(
+        self,
+        task: FinishedTask,
+    ) -> None:
         pass
 
     @abc.abstractmethod
@@ -569,9 +673,12 @@ class BatchFSStorage(BatchStorage):
                 data = await self._read_json(attempt_url / fname)
                 assert match.group("id") == data["id"]
                 full_id = _id_from_json(data["id"])
+
+                # TODO: assert data['number'] == int(match.group('no'))
                 started[full_id] = StartedTask(
                     attempt=attempt,
                     id=full_id,
+                    number=int(match.group("no")),
                     raw_id=data["raw_id"],
                     created_at=datetime.datetime.fromisoformat(data["created_at"]),
                     when=datetime.datetime.fromisoformat(data["when"]),
@@ -582,9 +689,11 @@ class BatchFSStorage(BatchStorage):
                 data = await self._read_json(attempt_url / fname)
                 assert match.group("id") == data["id"]
                 full_id = _id_from_json(data["id"])
+                # TODO: assert data['number'] == int(match.group('no'))
                 finished[full_id] = FinishedTask(
                     attempt=attempt,
                     id=full_id,
+                    number=int(match.group("no")),
                     raw_id=data["raw_id"],
                     when=datetime.datetime.fromisoformat(data["when"]),
                     status=TaskStatus(data["status"]),
@@ -608,102 +717,29 @@ class BatchFSStorage(BatchStorage):
         data = {"result": result.value}
         await self._write_json(attempt_url / f"{pre}.result.json", data)
 
-    async def start_task(
-        self,
-        attempt: Attempt,
-        task_no: int,
-        task_id: FullID,
-        descr: JobDescription,
-    ) -> StartedTask:
-        assert 0 <= task_no < int("9" * DIGITS) - 1, task_no
-        bake_uri = _mk_bake_uri(self._fs, attempt.bake)
-        attempt_url = bake_uri / f"{attempt.number:02d}.attempt"
-        pre = str(task_no + 1).zfill(DIGITS)
-        assert descr.history.created_at is not None
-        ret = StartedTask(
-            attempt=attempt,
-            id=task_id,
-            raw_id=descr.id,
-            when=datetime.datetime.now(datetime.timezone.utc),
-            created_at=descr.history.created_at,
-        )
+    async def write_start(self, st: StartedTask) -> None:
+        assert 0 <= st.number < int("9" * DIGITS) - 1, st.number
+        bake_uri = _mk_bake_uri(self._fs, st.attempt.bake)
+        attempt_url = bake_uri / f"{st.attempt.number:02d}.attempt"
+        pre = str(st.number + 1).zfill(DIGITS)
 
         data = {
-            "id": _id_to_json(ret.id),
-            "raw_id": ret.raw_id,
-            "when": ret.when.isoformat(timespec="seconds"),
-            "created_at": ret.created_at.isoformat(timespec="seconds"),
+            "id": _id_to_json(st.id),
+            "number": st.number,
+            "raw_id": st.raw_id,
+            "when": st.when.isoformat(timespec="seconds"),
+            "created_at": st.created_at.isoformat(timespec="seconds"),
         }
         await self._write_json(attempt_url / f"{pre}.{data['id']}.started.json", data)
-        return ret
 
-    async def start_batch_action(
-        self,
-        attempt: Attempt,
-        task_no: int,
-        task_id: FullID,
-    ) -> StartedTask:
-        assert 0 <= task_no < int("9" * DIGITS) - 1, task_no
-        bake_uri = _mk_bake_uri(self._fs, attempt.bake)
-        attempt_url = bake_uri / f"{attempt.number:02d}.attempt"
-        pre = str(task_no + 1).zfill(DIGITS)
-        now = datetime.datetime.now(datetime.timezone.utc)
-        ret = StartedTask(
-            attempt=attempt,
-            id=task_id,
-            raw_id="",
-            when=now,
-            created_at=now,
-        )
-
-        data = {
-            "id": _id_to_json(ret.id),
-            "raw_id": ret.raw_id,
-            "when": ret.when.isoformat(timespec="seconds"),
-            "created_at": ret.created_at.isoformat(timespec="seconds"),
-        }
-        await self._write_json(attempt_url / f"{pre}.{data['id']}.started.json", data)
-        return ret
-
-    async def finish_task(
-        self,
-        attempt: Attempt,
-        task_no: int,
-        task: StartedTask,
-        descr: JobDescription,
-        outputs: Mapping[str, str],
-    ) -> FinishedTask:
-        assert task.raw_id == descr.id
-        assert task.created_at == descr.history.created_at
-        assert descr.history.created_at is not None
-        assert descr.history.started_at is not None
-        assert descr.history.finished_at is not None
-        ret = FinishedTask(
-            attempt=attempt,
-            id=task.id,
-            raw_id=task.raw_id,
-            when=datetime.datetime.now(datetime.timezone.utc),
-            status=TaskStatus(descr.history.status),
-            exit_code=descr.history.exit_code,
-            created_at=descr.history.created_at,
-            started_at=descr.history.started_at,
-            finished_at=descr.history.finished_at,
-            finish_reason=descr.history.reason,
-            finish_description=descr.history.description,
-            outputs=outputs,
-        )
-        await self._write_finish(attempt, task_no, ret)
-        return ret
-
-    async def _write_finish(
-        self, attempt: Attempt, task_no: int, ft: FinishedTask
-    ) -> None:
-        assert 0 <= task_no < int("9" * DIGITS) - 1, task_no
-        bake_uri = _mk_bake_uri(self._fs, attempt.bake)
-        attempt_url = bake_uri / f"{attempt.number:02d}.attempt"
-        pre = str(task_no + 1).zfill(DIGITS)
+    async def write_finish(self, ft: FinishedTask) -> None:
+        assert 0 <= ft.number < int("9" * DIGITS) - 1, ft.number
+        bake_uri = _mk_bake_uri(self._fs, ft.attempt.bake)
+        attempt_url = bake_uri / f"{ft.attempt.number:02d}.attempt"
+        pre = str(ft.number + 1).zfill(DIGITS)
         data = {
             "id": _id_to_json(ft.id),
+            "number": ft.number,
             "raw_id": ft.raw_id,
             "when": ft.when.isoformat(timespec="seconds"),
             "status": ft.status.value,
@@ -716,73 +752,6 @@ class BatchFSStorage(BatchStorage):
             "outputs": ft.outputs,
         }
         await self._write_json(attempt_url / f"{pre}.{data['id']}.finished.json", data)
-
-    async def finish_batch_action(
-        self,
-        attempt: Attempt,
-        task_no: int,
-        task: StartedTask,
-        result: DepCtx,
-    ) -> FinishedTask:
-        now = datetime.datetime.now(datetime.timezone.utc)
-        assert result.result != TaskStatus.SKIPPED, (
-            "Finished task cannot be disabled (it is already started),"
-            " use .skip_task() instead"
-        )
-        status = TaskStatus(result.result)
-        ret = FinishedTask(
-            attempt=attempt,
-            id=task.id,
-            raw_id="",
-            when=now,
-            status=status,
-            exit_code=None,
-            created_at=task.created_at,
-            started_at=task.created_at,
-            finished_at=now,
-            finish_reason="",
-            finish_description="",
-            outputs=result.outputs,
-        )
-        await self._write_finish(attempt, task_no, ret)
-        return ret
-
-    async def skip_task(
-        self,
-        attempt: Attempt,
-        task_no: int,
-        task_id: FullID,
-    ) -> FinishedTask:
-        assert 0 <= task_no < int("9" * DIGITS) - 1, task_no
-        bake_uri = _mk_bake_uri(self._fs, attempt.bake)
-        attempt_url = bake_uri / f"{attempt.number:02d}.attempt"
-        pre = str(task_no + 1).zfill(DIGITS)
-        now = datetime.datetime.now(datetime.timezone.utc)
-
-        data = {
-            "id": _id_to_json(task_id),
-            "raw_id": "",
-            "when": now.isoformat(timespec="seconds"),
-            "created_at": now.isoformat(timespec="seconds"),
-        }
-        await self._write_json(attempt_url / f"{pre}.{data['id']}.started.json", data)
-
-        ret = FinishedTask(
-            attempt=attempt,
-            id=task_id,
-            raw_id="",
-            when=now,
-            status=TaskStatus.SKIPPED,
-            exit_code=None,
-            created_at=now,
-            started_at=now,
-            finished_at=now,
-            finish_reason="",
-            finish_description="",
-            outputs={},
-        )
-        await self._write_finish(attempt, task_no, ret)
-        return ret
 
     async def check_cache(
         self,
@@ -816,6 +785,7 @@ class BatchFSStorage(BatchStorage):
             ret = FinishedTask(
                 attempt=attempt,
                 id=task_id,
+                number=task_no,
                 raw_id=data["raw_id"],
                 when=datetime.datetime.fromisoformat(data["when"]),
                 status=TaskStatus(data["status"]),
@@ -827,7 +797,7 @@ class BatchFSStorage(BatchStorage):
                 finish_description=data["finish_description"],
                 outputs=data["outputs"],
             )
-            await self._write_finish(attempt, task_no, ret)
+            await self.write_finish(ret)
             return ret
         except (KeyError, ValueError, TypeError):
             # something is wrong with stored JSON,

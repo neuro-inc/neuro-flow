@@ -376,7 +376,9 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         bake = await self._storage.fetch_bake_by_id(self.project, bake_id)
         attempt = await self._storage.find_attempt(bake, attempt_no)
         if attempt.result in TERMINATED_JOB_STATUSES:
-            raise click.BadArgumentUsage(f"This bake attempt is already stopped.")
+            raise click.BadArgumentUsage(
+                f"Attempt #{attempt.number} of {bake.bake_id} is already stopped."
+            )
         await self._storage.finish_attempt(attempt, JobStatus.CANCELLED)
         click.echo(f"Attempt #{attempt.number} of bake {bake.bake_id} was cancelled.")
 
