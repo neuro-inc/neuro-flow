@@ -1,0 +1,11 @@
+kind: stateful
+descr: return given arg as output
+inputs:
+  arg:
+    descr: param 1
+outputs:
+  res:
+    descr: action result
+main:
+  image: ubuntu
+  bash: echo ::set-output name=res::${{ inputs.arg }}

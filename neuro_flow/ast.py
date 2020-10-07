@@ -5,9 +5,9 @@ import enum
 from typing import Mapping, Optional, Sequence, Union
 
 from .expr import (
+    EnableExpr,
     IdExpr,
     OptBoolExpr,
-    OptEnableExpr,
     OptIdExpr,
     OptIntExpr,
     OptLifeSpanExpr,
@@ -140,7 +140,7 @@ class TaskBase(Base):
     strategy: Optional[Strategy] = field(metadata={"allow_none": True})
 
     # continue_on_error: OptBoolExpr
-    enable: OptEnableExpr
+    enable: EnableExpr = field(metadata={"default_expr": "${{ success() }}"})
 
 
 @dataclass(frozen=True)
@@ -280,9 +280,6 @@ class BatchAction(BaseAction):
 class StatefulAction(BaseAction):
     outputs: Optional[Mapping[str, Output]] = field(metadata={"allow_none": True})
     cache: Optional[Cache] = field(metadata={"allow_none": True})
-
-    pre: Optional[ExecUnit] = field(metadata={"allow_none": True})
-    pre_if: OptBoolExpr
     main: ExecUnit
     post: Optional[ExecUnit] = field(metadata={"allow_none": True})
-    post_if: OptBoolExpr
+    post_if: EnableExpr = field(metadata={"default_expr": "${{ always() }}"})

@@ -115,6 +115,7 @@ class FinishedTask:
     finish_reason: str
     finish_description: str
     outputs: Mapping[str, str]
+    state: Mapping[str, str]
 
 
 # A storage abstraction
@@ -224,6 +225,7 @@ class BatchStorage(abc.ABC):
         task: StartedTask,
         descr: JobDescription,
         outputs: Mapping[str, str],
+        state: Mapping[str, str],
     ) -> FinishedTask:
         pass
 
@@ -595,6 +597,7 @@ class BatchFSStorage(BatchStorage):
                     finish_reason=data["finish_reason"],
                     finish_description=data["finish_description"],
                     outputs=data["outputs"],
+                    state=data["state"],
                 )
                 continue
             raise ValueError(f"Unexpected name {attempt_url / fname}")
@@ -672,6 +675,7 @@ class BatchFSStorage(BatchStorage):
         task: StartedTask,
         descr: JobDescription,
         outputs: Mapping[str, str],
+        state: Mapping[str, str],
     ) -> FinishedTask:
         assert task.raw_id == descr.id
         assert task.created_at == descr.history.created_at
@@ -691,6 +695,7 @@ class BatchFSStorage(BatchStorage):
             finish_reason=descr.history.reason,
             finish_description=descr.history.description,
             outputs=outputs,
+            state=state,
         )
         await self._write_finish(attempt, task_no, ret)
         return ret
@@ -714,6 +719,7 @@ class BatchFSStorage(BatchStorage):
             "finish_reason": ft.finish_reason,
             "finish_description": ft.finish_description,
             "outputs": ft.outputs,
+            "state": ft.state,
         }
         await self._write_json(attempt_url / f"{pre}.{data['id']}.finished.json", data)
 
@@ -743,6 +749,7 @@ class BatchFSStorage(BatchStorage):
             finish_reason="",
             finish_description="",
             outputs=result.outputs,
+            state={},
         )
         await self._write_finish(attempt, task_no, ret)
         return ret
@@ -780,6 +787,7 @@ class BatchFSStorage(BatchStorage):
             finish_reason="",
             finish_description="",
             outputs={},
+            state={},
         )
         await self._write_finish(attempt, task_no, ret)
         return ret
@@ -826,6 +834,7 @@ class BatchFSStorage(BatchStorage):
                 finish_reason=data["finish_reason"],
                 finish_description=data["finish_description"],
                 outputs=data["outputs"],
+                state=data["state"],
             )
             await self._write_finish(attempt, task_no, ret)
             return ret
@@ -862,6 +871,7 @@ class BatchFSStorage(BatchStorage):
             "finish_reason": ft.finish_reason,
             "finish_description": ft.finish_description,
             "outputs": ft.outputs,
+            "state": ft.state,
         }
         try:
             await self._write_json(url, data, overwrite=True)

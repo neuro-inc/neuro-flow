@@ -3,10 +3,10 @@ from unittest.mock import ANY
 from neuro_flow import ast
 from neuro_flow.ast import BatchActionOutputs
 from neuro_flow.expr import (
+    EnableExpr,
     IdExpr,
     OptBashExpr,
     OptBoolExpr,
-    OptEnableExpr,
     OptIdExpr,
     OptIntExpr,
     OptLifeSpanExpr,
@@ -225,8 +225,10 @@ def test_parse_batch_action(assets: LocalPath) -> None:
                 id=OptIdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "task_1"),
                 needs=None,
                 strategy=None,
-                enable=OptEnableExpr(
-                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                enable=EnableExpr(
+                    Pos(0, 0, config_file),
+                    Pos(0, 0, config_file),
+                    "${{ success() }}",
                 ),
             ),
             ast.Task(
@@ -262,8 +264,10 @@ def test_parse_batch_action(assets: LocalPath) -> None:
                 id=OptIdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "task_2"),
                 needs=None,
                 strategy=None,
-                enable=OptEnableExpr(
-                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                enable=EnableExpr(
+                    Pos(0, 0, config_file),
+                    Pos(0, 0, config_file),
+                    "${{ success() }}",
                 ),
             ),
         ],
@@ -271,11 +275,11 @@ def test_parse_batch_action(assets: LocalPath) -> None:
 
 
 def test_parse_stateful_action(assets: LocalPath) -> None:
-    config_file = assets / "stateful-action.yml"
+    config_file = assets / "stateful_actions/parser-test.yml"
     action = parse_action(config_file)
     assert action == ast.StatefulAction(
         Pos(0, 0, config_file),
-        Pos(24, 0, config_file),
+        Pos(19, 0, config_file),
         kind=ast.ActionKind.STATEFUL,
         name=SimpleOptStrExpr(
             Pos(0, 0, config_file),
@@ -325,7 +329,7 @@ def test_parse_stateful_action(assets: LocalPath) -> None:
             )
         },
         cache=None,
-        pre=ast.ExecUnit(
+        main=ast.ExecUnit(
             Pos(14, 2, config_file),
             Pos(16, 0, config_file),
             title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
@@ -336,33 +340,7 @@ def test_parse_stateful_action(assets: LocalPath) -> None:
             cmd=OptBashExpr(
                 Pos(0, 0, config_file),
                 Pos(0, 0, config_file),
-                "echo ::set-state name=state1::State 1",
-            ),
-            workdir=OptRemotePathExpr(
-                Pos(0, 0, config_file), Pos(0, 0, config_file), None
-            ),
-            env=None,
-            volumes=None,
-            tags=None,
-            life_span=OptLifeSpanExpr(
-                Pos(0, 0, config_file), Pos(0, 0, config_file), None
-            ),
-            http_port=OptIntExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
-            http_auth=OptBoolExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
-        ),
-        pre_if=OptBoolExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), True),
-        main=ast.ExecUnit(
-            Pos(18, 2, config_file),
-            Pos(20, 0, config_file),
-            title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
-            name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
-            image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
-            preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
-            entrypoint=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
-            cmd=OptBashExpr(
-                Pos(0, 0, config_file),
-                Pos(0, 0, config_file),
-                "echo ::set-state name=state2::State 2",
+                "echo ::save-state name=state::State",
             ),
             workdir=OptRemotePathExpr(
                 Pos(0, 0, config_file), Pos(0, 0, config_file), None
@@ -377,8 +355,8 @@ def test_parse_stateful_action(assets: LocalPath) -> None:
             http_auth=OptBoolExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
         ),
         post=ast.ExecUnit(
-            Pos(21, 2, config_file),
-            Pos(23, 0, config_file),
+            Pos(17, 2, config_file),
+            Pos(19, 0, config_file),
             title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
             name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
             image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
@@ -397,8 +375,8 @@ def test_parse_stateful_action(assets: LocalPath) -> None:
             http_port=OptIntExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
             http_auth=OptBoolExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
         ),
-        post_if=OptBoolExpr(
-            Pos(0, 0, config_file), Pos(0, 0, config_file), "${{ True }}"
+        post_if=EnableExpr(
+            Pos(0, 0, config_file), Pos(0, 0, config_file), "${{ always() }}"
         ),
     )
 
@@ -472,8 +450,10 @@ def test_parse_batch_call(assets: LocalPath) -> None:
                 id=OptIdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "test"),
                 needs=None,
                 strategy=None,
-                enable=OptEnableExpr(
-                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                enable=EnableExpr(
+                    Pos(0, 0, config_file),
+                    Pos(0, 0, config_file),
+                    "${{ success() }}",
                 ),
                 action=SimpleStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "ws:batch-action"
