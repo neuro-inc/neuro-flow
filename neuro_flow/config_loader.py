@@ -223,7 +223,8 @@ class BatchLocalCL(
             flow_conf, flow_conf_meta = self._stream_to_config(stream)
 
         flow_ast = await self.fetch_flow(name)
-        actions = await self._collect_actions(flow_ast.tasks)
+        actions: Dict[str, Tuple["ConfigFile", "ConfigOnStorage"]] = {}
+        await self._collect_actions(flow_ast.tasks, actions)
         meta = ConfigsMeta(
             workspace=self.workspace,
             project_config=proj_conf_meta if proj_conf else None,
@@ -251,25 +252,27 @@ class BatchLocalCL(
         return config_file, config_on_storage
 
     async def _collect_actions(
-        self, tasks: Sequence[Union[ast.Task, ast.TaskActionCall]]
-    ) -> Mapping[str, Tuple["ConfigFile", "ConfigOnStorage"]]:
+        self,
+        tasks: Sequence[Union[ast.Task, ast.TaskActionCall]],
+        collect_to: Dict[str, Tuple["ConfigFile", "ConfigOnStorage"]],
+    ) -> None:
         from neuro_flow.context import EMPTY_ROOT
 
         # Local import here to avoid circular imports
-        # In general, we config loader should not use
+        # In general, config loader should not use
         # contexts, but collecting actions requires eval()
         # for action names.
 
-        result: Dict[str, Tuple[ConfigFile, ConfigOnStorage]] = {}
         for task in tasks:
             if isinstance(task, ast.BaseActionCall):
                 action_name = await task.action.eval(EMPTY_ROOT)
+                if action_name in collect_to:
+                    continue
                 async with self.action_stream(action_name) as stream:
-                    result[action_name] = self._stream_to_config(stream)
+                    collect_to[action_name] = self._stream_to_config(stream)
                 action_ast = await self.fetch_action(action_name)
                 if isinstance(action_ast, ast.BatchAction):
-                    result.update(await self._collect_actions(action_ast.tasks))
-        return result
+                    await self._collect_actions(action_ast.tasks, collect_to)
 
 
 @dataclasses.dataclass(frozen=True)

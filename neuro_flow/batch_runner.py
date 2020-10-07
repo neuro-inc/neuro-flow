@@ -1,10 +1,11 @@
 import asyncio
 import click
 import sys
+from graphviz import Digraph
 from neuromation.api import Client, JobStatus
 from neuromation.cli.formatters import ftable  # TODO: extract into a separate library
 from types import TracebackType
-from typing import AbstractSet, List, Mapping, Optional, Tuple, Type
+from typing import AbstractSet, Dict, List, Mapping, Optional, Tuple, Type
 from typing_extensions import AsyncContextManager, AsyncIterator
 
 from . import __version__
@@ -13,8 +14,8 @@ from .commands import CmdProcessor
 from .config_loader import BatchLocalCL
 from .context import EMPTY_ROOT, BatchContext, DepCtx, TaskContext
 from .parser import ConfigDir
-from .storage import Attempt, Bake, BatchStorage
-from .types import FullID, TaskStatus
+from .storage import Attempt, Bake, BatchStorage, FinishedTask, StartedTask
+from .types import FullID, LocalPath, TaskStatus
 from .utils import TERMINATED_JOB_STATUSES, fmt_id, fmt_raw_id, fmt_status
 
 
@@ -24,6 +25,17 @@ else:
     from . import backport_graphlib as graphlib
 
 EXECUTOR_IMAGE = f"neuromation/neuro-flow:{__version__}"
+
+
+GRAPH_COLORS = {
+    TaskStatus.PENDING: "skyblue",
+    TaskStatus.RUNNING: "steelblue",
+    TaskStatus.SUCCEEDED: "limegreen",
+    TaskStatus.CANCELLED: "orange",
+    TaskStatus.SKIPPED: "magenta",
+    TaskStatus.FAILED: "orangered",
+    TaskStatus.UNKNOWN: "crimson",
+}
 
 
 class BatchRunner(AsyncContextManager["BatchRunner"]):
@@ -178,7 +190,16 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         for line in ftable.table(rows):
             click.echo(line)
 
-    async def inspect(self, bake_id: str, *, attempt_no: int = -1) -> None:
+    async def inspect(
+        self,
+        bake_id: str,
+        *,
+        attempt_no: int = -1,
+        output: Optional[LocalPath] = None,
+        save_dot: bool = False,
+        save_pdf: bool = False,
+        view_pdf: bool = False,
+    ) -> None:
         rows: List[List[str]] = []
         rows.append(
             [
@@ -225,6 +246,85 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
 
         for line in ftable.table(rows):
             click.echo(line)
+
+        if output is None:
+            output = LocalPath(f"{bake.bake_id}_{attempt.number}").with_suffix(".gv")
+
+        graphs = bake.graphs
+        dot = Digraph(bake.batch, filename=str(output), strict=True, engine="dot")
+        dot.attr(compound="true")
+        dot.node_attr = {"style": "filled"}
+
+        await self._subgraph(dot, graphs, (), {}, started, finished)
+
+        if save_dot:
+            click.echo(f"Saving file {dot.filename}")
+            dot.save()
+        if save_pdf:
+            click.echo(f"Rendering {dot.filename}.pdf")
+            dot.render(view=view_pdf)
+        elif view_pdf:
+            click.echo(f"Opening {dot.filename}.pdf")
+            dot.view()
+
+    async def _subgraph(
+        self,
+        dot: Digraph,
+        graphs: Mapping[FullID, Mapping[FullID, AbstractSet[FullID]]],
+        prefix: FullID,
+        anchors: Dict[str, str],
+        started: Dict[FullID, StartedTask],
+        finished: Dict[FullID, FinishedTask],
+    ) -> None:
+        lhead: Optional[str]
+        ltail: Optional[str]
+        color: Optional[str]
+        first = True
+        graph = graphs[prefix]
+        for task_id, deps in graph.items():
+            tgt = ".".join(task_id)
+            name = task_id[-1]
+
+            if first:
+                anchors[".".join(prefix)] = tgt
+                first = False
+
+            if task_id in finished:
+                status = finished[task_id].status
+                color = GRAPH_COLORS[status]
+            elif task_id in started:
+                color = GRAPH_COLORS[TaskStatus.RUNNING]
+            else:
+                color = None
+
+            if task_id in graphs:
+                lhead = "cluster_" + tgt
+                with dot.subgraph(name=lhead) as subdot:
+                    subdot.attr(label=f"{name}")
+                    subdot.attr(compound="true")
+                    subdot.attr(color=color)
+                    await self._subgraph(
+                        subdot,
+                        graphs,
+                        task_id,
+                        anchors,
+                        started,
+                        finished,
+                    )
+                tgt = anchors[tgt]
+            else:
+                dot.node(tgt, name, color=color)
+                lhead = None
+
+            for dep in deps:
+                src = ".".join(dep)
+                if src in anchors:
+                    # src is a subgraph
+                    ltail = "cluster_" + src
+                    src = anchors[src]
+                else:
+                    ltail = None
+                dot.edge(src, tgt, ltail=ltail, lhead=lhead)
 
     async def logs(
         self, bake_id: str, task_id: str, *, attempt_no: int = -1, raw: bool = False
@@ -276,7 +376,9 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         bake = await self._storage.fetch_bake_by_id(self.project, bake_id)
         attempt = await self._storage.find_attempt(bake, attempt_no)
         if attempt.result in TERMINATED_JOB_STATUSES:
-            raise click.BadArgumentUsage(f"This bake attempt is already stopped.")
+            raise click.BadArgumentUsage(
+                f"Attempt #{attempt.number} of {bake.bake_id} is already stopped."
+            )
         await self._storage.finish_attempt(attempt, JobStatus.CANCELLED)
         click.echo(f"Attempt #{attempt.number} of bake {bake.bake_id} was cancelled.")
 
