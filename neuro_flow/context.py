@@ -1026,6 +1026,13 @@ class TaskContext(BaseContext):
                 {k: await v.eval(ctx) for k, v in prep_task.args.items()}
             )
 
+            action = await self.fetch_action(prep_task.action)
+            assert isinstance(action, ast.StatefulAction)
+            task_ctx_base = replace(
+                task_ctx_base,
+                _cache=await self._build_cache(action.cache, ast.CacheStrategy.INHERIT),
+            )
+
         full_id = self._prefix + (prep_task.real_id,)
 
         env = dict(ctx.env)
