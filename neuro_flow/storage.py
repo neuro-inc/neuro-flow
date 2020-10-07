@@ -199,7 +199,6 @@ class BatchStorage(abc.ABC):
     async def finish_attempt(self, attempt: Attempt, result: JobStatus) -> None:
         pass
 
-    @abc.abstractmethod
     async def start_task(
         self,
         attempt: Attempt,
@@ -207,18 +206,38 @@ class BatchStorage(abc.ABC):
         task_id: FullID,
         descr: JobDescription,
     ) -> StartedTask:
-        pass
+        assert descr.history.created_at is not None
+        ret = StartedTask(
+            attempt=attempt,
+            id=task_id,
+            number=task_no,
+            raw_id=descr.id,
+            when=datetime.datetime.now(datetime.timezone.utc),
+            created_at=descr.history.created_at,
+        )
 
-    @abc.abstractmethod
+        await self.write_start(ret)
+        return ret
+
     async def start_batch_action(
         self,
         attempt: Attempt,
         task_no: int,
         task_id: FullID,
     ) -> StartedTask:
-        pass
+        assert 0 <= task_no < int("9" * DIGITS) - 1, task_no
+        now = datetime.datetime.now(datetime.timezone.utc)
+        ret = StartedTask(
+            attempt=attempt,
+            id=task_id,
+            number=task_no,
+            raw_id="",
+            when=now,
+            created_at=now,
+        )
+        await self.write_start(ret)
+        return ret
 
-    @abc.abstractmethod
     async def finish_task(
         self,
         attempt: Attempt,
@@ -227,9 +246,29 @@ class BatchStorage(abc.ABC):
         descr: JobDescription,
         outputs: Mapping[str, str],
     ) -> FinishedTask:
-        pass
+        assert task.raw_id == descr.id
+        assert task.created_at == descr.history.created_at
+        assert descr.history.created_at is not None
+        assert descr.history.started_at is not None
+        assert descr.history.finished_at is not None
+        ret = FinishedTask(
+            attempt=attempt,
+            id=task.id,
+            number=task_no,
+            raw_id=task.raw_id,
+            when=datetime.datetime.now(datetime.timezone.utc),
+            status=TaskStatus(descr.history.status),
+            exit_code=descr.history.exit_code,
+            created_at=descr.history.created_at,
+            started_at=descr.history.started_at,
+            finished_at=descr.history.finished_at,
+            finish_reason=descr.history.reason,
+            finish_description=descr.history.description,
+            outputs=outputs,
+        )
+        await self.write_finish(ret)
+        return ret
 
-    @abc.abstractmethod
     async def finish_batch_action(
         self,
         attempt: Attempt,
@@ -237,15 +276,78 @@ class BatchStorage(abc.ABC):
         task: StartedTask,
         result: DepCtx,
     ) -> FinishedTask:
-        pass
+        now = datetime.datetime.now(datetime.timezone.utc)
+        assert result.result != TaskStatus.SKIPPED, (
+            "Finished task cannot be disabled (it is already started),"
+            " use .skip_task() instead"
+        )
+        status = TaskStatus(result.result)
+        ret = FinishedTask(
+            attempt=attempt,
+            id=task.id,
+            number=task_no,
+            raw_id="",
+            when=now,
+            status=status,
+            exit_code=None,
+            created_at=task.created_at,
+            started_at=task.created_at,
+            finished_at=now,
+            finish_reason="",
+            finish_description="",
+            outputs=result.outputs,
+        )
+        await self.write_finish(ret)
+        return ret
 
-    @abc.abstractmethod
     async def skip_task(
         self,
         attempt: Attempt,
         task_no: int,
         task_id: FullID,
     ) -> FinishedTask:
+        now = datetime.datetime.now(datetime.timezone.utc)
+
+        st = StartedTask(
+            attempt=attempt,
+            id=task_id,
+            number=task_no,
+            raw_id="",
+            when=now,
+            created_at=now,
+        )
+        await self.write_start(st)
+
+        ret = FinishedTask(
+            attempt=attempt,
+            id=task_id,
+            number=task_no + 1,
+            raw_id="",
+            when=now,
+            status=TaskStatus.SKIPPED,
+            exit_code=None,
+            created_at=now,
+            started_at=now,
+            finished_at=now,
+            finish_reason="",
+            finish_description="",
+            outputs={},
+        )
+        await self.write_finish(ret)
+        return ret
+
+    @abc.abstractmethod
+    async def write_start(
+        self,
+        task: StartedTask,
+    ) -> None:
+        pass
+
+    @abc.abstractmethod
+    async def write_finish(
+        self,
+        task: FinishedTask,
+    ) -> None:
         pass
 
     @abc.abstractmethod
@@ -615,76 +717,6 @@ class BatchFSStorage(BatchStorage):
         data = {"result": result.value}
         await self._write_json(attempt_url / f"{pre}.result.json", data)
 
-    async def start_task(
-        self,
-        attempt: Attempt,
-        task_no: int,
-        task_id: FullID,
-        descr: JobDescription,
-    ) -> StartedTask:
-        assert descr.history.created_at is not None
-        ret = StartedTask(
-            attempt=attempt,
-            id=task_id,
-            number=task_no,
-            raw_id=descr.id,
-            when=datetime.datetime.now(datetime.timezone.utc),
-            created_at=descr.history.created_at,
-        )
-
-        await self.write_start(ret)
-        return ret
-
-    async def start_batch_action(
-        self,
-        attempt: Attempt,
-        task_no: int,
-        task_id: FullID,
-    ) -> StartedTask:
-        assert 0 <= task_no < int("9" * DIGITS) - 1, task_no
-        now = datetime.datetime.now(datetime.timezone.utc)
-        ret = StartedTask(
-            attempt=attempt,
-            id=task_id,
-            number=task_no,
-            raw_id="",
-            when=now,
-            created_at=now,
-        )
-        await self.write_start(ret)
-        return ret
-
-    async def finish_task(
-        self,
-        attempt: Attempt,
-        task_no: int,
-        task: StartedTask,
-        descr: JobDescription,
-        outputs: Mapping[str, str],
-    ) -> FinishedTask:
-        assert task.raw_id == descr.id
-        assert task.created_at == descr.history.created_at
-        assert descr.history.created_at is not None
-        assert descr.history.started_at is not None
-        assert descr.history.finished_at is not None
-        ret = FinishedTask(
-            attempt=attempt,
-            id=task.id,
-            number=task_no,
-            raw_id=task.raw_id,
-            when=datetime.datetime.now(datetime.timezone.utc),
-            status=TaskStatus(descr.history.status),
-            exit_code=descr.history.exit_code,
-            created_at=descr.history.created_at,
-            started_at=descr.history.started_at,
-            finished_at=descr.history.finished_at,
-            finish_reason=descr.history.reason,
-            finish_description=descr.history.description,
-            outputs=outputs,
-        )
-        await self.write_finish(ret)
-        return ret
-
     async def write_start(self, st: StartedTask) -> None:
         assert 0 <= st.number < int("9" * DIGITS) - 1, st.number
         bake_uri = _mk_bake_uri(self._fs, st.attempt.bake)
@@ -720,73 +752,6 @@ class BatchFSStorage(BatchStorage):
             "outputs": ft.outputs,
         }
         await self._write_json(attempt_url / f"{pre}.{data['id']}.finished.json", data)
-
-    async def finish_batch_action(
-        self,
-        attempt: Attempt,
-        task_no: int,
-        task: StartedTask,
-        result: DepCtx,
-    ) -> FinishedTask:
-        now = datetime.datetime.now(datetime.timezone.utc)
-        assert result.result != TaskStatus.SKIPPED, (
-            "Finished task cannot be disabled (it is already started),"
-            " use .skip_task() instead"
-        )
-        status = TaskStatus(result.result)
-        ret = FinishedTask(
-            attempt=attempt,
-            id=task.id,
-            number=task_no,
-            raw_id="",
-            when=now,
-            status=status,
-            exit_code=None,
-            created_at=task.created_at,
-            started_at=task.created_at,
-            finished_at=now,
-            finish_reason="",
-            finish_description="",
-            outputs=result.outputs,
-        )
-        await self.write_finish(ret)
-        return ret
-
-    async def skip_task(
-        self,
-        attempt: Attempt,
-        task_no: int,
-        task_id: FullID,
-    ) -> FinishedTask:
-        now = datetime.datetime.now(datetime.timezone.utc)
-
-        st = StartedTask(
-            attempt=attempt,
-            id=task_id,
-            number=task_no,
-            raw_id="",
-            when=now,
-            created_at=now,
-        )
-        await self.write_start(st)
-
-        ret = FinishedTask(
-            attempt=attempt,
-            id=task_id,
-            number=task_no + 1,
-            raw_id="",
-            when=now,
-            status=TaskStatus.SKIPPED,
-            exit_code=None,
-            created_at=now,
-            started_at=now,
-            finished_at=now,
-            finish_reason="",
-            finish_description="",
-            outputs={},
-        )
-        await self.write_finish(ret)
-        return ret
 
     async def check_cache(
         self,
