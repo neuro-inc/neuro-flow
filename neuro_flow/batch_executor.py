@@ -15,11 +15,18 @@ from neuromation.api import (
     JobStatus,
     Resources,
 )
-from typing import AbstractSet, AsyncIterator, Dict, List, Tuple
+from typing import AbstractSet, AsyncIterator, Dict, List, Optional, Tuple
 
 from .commands import CmdProcessor
 from .config_loader import BatchRemoteCL
-from .context import BatchActionContext, BatchContext, DepCtx, NeedsCtx, TaskContext
+from .context import (
+    BatchActionContext,
+    BatchContext,
+    DepCtx,
+    NeedsCtx,
+    StateCtx,
+    TaskContext,
+)
 from .storage import Attempt, BatchStorage, FinishedTask, StartedTask
 from .types import AlwaysT, FullID, LocalPath, TaskStatus
 from .utils import TERMINATED_JOB_STATUSES, fmt_id, fmt_raw_id, fmt_status
@@ -225,7 +232,9 @@ class BatchExecutor:
                 self._started[st.id] = st
                 yield full_id, action_ctx
             else:
-                task_ctx = await ctx.with_task(tid, needs=needs)
+                state = self._build_state(await ctx.state_from(tid))
+
+                task_ctx = await ctx.with_task(tid, needs=needs, state=state)
                 ft = await self._storage.check_cache(
                     attempt, self._next_task_no(), full_id, task_ctx
                 )
@@ -315,6 +324,14 @@ class BatchExecutor:
                 raise NotFinished(full_id)
             needs[dep_id] = DepCtx(TaskStatus(dep.status), dep.outputs)
         return needs
+
+    def _build_state(self, state_from: Optional[FullID]) -> Optional[StateCtx]:
+        if state_from is None:
+            return None
+        dep = self._finished.get(state_from)
+        if dep is None:
+            raise NotFinished(state_from)
+        return dep.state
 
     async def _build_topo(
         self, prefix: FullID, ctx: TaskContext
@@ -417,13 +434,14 @@ class BatchExecutor:
             async for line in proc.feed_eof():
                 pass
         ft = await self._storage.finish_task(
-            attempt, task_no, task, descr, proc.outputs
+            attempt, task_no, task, descr, proc.outputs, proc.states
         )
         await self._mark_finished(attempt, ft)
         prefix = ft.id[:-1]
         ctx, topo, ready = self._topos[prefix]
         needs = self._build_needs(prefix, ctx.graph[ft.id])
-        task_ctx = await ctx.with_task(ft.id[-1], needs=needs)
+        state = self._build_state(await ctx.state_from(ft.id[-1]))
+        task_ctx = await ctx.with_task(ft.id[-1], needs=needs, state=state)
         await self._storage.write_cache(attempt, task_ctx, ft)
         str_status = fmt_status(ft.status)
         raw_id = fmt_raw_id(ft.raw_id)

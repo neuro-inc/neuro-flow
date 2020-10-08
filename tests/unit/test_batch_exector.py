@@ -91,6 +91,21 @@ class JobsMock:
             self._data[descr.id] = descr
         self._outputs[descr.id] = output
 
+    async def mark_failed(self, task_name: str, output: bytes = b"") -> None:
+        await self.mark_started(task_name)
+        descr = await self.get_task(task_name)
+        if descr.status == JobStatus.RUNNING:
+            descr = replace(descr, status=JobStatus.FAILED)
+            new_history = replace(
+                descr.history,
+                status=JobStatus.FAILED,
+                finished_at=datetime.now(),
+                exit_code=255,
+            )
+            descr = replace(descr, history=new_history)
+            self._data[descr.id] = descr
+        self._outputs[descr.id] = output
+
     # Fake Jobs methods
 
     async def run(
@@ -460,5 +475,91 @@ async def test_always_during_cancellation(
     await cancel_batch(assets, _executor_data_to_bake_id(data))
 
     await jobs_mock.mark_done("task-3")
+
+    await executor_task
+
+
+async def test_stateful_no_post(
+    jobs_mock: JobsMock,
+    assets: Path,
+    run_executor: Callable[[Path, str], Awaitable[None]],
+) -> None:
+    executor_task = asyncio.ensure_future(
+        run_executor(assets / "stateful_actions", "call-no-post")
+    )
+
+    await jobs_mock.mark_done("first")
+    await jobs_mock.mark_done("test")
+    await jobs_mock.mark_done("last")
+
+    await executor_task
+
+
+async def test_stateful_with_post(
+    jobs_mock: JobsMock,
+    assets: Path,
+    run_executor: Callable[[Path, str], Awaitable[None]],
+) -> None:
+    executor_task = asyncio.ensure_future(
+        run_executor(assets / "stateful_actions", "call-with-post")
+    )
+
+    await jobs_mock.mark_done("first")
+    await jobs_mock.mark_done("test")
+    await jobs_mock.mark_done("last")
+    await jobs_mock.mark_done("post-test")
+
+    await executor_task
+
+
+async def test_stateful_with_state(
+    jobs_mock: JobsMock,
+    assets: Path,
+    run_executor: Callable[[Path, str], Awaitable[None]],
+) -> None:
+    executor_task = asyncio.ensure_future(
+        run_executor(assets / "stateful_actions", "call-with-state")
+    )
+
+    await jobs_mock.mark_done("first")
+    await jobs_mock.mark_done("test", "::save-state name=const::constant".encode())
+    await jobs_mock.mark_done("last")
+    await jobs_mock.mark_done("post-test")
+
+    await executor_task
+
+
+async def test_stateful_post_after_fail(
+    jobs_mock: JobsMock,
+    assets: Path,
+    run_executor: Callable[[Path, str], Awaitable[None]],
+) -> None:
+    executor_task = asyncio.ensure_future(
+        run_executor(assets / "stateful_actions", "call-with-post")
+    )
+
+    await jobs_mock.mark_done("first")
+    await jobs_mock.mark_done("test")
+    await jobs_mock.mark_failed("last")
+    await jobs_mock.mark_done("post-test")
+
+    await executor_task
+
+
+async def test_stateful_post_after_cancellation(
+    jobs_mock: JobsMock,
+    assets: Path,
+    setup_exc_data: Callable[[Path, str], Awaitable[ExecutorData]],
+    start_executor: Callable[[ExecutorData], Awaitable[None]],
+    cancel_batch: Callable[[Path, str], Awaitable[ExecutorData]],
+) -> None:
+    data = await setup_exc_data(assets / "stateful_actions", "call-with-post")
+    executor_task = asyncio.ensure_future(start_executor(data))
+    await jobs_mock.mark_done("first")
+    await jobs_mock.mark_done("test")
+
+    await cancel_batch(assets / "stateful_actions", _executor_data_to_bake_id(data))
+
+    await jobs_mock.mark_done("post-test")
 
     await executor_task

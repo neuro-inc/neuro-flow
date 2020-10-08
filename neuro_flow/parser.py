@@ -35,11 +35,11 @@ from yaml.scanner import Scanner
 from . import ast
 from .ast import BatchActionOutputs
 from .expr import (
+    EnableExpr,
     Expr,
     IdExpr,
     OptBashExpr,
     OptBoolExpr,
-    OptEnableExpr,
     OptIdExpr,
     OptIntExpr,
     OptLifeSpanExpr,
@@ -297,13 +297,20 @@ def parse_dict(
                         node.start_mark,
                     )
             elif isinstance(item_ctor, type) and issubclass(item_ctor, Expr):
-                if not item_ctor.allow_none:
+                default_expr = f.metadata.get("default_expr", None)
+                if default_expr:
+                    fake_node = dataclasses.replace(node_start, line=0, col=0)
+                    optional_fields[f.name] = item_ctor(
+                        fake_node, fake_node, default_expr
+                    )
+                elif not item_ctor.allow_none:
                     raise ConstructorError(
                         f"while constructing a '{ret_name}', "
                         f"missing mandatory key '{f.name}'",
                         node.start_mark,
                     )
-                optional_fields[f.name] = item_ctor(node_start, node_end, None)
+                else:
+                    optional_fields[f.name] = item_ctor(node_start, node_end, None)
             elif isinstance(item_ctor, type) and issubclass(item_ctor, enum.Enum):
                 if f.metadata.get("allow_none", False):
                     optional_fields[f.name] = None
@@ -686,7 +693,7 @@ TASK = {
     "id": OptIdExpr,
     "needs": SimpleSeq(IdExpr),
     "strategy": None,
-    "enable": OptEnableExpr,
+    "enable": EnableExpr,
     **EXEC_UNIT,
 }
 
@@ -1095,11 +1102,9 @@ BATCH_ACTION: Dict[str, Any] = {"cache": None, "tasks": None, **BASE_ACTION}
 
 STATEFUL_ACTION: Dict[str, Any] = {
     "cache": None,
-    "pre": None,
-    "pre_if": OptBoolExpr,
     "main": None,
     "post": None,
-    "post_if": OptBoolExpr,
+    "post_if": EnableExpr,
     **BASE_ACTION,
 }
 
