@@ -1,0 +1,16 @@
+kind: stateful
+descr: return given arg as output
+inputs:
+  arg:
+    descr: param 1
+outputs:
+  res:
+    descr: action result
+main:
+  image: ubuntu
+  bash: |
+    echo ::save-state name=const::constant
+    echo ::set-output name=res::${{ inputs.arg }}
+post:
+  image: ubuntu
+  bash: echo ${{ state.const }}

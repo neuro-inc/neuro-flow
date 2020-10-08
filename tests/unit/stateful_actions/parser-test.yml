@@ -11,14 +11,9 @@ inputs:
 outputs:
   res:
     descr: action result
-pre:
-  image: ubuntu
-  bash: echo ::set-state name=state1::State 1
-pre_if: true
 main:
   image: ubuntu
-  bash: echo ::set-state name=state2::State 2
+  bash: echo ::save-state name=state::State
 post:
   image: ubuntu
   bash: echo End
-post_if: ${{ True }}

@@ -26,7 +26,7 @@ def test_inavailable_context_ctor() -> None:
     assert str(err) == "The 'job' context is not available"
 
 
-@pytest.fixture  # type: ignore
+@pytest.fixture
 async def live_config_loader(
     loop: None, assets: pathlib.Path
 ) -> AsyncIterator[ConfigLoader]:
@@ -39,7 +39,7 @@ async def live_config_loader(
     await cl.close()
 
 
-@pytest.fixture  # type: ignore
+@pytest.fixture
 async def batch_config_loader(
     loop: None, assets: pathlib.Path
 ) -> AsyncIterator[ConfigLoader]:
@@ -191,7 +191,7 @@ async def test_pipline_root_ctx(batch_config_loader: ConfigLoader) -> None:
 async def test_pipeline_minimal_ctx(batch_config_loader: ConfigLoader) -> None:
     ctx = await BatchContext.create(batch_config_loader, "batch-minimal")
 
-    ctx2 = await ctx.with_task("test_a", needs={})
+    ctx2 = await ctx.with_task("test_a", needs={}, state={})
     assert ctx2.task.id == "test_a"
     assert ctx2.task.full_id == ("test_a",)
     assert ctx2.task.needs == set()
@@ -225,7 +225,7 @@ async def test_pipeline_seq(batch_config_loader: ConfigLoader) -> None:
     ctx = await BatchContext.create(batch_config_loader, "batch-seq")
 
     ctx2 = await ctx.with_task(
-        "task-2", needs={"task-1": DepCtx(TaskStatus.SUCCEEDED, {})}
+        "task-2", needs={"task-1": DepCtx(TaskStatus.SUCCEEDED, {})}, state={}
     )
     assert ctx2.task.id is None
     assert ctx2.task.full_id == ("task-2",)
@@ -253,7 +253,7 @@ async def test_pipeline_needs(batch_config_loader: ConfigLoader) -> None:
     ctx = await BatchContext.create(batch_config_loader, "batch-needs")
 
     ctx2 = await ctx.with_task(
-        "task-2", needs={"task_a": DepCtx(TaskStatus.SUCCEEDED, {})}
+        "task-2", needs={"task_a": DepCtx(TaskStatus.SUCCEEDED, {})}, state={}
     )
     assert ctx2.task.id is None
     assert ctx2.task.full_id == ("task-2",)
@@ -291,7 +291,7 @@ async def test_pipeline_matrix(batch_config_loader: ConfigLoader) -> None:
         ("task-1-o2-t2",): set(),
     }
 
-    ctx2 = await ctx.with_task("task-1-o2-t2", needs={})
+    ctx2 = await ctx.with_task("task-1-o2-t2", needs={}, state={})
     assert ctx2.task.id is None
     assert ctx2.task.full_id == ("task-1-o2-t2",)
     assert ctx2.task.needs == set()
@@ -330,7 +330,7 @@ async def test_pipeline_matrix_with_strategy(batch_config_loader: ConfigLoader) 
         ("task-1-o2-t2",): set(),
     }
 
-    ctx2 = await ctx.with_task("task-1-e3-o3-t3", needs={})
+    ctx2 = await ctx.with_task("task-1-e3-o3-t3", needs={}, state={})
     assert ctx2.task.id is None
     assert ctx2.task.full_id == ("task-1-e3-o3-t3",)
     assert ctx2.task.needs == set()
@@ -378,7 +378,9 @@ async def test_pipeline_matrix_2(batch_config_loader: ConfigLoader) -> None:
         life_span=1209600,
     )
     ctx2 = await ctx.with_task(
-        "task-2-a-1", needs={"task_a": DepCtx(TaskStatus.SUCCEEDED, {"name": "value"})}
+        "task-2-a-1",
+        needs={"task_a": DepCtx(TaskStatus.SUCCEEDED, {"name": "value"})},
+        state={},
     )
     assert ctx2.task.id is None
     assert ctx2.task.full_id == ("task-2-a-1",)
@@ -536,7 +538,7 @@ async def test_pipeline_enable_default_no_needs(
 ) -> None:
     ctx = await BatchContext.create(batch_config_loader, "batch-enable")
 
-    ctx2 = await ctx.with_task("task_a", needs={})
+    ctx2 = await ctx.with_task("task_a", needs={}, state={})
     assert ctx2.task.enable
 
 
@@ -546,17 +548,17 @@ async def test_pipeline_enable_default_with_needs(
     ctx = await BatchContext.create(batch_config_loader, "batch-needs")
 
     ctx2 = await ctx.with_task(
-        "task-2", needs={"task_a": DepCtx(TaskStatus.FAILED, {})}
+        "task-2", needs={"task_a": DepCtx(TaskStatus.FAILED, {})}, state={}
     )
     assert not ctx2.task.enable
 
     ctx2 = await ctx.with_task(
-        "task-2", needs={"task_a": DepCtx(TaskStatus.SKIPPED, {})}
+        "task-2", needs={"task_a": DepCtx(TaskStatus.SKIPPED, {})}, state={}
     )
     assert not ctx2.task.enable
 
     ctx2 = await ctx.with_task(
-        "task-2", needs={"task_a": DepCtx(TaskStatus.SUCCEEDED, {})}
+        "task-2", needs={"task_a": DepCtx(TaskStatus.SUCCEEDED, {})}, state={}
     )
     assert ctx2.task.enable
 
@@ -565,17 +567,17 @@ async def test_pipeline_enable_success(batch_config_loader: ConfigLoader) -> Non
     ctx = await BatchContext.create(batch_config_loader, "batch-enable")
 
     ctx2 = await ctx.with_task(
-        "task-2", needs={"task_a": DepCtx(TaskStatus.FAILED, {})}
+        "task-2", needs={"task_a": DepCtx(TaskStatus.FAILED, {})}, state={}
     )
     assert not ctx2.task.enable
 
     ctx2 = await ctx.with_task(
-        "task-2", needs={"task_a": DepCtx(TaskStatus.SKIPPED, {})}
+        "task-2", needs={"task_a": DepCtx(TaskStatus.SKIPPED, {})}, state={}
     )
     assert not ctx2.task.enable
 
     ctx2 = await ctx.with_task(
-        "task-2", needs={"task_a": DepCtx(TaskStatus.SUCCEEDED, {})}
+        "task-2", needs={"task_a": DepCtx(TaskStatus.SUCCEEDED, {})}, state={}
     )
     assert ctx2.task.enable
 
@@ -587,7 +589,7 @@ async def test_pipeline_with_batch_action(batch_config_loader: ConfigLoader) -> 
     ctx2 = await ctx.with_action("test", needs={})
     assert isinstance(ctx2, BatchActionContext)
 
-    ctx3 = await ctx2.with_task("task_1", needs={})
+    ctx3 = await ctx2.with_task("task_1", needs={}, state={})
     assert ctx3.task.id == "task_1"
     assert ctx3.task.full_id == ("test", "task_1")
     assert ctx3.task.needs == set()

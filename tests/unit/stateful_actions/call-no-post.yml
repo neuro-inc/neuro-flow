@@ -1,0 +1,12 @@
+kind: batch
+tasks:
+- id: first
+  image: ubuntu
+  bash: echo first
+- id: test
+  action: ws:no-post
+  args:
+    arg: arg value
+- id: last
+  image: ubuntu
+  bash: echo last

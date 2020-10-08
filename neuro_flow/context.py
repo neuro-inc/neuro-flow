@@ -22,7 +22,7 @@ from yarl import URL
 
 from . import ast
 from .config_loader import ConfigLoader
-from .expr import EvalError, LiteralT, OptEnableExpr, RootABC, StrExpr, TypeT
+from .expr import EnableExpr, EvalError, LiteralT, RootABC, StrExpr, TypeT
 from .types import AlwaysT, FullID, LocalPath, RemotePath, TaskStatus
 
 
@@ -97,6 +97,8 @@ class DepCtx:
 
 NeedsCtx = Mapping[str, DepCtx]
 
+StateCtx = Mapping[str, str]
+
 
 MatrixCtx = Mapping[str, LiteralT]
 
@@ -158,19 +160,30 @@ class BasePrepTaskCtx:
     needs: AbstractSet[str]  # A set of batch.id
     matrix: MatrixCtx
     strategy: StrategyCtx
-    enable: OptEnableExpr
+    enable: EnableExpr
     cache: CacheCtx
 
 
 @dataclass(frozen=True)
 class PrepTaskCtx(BasePrepTaskCtx):
-    ast: ast.Task
+    ast: ast.ExecUnit
 
 
 @dataclass(frozen=True)
 class PrepBatchCallCtx(BasePrepTaskCtx):
     action: str
     args: Mapping[str, StrExpr]
+
+
+@dataclass(frozen=True)
+class PrepStatefulCallCtx(PrepTaskCtx):
+    action: str
+    args: Mapping[str, StrExpr]
+
+
+@dataclass(frozen=True)
+class PrepPostTaskCtx(PrepTaskCtx):
+    state_from: str
 
 
 @dataclass(frozen=True)
@@ -665,11 +678,12 @@ class LiveContext(BaseFlowContext):
 class TaskContext(BaseContext):
     LOOKUP_KEYS: ClassVar[Tuple[str, ...]] = field(
         init=False,
-        default=BaseContext.LOOKUP_KEYS + ("needs", "matrix", "strategy"),
+        default=BaseContext.LOOKUP_KEYS + ("needs", "state", "matrix", "strategy"),
     )
 
     _task: Optional[TaskCtx] = None
     _needs: Optional[NeedsCtx] = None
+    _state: Optional[StateCtx] = None
     _prep_tasks: Optional[Mapping[str, BasePrepTaskCtx]] = None
     _matrix: Optional[MatrixCtx] = None
     _strategy: Optional[StrategyCtx] = None
@@ -680,6 +694,7 @@ class TaskContext(BaseContext):
     async def _prepare(
         self, tasks: Sequence[Union[ast.Task, ast.TaskActionCall]]
     ) -> Dict[str, BasePrepTaskCtx]:
+        post_tasks: List[List[BasePrepTaskCtx]] = []
         prep_tasks: Dict[str, BasePrepTaskCtx] = {}
         last_needs: Set[str] = set()
         for num, ast_task in enumerate(tasks, 1):
@@ -718,8 +733,8 @@ class TaskContext(BaseContext):
                 strategy = default_strategy  # default
                 matrix = [{}]  # dummy
                 cache = default_cache
-
             real_ids = set()
+            post_tasks_group: List[BasePrepTaskCtx] = []
             for row in matrix:
                 # make prep patch(es)
                 matrix_ctx = await self.with_matrix(strategy, row)
@@ -752,21 +767,69 @@ class TaskContext(BaseContext):
                     prep_tasks[real_id] = prep_task
                 else:
                     assert isinstance(ast_task, ast.TaskActionCall)
-                    prep_call = PrepBatchCallCtx(
-                        id=task_id,
-                        real_id=real_id,
-                        needs=needs,
-                        matrix=row,
-                        strategy=strategy,
-                        cache=cache,
-                        enable=ast_task.enable,
-                        action=await ast_task.action.eval(EMPTY_ROOT),
-                        args=ast_task.args or {},
-                    )
-                    prep_tasks[real_id] = prep_call
+                    action_name = await ast_task.action.eval(EMPTY_ROOT)
+                    action = await self.fetch_action(action_name)
+                    if isinstance(action, ast.BatchAction):
+                        prep_call = PrepBatchCallCtx(
+                            id=task_id,
+                            real_id=real_id,
+                            needs=needs,
+                            matrix=row,
+                            strategy=strategy,
+                            cache=cache,
+                            enable=ast_task.enable,
+                            action=action_name,
+                            args=ast_task.args or {},
+                        )
+                        prep_tasks[real_id] = prep_call
+                    elif isinstance(action, ast.StatefulAction):
+                        main_task = PrepStatefulCallCtx(
+                            id=task_id,
+                            real_id=real_id,
+                            needs=needs,
+                            matrix=row,
+                            strategy=strategy,
+                            cache=cache,
+                            enable=ast_task.enable,
+                            ast=action.main,
+                            args=ast_task.args or {},
+                            action=action_name,
+                        )
+                        prep_tasks[real_id] = main_task
+                        if action.post:
+                            post_tasks_group.append(
+                                PrepPostTaskCtx(
+                                    id=None,
+                                    real_id=f"post-{real_id}",
+                                    needs={real_id},
+                                    matrix=row,
+                                    strategy=strategy,
+                                    cache=cache,
+                                    enable=action.post_if,
+                                    ast=action.post,
+                                    state_from=real_id,
+                                )
+                            )
+                    else:
+                        raise ValueError(
+                            f"Action {action_name} has kind {action.kind}, "
+                            "that is not supported in batch mode."
+                        )
                 real_ids.add(real_id)
 
+            if post_tasks_group:
+                post_tasks.append(post_tasks_group)
+
             last_needs = real_ids
+
+        for post_tasks_group in reversed(post_tasks):
+            real_ids = set()
+            for task in post_tasks_group:
+                task = replace(task, needs=last_needs | task.needs)
+                prep_tasks[task.real_id] = task
+                real_ids.add(task.real_id)
+            last_needs = real_ids
+
         return prep_tasks
 
     @property
@@ -790,6 +853,12 @@ class TaskContext(BaseContext):
         if self._needs is None:
             raise NotAvailable("needs")
         return self._needs
+
+    @property
+    def state(self) -> StateCtx:
+        if self._state is None:
+            raise NotAvailable("needs")
+        return self._state
 
     @property
     def matrix(self) -> MatrixCtx:
@@ -848,14 +917,20 @@ class TaskContext(BaseContext):
         assert self._task is None
         try:
             prep_task = self._prep_tasks[real_id]
-            ctx = await self.with_matrix(prep_task.strategy, prep_task.matrix)
-            ctx = replace(ctx, _needs=needs)
-            enable = await prep_task.enable.eval(ctx)
-            if enable is None:
-                enable = all(
-                    dep_ctx.result == TaskStatus.SUCCEEDED for dep_ctx in needs.values()
-                )
-            return enable
+        except KeyError:
+            raise UnknownTask(real_id)
+        ctx = await self.with_matrix(prep_task.strategy, prep_task.matrix)
+        ctx = replace(ctx, _needs=needs)
+        return await prep_task.enable.eval(ctx)
+
+    async def state_from(self, real_id: str) -> Optional[FullID]:
+        assert self._prep_tasks is not None
+        assert self._task is None
+        try:
+            prep_task = self._prep_tasks[real_id]
+            if isinstance(prep_task, PrepPostTaskCtx):
+                return self._prefix + (prep_task.state_from,)
+            return None
         except KeyError:
             raise UnknownTask(real_id)
 
@@ -920,7 +995,9 @@ class TaskContext(BaseContext):
         )
         return ctx
 
-    async def with_task(self: _CtxT, real_id: str, *, needs: NeedsCtx) -> _CtxT:
+    async def with_task(
+        self: _CtxT, real_id: str, *, needs: NeedsCtx, state: Optional[StateCtx]
+    ) -> _CtxT:
         # real_id -- the task's real id
         #
         # outputs -- real_id -> (output_name -> value) mapping for all task ids
@@ -935,8 +1012,30 @@ class TaskContext(BaseContext):
             raise RuntimeError("Use .with_action() for calling an action-typed task")
 
         assert isinstance(prep_task, PrepTaskCtx), prep_task
-        ctx = await self.with_matrix(prep_task.strategy, prep_task.matrix)
-        ctx = replace(ctx, _needs=needs, _cache=prep_task.cache)
+        task_ctx_base = await self.with_matrix(prep_task.strategy, prep_task.matrix)
+        task_ctx_base = replace(
+            task_ctx_base, _needs=needs, _cache=prep_task.cache, _state=state
+        )
+
+        ctx: BaseContext = task_ctx_base
+
+        if isinstance(prep_task, PrepStatefulCallCtx):
+            action_ctx = await StatefulActionContext.create(
+                self._prefix + (prep_task.real_id,),  # unused
+                prep_task.action,
+                self._config_loader,
+                self.tags,
+            )
+            ctx = await action_ctx.with_inputs(
+                {k: await v.eval(ctx) for k, v in prep_task.args.items()}
+            )
+
+            action = await self.fetch_action(prep_task.action)
+            assert isinstance(action, ast.StatefulAction)
+            task_ctx_base = replace(
+                task_ctx_base,
+                _cache=await self._build_cache(action.cache, ast.CacheStrategy.INHERIT),
+            )
 
         full_id = self._prefix + (prep_task.real_id,)
 
@@ -990,7 +1089,7 @@ class TaskContext(BaseContext):
         return cast(
             _CtxT,
             replace(
-                ctx,
+                task_ctx_base,
                 _task=task_ctx,
                 _env=env,
                 _tags=ctx.tags | tags,
@@ -1239,6 +1338,23 @@ class LiveActionContext(ActionContext):
             prefix, action, config_loader, tags
         )
         ret._check_kind(ast.ActionKind.LIVE)
+        return cast(_CtxT, ret)
+
+
+@dataclass(frozen=True)
+class StatefulActionContext(ActionContext):
+    @classmethod
+    async def create(
+        cls: Type[_CtxT],
+        prefix: FullID,
+        action: str,
+        config_loader: ConfigLoader,
+        tags: AbstractSet[str],
+    ) -> _CtxT:
+        ret = await super(cls, StatefulActionContext).create(
+            prefix, action, config_loader, tags
+        )
+        ret._check_kind(ast.ActionKind.STATEFUL)
         return cast(_CtxT, ret)
 
 
