@@ -34,6 +34,8 @@ from neuro_flow.batch_runner import BatchRunner
 from neuro_flow.parser import ConfigDir
 from neuro_flow.storage import Bake, BatchFSStorage, BatchStorage, LocalFS
 
+MakeBatchRunner = Callable[[Path], Awaitable[BatchRunner]]
+
 
 class JobsMock:
     # Mock for client.jobs subsystem
@@ -175,34 +177,35 @@ def batch_storage(loop: None) -> Iterator[BatchStorage]:
 
 
 @pytest.fixture()
-def setup_exc_data(
+async def make_batch_runner(
     batch_storage: BatchStorage,
-) -> Callable[[Path, str], Awaitable[ExecutorData]]:
-    async def _prepare(config_loc: Path, batch_name: str) -> ExecutorData:
-        config_dir = ConfigDir(
-            workspace=config_loc,
-            config_dir=config_loc,
-        )
-        # BatchRunner should not use client in this case
-        async with BatchRunner(config_dir, cast(Client, None), batch_storage) as runner:
-            return await runner._setup_exc_data(batch_name)
+) -> AsyncIterator[MakeBatchRunner]:
 
-    return _prepare
+    runner: Optional[BatchRunner] = None
+
+    async def create(path: Path) -> BatchRunner:
+        config_dir = ConfigDir(
+            workspace=path,
+            config_dir=path,
+        )
+        nonlocal runner
+        # BatchRunner should not use client in this case
+        runner = BatchRunner(config_dir, cast(Client, None), batch_storage)
+        await runner.__aenter__()
+        return runner
+
+    yield create
+
+    if runner is not None:
+        await runner.__aexit__(None, None, None)
 
 
 @pytest.fixture()
-def cancel_batch(
-    batch_storage: BatchStorage,
-) -> Callable[[Path, str], Awaitable[None]]:
-    async def _prepare(config_loc: Path, bake_id: str) -> None:
-        config_dir = ConfigDir(
-            workspace=config_loc,
-            config_dir=config_loc,
-        )
-        async with BatchRunner(config_dir, cast(Client, None), batch_storage) as runner:
-            await runner.cancel(bake_id)
-
-    return _prepare
+async def batch_runner(
+    make_batch_runner: MakeBatchRunner,
+    assets: Path,
+) -> AsyncIterator[BatchRunner]:
+    return await make_batch_runner(assets)
 
 
 @pytest.fixture()
@@ -233,11 +236,12 @@ def start_executor(
 
 @pytest.fixture()
 def run_executor(
-    setup_exc_data: Callable[[Path, str], Awaitable[ExecutorData]],
+    make_batch_runner: BatchRunner,
     start_executor: Callable[[ExecutorData], Awaitable[None]],
 ) -> Callable[[Path, str], Awaitable[None]]:
     async def run(config_loc: Path, batch_name: str) -> None:
-        data = await setup_exc_data(config_loc, batch_name)
+        runner = await make_batch_runner(config_loc)
+        data = await runner._setup_exc_data(batch_name)
         await start_executor(data)
 
     return run
@@ -381,18 +385,16 @@ async def test_disabled_task_is_not_required(
 
 async def test_cancellation(
     jobs_mock: JobsMock,
-    assets: Path,
-    setup_exc_data: Callable[[Path, str], Awaitable[ExecutorData]],
+    batch_runner: BatchRunner,
     start_executor: Callable[[ExecutorData], Awaitable[None]],
-    cancel_batch: Callable[[Path, str], Awaitable[ExecutorData]],
 ) -> None:
-    data = await setup_exc_data(assets, "batch-seq")
+    data = await batch_runner._setup_exc_data("batch-seq")
     executor_task = asyncio.ensure_future(start_executor(data))
     await jobs_mock.mark_done("task-1")
     descr = await jobs_mock.get_task("task-2")
     assert descr.status == JobStatus.PENDING
 
-    await cancel_batch(assets, _executor_data_to_bake_id(data))
+    await batch_runner.cancel(_executor_data_to_bake_id(data))
     await executor_task
 
     descr = await jobs_mock.get_task("task-1")
@@ -430,11 +432,10 @@ async def test_volumes_parsing(
 
 
 async def test_graphs(
-    assets: Path,
     batch_storage: BatchStorage,
-    setup_exc_data: Callable[[Path, str], Awaitable[ExecutorData]],
+    batch_runner: BatchRunner,
 ) -> None:
-    data = await setup_exc_data(assets, "batch-action-call")
+    data = await batch_runner._setup_exc_data("batch-action-call")
     bake = await batch_storage.fetch_bake(
         data.project, data.batch, data.when, data.suffix
     )
@@ -463,17 +464,15 @@ async def test_always_after_disabled(
 
 async def test_always_during_cancellation(
     jobs_mock: JobsMock,
-    assets: Path,
-    setup_exc_data: Callable[[Path, str], Awaitable[ExecutorData]],
+    batch_runner: BatchRunner,
     start_executor: Callable[[ExecutorData], Awaitable[None]],
-    cancel_batch: Callable[[Path, str], Awaitable[ExecutorData]],
 ) -> None:
-    data = await setup_exc_data(assets, "batch-last-always")
+    data = await batch_runner._setup_exc_data("batch-last-always")
     executor_task = asyncio.ensure_future(start_executor(data))
     descr = await jobs_mock.get_task("task-1")
     assert descr.status == JobStatus.PENDING
 
-    await cancel_batch(assets, _executor_data_to_bake_id(data))
+    await batch_runner.cancel(_executor_data_to_bake_id(data))
 
     await jobs_mock.mark_done("task-3")
 
@@ -550,16 +549,16 @@ async def test_stateful_post_after_fail(
 async def test_stateful_post_after_cancellation(
     jobs_mock: JobsMock,
     assets: Path,
-    setup_exc_data: Callable[[Path, str], Awaitable[ExecutorData]],
+    make_batch_runner: Callable[[Path], BatchRunner],
     start_executor: Callable[[ExecutorData], Awaitable[None]],
-    cancel_batch: Callable[[Path, str], Awaitable[ExecutorData]],
 ) -> None:
-    data = await setup_exc_data(assets / "stateful_actions", "call-with-post")
+    runner = await make_batch_runner(assets / "stateful_actions")
+    data = await runner._setup_exc_data("call-with-post")
     executor_task = asyncio.ensure_future(start_executor(data))
     await jobs_mock.mark_done("first")
     await jobs_mock.mark_done("test")
 
-    await cancel_batch(assets / "stateful_actions", _executor_data_to_bake_id(data))
+    await runner.cancel(_executor_data_to_bake_id(data))
 
     await jobs_mock.mark_done("post-test")
 

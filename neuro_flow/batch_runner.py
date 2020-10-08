@@ -428,7 +428,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             graphs = bake.graphs
             handled = set()  # a set of succesfully finished and not cached tasks
             started, finished = await self._storage.fetch_attempt(attempt)
-            for task in sorted(finished.values(), key=attrgetter("number")):
+            for task in sorted(finished.values(), key=attrgetter("when")):
                 if task.status == TaskStatus.SUCCEEDED:
                     # should check deps to don't process post-actions with
                     # always() precondition
