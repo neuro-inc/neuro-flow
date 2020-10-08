@@ -324,7 +324,7 @@ class BatchExecutor:
 
     async def _process_task(self, full_id: FullID) -> None:
         # Check is is task fits in max_parallel
-        for n in range(1, len(full_id)):
+        for n in range(1, len(full_id) + 1):
             node = full_id[:n]
             prefix = node[:-1]
             ctx = self._graphs.get_meta(node)
