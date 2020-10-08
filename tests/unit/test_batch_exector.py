@@ -30,6 +30,7 @@ from typing import (
     Tuple,
     cast,
 )
+from unittest.mock import ANY
 from yarl import URL
 
 from neuro_flow.batch_executor import BatchExecutor, ExecutorData
@@ -66,7 +67,7 @@ def make_descr(
         cluster_name="default",
         status=status,
         history=JobStatusHistory(
-            status=JobStatus.PENDING,
+            status=status,
             reason="",
             description="",
             created_at=created_at,
@@ -664,5 +665,5 @@ async def test_restart(batch_storage: BatchStorage, batch_runner: BatchRunner) -
     started, finished = await batch_storage.fetch_attempt(attempt2)
     assert list(started.keys()) == [job_1]
     assert list(finished.keys()) == [job_1]
-    assert started[job_1] == st1
-    assert finished[job_1] == ft1
+    assert started[job_1] == replace(st1, attempt=attempt2, number=ANY)
+    assert finished[job_1] == replace(ft1, attempt=attempt2, number=ANY)
