@@ -412,6 +412,18 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         from_failed: bool = True,
         local_executor: bool = False,
     ) -> None:
+        data = await self._restart(
+            bake_id, attempt_no=attempt_no, from_failed=from_failed
+        )
+        await self._run_bake(data, local_executor)
+
+    async def _restart(
+        self,
+        bake_id: str,
+        *,
+        attempt_no: int = -1,
+        from_failed: bool = True,
+    ) -> ExecutorData:
         bake = await self._storage.fetch_bake_by_id(self.project, bake_id)
         attempt = await self._storage.find_attempt(bake, attempt_no)
         if attempt.result not in TERMINATED_JOB_STATUSES:
@@ -451,4 +463,4 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             when=bake.when,
             suffix=bake.suffix,
         )
-        await self._run_bake(data, local_executor)
+        return data

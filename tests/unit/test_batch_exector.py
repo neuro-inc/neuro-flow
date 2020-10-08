@@ -10,7 +10,9 @@ from neuromation.api import (
     JobRestartPolicy,
     JobStatus,
     JobStatusHistory,
+    RemoteImage,
     ResourceNotFound,
+    Resources,
     get as api_get,
 )
 from pathlib import Path
@@ -20,6 +22,7 @@ from typing import (
     Awaitable,
     Callable,
     Dict,
+    Iterable,
     Iterator,
     List,
     Optional,
@@ -34,7 +37,54 @@ from neuro_flow.batch_runner import BatchRunner
 from neuro_flow.parser import ConfigDir
 from neuro_flow.storage import Bake, BatchFSStorage, BatchStorage, LocalFS
 
+
 MakeBatchRunner = Callable[[Path], Awaitable[BatchRunner]]
+
+
+def make_descr(
+    job_id: str,
+    *,
+    status: JobStatus = JobStatus.PENDING,
+    tags: Iterable[str] = (),
+    description: str = "",
+    is_preemptible: bool = False,
+    created_at: datetime = datetime.now(),
+    started_at: Optional[datetime] = None,
+    finished_at: Optional[datetime] = None,
+    exit_code: Optional[int] = None,
+    restart_policy: JobRestartPolicy = JobRestartPolicy.NEVER,
+    life_span: float = 3600,
+    name: Optional[str] = None,
+    container: Optional[Container] = None,
+) -> JobDescription:
+    if container is None:
+        container = Container(RemoteImage("ubuntu"), Resources(100, 0.1))
+
+    return JobDescription(
+        id=job_id,
+        owner="test-user",
+        cluster_name="default",
+        status=status,
+        history=JobStatusHistory(
+            status=JobStatus.PENDING,
+            reason="",
+            description="",
+            created_at=created_at,
+            started_at=started_at,
+            finished_at=finished_at,
+            exit_code=exit_code,
+        ),
+        container=container,
+        is_preemptible=is_preemptible,
+        uri=URL(f"job://default/test-user/{job_id}"),
+        name=name,
+        tags=sorted(
+            list(set(tags) | {"project:test", "flow:batch-seq", f"task:{job_id}"})
+        ),
+        description=description,
+        restart_policy=restart_policy,
+        life_span=life_span,
+    )
 
 
 class JobsMock:
@@ -204,7 +254,7 @@ async def make_batch_runner(
 async def batch_runner(
     make_batch_runner: MakeBatchRunner,
     assets: Path,
-) -> AsyncIterator[BatchRunner]:
+) -> BatchRunner:
     return await make_batch_runner(assets)
 
 
@@ -236,7 +286,7 @@ def start_executor(
 
 @pytest.fixture()
 def run_executor(
-    make_batch_runner: BatchRunner,
+    make_batch_runner: MakeBatchRunner,
     start_executor: Callable[[ExecutorData], Awaitable[None]],
 ) -> Callable[[Path, str], Awaitable[None]]:
     async def run(config_loc: Path, batch_name: str) -> None:
@@ -549,7 +599,7 @@ async def test_stateful_post_after_fail(
 async def test_stateful_post_after_cancellation(
     jobs_mock: JobsMock,
     assets: Path,
-    make_batch_runner: Callable[[Path], BatchRunner],
+    make_batch_runner: MakeBatchRunner,
     start_executor: Callable[[ExecutorData], Awaitable[None]],
 ) -> None:
     runner = await make_batch_runner(assets / "stateful_actions")
@@ -563,3 +613,30 @@ async def test_stateful_post_after_cancellation(
     await jobs_mock.mark_done("post-test")
 
     await executor_task
+
+
+async def test_restart(batch_storage: BatchStorage, batch_runner: BatchRunner) -> None:
+    data = await batch_runner._setup_exc_data("batch-seq")
+    bake = await batch_storage.fetch_bake(
+        data.project, data.batch, data.when, data.suffix
+    )
+    attempt = await batch_storage.find_attempt(bake)
+    job_1 = ("task-1",)
+    job_2 = ("task-2",)
+    st1 = await batch_storage.start_task(attempt, 1, job_1, make_descr("job:task-1"))
+    ft1 = await batch_storage.finish_task(
+        attempt,
+        2,
+        st1,
+        make_descr(
+            "job:task-1",
+            status=JobStatus.SUCCEEDED,
+            exit_code=0,
+            started_at=datetime.now(),
+            finished_at=datetime.now(),
+        ),
+        {},
+        {},
+    )
+
+    data = await batch_runner._restart("batch-seq")
