@@ -20,6 +20,7 @@ from typing import (
     Awaitable,
     Callable,
     Dict,
+    Iterator,
     List,
     Optional,
     Sequence,
@@ -166,14 +167,14 @@ class JobsMock:
         yield self._outputs.get(job_id, b"")
 
 
-@pytest.fixture()  # type: ignore
-def batch_storage(loop: None) -> BatchStorage:
+@pytest.fixture()
+def batch_storage(loop: None) -> Iterator[BatchStorage]:
     with TemporaryDirectory() as tmpdir:
         fs = LocalFS(Path(tmpdir))
         yield BatchFSStorage(fs)
 
 
-@pytest.fixture()  # type: ignore
+@pytest.fixture()
 def setup_exc_data(
     batch_storage: BatchStorage,
 ) -> Callable[[Path, str], Awaitable[ExecutorData]]:
@@ -189,7 +190,7 @@ def setup_exc_data(
     return _prepare
 
 
-@pytest.fixture()  # type: ignore
+@pytest.fixture()
 def cancel_batch(
     batch_storage: BatchStorage,
 ) -> Callable[[Path, str], Awaitable[None]]:
@@ -204,12 +205,12 @@ def cancel_batch(
     return _prepare
 
 
-@pytest.fixture()  # type: ignore
+@pytest.fixture()
 def jobs_mock() -> JobsMock:
     return JobsMock()
 
 
-@pytest.fixture()  # type: ignore
+@pytest.fixture()
 async def patched_client(
     api_config: Path, jobs_mock: JobsMock
 ) -> AsyncIterator[Client]:
@@ -218,7 +219,7 @@ async def patched_client(
         yield client
 
 
-@pytest.fixture()  # type: ignore
+@pytest.fixture()
 def start_executor(
     batch_storage: BatchStorage, patched_client: Client
 ) -> Callable[[ExecutorData], Awaitable[None]]:
@@ -230,7 +231,7 @@ def start_executor(
     return start
 
 
-@pytest.fixture()  # type: ignore
+@pytest.fixture()
 def run_executor(
     setup_exc_data: Callable[[Path, str], Awaitable[ExecutorData]],
     start_executor: Callable[[ExecutorData], Awaitable[None]],

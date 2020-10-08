@@ -6,12 +6,12 @@ from typing import Any, AsyncIterator
 from yarl import URL
 
 
-@pytest.fixture  # type: ignore
+@pytest.fixture
 def assets() -> pathlib.Path:
     return pathlib.Path(__file__).parent
 
 
-@pytest.fixture  # type: ignore
+@pytest.fixture
 async def api_config(tmp_path_factory: Any) -> AsyncIterator[pathlib.Path]:
     e2e_test_token = os.environ.get("E2E_USER_TOKEN")
     if e2e_test_token:
