@@ -26,7 +26,7 @@ def test_inavailable_context_ctor() -> None:
     assert str(err) == "The 'job' context is not available"
 
 
-@pytest.fixture  # type: ignore
+@pytest.fixture
 async def live_config_loader(
     loop: None, assets: pathlib.Path
 ) -> AsyncIterator[ConfigLoader]:
@@ -39,7 +39,7 @@ async def live_config_loader(
     await cl.close()
 
 
-@pytest.fixture  # type: ignore
+@pytest.fixture
 async def batch_config_loader(
     loop: None, assets: pathlib.Path
 ) -> AsyncIterator[ConfigLoader]:

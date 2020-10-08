@@ -85,6 +85,7 @@ class GraphEmb(Generic[_T]):
 
     Each graph can be annotated with some metadata.
     """
+
     def __init__(self, graph: Mapping[str, Iterable[str]], meta: _T):
         topo = graphlib.TopologicalSorter(graph)
         self._topos: Dict[FullID, "graphlib.TopologicalSorter[str]"] = {(): topo}
