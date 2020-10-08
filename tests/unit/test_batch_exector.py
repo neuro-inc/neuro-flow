@@ -640,7 +640,7 @@ async def test_restart(batch_storage: BatchStorage, batch_runner: BatchRunner) -
         {},
     )
     st2 = await batch_storage.start_task(attempt, 1, job_2, make_descr("job:task-2"))
-    ft2 = await batch_storage.finish_task(
+    await batch_storage.finish_task(
         attempt,
         2,
         st2,
