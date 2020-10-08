@@ -111,7 +111,6 @@ class Strategy(Base):
     matrix: Matrix
     fail_fast: OptBoolExpr
     max_parallel: OptIntExpr
-    cache: Optional[Cache] = field(metadata={"allow_none": True})
 
 
 @dataclass(frozen=True)
@@ -141,6 +140,7 @@ class TaskBase(Base):
 
     # continue_on_error: OptBoolExpr
     enable: EnableExpr = field(metadata={"default_expr": "${{ success() }}"})
+    cache: Optional[Cache] = field(metadata={"allow_none": True})
 
 
 @dataclass(frozen=True)
@@ -161,7 +161,8 @@ class JobActionCall(BaseActionCall):
 
 @dataclass(frozen=True)
 class TaskActionCall(BaseActionCall, TaskBase):
-    pass
+    enable: EnableExpr = field(metadata={"default_expr": "${{ success() }}"})
+    cache: Optional[Cache] = field(metadata={"allow_none": True})
 
 
 @dataclass(frozen=True)
