@@ -3,6 +3,7 @@ from dataclasses import replace
 import asyncio
 import pytest
 import shutil
+import sys
 from datetime import datetime
 from neuromation.api import (
     Client,
@@ -496,6 +497,9 @@ async def test_always_during_cancellation(
     await executor_task
 
 
+@pytest.mark.skipif(  # type: ignore
+    sys.platform == "win32", reason="cp command is not support by Windows"
+)
 async def test_local_action(
     jobs_mock: JobsMock,
     assets: Path,
