@@ -638,5 +638,31 @@ async def test_restart(batch_storage: BatchStorage, batch_runner: BatchRunner) -
         {},
         {},
     )
+    st2 = await batch_storage.start_task(attempt, 1, job_2, make_descr("job:task-2"))
+    ft2 = await batch_storage.finish_task(
+        attempt,
+        2,
+        st2,
+        make_descr(
+            "job:task-2",
+            status=JobStatus.FAILED,
+            exit_code=1,
+            started_at=datetime.now(),
+            finished_at=datetime.now(),
+        ),
+        {},
+        {},
+    )
 
-    data = await batch_runner._restart("batch-seq")
+    await batch_storage.finish_attempt(attempt, JobStatus.FAILED)
+
+    data2 = await batch_runner._restart(bake.bake_id)
+    assert data == data2
+
+    attempt2 = await batch_storage.find_attempt(bake)
+    assert attempt2.number == 2
+    started, finished = await batch_storage.fetch_attempt(attempt2)
+    assert list(started.keys()) == [job_1]
+    assert list(finished.keys()) == [job_1]
+    assert started[job_1] == st1
+    assert finished[job_1] == ft1
