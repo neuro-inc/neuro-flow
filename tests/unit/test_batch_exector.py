@@ -2,6 +2,7 @@ from dataclasses import replace
 
 import asyncio
 import pytest
+import shutil
 from datetime import datetime
 from neuromation.api import (
     Client,
@@ -28,10 +29,11 @@ from typing import (
 )
 from yarl import URL
 
-from neuro_flow.batch_executor import BatchExecutor, ExecutorData
+from neuro_flow.batch_executor import BatchExecutor, ExecutorData, LocalsBatchExecutor
 from neuro_flow.batch_runner import BatchRunner
 from neuro_flow.parser import ConfigDir
 from neuro_flow.storage import Bake, BatchFSStorage, BatchStorage, LocalFS
+from neuro_flow.types import LocalPath
 
 
 class JobsMock:
@@ -219,13 +221,25 @@ async def patched_client(
 
 
 @pytest.fixture()  # type: ignore
+def start_locals_executor(
+    batch_storage: BatchStorage, patched_client: Client
+) -> Callable[[ExecutorData], Awaitable[None]]:
+    async def start(data: ExecutorData) -> None:
+        executor = await LocalsBatchExecutor.create(data, patched_client, batch_storage)
+        await executor.run()
+
+    return start
+
+
+@pytest.fixture()  # type: ignore
 def start_executor(
     batch_storage: BatchStorage, patched_client: Client
 ) -> Callable[[ExecutorData], Awaitable[None]]:
     async def start(data: ExecutorData) -> None:
-        await BatchExecutor(
+        executor = await BatchExecutor.create(
             data, patched_client, batch_storage, polling_timeout=0.01
-        ).run()
+        )
+        await executor.run()
 
     return start
 
@@ -233,10 +247,12 @@ def start_executor(
 @pytest.fixture()  # type: ignore
 def run_executor(
     setup_exc_data: Callable[[Path, str], Awaitable[ExecutorData]],
+    start_locals_executor: Callable[[ExecutorData], Awaitable[None]],
     start_executor: Callable[[ExecutorData], Awaitable[None]],
 ) -> Callable[[Path, str], Awaitable[None]]:
     async def run(config_loc: Path, batch_name: str) -> None:
         data = await setup_exc_data(config_loc, batch_name)
+        await start_locals_executor(data)
         await start_executor(data)
 
     return run
@@ -477,6 +493,28 @@ async def test_always_during_cancellation(
     await jobs_mock.mark_done("task-3")
 
     await executor_task
+
+
+async def test_local_action(
+    jobs_mock: JobsMock,
+    assets: Path,
+    run_executor: Callable[[Path, str], Awaitable[None]],
+) -> None:
+    with TemporaryDirectory() as dir:
+        ws = LocalPath(dir) / "local_actions"
+        shutil.copytree(assets / "local_actions", ws)
+
+        executor_task = asyncio.ensure_future(run_executor(ws, "call-cp"))
+        descr = await jobs_mock.get_task("remote-task")
+        assert descr.container.command
+        assert "echo 0" in descr.container.command
+
+        assert (ws / "file").read_text() == "test\n"
+        assert (ws / "file_copy").read_text() == "test\n"
+
+        await jobs_mock.mark_done("remote-task")
+
+        await executor_task
 
 
 async def test_stateful_no_post(

@@ -1,0 +1,15 @@
+kind: local
+name: cp action
+author: Roman Skurikhin
+descr: Action that simply calls cp.
+inputs:
+  from:
+    descr: Path to copy from
+  to:
+    descr: Path to copy to
+outputs:
+  status_code:
+    descr: Status code
+shell: |
+  cp -r ${{ inputs.from }} ${{ inputs.to }}
+  echo ::set-output name=status_code::$?

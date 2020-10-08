@@ -9,7 +9,7 @@ from typing import AbstractSet, Dict, List, Mapping, Optional, Tuple, Type
 from typing_extensions import AsyncContextManager, AsyncIterator
 
 from . import __version__
-from .batch_executor import BatchExecutor, ExecutorData
+from .batch_executor import BatchExecutor, ExecutorData, LocalsBatchExecutor
 from .commands import CmdProcessor
 from .config_loader import BatchLocalCL
 from .context import EMPTY_ROOT, BatchContext, DepCtx, TaskContext
@@ -123,25 +123,36 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         while to_check:
             prefix, ctx = to_check.pop(0)
             graph = ctx.graph
-            graphs[prefix] = graph
+            graphs[prefix] = {
+                prefix + (key,): {prefix + (node,) for node in nodes}
+                for key, nodes in graph.items()
+            }
 
             # check fast for the graph cycle error
             toposorter = graphlib.TopologicalSorter(graph)
             toposorter.prepare()
 
-            for full_id in ctx.graph:
-                tid = full_id[-1]
+            for tid in graph:
                 if await ctx.is_action(tid):
                     fake_needs = {
                         key: DepCtx(TaskStatus.SUCCEEDED, {})
                         for key in ctx.get_dep_ids(tid)
                     }
                     sub_ctx = await ctx.with_action(tid, needs=fake_needs)
-                    to_check.append((full_id, sub_ctx))
+                    to_check.append((prefix + (tid,), sub_ctx))
         return graphs
+
+    # Next function is also used in tests:
+    async def _run_locals(
+        self,
+        data: ExecutorData,
+    ) -> None:
+        executor = await LocalsBatchExecutor.create(data, self._client, self._storage)
+        await executor.run()
 
     async def bake(self, batch_name: str, local_executor: bool = False) -> None:
         data = await self._setup_exc_data(batch_name)
+        await self._run_locals(data)
         if local_executor:
             click.echo(f"Using local executor")
             await self.process(data)
@@ -164,7 +175,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         self,
         data: ExecutorData,
     ) -> None:
-        executor = BatchExecutor(data, self._client, self._storage)
+        executor = await BatchExecutor.create(data, self._client, self._storage)
         await executor.run()
 
     def get_bakes(self) -> AsyncIterator[Bake]:
