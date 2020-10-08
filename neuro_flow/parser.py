@@ -556,7 +556,6 @@ STRATEGY = {
     "matrix": None,
     "fail_fast": OptBoolExpr,
     "max_parallel": OptIntExpr,
-    "cache": None,
 }
 
 
@@ -575,7 +574,7 @@ FlowLoader.add_path_resolver(  # type: ignore
 FlowLoader.add_constructor("flow:strategy", parse_strategy)  # type: ignore
 
 FlowLoader.add_path_resolver(  # type: ignore
-    "flow:cache", [(dict, "tasks"), (list, None), (dict, "strategy"), (dict, "cache")]
+    "flow:cache", [(dict, "tasks"), (list, None), (dict, "cache")]
 )
 FlowLoader.add_constructor("flow:cache", parse_cache)  # type: ignore
 
@@ -694,6 +693,7 @@ TASK = {
     "needs": SimpleSeq(IdExpr),
     "strategy": None,
     "enable": EnableExpr,
+    "cache": None,
     **EXEC_UNIT,
 }
 
@@ -702,6 +702,8 @@ TASK_ACTION_CALL = {
     "id": OptIdExpr,
     "needs": SimpleSeq(IdExpr),
     "strategy": None,
+    "enable": EnableExpr,
+    "cache": None,
     "action": SimpleStrExpr,
     "args": SimpleMapping(StrExpr),
 }

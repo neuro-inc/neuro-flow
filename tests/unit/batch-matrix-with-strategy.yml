@@ -19,8 +19,8 @@ tasks:
             extra: e3
       fail_fast: false
       max_parallel: 5
-      cache:
-        strategy: default
-        life_span: 1h30m
+    cache:
+      strategy: default
+      life_span: 1h30m
     image: ubuntu
     cmd: echo abc

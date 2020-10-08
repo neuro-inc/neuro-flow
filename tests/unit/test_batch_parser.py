@@ -200,6 +200,7 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
                     Pos(0, 0, config_file), Pos(0, 0, config_file), False
                 ),
                 strategy=None,
+                cache=None,
                 enable=EnableExpr(
                     Pos(0, 0, config_file),
                     Pos(0, 0, config_file),
@@ -266,6 +267,7 @@ def test_parse_seq(assets: pathlib.Path) -> None:
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
                 strategy=None,
+                cache=None,
                 enable=EnableExpr(
                     Pos(0, 0, config_file),
                     Pos(0, 0, config_file),
@@ -305,6 +307,7 @@ def test_parse_seq(assets: pathlib.Path) -> None:
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
                 strategy=None,
+                cache=None,
                 enable=EnableExpr(
                     Pos(0, 0, config_file),
                     Pos(0, 0, config_file),
@@ -371,6 +374,7 @@ def test_parse_needs(assets: pathlib.Path) -> None:
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
                 strategy=None,
+                cache=None,
                 enable=EnableExpr(
                     Pos(0, 0, config_file),
                     Pos(0, 0, config_file),
@@ -412,6 +416,7 @@ def test_parse_needs(assets: pathlib.Path) -> None:
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
                 strategy=None,
+                cache=None,
                 enable=EnableExpr(
                     Pos(0, 0, config_file),
                     Pos(0, 0, config_file),
@@ -529,8 +534,8 @@ def test_parse_matrix(assets: pathlib.Path) -> None:
                     max_parallel=OptIntExpr(
                         Pos(0, 0, config_file), Pos(0, 0, config_file), None
                     ),
-                    cache=None,
                 ),
+                cache=None,
                 enable=EnableExpr(
                     Pos(0, 0, config_file),
                     Pos(0, 0, config_file),
@@ -618,7 +623,7 @@ def test_parse_matrix_with_strategy(assets: pathlib.Path) -> None:
                 needs=None,
                 strategy=ast.Strategy(
                     Pos(9, 6, config_file),
-                    Pos(24, 4, config_file),
+                    Pos(21, 4, config_file),
                     matrix=ast.Matrix(
                         Pos(10, 8, config_file),
                         Pos(19, 6, config_file),
@@ -670,13 +675,13 @@ def test_parse_matrix_with_strategy(assets: pathlib.Path) -> None:
                     max_parallel=OptIntExpr(
                         Pos(0, 0, config_file), Pos(0, 0, config_file), 5
                     ),
-                    cache=ast.Cache(
-                        Pos(22, 8, config_file),
-                        Pos(24, 4, config_file),
-                        strategy=ast.CacheStrategy.DEFAULT,
-                        life_span=OptLifeSpanExpr(
-                            Pos(0, 0, config_file), Pos(0, 0, config_file), "1h30m"
-                        ),
+                ),
+                cache=ast.Cache(
+                    Pos(22, 6, config_file),
+                    Pos(24, 4, config_file),
+                    strategy=ast.CacheStrategy.DEFAULT,
+                    life_span=OptLifeSpanExpr(
+                        Pos(0, 0, config_file), Pos(0, 0, config_file), "1h30m"
                     ),
                 ),
                 enable=EnableExpr(
@@ -816,6 +821,7 @@ def test_parse_args(assets: pathlib.Path) -> None:
                 id=OptIdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 needs=None,
                 strategy=None,
+                cache=None,
                 enable=EnableExpr(
                     Pos(0, 0, config_file),
                     Pos(0, 0, config_file),
@@ -882,6 +888,7 @@ def test_parse_enable(assets: pathlib.Path) -> None:
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
                 strategy=None,
+                cache=None,
                 enable=EnableExpr(
                     Pos(0, 0, config_file),
                     Pos(0, 0, config_file),
@@ -923,6 +930,7 @@ def test_parse_enable(assets: pathlib.Path) -> None:
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
                 strategy=None,
+                cache=None,
                 enable=EnableExpr(
                     Pos(0, 0, config_file),
                     Pos(0, 0, config_file),

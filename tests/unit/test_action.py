@@ -225,6 +225,7 @@ def test_parse_batch_action(assets: LocalPath) -> None:
                 id=OptIdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "task_1"),
                 needs=None,
                 strategy=None,
+                cache=None,
                 enable=EnableExpr(
                     Pos(0, 0, config_file),
                     Pos(0, 0, config_file),
@@ -264,6 +265,7 @@ def test_parse_batch_action(assets: LocalPath) -> None:
                 id=OptIdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "task_2"),
                 needs=None,
                 strategy=None,
+                cache=None,
                 enable=EnableExpr(
                     Pos(0, 0, config_file),
                     Pos(0, 0, config_file),
@@ -450,6 +452,7 @@ def test_parse_batch_call(assets: LocalPath) -> None:
                 id=OptIdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "test"),
                 needs=None,
                 strategy=None,
+                cache=None,
                 enable=EnableExpr(
                     Pos(0, 0, config_file),
                     Pos(0, 0, config_file),
