@@ -69,6 +69,22 @@ _T = TypeVar("_T")
 
 
 class GraphEmb(Generic[_T]):
+    """TopologicalSorter that allows to embed sub graphs in nodes
+
+    Instance of this graph is constructed by provided simple graph
+    specification. After that, additional graphs can be embedded
+    to nodes of this (or previously embedded) graph. Each node
+    has can address using FullID, where each component is names
+    node in some graphs. For example, node id ('top', 'node')
+    Is a node of graph is embedded to node 'top' of the main top
+    level graph.
+
+    Node is considered ready when it is ready inside its graph
+    and the parent node is ready. Top level graph is ready by
+    default.
+
+    Each graph can be annotated with some metadata.
+    """
     def __init__(self, graph: Mapping[str, Iterable[str]], meta: _T):
         topo = graphlib.TopologicalSorter(graph)
         self._topos: Dict[FullID, "graphlib.TopologicalSorter[str]"] = {(): topo}
@@ -306,6 +322,14 @@ class BatchExecutor:
         click.echo(f"Action {fmt_id(st.id)} is {str_started}")
 
     async def _process_task(self, full_id: FullID) -> None:
+        # Check is is task fits in max_parallel
+        for n in range(1, len(full_id)):
+            node = full_id[:n]
+            prefix = node[:-1]
+            ctx = self._graphs.get_meta(node)
+            if self._tasks_mgr.count_running(prefix) >= ctx.strategy.max_parallel:
+                return
+
         task_ctx = await self._enter_task_ctx(full_id)
 
         ft = await self._storage.check_cache(self._attempt, full_id, task_ctx)
@@ -354,9 +378,6 @@ class BatchExecutor:
         while await self._should_continue():
             for full_id, ctx in self._graphs.get_ready_with_meta():
                 prefix, tid = full_id[:-1], full_id[-1]
-                # TODO: this isn't correct, fix this
-                if self._tasks_mgr.count_running(prefix) >= ctx.strategy.max_parallel:
-                    continue
                 if full_id in self._tasks_mgr.started:
                     continue  # Already started
                 needs = self._tasks_mgr.build_needs(prefix, ctx.graph[tid])
@@ -423,7 +444,6 @@ class BatchExecutor:
 
                 await self._store_to_cache(ft)
 
-                # Todo: move out printing status code
                 str_status = fmt_status(ft.status)
                 raw_id = fmt_raw_id(ft.raw_id)
                 click.echo(
@@ -449,7 +469,6 @@ class BatchExecutor:
             needs = self._tasks_mgr.build_needs(full_id, await ctx.get_output_needs())
             outputs = await ctx.calc_outputs(needs, is_cancelling=self._is_cancelling)
 
-            # TODO: add proxy methods in task mgr
             ft = await self._storage.finish_action(
                 self._attempt,
                 self._tasks_mgr.started[full_id],
