@@ -404,7 +404,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
     async def clear_cache(self, batch: Optional[str] = None) -> None:
         await self._storage.clear_cache(self.project, batch)
 
-    async def rerun(
+    async def restart(
         self,
         bake_id: str,
         *,
