@@ -19,6 +19,8 @@ COLORS = {
 def fmt_status(status: Union[JobStatus, TaskStatus]) -> str:
     if isinstance(status, JobStatus):
         status = TaskStatus(status)
+    else:
+        assert isinstance(status, TaskStatus)
     return click.style(status.value, fg=COLORS.get(status, "reset"))
 
 
