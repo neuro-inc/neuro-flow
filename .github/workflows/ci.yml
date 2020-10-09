@@ -126,6 +126,22 @@ jobs:
         TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
       run: |
         twine upload dist/*
+    - name: Wait for availability on PyPI
+      run: |
+        check() {
+          for trial in {1..10}; do
+            pip install neuro-flow==${{ needs.lint.outputs.version }}
+            if [ $? -eq 0 ]; then
+              exit 0
+            fi
+            echo "Cannot fetch, sleep"
+            sleep 10
+          done
+          echo "Cannot fetch, fail"
+          exit 1
+        }
+
+        check
 
   image:
     name: Build and Push Docker Image
