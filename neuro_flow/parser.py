@@ -413,18 +413,6 @@ def make_default_project(workspace_stem: str) -> ast.Project:
     )
 
 
-def parse_project(
-    workspace: LocalPath, *, filename: str = "project.yml"
-) -> ast.Project:
-    # Parse project config file
-    config_file = workspace / filename
-    try:
-        with config_file.open() as f:
-            return parse_project_stream(f)
-    except FileNotFoundError:
-        return make_default_project(workspace.stem)
-
-
 # #### Flow parser ####
 
 
