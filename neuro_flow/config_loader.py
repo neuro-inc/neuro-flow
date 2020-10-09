@@ -128,15 +128,16 @@ class LocalCL(StreamCL, abc.ABC):
 
     @asynccontextmanager
     async def project_stream(self) -> AsyncIterator[Optional[TextIO]]:
-        path = self._workspace / "project.yml"
-        if not path.exists():
-            yield None
-            return
-        with path.open() as f:
-            yield f
+        for ext in (".yml", ".yaml"):
+            path = self._workspace / "project"
+            path = path.with_suffix(ext)
+            if path.exists():
+                with path.open() as f:
+                    yield f
+        yield None
 
     def flow_path(self, name: str) -> LocalPath:
-        for ext in ('.yml', '.yaml'):
+        for ext in (".yml", ".yaml"):
             ret = self._config_dir / name
             ret = ret.with_suffix(ext).resolve()
             if ret.exists():
@@ -160,6 +161,8 @@ class LocalCL(StreamCL, abc.ABC):
             if not path.exists():
                 path = path.with_suffix(".yml")
             if not path.exists():
+                path = path.with_suffix(".yaml")
+            if not path.exists():
                 raise ValueError(f"Action {action_name} does not exist")
             with path.open() as f:
                 yield f
@@ -172,16 +175,16 @@ class LocalCL(StreamCL, abc.ABC):
                 for member in tar.getmembers():
                     member_path = LocalPath(member.name)
                     # find action yml file
-                    if (
-                        len(member_path.parts) == 2
-                        and member_path.parts[1] == "action.yml"
+                    if len(member_path.parts) == 2 and (
+                        member_path.parts[1] == "action.yml"
+                        or member_path.parts[1] == "action.yaml"
                     ):
                         if member.isfile():
                             file_obj = tar.extractfile(member)
                             if file_obj is None:
                                 raise ValueError(
                                     f"Github repo {repo} do not contain "
-                                    '"action.yml" file.'
+                                    '"action.yml" or "action.yaml" files.'
                                 )
                             # Cast is workaround for
                             # https://github.com/python/typeshed/issues/4349
