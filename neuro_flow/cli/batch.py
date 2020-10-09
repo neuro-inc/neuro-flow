@@ -248,3 +248,47 @@ async def clear_cache(config_dir: ConfigDir, batch: str) -> None:
             await runner.clear_cache(None)
         else:
             await runner.clear_cache(batch)
+
+
+@click.command()
+@argument("bake_id", type=BAKE)
+@option(
+    "-a",
+    "--attempt",
+    type=int,
+    default=-1,
+    help="Attempt number, the last attempt by default",
+)
+@option("--local-executor", is_flag=True, default=False, help="Run primary job locally")
+@option(
+    "--from-failed",
+    is_flag=True,
+    default=True,
+    help="Restart from the point of failure",
+)
+@wrap_async()
+async def restart(
+    config_dir: ConfigDir,
+    bake: str,
+    attempt: int,
+    from_failed: bool,
+    local_executor: bool,
+) -> None:
+    """Start a batch.
+
+    Run BATCH pipeline remotely on the cluster.
+    """
+    async with AsyncExitStack() as stack:
+        client = await stack.enter_async_context(api_get())
+        storage: BatchStorage = await stack.enter_async_context(
+            BatchFSStorage(NeuroStorageFS(client))
+        )
+        runner = await stack.enter_async_context(
+            BatchRunner(config_dir, client, storage)
+        )
+        await runner.restart(
+            bake,
+            attempt_no=attempt,
+            from_failed=from_failed,
+            local_executor=local_executor,
+        )
