@@ -578,7 +578,7 @@ class LocalsBatchExecutor(BatchExecutor):
         assert isinstance(root_ctx, BatchContext)
 
         subprocess = await asyncio.create_subprocess_shell(
-            local_ctx.shell,
+            local_ctx.cmd,
             stdout=asyncio.subprocess.PIPE,
             cwd=root_ctx.flow.workspace,
         )

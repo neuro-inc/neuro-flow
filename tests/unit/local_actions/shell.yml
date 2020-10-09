@@ -5,4 +5,4 @@ descr: Action that passes code to shell
 inputs:
   shell:
     descr: shell code
-shell: ${{ inputs.shell }}
+cmd: ${{ inputs.shell }}

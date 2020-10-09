@@ -1109,7 +1109,7 @@ STATEFUL_ACTION: Dict[str, Any] = {
 }
 
 LOCAL_ACTION: Dict[str, Any] = {
-    "shell": StrExpr,
+    "cmd": StrExpr,
     **BASE_ACTION,
 }
 

@@ -1053,7 +1053,7 @@ class TaskContext(BaseContext):
         action_ctx = await action_ctx.with_inputs(
             {k: await v.eval(ctx) for k, v in prep_task.args.items()}
         )
-        return await action_ctx.with_shell()
+        return await action_ctx.with_cmd()
 
     async def with_task(
         self: _CtxT, real_id: str, *, needs: NeedsCtx, state: Optional[StateCtx]
@@ -1403,7 +1403,7 @@ class LiveActionContext(ActionContext):
 
 @dataclass(frozen=True)
 class LocalActionContext(ActionContext):
-    _shell: Optional[str] = None
+    _cmd: Optional[str] = None
 
     @classmethod
     async def create(
@@ -1420,14 +1420,14 @@ class LocalActionContext(ActionContext):
         return cast(_CtxT, ret)
 
     @property
-    def shell(self) -> str:
-        assert self._shell is not None
-        return self._shell
+    def cmd(self) -> str:
+        assert self._cmd is not None
+        return self._cmd
 
-    async def with_shell(self) -> "LocalActionContext":
+    async def with_cmd(self) -> "LocalActionContext":
         assert isinstance(self._ast, ast.LocalAction)
-        shell = await self._ast.shell.eval(self)
-        return replace(self, _shell=shell)
+        shell = await self._ast.cmd.eval(self)
+        return replace(self, _cmd=shell)
 
 
 @dataclass(frozen=True)

@@ -7,5 +7,5 @@ inputs:
     descr: Local path
   to:
     descr: "Path on storage. Should start with 'storage:'"
-shell:
+cmd:
   neuro cp -r ${{ inputs.from }} ${{ inputs.to }}

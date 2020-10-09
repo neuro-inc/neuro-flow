@@ -289,4 +289,4 @@ class StatefulAction(BaseAction):
 @dataclass(frozen=True)
 class LocalAction(BaseAction):
     outputs: Optional[Mapping[str, Output]] = field(metadata={"allow_none": True})
-    shell: StrExpr
+    cmd: StrExpr

@@ -10,6 +10,6 @@ inputs:
 outputs:
   status_code:
     descr: Status code
-shell: |
+cmd: |
   cp -r ${{ inputs.from }} ${{ inputs.to }}
   echo ::set-output name=status_code::$?
