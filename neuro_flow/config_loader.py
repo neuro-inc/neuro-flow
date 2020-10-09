@@ -136,12 +136,14 @@ class LocalCL(StreamCL, abc.ABC):
             yield f
 
     def flow_path(self, name: str) -> LocalPath:
-        ret = (self._config_dir / (name + ".yml")).resolve()
-        if not ret.exists():
-            raise ValueError(f"{ret} does not exist")
-        if not ret.is_file():
-            raise ValueError(f"{ret} is not a file")
-        return ret
+        for ext in ('.yml', '.yaml'):
+            ret = self._config_dir / name
+            ret = ret.with_suffix(ext).resolve()
+            if ret.exists():
+                if not ret.is_file():
+                    raise ValueError(f"Flow {ret} is not a file")
+                return ret
+        raise ValueError(f"Flow {name} does not exist")
 
     @asynccontextmanager
     async def flow_stream(self, name: str) -> AsyncIterator[TextIO]:
