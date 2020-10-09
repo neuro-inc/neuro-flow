@@ -707,8 +707,8 @@ class BatchFSStorage(BatchStorage):
         data = {
             "id": _id_to_json(st.id),
             "raw_id": st.raw_id,
-            "when": st.when.isoformat(timespec="seconds"),
-            "created_at": st.created_at.isoformat(timespec="seconds"),
+            "when": st.when.isoformat(),
+            "created_at": st.created_at.isoformat(),
         }
         await self._write_json(attempt_url / f"{data['id']}.started.json", data)
 
@@ -718,12 +718,12 @@ class BatchFSStorage(BatchStorage):
         data = {
             "id": _id_to_json(ft.id),
             "raw_id": ft.raw_id,
-            "when": ft.when.isoformat(timespec="seconds"),
+            "when": ft.when.isoformat(),
             "status": ft.status.value,
             "exit_code": ft.exit_code,
-            "created_at": ft.created_at.isoformat(timespec="seconds"),
-            "started_at": ft.started_at.isoformat(timespec="seconds"),
-            "finished_at": ft.finished_at.isoformat(timespec="seconds"),
+            "created_at": ft.created_at.isoformat(),
+            "started_at": ft.started_at.isoformat(),
+            "finished_at": ft.finished_at.isoformat(),
             "finish_reason": ft.finish_reason,
             "finish_description": ft.finish_description,
             "outputs": ft.outputs,
@@ -798,14 +798,14 @@ class BatchFSStorage(BatchStorage):
         assert ft.raw_id is not None, (ft.id, ft.raw_id)
 
         data = {
-            "when": ft.when.isoformat(timespec="seconds"),
+            "when": ft.when.isoformat(),
             "digest": ctx_digest,
             "raw_id": ft.raw_id,
             "status": ft.status.value,
             "exit_code": ft.exit_code,
-            "created_at": ft.created_at.isoformat(timespec="seconds"),
-            "started_at": ft.started_at.isoformat(timespec="seconds"),
-            "finished_at": ft.finished_at.isoformat(timespec="seconds"),
+            "created_at": ft.created_at.isoformat(),
+            "started_at": ft.started_at.isoformat(),
+            "finished_at": ft.finished_at.isoformat(),
             "finish_reason": ft.finish_reason,
             "finish_description": ft.finish_description,
             "outputs": ft.outputs,
@@ -851,7 +851,7 @@ class BatchFSStorage(BatchStorage):
         self, url: URL, data: Dict[str, Any], *, overwrite: bool = False
     ) -> None:
         if not data.get("when"):
-            data["when"] = _dt2str(_now())
+            data["when"] = _now().isoformat()
 
         await self._write_file(url, json.dumps(data), overwrite=overwrite)
 
@@ -885,7 +885,7 @@ def _bake_to_json(bake: Bake) -> Dict[str, Any]:
     return {
         "project": bake.project,
         "batch": bake.batch,
-        "when": _dt2str(bake.when),
+        "when": bake.when.isoformat(),
         "suffix": bake.suffix,
         "graphs": graphs,
     }
@@ -922,7 +922,7 @@ def _attempt_to_json(attempt: Attempt) -> Dict[str, Any]:
     return {
         "number": attempt.number,
         "bake": _bake_to_json(attempt.bake),
-        "when": _dt2str(attempt.when),
+        "when": attempt.when.isoformat(),
     }
 
 

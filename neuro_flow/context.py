@@ -710,7 +710,6 @@ class TaskContext(BaseContext):
             matrix: Sequence[MatrixCtx]
             strategy: StrategyCtx
             default_strategy = self.strategy
-            default_cache = self.cache
             if ast_task.strategy is not None:
                 fail_fast = await ast_task.strategy.fail_fast.eval(self)
                 if fail_fast is None:
@@ -719,9 +718,6 @@ class TaskContext(BaseContext):
                 if max_parallel is None:
                     max_parallel = default_strategy.max_parallel
                 strategy = StrategyCtx(fail_fast=fail_fast, max_parallel=max_parallel)
-                cache = await self._build_cache(
-                    ast_task.strategy.cache, ast.CacheStrategy.INHERIT
-                )
                 if ast_task.strategy.matrix is not None:
                     matrix = await self._build_matrix(ast_task.strategy)
                     matrix = await self._exclude(ast_task.strategy, matrix)
@@ -738,7 +734,6 @@ class TaskContext(BaseContext):
             else:
                 strategy = default_strategy  # default
                 matrix = [{}]  # dummy
-                cache = default_cache
             real_ids = set()
             post_tasks_group: List[BasePrepTaskCtx] = []
             for row in matrix:
@@ -758,6 +753,10 @@ class TaskContext(BaseContext):
                     needs = {await need.eval(matrix_ctx) for need in ast_task.needs}
                 else:
                     needs = last_needs
+
+                cache = await self._build_cache(
+                    ast_task.cache, ast.CacheStrategy.INHERIT
+                )
 
                 if isinstance(ast_task, ast.Task):
                     prep_task = PrepTaskCtx(

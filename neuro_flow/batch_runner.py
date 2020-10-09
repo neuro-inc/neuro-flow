@@ -1,9 +1,12 @@
+import dataclasses
+
 import asyncio
 import click
 import sys
 from graphviz import Digraph
 from neuromation.api import Client, JobStatus
 from neuromation.cli.formatters import ftable  # TODO: extract into a separate library
+from operator import attrgetter
 from types import TracebackType
 from typing import AbstractSet, Dict, List, Mapping, Optional, Tuple, Type
 from typing_extensions import AsyncContextManager, AsyncIterator
@@ -152,6 +155,9 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
 
     async def bake(self, batch_name: str, local_executor: bool = False) -> None:
         data = await self._setup_exc_data(batch_name)
+        await self._run_bake(data, local_executor)
+
+    async def _run_bake(self, data: ExecutorData, local_executor: bool) -> None:
         await self._run_locals(data)
         if local_executor:
             click.echo(f"Using local executor")
@@ -408,3 +414,64 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
 
     async def clear_cache(self, batch: Optional[str] = None) -> None:
         await self._storage.clear_cache(self.project, batch)
+
+    async def restart(
+        self,
+        bake_id: str,
+        *,
+        attempt_no: int = -1,
+        from_failed: bool = True,
+        local_executor: bool = False,
+    ) -> None:
+        data = await self._restart(
+            bake_id, attempt_no=attempt_no, from_failed=from_failed
+        )
+        await self._run_bake(data, local_executor)
+
+    async def _restart(
+        self,
+        bake_id: str,
+        *,
+        attempt_no: int = -1,
+        from_failed: bool = True,
+    ) -> ExecutorData:
+        bake = await self._storage.fetch_bake_by_id(self.project, bake_id)
+        attempt = await self._storage.find_attempt(bake, attempt_no)
+        if attempt.result not in TERMINATED_JOB_STATUSES:
+            raise click.BadArgumentUsage(
+                f"Cannot re-run still running attempt #{attempt.number} "
+                f"of {bake.bake_id}."
+            )
+        if attempt.number >= 99:
+            raise click.BadArgumentUsage(
+                f"Cannot re-run {bake.bake_id}, the number of attempts exceeded."
+            )
+        new_att = await self._storage.create_attempt(bake, attempt.number + 1)
+        if from_failed:
+            graphs = bake.graphs
+            handled = set()  # a set of succesfully finished and not cached tasks
+            started, finished = await self._storage.fetch_attempt(attempt)
+            for task in sorted(finished.values(), key=attrgetter("when")):
+                if task.status == TaskStatus.SUCCEEDED:
+                    # should check deps to don't process post-actions with
+                    # always() precondition
+                    prefix = task.id[:-1]
+                    graph = graphs[prefix]
+                    deps = graph[task.id]
+                    if not deps or all(dep in handled for dep in deps):
+                        await self._storage.write_start(
+                            dataclasses.replace(started[task.id], attempt=new_att)
+                        )
+                        await self._storage.write_finish(
+                            dataclasses.replace(task, attempt=new_att)
+                        )
+                        handled.add(task.id)
+
+        click.echo(f"Attempt # {fmt_id(str(new_att.number))} is created")
+        data = ExecutorData(
+            project=bake.project,
+            batch=bake.batch,
+            when=bake.when,
+            suffix=bake.suffix,
+        )
+        return data
