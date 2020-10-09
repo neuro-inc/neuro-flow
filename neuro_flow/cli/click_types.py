@@ -1,7 +1,7 @@
 import abc
 import click
 import operator
-from contextlib import AsyncExitStack
+import sys
 from neuromation.api import get as api_get
 from neuromation.cli.asyncio_utils import Runner
 from typing import Callable, Generic, List, Optional, Sequence, Tuple, TypeVar, cast
@@ -11,6 +11,11 @@ from neuro_flow.live_runner import LiveRunner
 from neuro_flow.parser import ConfigDir
 from neuro_flow.storage import BatchFSStorage, BatchStorage, NeuroStorageFS
 
+
+if sys.version_info >= (3, 7):
+    from contextlib import AsyncExitStack
+else:
+    from async_exit_stack import AsyncExitStack
 
 _T = TypeVar("_T")
 
