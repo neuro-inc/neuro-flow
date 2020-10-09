@@ -276,7 +276,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         dot.attr(compound="true")
         dot.node_attr = {"style": "filled"}
 
-        await self._subgraph(dot, graphs, (), {}, finished, statuses)
+        await self._subgraph(dot, graphs, (), {}, statuses, finished)
 
         if save_dot:
             click.echo(f"Saving file {dot.filename}")
