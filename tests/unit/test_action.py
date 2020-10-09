@@ -186,7 +186,7 @@ def test_parse_batch_action(assets: LocalPath) -> None:
         cache=ast.Cache(
             Pos(19, 2, config_file),
             Pos(21, 0, config_file),
-            strategy=ast.CacheStrategy.NONE,
+            strategy=ast.CacheStrategy.INHERIT,
             life_span=OptLifeSpanExpr(
                 Pos(0, 0, config_file), Pos(0, 0, config_file), "30m"
             ),

@@ -428,7 +428,7 @@ async def test_batch_action_default(batch_config_loader: ConfigLoader) -> None:
         CacheCtx(),
     )
     assert ctx.inputs == {"arg1": "val 1", "arg2": "value 2"}
-    assert ctx.cache == CacheCtx(strategy=ast.CacheStrategy.NONE, life_span=1800)
+    assert ctx.cache == CacheCtx(strategy=ast.CacheStrategy.DEFAULT, life_span=1800)
 
 
 async def test_batch_action_with_inputs_unsupported(
