@@ -736,4 +736,6 @@ async def test_fully_cached_with_action(
     )
     await executor_task
 
+    print("foo")
+
     await run_executor(assets, "batch-action-call")
