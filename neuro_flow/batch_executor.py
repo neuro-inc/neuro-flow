@@ -68,7 +68,7 @@ class ExecutorData:
 _T = TypeVar("_T")
 
 
-class GraphEmb(Generic[_T]):
+class Graph(Generic[_T]):
     """TopologicalSorter that allows to embed sub graphs in nodes
 
     Instance of this graph is constructed by provided simple graph
@@ -223,7 +223,7 @@ class BatchExecutor:
         self._attempt = attempt
         self._client = client
         self._storage = storage
-        self._graphs: GraphEmb[TaskContext] = GraphEmb(top_ctx.graph, top_ctx)
+        self._graphs: Graph[TaskContext] = Graph(top_ctx.graph, top_ctx)
         self._tasks_mgr = BakeTasksManager()
         self._is_cancelling = False
 
