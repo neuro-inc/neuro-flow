@@ -15,7 +15,13 @@ from . import __version__
 from .batch_executor import BatchExecutor, ExecutorData, LocalsBatchExecutor
 from .commands import CmdProcessor
 from .config_loader import BatchLocalCL
-from .context import EMPTY_ROOT, BatchContext, DepCtx, TaskContext
+from .context import (
+    EMPTY_ROOT,
+    BaseBatchContext,
+    DepCtx,
+    RunningBatchBase,
+    RunningBatchFlow,
+)
 from .parser import ConfigDir
 from .storage import Attempt, Bake, BatchStorage, FinishedTask
 from .types import FullID, LocalPath, TaskStatus
@@ -89,21 +95,21 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         click.echo("Check config... ", nl=False)
 
         # Check that the yaml is parseable
-        ctx = await BatchContext.create(self.config_loader, batch_name)
+        flow = await RunningBatchFlow.create(self.config_loader, batch_name)
 
-        for volume in ctx.volumes.values():
+        for volume in flow.volumes.values():
             if volume.local is not None:
                 # TODO: sync volumes if needed
                 raise NotImplementedError("Volumes sync is not supported")
 
-        graphs = await self._build_graphs(ctx)
+        graphs = await self._build_graphs(flow)
 
         click.echo("ok")
 
         click.echo("Create bake")
         config_meta, configs = await self.config_loader.collect_configs(batch_name)
         bake = await self._storage.create_bake(
-            ctx.flow.project_id,
+            flow.project_id,
             batch_name,
             config_meta,
             configs,
@@ -119,13 +125,15 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         )
 
     async def _build_graphs(
-        self, ctx: TaskContext
+        self, top_flow: RunningBatchFlow
     ) -> Mapping[FullID, Mapping[FullID, AbstractSet[FullID]]]:
         graphs = {}
-        to_check: List[Tuple[FullID, TaskContext]] = [((), ctx)]
+        to_check: List[Tuple[FullID, RunningBatchBase[BaseBatchContext]]] = [
+            ((), top_flow)
+        ]
         while to_check:
-            prefix, ctx = to_check.pop(0)
-            graph = ctx.graph
+            prefix, flow = to_check.pop(0)
+            graph = flow.graph
             graphs[prefix] = {
                 prefix + (key,): {prefix + (node,) for node in nodes}
                 for key, nodes in graph.items()
@@ -136,12 +144,11 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             toposorter.prepare()
 
             for tid in graph:
-                if await ctx.is_action(tid):
+                if await flow.is_action(tid):
                     fake_needs = {
-                        key: DepCtx(TaskStatus.SUCCEEDED, {})
-                        for key in ctx.get_dep_ids(tid)
+                        key: DepCtx(TaskStatus.SUCCEEDED, {}) for key in graph[tid]
                     }
-                    sub_ctx = await ctx.with_action(tid, needs=fake_needs)
+                    sub_ctx = await flow.get_action(tid, needs=fake_needs)
                     to_check.append((prefix + (tid,), sub_ctx))
         return graphs
 

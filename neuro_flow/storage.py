@@ -1,10 +1,7 @@
 import dataclasses
 
 import abc
-import collections
 import datetime
-import enum
-import hashlib
 import json
 import logging
 import re
@@ -37,12 +34,11 @@ from typing import (
 from typing_extensions import Final
 from yarl import URL
 
-from neuro_flow.types import AlwaysT, LocalPath
+from neuro_flow.types import LocalPath
 
-from . import ast
 from .config_loader import ConfigFile
-from .context import ActionContext, BaseContext, DepCtx, TaskContext
-from .types import FullID, RemotePath, TaskStatus
+from .context import DepCtx
+from .types import FullID, TaskStatus
 
 
 if sys.version_info < (3, 7):
@@ -342,7 +338,8 @@ class BatchStorage(abc.ABC):
         self,
         attempt: Attempt,
         task_id: FullID,
-        ctx: TaskContext,
+        caching_key: str,
+        life_span: datetime.timedelta,
     ) -> Optional[FinishedTask]:
         pass
 
@@ -350,8 +347,8 @@ class BatchStorage(abc.ABC):
     async def write_cache(
         self,
         attempt: Attempt,
-        ctx: TaskContext,
         ft: FinishedTask,
+        caching_key: str,
     ) -> None:
         pass
 
@@ -735,12 +732,9 @@ class BatchFSStorage(BatchStorage):
         self,
         attempt: Attempt,
         task_id: FullID,
-        ctx: TaskContext,
+        caching_key: str,
+        life_span: datetime.timedelta,
     ) -> Optional[FinishedTask]:
-        cache_strategy = ctx.cache.strategy
-        if cache_strategy == ast.CacheStrategy.NONE:
-            return None
-        assert cache_strategy == ast.CacheStrategy.DEFAULT
 
         url = _mk_cache_uri(self._fs, attempt, task_id)
 
@@ -749,15 +743,14 @@ class BatchFSStorage(BatchStorage):
         except ValueError:
             # not found
             return None
-        ctx_digest = _hash(ctx)
 
         try:
             when = datetime.datetime.fromisoformat(data["when"])
             now = datetime.datetime.now(datetime.timezone.utc)
-            eol = when + datetime.timedelta(ctx.cache.life_span)
+            eol = when + life_span
             if eol < now:
                 return None
-            if data["digest"] != ctx_digest:
+            if data["caching_key"] != caching_key:
                 return None
             ret = FinishedTask(
                 attempt=attempt,
@@ -784,22 +777,15 @@ class BatchFSStorage(BatchStorage):
     async def write_cache(
         self,
         attempt: Attempt,
-        ctx: TaskContext,
         ft: FinishedTask,
+        caching_key: str,
     ) -> None:
-        cache_strategy = ctx.cache.strategy
-        if cache_strategy == ast.CacheStrategy.NONE:
-            return
-        if ft.status != TaskStatus.SUCCEEDED:
-            return
-
-        ctx_digest = _hash(ctx)
         url = _mk_cache_uri(self._fs, attempt, ft.id)
         assert ft.raw_id is not None, (ft.id, ft.raw_id)
 
         data = {
             "when": ft.when.isoformat(),
-            "digest": ctx_digest,
+            "caching_key": caching_key,
             "raw_id": ft.raw_id,
             "status": ft.status.value,
             "exit_code": ft.exit_code,
@@ -952,46 +938,3 @@ def _mk_cache_uri2(fs: FileSystem, project: str, batch: Optional[str]) -> URL:
     if batch:
         ret /= batch
     return ret
-
-
-def _hash(val: Any) -> str:
-    hasher = hashlib.new("sha256")
-    data = json.dumps(val, sort_keys=True, default=_ctx_default)
-    hasher.update(data.encode("utf-8"))
-    return hasher.hexdigest()
-
-
-def _ctx_default(val: Any) -> Any:
-    if isinstance(val, BaseContext):
-        ret: Dict[str, Any] = {
-            "env": val.env,
-            "tags": val.tags,
-        }
-        if isinstance(val, ActionContext):
-            ret.update(
-                {
-                    "inputs": val.inputs,
-                }
-            )
-        elif isinstance(val, TaskContext):
-            ret.update(
-                {
-                    "needs": val.needs,
-                    "matrix": val.matrix,
-                    "strategy": val.strategy,
-                    "task": val.task,
-                }
-            )
-        return ret
-    elif dataclasses.is_dataclass(val):
-        return dataclasses.asdict(val)
-    elif isinstance(val, enum.Enum):
-        return val.value
-    elif isinstance(val, RemotePath):
-        return str(val)
-    elif isinstance(val, collections.abc.Set):
-        return sorted(val)
-    elif isinstance(val, AlwaysT):
-        return str(val)
-    else:
-        raise TypeError(f"Cannot dump {val!r}")
