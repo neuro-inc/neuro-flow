@@ -176,6 +176,12 @@ class PrepBatchCallCtx(BasePrepTaskCtx):
 
 
 @dataclass(frozen=True)
+class PrepLocalCtx(BasePrepTaskCtx):
+    action: str
+    args: Mapping[str, StrExpr]
+
+
+@dataclass(frozen=True)
 class PrepStatefulCallCtx(PrepTaskCtx):
     action: str
     args: Mapping[str, StrExpr]
@@ -688,7 +694,7 @@ class TaskContext(BaseContext):
     _matrix: Optional[MatrixCtx] = None
     _strategy: Optional[StrategyCtx] = None
     _prefix: FullID = ()
-    _graph: Optional[Mapping[FullID, AbstractSet[FullID]]] = None
+    _graph: Optional[Mapping[str, AbstractSet[str]]] = None
     _cache: Optional[CacheCtx] = None
 
     async def _prepare(
@@ -781,6 +787,19 @@ class TaskContext(BaseContext):
                             args=ast_task.args or {},
                         )
                         prep_tasks[real_id] = prep_call
+                    elif isinstance(action, ast.LocalAction):
+                        prep_local = PrepLocalCtx(
+                            id=task_id,
+                            real_id=real_id,
+                            needs=needs,
+                            matrix=row,
+                            strategy=strategy,
+                            cache=cache,
+                            enable=ast_task.enable,
+                            action=action_name,
+                            args=ast_task.args or {},
+                        )
+                        prep_tasks[real_id] = prep_local
                     elif isinstance(action, ast.StatefulAction):
                         main_task = PrepStatefulCallCtx(
                             id=task_id,
@@ -791,8 +810,8 @@ class TaskContext(BaseContext):
                             cache=cache,
                             enable=ast_task.enable,
                             ast=action.main,
-                            args=ast_task.args or {},
                             action=action_name,
+                            args=ast_task.args or {},
                         )
                         prep_tasks[real_id] = main_task
                         if action.post:
@@ -872,13 +891,13 @@ class TaskContext(BaseContext):
         return self._strategy
 
     @property
-    def graph(self) -> Mapping[FullID, AbstractSet[FullID]]:
+    def graph(self) -> Mapping[str, AbstractSet[str]]:
         # Dependency graph for the context's tasks
         assert self._prep_tasks is not None
         if self._graph is None:
             ret = {}
             for key, val in self._prep_tasks.items():
-                ret[self._prefix + (key,)] = set(self._prefix + (i,) for i in val.needs)
+                ret[key] = val.needs
             # Use the hack with direct setattr
             # to cheat the frozen dataclass write protection
             object.__setattr__(self, "_graph", ret)
@@ -900,6 +919,14 @@ class TaskContext(BaseContext):
                 "the matrix is already initialized"
             )
         return cast(_CtxT, replace(self, _strategy=strategy, _matrix=matrix))
+
+    async def is_local(self, real_id: str) -> bool:
+        assert self._prep_tasks is not None
+        try:
+            prep_task = self._prep_tasks[real_id]
+            return isinstance(prep_task, PrepLocalCtx)
+        except KeyError:
+            raise UnknownTask(real_id)
 
     async def is_action(self, real_id: str) -> bool:
         assert self._prep_tasks is not None
@@ -993,6 +1020,39 @@ class TaskContext(BaseContext):
             prep_task.cache,
         )
         return ctx
+
+    async def with_local(
+        self: _CtxT, real_id: str, *, needs: NeedsCtx
+    ) -> "LocalActionContext":
+        # real_id -- the task's real id
+        #
+        # outputs -- real_id -> (output_name -> value) mapping for all task ids
+        # enumerated in needs.
+        #
+        # TODO: multi-state tasks require 'state' mapping (state_name -> value)
+        assert isinstance(self, TaskContext)
+        assert self._prep_tasks is not None
+        prep_task = self._with_task_pre(real_id, needs=needs)
+
+        if not isinstance(prep_task, PrepLocalCtx):
+            raise RuntimeError(
+                "Use .with_action() or .with_task() for calling non local task"
+            )
+
+        assert isinstance(prep_task, PrepLocalCtx), prep_task
+        ctx = await self.with_matrix(prep_task.strategy, prep_task.matrix)
+        ctx = replace(ctx, _needs=needs, _cache=prep_task.cache)
+
+        action_ctx = await LocalActionContext.create(
+            self._prefix + (prep_task.real_id,),  # unused
+            prep_task.action,
+            self._config_loader,
+            self.tags,
+        )
+        action_ctx = await action_ctx.with_inputs(
+            {k: await v.eval(ctx) for k, v in prep_task.args.items()}
+        )
+        return await action_ctx.with_cmd()
 
     async def with_task(
         self: _CtxT, real_id: str, *, needs: NeedsCtx, state: Optional[StateCtx]
@@ -1341,6 +1401,35 @@ class LiveActionContext(ActionContext):
 
 
 @dataclass(frozen=True)
+class LocalActionContext(ActionContext):
+    _cmd: Optional[str] = None
+
+    @classmethod
+    async def create(
+        cls: Type[_CtxT],
+        prefix: FullID,
+        action: str,
+        config_loader: ConfigLoader,
+        tags: AbstractSet[str],
+    ) -> _CtxT:
+        ret = await super(cls, LocalActionContext).create(
+            prefix, action, config_loader, tags
+        )
+        ret._check_kind(ast.ActionKind.LOCAL)
+        return cast(_CtxT, ret)
+
+    @property
+    def cmd(self) -> str:
+        assert self._cmd is not None
+        return self._cmd
+
+    async def with_cmd(self) -> "LocalActionContext":
+        assert isinstance(self._ast, ast.LocalAction)
+        shell = await self._ast.cmd.eval(self)
+        return replace(self, _cmd=shell)
+
+
+@dataclass(frozen=True)
 class StatefulActionContext(ActionContext):
     @classmethod
     async def create(
@@ -1391,13 +1480,10 @@ class BatchActionContext(TaskContext, ActionContext):
 
         return cast(_CtxT, replace(ctx, _prefix=prefix, _prep_tasks=prep_tasks))
 
-    async def get_output_needs(self) -> AbstractSet[FullID]:
+    async def get_output_needs(self) -> AbstractSet[str]:
         assert isinstance(self._ast, ast.BatchAction)
         if self._ast.outputs:
-            return {
-                self._prefix + (await need.eval(self),)
-                for need in self._ast.outputs.needs
-            }
+            return {await need.eval(self) for need in self._ast.outputs.needs}
         return set()
 
     async def calc_outputs(self, needs: NeedsCtx, *, is_cancelling: bool) -> DepCtx:

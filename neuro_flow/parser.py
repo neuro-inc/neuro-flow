@@ -1110,10 +1110,16 @@ STATEFUL_ACTION: Dict[str, Any] = {
     **BASE_ACTION,
 }
 
+LOCAL_ACTION: Dict[str, Any] = {
+    "cmd": StrExpr,
+    **BASE_ACTION,
+}
+
 ACTION = {
     **LIVE_ACTION,
     **BATCH_ACTION,
     **STATEFUL_ACTION,
+    **LOCAL_ACTION,
 }
 
 
@@ -1129,6 +1135,8 @@ def preprocess_action(
         ret = {k: v for k, v in dct.items() if k in BATCH_ACTION}
     elif kind == ast.ActionKind.STATEFUL:
         ret = {k: v for k, v in dct.items() if k in STATEFUL_ACTION}
+    elif kind == ast.ActionKind.LOCAL:
+        ret = {k: v for k, v in dct.items() if k in LOCAL_ACTION}
     else:
         raise ConstructorError(
             f"missing mandatory key 'kind'",
@@ -1177,9 +1185,11 @@ def find_action_type(
         ret = ast.BatchAction
     elif kind == ast.ActionKind.STATEFUL:
         ret = ast.StatefulAction
+    elif kind == ast.ActionKind.LOCAL:
+        ret = ast.LocalAction
     else:
         raise ConnectionError(f"unknown kind {kind} of the action", node.start_mark)
-    if issubclass(ret, (ast.LiveAction, ast.StatefulAction)):
+    if issubclass(ret, (ast.LiveAction, ast.StatefulAction, ast.LocalAction)):
         for name, val in arg.get("outputs", {}).items():
             if val.value.pattern is not None:
                 raise ConnectionError(

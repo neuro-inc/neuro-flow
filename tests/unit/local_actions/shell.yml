@@ -1,0 +1,8 @@
+kind: local
+name: shell action
+author: Roman Skurikhin
+descr: Action that passes code to shell
+inputs:
+  shell:
+    descr: shell code
+cmd: ${{ inputs.shell }}

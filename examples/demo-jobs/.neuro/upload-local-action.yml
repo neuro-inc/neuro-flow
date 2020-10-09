@@ -1,0 +1,11 @@
+kind: local
+name: Upload files to storage
+author: Roman Skirikhin
+descr: Uploads files to neuro storage
+inputs:
+  from:
+    descr: Local path
+  to:
+    descr: "Path on storage. Should start with 'storage:'"
+cmd:
+  neuro cp -r ${{ inputs.from }} ${{ inputs.to }}

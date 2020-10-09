@@ -231,6 +231,7 @@ class ActionKind(enum.Enum):
     LIVE = "live"  # live composite
     BATCH = "batch"  # batch composite
     STATEFUL = "stateful"  # stateful, can be used in batch flow
+    LOCAL = "local"  # runs locally, can be used in batch flow
 
 
 @dataclass(frozen=True)
@@ -284,3 +285,9 @@ class StatefulAction(BaseAction):
     main: ExecUnit
     post: Optional[ExecUnit] = field(metadata={"allow_none": True})
     post_if: EnableExpr = field(metadata={"default_expr": "${{ always() }}"})
+
+
+@dataclass(frozen=True)
+class LocalAction(BaseAction):
+    outputs: Optional[Mapping[str, Output]] = field(metadata={"allow_none": True})
+    cmd: StrExpr

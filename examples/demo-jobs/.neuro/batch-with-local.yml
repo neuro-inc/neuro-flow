@@ -1,0 +1,13 @@
+kind: batch
+tasks:
+  - action: ws:.neuro/upload-local-action.yml
+    args:
+      from: ${{ flow.workspace }}/README.md
+      to: "storage:${{ flow.project_id }}/README.md"
+
+  - image: ubuntu
+    id: print_readme
+    volumes:
+      - "storage:${{ flow.project_id }}:/mnt/storage:ro"
+    bash:
+      echo ::set-output name=readme::`cat /mnt/storage/README.md`

@@ -6,16 +6,18 @@ import click
 import datetime
 import json
 import sys
-import tempfile
-from neuromation.api import (
-    Client,
-    Container,
-    HTTPPort,
-    JobDescription,
-    JobStatus,
-    Resources,
+from neuromation.api import Client, Container, HTTPPort, JobStatus, Resources
+from typing import (
+    AbstractSet,
+    Dict,
+    Generic,
+    Iterable,
+    Mapping,
+    Optional,
+    Set,
+    Tuple,
+    TypeVar,
 )
-from typing import AbstractSet, AsyncIterator, Dict, List, Optional, Tuple
 
 from .commands import CmdProcessor
 from .config_loader import BatchRemoteCL
@@ -23,12 +25,13 @@ from .context import (
     BatchActionContext,
     BatchContext,
     DepCtx,
+    LocalActionContext,
     NeedsCtx,
     StateCtx,
     TaskContext,
 )
 from .storage import Attempt, BatchStorage, FinishedTask, StartedTask
-from .types import AlwaysT, FullID, LocalPath, TaskStatus
+from .types import AlwaysT, FullID, TaskStatus
 from .utils import TERMINATED_JOB_STATUSES, fmt_id, fmt_raw_id, fmt_status
 
 
@@ -62,23 +65,166 @@ class ExecutorData:
         return cls(**data)
 
 
+_T = TypeVar("_T")
+
+
+class Graph(Generic[_T]):
+    """TopologicalSorter that allows to embed sub graphs in nodes
+
+    Instance of this graph is constructed by provided simple graph
+    specification. After that, additional graphs can be embedded
+    to nodes of this (or previously embedded) graph. Each node
+    has can address using FullID, where each component is names
+    node in some graphs. For example, node id ('top', 'node')
+    Is a node of graph is embedded to node 'top' of the main top
+    level graph.
+
+    Node is considered ready when it is ready inside its graph
+    and the parent node is ready. Top level graph is ready by
+    default.
+
+    Each graph can be annotated with some metadata.
+    """
+
+    def __init__(self, graph: Mapping[str, Iterable[str]], meta: _T):
+        topo = graphlib.TopologicalSorter(graph)
+        self._topos: Dict[FullID, "graphlib.TopologicalSorter[str]"] = {(): topo}
+        self._metas: Dict[FullID, _T] = {(): meta}
+        topo.prepare()
+        self._ready: Set[FullID] = set()
+        self._done: Set[FullID] = set()
+        self._embeds_done: Set[FullID] = set()
+        self._process_ready(())
+
+    @property
+    def is_active(self) -> bool:
+        return bool(self._ready)
+
+    def get_ready(self) -> AbstractSet[FullID]:
+        return set(self._ready)
+
+    def get_ready_with_meta(self) -> Iterable[Tuple[FullID, _T]]:
+        for ready in set(self._ready):
+            yield ready, self._metas[ready[:-1]]
+
+    def get_meta(self, node: FullID) -> _T:
+        prefix = node[:-1]
+        assert prefix in self._topos, f"Parent graph for node {node} not found"
+        return self._metas[prefix]
+
+    def get_ready_done_embeds(self) -> AbstractSet[FullID]:
+        return self._ready & self._embeds_done
+
+    def mark_done(self, node: FullID) -> None:
+        if node in self._topos:
+            assert not self._topos[node].is_active(), (
+                f"Node '{node}' cannot be set ready when "
+                "embeded graph is still in progress"
+            )
+        prefix, item = node[:-1], node[-1]
+        assert prefix in self._topos, f"Parent graph for node {node} not found"
+        topo = self._topos[prefix]
+        topo.done(item)
+        if not topo.is_active() and prefix != ():
+            self._embeds_done.add(prefix)
+        else:
+            self._process_ready(prefix)
+        self._ready.remove(node)
+        self._done.add(node)
+
+    def embed(self, node: FullID, graph: Mapping[str, Iterable[str]], meta: _T) -> None:
+        prefix = node[:-1]
+        assert node not in self._done, f"Cannot embed to already done node {node}"
+        assert prefix in self._topos, f"Parent graph for node {node} not found"
+        self._topos[node] = graphlib.TopologicalSorter(graph)
+        self._topos[node].prepare()
+        self._metas[node] = meta
+        if node in self._ready:
+            self._process_ready(node)
+
+    def _process_ready(self, prefix: FullID) -> None:
+        # Collects ready node from subgraphs recursively
+        for ready in self._topos[prefix].get_ready():
+            node = prefix + (ready,)
+            self._ready.add(node)
+            if node in self._topos:
+                self._process_ready(node)
+
+
+class BakeTasksManager:
+    def __init__(self) -> None:
+        self._started: Dict[FullID, StartedTask] = {}
+        self._finished: Dict[FullID, FinishedTask] = {}
+
+    @property
+    def started(self) -> Mapping[FullID, StartedTask]:
+        return self._started
+
+    @property
+    def finished(self) -> Mapping[FullID, FinishedTask]:
+        return self._finished
+
+    @property
+    def running_tasks(self) -> Mapping[FullID, StartedTask]:
+        return {
+            key: value
+            for key, value in self.started.items()
+            if key not in self.finished and value.raw_id
+        }
+
+    def count_running(self, prefix: FullID = ()) -> int:
+        def _with_prefix(full_id: FullID) -> bool:
+            return all(x == y for x, y in zip(prefix, full_id))
+
+        return len(
+            {
+                k: v
+                for k, v in self._started.items()
+                if k not in self._finished and v.raw_id and _with_prefix(k)
+            }
+        )
+
+    def add_started(self, task: StartedTask) -> None:
+        self._started[task.id] = task
+
+    def add_finished(self, task: FinishedTask) -> None:
+        self._finished[task.id] = task
+
+    def build_needs(self, prefix: FullID, deps: AbstractSet[str]) -> NeedsCtx:
+        needs = {}
+        for dep_id in deps:
+            full_id = prefix + (dep_id,)
+            dep = self._finished.get(full_id)
+            if dep is None:
+                raise NotFinished(full_id)
+            needs[dep_id] = DepCtx(TaskStatus(dep.status), dep.outputs)
+        return needs
+
+    def build_state(self, state_from: Optional[FullID]) -> Optional[StateCtx]:
+        if state_from is None:
+            return None
+        dep = self._finished.get(state_from)
+        if dep is None:
+            raise NotFinished(state_from)
+        return dep.state
+
+
 class BatchExecutor:
     def __init__(
         self,
-        executor_data: ExecutorData,
+        top_ctx: TaskContext,
+        attempt: Attempt,
         client: Client,
         storage: BatchStorage,
+        *,
         polling_timeout: float = 1,
     ) -> None:
-        self._executor_data = executor_data
+        self._top_ctx = top_ctx
+        self._attempt = attempt
         self._client = client
         self._storage = storage
-        self._topos: Dict[
-            FullID,
-            Tuple[TaskContext, "graphlib.TopologicalSorter[FullID]", List[FullID]],
-        ] = {}
-        self._started: Dict[FullID, StartedTask] = {}
-        self._finished: Dict[FullID, FinishedTask] = {}
+        self._graphs: Graph[TaskContext] = Graph(top_ctx.graph, top_ctx)
+        self._tasks_mgr = BakeTasksManager()
         self._is_cancelling = False
 
         # A note about default value:
@@ -88,275 +234,265 @@ class BatchExecutor:
         # The missing events subsystem would be great for this task :)
         self._polling_timeout = polling_timeout
 
-    async def run(self) -> None:
-        with tempfile.TemporaryDirectory(prefix="bake") as tmp:
-            root_dir = LocalPath(tmp)
-            click.echo(f"Root dir {root_dir}")
-            workspace = root_dir / self._executor_data.project
-            workspace.mkdir()
+    @classmethod
+    async def create(
+        cls,
+        executor_data: ExecutorData,
+        client: Client,
+        storage: BatchStorage,
+        *,
+        polling_timeout: float = 1,
+    ) -> "BatchExecutor":
+        click.echo("Fetch bake data")
+        bake = await storage.fetch_bake(
+            executor_data.project,
+            executor_data.batch,
+            executor_data.when,
+            executor_data.suffix,
+        )
 
-            click.echo("Fetch bake init")
-            bake = await self._storage.fetch_bake(
-                self._executor_data.project,
-                self._executor_data.batch,
-                self._executor_data.when,
-                self._executor_data.suffix,
-            )
+        click.echo("Fetch configs metadata")
+        meta = await storage.fetch_configs_meta(bake)
+        config_loader = BatchRemoteCL(
+            meta,
+            load_from_storage=lambda name: storage.fetch_config(bake, name),
+        )
+        top_ctx = await BatchContext.create(config_loader, bake.batch)
 
-            click.echo("Fetch configs")
-            meta = await self._storage.fetch_configs_meta(bake)
-            config_loader = BatchRemoteCL(
-                meta,
-                load_from_storage=lambda name: self._storage.fetch_config(bake, name),
-            )
+        click.echo("Find last attempt")
+        attempt = await storage.find_attempt(bake)
 
-            top_ctx = await BatchContext.create(config_loader, bake.batch)
+        return cls(
+            top_ctx,
+            attempt,
+            client,
+            storage,
+            polling_timeout=polling_timeout,
+        )
 
-            click.echo("Find last attempt")
-            attempt = await self._storage.find_attempt(bake)
-            if attempt.result == JobStatus.CANCELLED:
-                self._is_cancelling = True
-            elif attempt.result in TERMINATED_JOB_STATUSES:
-                str_attempt_status = fmt_status(attempt.result)
-                click.echo(f"Attempt #{attempt.number} is already {str_attempt_status}")
+    async def _refresh_attempt(self) -> None:
+        self._attempt = await self._storage.find_attempt(
+            self._attempt.bake, self._attempt.number
+        )
+
+    # Exact task/action contexts helpers
+
+    async def _enter_task_ctx(self, full_id: FullID) -> TaskContext:
+        prefix, tid = full_id[:-1], full_id[-1]
+        ctx = self._graphs.get_meta(full_id)
+        needs = self._tasks_mgr.build_needs(prefix, ctx.graph[tid])
+        state = self._tasks_mgr.build_state(await ctx.state_from(tid))
+        return await ctx.with_task(tid, needs=needs, state=state)
+
+    async def _enter_local_ctx(self, full_id: FullID) -> LocalActionContext:
+        prefix, tid = full_id[:-1], full_id[-1]
+        ctx = self._graphs.get_meta(full_id)
+        needs = self._tasks_mgr.build_needs(prefix, ctx.graph[tid])
+        return await ctx.with_local(tid, needs=needs)
+
+    async def _enter_action_ctx(self, full_id: FullID) -> BatchActionContext:
+        prefix, tid = full_id[:-1], full_id[-1]
+        ctx = self._graphs.get_meta(full_id)
+        needs = self._tasks_mgr.build_needs(prefix, ctx.graph[tid])
+        return await ctx.with_action(tid, needs=needs)
+
+    # Graph helpers
+
+    async def _embed_action(self, full_id: FullID) -> None:
+        action_ctx = await self._enter_action_ctx(full_id)
+        self._graphs.embed(full_id, action_ctx.graph, action_ctx)
+
+    # New tasks processers
+
+    async def _skip_task(self, full_id: FullID) -> None:
+        st, ft = await self._storage.skip_task(self._attempt, full_id)
+        self._tasks_mgr.add_started(st)
+        self._tasks_mgr.add_finished(ft)
+        str_skipped = click.style("skipped", fg="magenta")
+        click.echo(f"Task {fmt_id(full_id)} is {str_skipped}")
+        self._graphs.mark_done(full_id)
+
+    async def _process_local(self, full_id: FullID) -> None:
+        raise ValueError("Processing of local actions is not supported")
+
+    async def _process_action(self, full_id: FullID) -> None:
+        st = await self._storage.start_action(self._attempt, full_id)
+        self._tasks_mgr.add_started(st)
+        await self._embed_action(full_id)
+        str_started = click.style("started", fg="cyan")
+        click.echo(f"Action {fmt_id(st.id)} is {str_started}")
+
+    async def _process_task(self, full_id: FullID) -> None:
+        # Check is is task fits in max_parallel
+        for n in range(1, len(full_id) + 1):
+            node = full_id[:n]
+            prefix = node[:-1]
+            ctx = self._graphs.get_meta(node)
+            if self._tasks_mgr.count_running(prefix) >= ctx.strategy.max_parallel:
                 return
 
-            click.echo(f"Fetch attempt #{attempt.number}")
-            (
-                self._started,
-                self._finished,
-            ) = await self._storage.fetch_attempt(attempt)
+        task_ctx = await self._enter_task_ctx(full_id)
 
-            async for prefix, ctx, topo in self._build_topo((), top_ctx):
-                self._topos[prefix] = (ctx, topo, [])
+        ft = await self._storage.check_cache(self._attempt, full_id, task_ctx)
+        if ft is not None:
+            str_cached = click.style("cached", fg="magenta")
+            click.echo(
+                f"Task {fmt_id(ft.id)} [{fmt_raw_id(ft.raw_id)}] " f"is {str_cached}"
+            )
+            assert ft.status == TaskStatus.SUCCEEDED
+            self._tasks_mgr.add_finished(ft)
+        else:
+            st = await self._start_task(task_ctx)
+            self._tasks_mgr.add_started(st)
+            str_started = click.style("started", fg="cyan")
+            raw_id = fmt_raw_id(st.raw_id)
+            click.echo(f"Task {fmt_id(st.id)} [{raw_id}] is {str_started}")
 
-            top_topo = self._topos[()][1]
+    async def _load_previous_run(self) -> None:
+        # Loads tasks that previous executor run processed.
+        # Do not handles fail fast option.
 
-            while top_topo.is_active():
-                for prefix, (ctx, topo, ready) in self._topos.copy().items():
-                    async for action_pre, action_ctx in self._process_topo(
-                        attempt,
-                        prefix,
-                        topo,
-                        ready,
-                        ctx,
-                    ):
-                        async for new_prefix, new_ctx, new_topo in self._build_topo(
-                            action_pre, action_ctx
-                        ):
-                            self._topos[new_prefix] = (new_ctx, new_topo, [])
+        started, finished = await self._storage.fetch_attempt(self._attempt)
+        while (started.keys() != self._tasks_mgr.started.keys()) or (
+            finished.keys() != self._tasks_mgr.finished.keys()
+        ):
+            for full_id, ctx in self._graphs.get_ready_with_meta():
+                if full_id not in started:
+                    continue
+                self._tasks_mgr.add_started(started[full_id])
+                if await ctx.is_action(full_id[-1]):
+                    await self._embed_action(full_id)
+                elif full_id in finished:
+                    self._tasks_mgr.add_finished(finished[full_id])
+                    self._graphs.mark_done(full_id)
+            for full_id in self._graphs.get_ready_done_embeds():
+                if full_id in finished:
+                    self._tasks_mgr.add_finished(finished[full_id])
+                    self._graphs.mark_done(full_id)
 
-                ok = await self._process_started(attempt)
+    async def _should_continue(self) -> bool:
+        return self._graphs.is_active
 
-                # Check for cancellation
-                if not self._is_cancelling:
-                    attempt = await self._storage.find_attempt(bake, attempt.number)
+    async def run(self) -> None:
+        await self._load_previous_run()
 
-                    if not ok or attempt.result == JobStatus.CANCELLED:
-                        self._is_cancelling = True
-                        await self._stop_running()
+        while await self._should_continue():
+            for full_id, ctx in self._graphs.get_ready_with_meta():
+                prefix, tid = full_id[:-1], full_id[-1]
+                if full_id in self._tasks_mgr.started:
+                    continue  # Already started
+                needs = self._tasks_mgr.build_needs(prefix, ctx.graph[tid])
+                enabled = await ctx.is_enabled(tid, needs=needs)
+                if not enabled or (self._is_cancelling and enabled is not AlwaysT()):
+                    # Make task started and immediatelly skipped
+                    await self._skip_task(full_id)
+                    continue
+                if await ctx.is_local(tid):
+                    await self._process_local(full_id)
+                elif await ctx.is_action(tid):
+                    await self._process_action(full_id)
+                else:
+                    await self._process_task(full_id)
 
-                await asyncio.sleep(self._polling_timeout)
+            ok = await self._process_started()
 
-            attempt_status = self._accumulate_result()
-            str_attempt_status = fmt_status(attempt_status)
-            if attempt.result not in TERMINATED_JOB_STATUSES:
-                await self._storage.finish_attempt(attempt, attempt_status)
-            click.echo(f"Attempt #{attempt.number} {str_attempt_status}")
+            # Check for cancellation
+            if not self._is_cancelling:
+                await self._refresh_attempt()
 
-    async def _always_enabled(self, full_id: FullID) -> bool:
-        prefix, tid = full_id[:-1], full_id[-1]
-        ctx, _, _ = self._topos[prefix]
-        needs = self._build_needs(prefix, ctx.graph[full_id])
-        return await ctx.is_enabled(tid, needs=needs) is AlwaysT()
+                if not ok or self._attempt.result == JobStatus.CANCELLED:
+                    self._is_cancelling = True
+                    await self._stop_running()
+
+            await asyncio.sleep(self._polling_timeout)
+
+        await self._finish_run()
+
+    async def _finish_run(self) -> None:
+        attempt_status = self._accumulate_result()
+        str_attempt_status = fmt_status(attempt_status)
+        if self._attempt.result not in TERMINATED_JOB_STATUSES:
+            await self._storage.finish_attempt(self._attempt, attempt_status)
+        click.echo(f"Attempt #{self._attempt.number} {str_attempt_status}")
 
     async def _stop_running(self) -> None:
-        for st in self._started.values():
-            if (
-                st.raw_id
-                and st.id not in self._finished
-                and not await self._always_enabled(st.id)
-            ):
+        for full_id, st in self._tasks_mgr.running_tasks.items():
+            task_context = await self._enter_task_ctx(full_id)
+            if task_context.task.enable is not AlwaysT():
                 click.echo(f"Task {fmt_id(st.id)} is being killed")
                 await self._client.jobs.kill(st.raw_id)
 
-    def _next_task_no(self) -> int:
-        return len(self._started) + len(self._finished)
+    async def _store_to_cache(self, ft: FinishedTask) -> None:
+        task_ctx = await self._enter_task_ctx(ft.id)
+        await self._storage.write_cache(self._attempt, task_ctx, ft)
 
-    async def _process_topo(
-        self,
-        attempt: Attempt,
-        prefix: FullID,
-        topo: graphlib.TopologicalSorter[FullID],
-        ready: List[FullID],
-        ctx: TaskContext,
-    ) -> AsyncIterator[Tuple[FullID, TaskContext]]:
-        running_tasks = {
-            k: v
-            for k, v in self._started.items()
-            if k not in self._finished and v.raw_id
-        }
-        budget = ctx.strategy.max_parallel - len(running_tasks)
-        if budget <= 0:
-            return
-
-        ready.extend(topo.get_ready())
-
-        for full_id in ready:
-            if full_id in self._started:
-                continue
-            if full_id in self._finished:
-                continue
-            tid = full_id[-1]
-            needs = self._build_needs(prefix, ctx.graph[full_id])
-            assert full_id[:-1] == prefix
-            enabled = await ctx.is_enabled(tid, needs=needs)
-            if not enabled or (self._is_cancelling and enabled is not AlwaysT()):
-                # Make task started and immediatelly skipped
-                skipped_task = await self._skip_task(
-                    attempt, self._next_task_no(), full_id
+    async def _process_started(self) -> bool:
+        # Process tasks
+        for full_id, st in self._tasks_mgr.running_tasks.items():
+            job_descr = await self._client.jobs.status(st.raw_id)
+            if job_descr.status in TERMINATED_JOB_STATUSES:
+                async with CmdProcessor() as proc:
+                    async for chunk in self._client.jobs.monitor(st.raw_id):
+                        async for line in proc.feed_chunk(chunk):
+                            pass
+                    async for line in proc.feed_eof():
+                        pass
+                ft = await self._storage.finish_task(
+                    self._attempt, st, job_descr, proc.outputs, proc.states
                 )
-                str_skipped = click.style("skipped", fg="magenta")
-                click.echo(f"Task {fmt_id(full_id)} is {str_skipped}")
-                self._finished[skipped_task.id] = skipped_task
-                topo.done(full_id)
-                continue
+                self._tasks_mgr.add_finished(ft)
+                self._graphs.mark_done(full_id)
 
-            if await ctx.is_action(tid):
-                action_ctx = await ctx.with_action(tid, needs=needs)
-                st = await self._storage.start_batch_action(
-                    attempt, self._next_task_no(), full_id
-                )
-                str_started = click.style("started", fg="cyan")
-                click.echo(f"Action {fmt_id(st.id)} is {str_started}")
-                self._started[st.id] = st
-                yield full_id, action_ctx
-            else:
-                state = self._build_state(await ctx.state_from(tid))
+                await self._store_to_cache(ft)
 
-                task_ctx = await ctx.with_task(tid, needs=needs, state=state)
-                ft = await self._storage.check_cache(
-                    attempt, self._next_task_no(), full_id, task_ctx
-                )
-                if ft is not None:
-                    str_cached = click.style("cached", fg="magenta")
-                    click.echo(
-                        f"Task {fmt_id(ft.id)} [{fmt_raw_id(ft.raw_id)}] "
-                        f"is {str_cached}"
-                    )
-                    assert ft.status == TaskStatus.SUCCEEDED
-                    await self._mark_finished(attempt, ft)
-                else:
-                    st = await self._start_task(
-                        attempt,
-                        self._next_task_no(),
-                        task_ctx,
-                    )
-                    str_started = click.style("started", fg="cyan")
-                    raw_id = fmt_raw_id(st.raw_id)
-                    click.echo(f"Task {fmt_id(st.id)} [{raw_id}] is {str_started}")
-                    self._started[st.id] = st
-                    budget -= 1
-                    if budget <= 0:
-                        return
-
-    async def _process_started(self, attempt: Attempt) -> bool:
-        for st in self._started.values():
-            if st.id in self._finished:
-                continue
-            str_full_id = fmt_id(st.id)
-            if st.raw_id:
-                ctx, topo, ready = self._topos[st.id[:-1]]
-                # (sub)task
-                status = await self._client.jobs.status(st.raw_id)
-                if status.status in TERMINATED_JOB_STATUSES:
-                    if not await self._finish_task(
-                        attempt,
-                        self._next_task_no(),
-                        st,
-                        status,
-                    ):
-                        return False
-            else:
-                # (sub)action
-                ctx, topo, ready = self._topos[st.id]
-                if topo.is_active():
-                    # the action is still in progress
-                    continue
-
-                # done, make it finished
-                assert isinstance(ctx, BatchActionContext)
-
-                needs = self._build_needs(ctx.prefix, await ctx.get_output_needs())
-                outputs = await ctx.calc_outputs(
-                    needs, is_cancelling=self._is_cancelling
-                )
-
-                ft = await self._storage.finish_batch_action(
-                    attempt,
-                    self._next_task_no(),
-                    st,
-                    outputs,
-                )
-                self._finished[st.id] = ft
-                str_status = fmt_status(self._finished[st.id].status)
+                str_status = fmt_status(ft.status)
+                raw_id = fmt_raw_id(ft.raw_id)
                 click.echo(
-                    f"Action {str_full_id} is {str_status}"
+                    f"Task {fmt_id(ft.id)} [{raw_id}] is {str_status}"
                     + (" with following outputs:" if ft.outputs else "")
                 )
                 for key, value in ft.outputs.items():
                     click.echo(f"  {key}: {value}")
-                parent_ctx, parent_topo, parent_ready = self._topos[st.id[:-1]]
-                parent_topo.done(st.id)
+
+                task_ctx = await self._enter_task_ctx(st.id)
                 if (
-                    self._finished[st.id].status != TaskStatus.SUCCEEDED
-                    and parent_ctx.strategy.fail_fast
+                    job_descr.status != JobStatus.SUCCEEDED
+                    and task_ctx.strategy.fail_fast
                 ):
                     return False
+                else:
+                    return True
+        # Process batch actions
+        for full_id in self._graphs.get_ready_done_embeds():
+            # done action, make it finished
+            ctx = await self._enter_action_ctx(full_id)
+
+            needs = self._tasks_mgr.build_needs(full_id, await ctx.get_output_needs())
+            outputs = await ctx.calc_outputs(needs, is_cancelling=self._is_cancelling)
+
+            ft = await self._storage.finish_action(
+                self._attempt,
+                self._tasks_mgr.started[full_id],
+                outputs,
+            )
+            self._tasks_mgr.add_finished(ft)
+
+            str_status = fmt_status(ft.status)
+            click.echo(
+                f"Action {fmt_id(ft.id)} is {str_status}"
+                + (" with following outputs:" if ft.outputs else "")
+            )
+            for key, value in ft.outputs.items():
+                click.echo(f"  {key}: {value}")
+
+            parent_ctx = self._graphs.get_meta(full_id)
+            self._graphs.mark_done(full_id)
+            if ft.status != TaskStatus.SUCCEEDED and parent_ctx.strategy.fail_fast:
+                return False
         return True
 
-    def _build_needs(self, prefix: FullID, deps: AbstractSet[FullID]) -> NeedsCtx:
-        needs = {}
-        for full_id in deps:
-            dep_id = full_id[-1]
-            dep = self._finished.get(full_id)
-            if dep is None:
-                raise NotFinished(full_id)
-            needs[dep_id] = DepCtx(TaskStatus(dep.status), dep.outputs)
-        return needs
-
-    def _build_state(self, state_from: Optional[FullID]) -> Optional[StateCtx]:
-        if state_from is None:
-            return None
-        dep = self._finished.get(state_from)
-        if dep is None:
-            raise NotFinished(state_from)
-        return dep.state
-
-    async def _build_topo(
-        self, prefix: FullID, ctx: TaskContext
-    ) -> AsyncIterator[
-        Tuple[FullID, TaskContext, "graphlib.TopologicalSorter[FullID]"]
-    ]:
-        graph = ctx.graph
-        topo = graphlib.TopologicalSorter(graph)
-        topo.prepare()
-        for full_id in graph:
-            if full_id in self._finished:
-                topo.done(full_id)
-            elif await ctx.is_action(full_id[-1]):
-                if full_id not in self._started:
-                    continue
-                needs = self._build_needs(prefix, graph[full_id])
-                action_ctx = await ctx.with_action(full_id[-1], needs=needs)
-                async for sub_pre, sub_ctx, sub_topo in self._build_topo(
-                    full_id, action_ctx
-                ):
-                    yield sub_pre, sub_ctx, sub_topo
-        yield prefix, ctx, topo
-
     def _accumulate_result(self) -> JobStatus:
-        for task in self._finished.values():
+        for task in self._tasks_mgr.finished.values():
             if task.status == TaskStatus.CANCELLED:
                 return JobStatus.CANCELLED
             elif task.status == TaskStatus.FAILED:
@@ -364,9 +500,7 @@ class BatchExecutor:
 
         return JobStatus.SUCCEEDED
 
-    async def _start_task(
-        self, attempt: Attempt, task_no: int, task_ctx: TaskContext
-    ) -> StartedTask:
+    async def _start_task(self, task_ctx: TaskContext) -> StartedTask:
         task = task_ctx.task
 
         preset_name = task.preset
@@ -413,63 +547,81 @@ class BatchExecutor:
             description=task.title,
             life_span=task.life_span,
         )
-        return await self._storage.start_task(attempt, task_no, task.full_id, job)
+        return await self._storage.start_task(self._attempt, task.full_id, job)
 
-    async def _skip_task(
-        self, attempt: Attempt, task_no: int, full_id: FullID
-    ) -> FinishedTask:
-        return await self._storage.skip_task(attempt, task_no, full_id)
 
-    async def _finish_task(
-        self,
-        attempt: Attempt,
-        task_no: int,
-        task: StartedTask,
-        descr: JobDescription,
-    ) -> bool:
-        async with CmdProcessor() as proc:
-            async for chunk in self._client.jobs.monitor(task.raw_id):
-                async for line in proc.feed_chunk(chunk):
-                    pass
-            async for line in proc.feed_eof():
-                pass
-        ft = await self._storage.finish_task(
-            attempt, task_no, task, descr, proc.outputs, proc.states
+class LocalsBatchExecutor(BatchExecutor):
+    @classmethod
+    async def create(
+        cls,
+        executor_data: ExecutorData,
+        client: Client,
+        storage: BatchStorage,
+        *,
+        polling_timeout: Optional[float] = None,
+    ) -> "BatchExecutor":
+        assert (
+            polling_timeout is None
+        ), "polling_timeout is disabled for LocalsBatchExecutor"
+        return await super(cls, LocalsBatchExecutor).create(
+            executor_data, client, storage, polling_timeout=0
         )
-        await self._mark_finished(attempt, ft)
-        prefix = ft.id[:-1]
-        ctx, topo, ready = self._topos[prefix]
-        needs = self._build_needs(prefix, ctx.graph[ft.id])
-        state = self._build_state(await ctx.state_from(ft.id[-1]))
-        task_ctx = await ctx.with_task(ft.id[-1], needs=needs, state=state)
-        await self._storage.write_cache(attempt, task_ctx, ft)
+
+    async def _process_local(self, full_id: FullID) -> None:
+        local_ctx = await self._enter_local_ctx(full_id)
+        st = await self._storage.start_action(self._attempt, full_id)
+        self._tasks_mgr.add_started(st)
+        str_started = click.style("started", fg="cyan")
+        click.echo(f"Local action {fmt_id(st.id)} is {str_started}")
+
+        root_ctx = self._graphs.get_meta(())
+        assert isinstance(root_ctx, BatchContext)
+
+        subprocess = await asyncio.create_subprocess_shell(
+            local_ctx.cmd,
+            stdout=asyncio.subprocess.PIPE,
+            cwd=root_ctx.flow.workspace,
+        )
+        (stdout_data, stderr_data) = await subprocess.communicate()
+        async with CmdProcessor() as proc:
+            async for line in proc.feed_chunk(stdout_data):
+                click.echo(line)
+            async for line in proc.feed_eof():
+                click.echo(line)
+        if subprocess.returncode == 0:
+            result_status = TaskStatus.SUCCEEDED
+        else:
+            result_status = TaskStatus.FAILED
+        ft = await self._storage.finish_action(
+            self._attempt,
+            st,
+            DepCtx(
+                result=result_status,
+                outputs=proc.outputs,
+            ),
+        )
+        self._tasks_mgr.add_finished(ft)
+        self._graphs.mark_done(full_id)
+
         str_status = fmt_status(ft.status)
-        raw_id = fmt_raw_id(ft.raw_id)
         click.echo(
-            f"Task {fmt_id(ft.id)} [{raw_id}] is {str_status}"
+            f"Action {fmt_id(ft.id)} is {str_status}"
             + (" with following outputs:" if ft.outputs else "")
         )
         for key, value in ft.outputs.items():
             click.echo(f"  {key}: {value}")
-        if descr.status != JobStatus.SUCCEEDED and ctx.strategy.fail_fast:
-            return False
-        else:
-            return True
 
-    async def _mark_finished(self, attempt: Attempt, ft: FinishedTask) -> None:
-        self._finished[ft.id] = ft
-        ctx, topo, ready = self._topos[ft.id[:-1]]
-        topo.done(ft.id)
+    async def _process_action(self, full_id: FullID) -> None:
+        pass  # Skip for local
 
-    async def run_subproc(self, exe: str, *args: str) -> None:
-        proc = await asyncio.create_subprocess_exec(exe, *args)
-        try:
-            retcode = await proc.wait()
-            if retcode:
-                raise SystemExit(retcode)
-        finally:
-            if proc.returncode is None:
-                # Kill neuro process if not finished
-                # (e.g. if KeyboardInterrupt or cancellation was received)
-                proc.kill()
-                await proc.wait()
+    async def _process_task(self, full_id: FullID) -> None:
+        pass  # Skip for local
+
+    async def _should_continue(self) -> bool:
+        for full_id, ctx in self._graphs.get_ready_with_meta():
+            if await ctx.is_local(full_id[-1]):
+                return True
+        return False
+
+    async def _finish_run(self) -> None:
+        pass  # Do nothing for locals run

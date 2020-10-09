@@ -2,6 +2,8 @@ from dataclasses import replace
 
 import asyncio
 import pytest
+import shutil
+import sys
 from datetime import datetime
 from neuromation.api import (
     Client,
@@ -30,13 +32,13 @@ from typing import (
     Tuple,
     cast,
 )
-from unittest.mock import ANY
 from yarl import URL
 
-from neuro_flow.batch_executor import BatchExecutor, ExecutorData
+from neuro_flow.batch_executor import BatchExecutor, ExecutorData, LocalsBatchExecutor
 from neuro_flow.batch_runner import BatchRunner
 from neuro_flow.parser import ConfigDir
 from neuro_flow.storage import Bake, BatchFSStorage, BatchStorage, LocalFS
+from neuro_flow.types import LocalPath
 
 
 MakeBatchRunner = Callable[[Path], Awaitable[BatchRunner]]
@@ -274,13 +276,25 @@ async def patched_client(
 
 
 @pytest.fixture()
+def start_locals_executor(
+    batch_storage: BatchStorage, patched_client: Client
+) -> Callable[[ExecutorData], Awaitable[None]]:
+    async def start(data: ExecutorData) -> None:
+        executor = await LocalsBatchExecutor.create(data, patched_client, batch_storage)
+        await executor.run()
+
+    return start
+
+
+@pytest.fixture()
 def start_executor(
     batch_storage: BatchStorage, patched_client: Client
 ) -> Callable[[ExecutorData], Awaitable[None]]:
     async def start(data: ExecutorData) -> None:
-        await BatchExecutor(
+        executor = await BatchExecutor.create(
             data, patched_client, batch_storage, polling_timeout=0.01
-        ).run()
+        )
+        await executor.run()
 
     return start
 
@@ -288,11 +302,13 @@ def start_executor(
 @pytest.fixture()
 def run_executor(
     make_batch_runner: MakeBatchRunner,
+    start_locals_executor: Callable[[ExecutorData], Awaitable[None]],
     start_executor: Callable[[ExecutorData], Awaitable[None]],
 ) -> Callable[[Path, str], Awaitable[None]]:
     async def run(config_loc: Path, batch_name: str) -> None:
         runner = await make_batch_runner(config_loc)
         data = await runner._setup_exc_data(batch_name)
+        await start_locals_executor(data)
         await start_executor(data)
 
     return run
@@ -530,6 +546,31 @@ async def test_always_during_cancellation(
     await executor_task
 
 
+@pytest.mark.skipif(  # type: ignore
+    sys.platform == "win32", reason="cp command is not support by Windows"
+)
+async def test_local_action(
+    jobs_mock: JobsMock,
+    assets: Path,
+    run_executor: Callable[[Path, str], Awaitable[None]],
+) -> None:
+    with TemporaryDirectory() as dir:
+        ws = LocalPath(dir) / "local_actions"
+        shutil.copytree(assets / "local_actions", ws)
+
+        executor_task = asyncio.ensure_future(run_executor(ws, "call-cp"))
+        descr = await jobs_mock.get_task("remote-task")
+        assert descr.container.command
+        assert "echo 0" in descr.container.command
+
+        assert (ws / "file").read_text() == "test\n"
+        assert (ws / "file_copy").read_text() == "test\n"
+
+        await jobs_mock.mark_done("remote-task")
+
+        await executor_task
+
+
 async def test_stateful_no_post(
     jobs_mock: JobsMock,
     assets: Path,
@@ -624,10 +665,9 @@ async def test_restart(batch_storage: BatchStorage, batch_runner: BatchRunner) -
     attempt = await batch_storage.find_attempt(bake)
     job_1 = ("task-1",)
     job_2 = ("task-2",)
-    st1 = await batch_storage.start_task(attempt, 1, job_1, make_descr("job:task-1"))
+    st1 = await batch_storage.start_task(attempt, job_1, make_descr("job:task-1"))
     ft1 = await batch_storage.finish_task(
         attempt,
-        2,
         st1,
         make_descr(
             "job:task-1",
@@ -639,10 +679,9 @@ async def test_restart(batch_storage: BatchStorage, batch_runner: BatchRunner) -
         {},
         {},
     )
-    st2 = await batch_storage.start_task(attempt, 1, job_2, make_descr("job:task-2"))
+    st2 = await batch_storage.start_task(attempt, job_2, make_descr("job:task-2"))
     await batch_storage.finish_task(
         attempt,
-        2,
         st2,
         make_descr(
             "job:task-2",
@@ -665,5 +704,5 @@ async def test_restart(batch_storage: BatchStorage, batch_runner: BatchRunner) -
     started, finished = await batch_storage.fetch_attempt(attempt2)
     assert list(started.keys()) == [job_1]
     assert list(finished.keys()) == [job_1]
-    assert started[job_1] == replace(st1, attempt=attempt2, number=ANY)
-    assert finished[job_1] == replace(ft1, attempt=attempt2, number=ANY)
+    assert started[job_1] == replace(st1, attempt=attempt2)
+    assert finished[job_1] == replace(ft1, attempt=attempt2)

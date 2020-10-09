@@ -215,7 +215,7 @@ async def test_pipeline_minimal_ctx(batch_config_loader: ConfigLoader) -> None:
     }
     assert ctx2.task.life_span == 10500.0
 
-    assert ctx.graph == {("test_a",): set()}
+    assert ctx.graph == {"test_a": set()}
     assert ctx2.matrix == {}
     assert ctx2.strategy.max_parallel == 10
     assert ctx2.strategy.fail_fast
@@ -243,7 +243,7 @@ async def test_pipeline_seq(batch_config_loader: ConfigLoader) -> None:
     assert ctx2.tags == {"project:unit", "flow:batch-seq", "task:task-2"}
     assert ctx2.task.life_span is None
 
-    assert ctx.graph == {("task-2",): {("task-1",)}, ("task-1",): set()}
+    assert ctx.graph == {"task-2": {"task-1"}, "task-1": set()}
     assert ctx2.matrix == {}
     assert ctx2.strategy.max_parallel == 10
     assert ctx2.strategy.fail_fast
@@ -271,7 +271,7 @@ async def test_pipeline_needs(batch_config_loader: ConfigLoader) -> None:
     assert ctx2.tags == {"project:unit", "flow:batch-needs", "task:task-2"}
     assert ctx2.task.life_span is None
 
-    assert ctx.graph == {("task-2",): {("task_a",)}, ("task_a",): set()}
+    assert ctx.graph == {"task-2": {"task_a"}, "task_a": set()}
     assert ctx2.matrix == {}
     assert ctx2.strategy.max_parallel == 10
     assert ctx2.strategy.fail_fast
@@ -285,10 +285,10 @@ async def test_pipeline_matrix(batch_config_loader: ConfigLoader) -> None:
     )
 
     assert ctx.graph == {
-        ("task-1-e3-o3-t3",): set(),
-        ("task-1-o1-t1",): set(),
-        ("task-1-o2-t1",): set(),
-        ("task-1-o2-t2",): set(),
+        "task-1-e3-o3-t3": set(),
+        "task-1-o1-t1": set(),
+        "task-1-o2-t1": set(),
+        "task-1-o2-t2": set(),
     }
 
     ctx2 = await ctx.with_task("task-1-o2-t2", needs={}, state={})
@@ -324,10 +324,10 @@ async def test_pipeline_matrix_with_strategy(batch_config_loader: ConfigLoader) 
     )
 
     assert ctx.graph == {
-        ("task-1-e3-o3-t3",): set(),
-        ("task-1-o1-t1",): set(),
-        ("task-1-o2-t1",): set(),
-        ("task-1-o2-t2",): set(),
+        "task-1-e3-o3-t3": set(),
+        "task-1-o1-t1": set(),
+        "task-1-o2-t1": set(),
+        "task-1-o2-t2": set(),
     }
 
     ctx2 = await ctx.with_task("task-1-e3-o3-t3", needs={}, state={})
@@ -364,13 +364,13 @@ async def test_pipeline_matrix_2(batch_config_loader: ConfigLoader) -> None:
     ctx = await BatchContext.create(batch_config_loader, "batch-matrix-with-deps")
 
     assert ctx.graph == {
-        ("task-2-a-1",): {("task_a",)},
-        ("task-2-a-2",): {("task_a",)},
-        ("task-2-b-1",): {("task_a",)},
-        ("task-2-b-2",): {("task_a",)},
-        ("task-2-c-1",): {("task_a",)},
-        ("task-2-c-2",): {("task_a",)},
-        ("task_a",): set(),
+        "task-2-a-1": {"task_a"},
+        "task-2-a-2": {"task_a"},
+        "task-2-b-1": {"task_a"},
+        "task-2-b-2": {"task_a"},
+        "task-2-c-1": {"task_a"},
+        "task-2-c-2": {"task_a"},
+        "task_a": set(),
     }
 
     assert ctx.cache == CacheCtx(
@@ -610,8 +610,8 @@ async def test_pipeline_with_batch_action(batch_config_loader: ConfigLoader) -> 
     assert ctx3.task.life_span is None
 
     assert ctx3.graph == {
-        ("test", "task_1"): set(),
-        ("test", "task_2"): {("test", "task_1")},
+        "task_1": set(),
+        "task_2": {"task_1"},
     }
     assert ctx3.matrix == {}
     assert ctx3.strategy.max_parallel == 10
