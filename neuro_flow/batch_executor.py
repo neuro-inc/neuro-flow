@@ -307,10 +307,9 @@ class BatchExecutor:
     async def _skip_task(self, full_id: FullID) -> None:
         st, ft = await self._storage.skip_task(self._attempt, full_id)
         self._tasks_mgr.add_started(st)
-        self._tasks_mgr.add_finished(ft)
+        self._mark_finished(ft)
         str_skipped = click.style("skipped", fg="magenta")
         click.echo(f"Task {fmt_id(full_id)} is {str_skipped}")
-        self._graphs.mark_done(full_id)
 
     async def _process_local(self, full_id: FullID) -> None:
         raise ValueError("Processing of local actions is not supported")
@@ -340,7 +339,7 @@ class BatchExecutor:
                 f"Task {fmt_id(ft.id)} [{fmt_raw_id(ft.raw_id)}] " f"is {str_cached}"
             )
             assert ft.status == TaskStatus.SUCCEEDED
-            self._tasks_mgr.add_finished(ft)
+            self._mark_finished(ft)
         else:
             st = await self._start_task(task_ctx)
             self._tasks_mgr.add_started(st)
@@ -363,12 +362,14 @@ class BatchExecutor:
                 if await ctx.is_action(full_id[-1]):
                     await self._embed_action(full_id)
                 elif full_id in finished:
-                    self._tasks_mgr.add_finished(finished[full_id])
-                    self._graphs.mark_done(full_id)
+                    self._mark_finished(finished[full_id])
             for full_id in self._graphs.get_ready_done_embeds():
                 if full_id in finished:
-                    self._tasks_mgr.add_finished(finished[full_id])
-                    self._graphs.mark_done(full_id)
+                    self._mark_finished(finished[full_id])
+
+    def _mark_finished(self, ft: FinishedTask) -> None:
+        self._tasks_mgr.add_finished(ft)
+        self._graphs.mark_done(ft.id)
 
     async def _should_continue(self) -> bool:
         return self._graphs.is_active
@@ -440,8 +441,7 @@ class BatchExecutor:
                 ft = await self._storage.finish_task(
                     self._attempt, st, job_descr, proc.outputs, proc.states
                 )
-                self._tasks_mgr.add_finished(ft)
-                self._graphs.mark_done(full_id)
+                self._mark_finished(ft)
 
                 await self._store_to_cache(ft)
 
@@ -475,7 +475,7 @@ class BatchExecutor:
                 self._tasks_mgr.started[full_id],
                 outputs,
             )
-            self._tasks_mgr.add_finished(ft)
+            self._mark_finished(ft)
 
             str_status = fmt_status(ft.status)
             click.echo(
@@ -486,7 +486,6 @@ class BatchExecutor:
                 click.echo(f"  {key}: {value}")
 
             parent_ctx = self._graphs.get_meta(full_id)
-            self._graphs.mark_done(full_id)
             if ft.status != TaskStatus.SUCCEEDED and parent_ctx.strategy.fail_fast:
                 return False
         return True
@@ -600,8 +599,7 @@ class LocalsBatchExecutor(BatchExecutor):
                 outputs=proc.outputs,
             ),
         )
-        self._tasks_mgr.add_finished(ft)
-        self._graphs.mark_done(full_id)
+        self._mark_finished(ft)
 
         str_status = fmt_status(ft.status)
         click.echo(

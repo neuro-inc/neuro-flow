@@ -706,3 +706,34 @@ async def test_restart(batch_storage: BatchStorage, batch_runner: BatchRunner) -
     assert list(finished.keys()) == [job_1]
     assert started[job_1] == replace(st1, attempt=attempt2)
     assert finished[job_1] == replace(ft1, attempt=attempt2)
+
+
+async def test_fully_cached_simple(
+    jobs_mock: JobsMock,
+    assets: Path,
+    run_executor: Callable[[Path, str], Awaitable[None]],
+) -> None:
+    executor_task = asyncio.ensure_future(run_executor(assets, "batch-seq"))
+
+    await jobs_mock.mark_done("task-1")
+    await jobs_mock.mark_done("task-2")
+    await executor_task
+
+    await run_executor(assets, "batch-seq")
+
+
+async def test_fully_cached_with_action(
+    jobs_mock: JobsMock,
+    assets: Path,
+    run_executor: Callable[[Path, str], Awaitable[None]],
+) -> None:
+    executor_task = asyncio.ensure_future(run_executor(assets, "batch-action-call"))
+    await jobs_mock.mark_done(
+        "test.task-1", "::set-output name=task1::Task 1 val 1".encode()
+    )
+    await jobs_mock.mark_done(
+        "test.task-2", "::set-output name=task2::Task 2 value 2".encode()
+    )
+    await executor_task
+
+    await run_executor(assets, "batch-action-call")
