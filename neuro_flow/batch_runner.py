@@ -17,7 +17,7 @@ from .commands import CmdProcessor
 from .config_loader import BatchLocalCL
 from .context import EMPTY_ROOT, BatchContext, DepCtx, TaskContext
 from .parser import ConfigDir
-from .storage import Attempt, Bake, BatchStorage, FinishedTask, StartedTask
+from .storage import Attempt, Bake, BatchStorage, FinishedTask
 from .types import FullID, LocalPath, TaskStatus
 from .utils import TERMINATED_JOB_STATUSES, fmt_id, fmt_raw_id, fmt_status
 
@@ -239,6 +239,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         )
 
         started, finished = await self._storage.fetch_attempt(attempt)
+        statuses = {}
         for task in started.values():
             task_id = task.id
             raw_id = task.raw_id
@@ -250,15 +251,18 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                         fmt_raw_id(raw_id),
                     ]
                 )
-            elif task_id in started:
-                info = await self._client.jobs.status(raw_id)
-                rows.append(
-                    [fmt_id(task_id), fmt_status(info.status.value), fmt_raw_id(raw_id)]
-                )
             else:
-                # Unreachable currently
+                if raw_id:
+                    info = await self._client.jobs.status(raw_id)
+                    statuses[task_id] = TaskStatus(info.status)
+                else:
+                    statuses[task_id] = TaskStatus.RUNNING
                 rows.append(
-                    [fmt_id(task_id), fmt_status(JobStatus.UNKNOWN), ""],
+                    [
+                        fmt_id(task_id),
+                        fmt_status(statuses[task_id]),
+                        fmt_raw_id(raw_id),
+                    ]
                 )
 
         for line in ftable.table(rows):
@@ -272,7 +276,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         dot.attr(compound="true")
         dot.node_attr = {"style": "filled"}
 
-        await self._subgraph(dot, graphs, (), {}, started, finished)
+        await self._subgraph(dot, graphs, (), {}, statuses, finished)
 
         if save_dot:
             click.echo(f"Saving file {dot.filename}")
@@ -290,7 +294,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         graphs: Mapping[FullID, Mapping[FullID, AbstractSet[FullID]]],
         prefix: FullID,
         anchors: Dict[str, str],
-        started: Dict[FullID, StartedTask],
+        statuses: Dict[FullID, TaskStatus],
         finished: Dict[FullID, FinishedTask],
     ) -> None:
         lhead: Optional[str]
@@ -309,8 +313,8 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             if task_id in finished:
                 status = finished[task_id].status
                 color = GRAPH_COLORS[status]
-            elif task_id in started:
-                color = GRAPH_COLORS[TaskStatus.RUNNING]
+            elif task_id in statuses:
+                color = GRAPH_COLORS[statuses[task_id]]
             else:
                 color = None
 
@@ -325,7 +329,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                         graphs,
                         task_id,
                         anchors,
-                        started,
+                        statuses,
                         finished,
                     )
                 tgt = anchors[tgt]
