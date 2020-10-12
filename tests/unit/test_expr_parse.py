@@ -358,7 +358,7 @@ def test_func_call_with_trailer_item() -> None:
     )
 
 
-@pytest.mark.parametrize(  # type: ignore
+@pytest.mark.parametrize(
     "op_str,op_func",
     [
         ("==", operator.eq),
@@ -387,7 +387,7 @@ def test_operator_parse(op_str: str, op_func: Any) -> None:
     ] == PARSER.parse(list(tokenize(f"""${{{{ foo {op_str} "bar" }}}}""", START)))
 
 
-@pytest.mark.parametrize(  # type: ignore
+@pytest.mark.parametrize(
     "op_str,op_func",
     [
         ("not", operator.not_),

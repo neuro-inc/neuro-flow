@@ -362,7 +362,7 @@ async def test_batch_with_action_ok(
     await executor_task
 
 
-@pytest.mark.parametrize(  # type: ignore
+@pytest.mark.parametrize(
     "batch_name,vars",
     [
         ("batch-matrix-1", [("o1", "t1"), ("o1", "t2"), ("o2", "t1"), ("o2", "t2")]),
@@ -391,7 +391,7 @@ async def test_batch_matrix(
     await executor_task
 
 
-@pytest.mark.parametrize(  # type: ignore
+@pytest.mark.parametrize(
     "batch_name,max_parallel,vars",
     [
         pytest.param(
@@ -546,7 +546,7 @@ async def test_always_during_cancellation(
     await executor_task
 
 
-@pytest.mark.skipif(  # type: ignore
+@pytest.mark.skipif(
     sys.platform == "win32", reason="cp command is not support by Windows"
 )
 async def test_local_action(

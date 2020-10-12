@@ -21,10 +21,10 @@ def test_neuro_not_found(tmp_path: Path) -> None:
         find_workspace(tmp_path)
 
 
-@pytest.mark.skipif(  # type: ignore
+@pytest.mark.skipif(
     sys.platform == "win32", reason="UNIX sockets are not supported by Windows"
 )
-@pytest.mark.skipif(  # type: ignore
+@pytest.mark.skipif(
     sys.platform == "darwin", reason="MacOS doesn't support too long UNIX socket names"
 )
 def test_not_a_file_explicit(tmp_path: Path) -> None:
@@ -36,10 +36,10 @@ def test_not_a_file_explicit(tmp_path: Path) -> None:
         find_workspace(f)
 
 
-@pytest.mark.skipif(  # type: ignore
+@pytest.mark.skipif(
     sys.platform == "win32", reason="UNIX sockets are not supported by Windows"
 )
-@pytest.mark.skipif(  # type: ignore
+@pytest.mark.skipif(
     sys.platform == "darwin", reason="MacOS doesn't support too long UNIX socket names"
 )
 async def test_not_a_file_implicit(tmp_path: Path) -> None:

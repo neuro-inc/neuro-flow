@@ -20,7 +20,7 @@ class DictContext(RootABC):
         self._dct = dct
 
 
-@pytest.mark.parametrize(  # type: ignore
+@pytest.mark.parametrize(
     "expr,context,result",
     [
         ('"foo" == "foo"', {}, True),
@@ -42,7 +42,7 @@ async def test_bool_evals(expr: str, context: Dict[str, TypeT], result: bool) ->
     assert result == await parsed[0].eval(DictContext(context))
 
 
-@pytest.mark.parametrize(  # type: ignore
+@pytest.mark.parametrize(
     "expr,statuses,result",
     [
         ("success()", [], True),
@@ -74,7 +74,7 @@ async def test_success_func(
     assert result == await parsed[0].eval(DictContext(context))  # type: ignore
 
 
-@pytest.mark.parametrize(  # type: ignore
+@pytest.mark.parametrize(
     "expr,statuses,result",
     [
         ("failure()", [], False),
