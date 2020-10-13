@@ -401,8 +401,42 @@ async def test_pipeline_matrix_2(batch_config_loader: ConfigLoader) -> None:
     )
 
 
-async def test_pipeline_args(batch_config_loader: ConfigLoader) -> None:
+async def test_pipeline_args_defautls_only(batch_config_loader: ConfigLoader) -> None:
     flow = await RunningBatchFlow.create(batch_config_loader, "batch-args")
+    ctx = flow._ctx
+
+    assert ctx.args == {"arg1": "val1", "arg2": "val2"}
+
+
+async def test_pipeline_args_replaced(batch_config_loader: ConfigLoader) -> None:
+    flow = await RunningBatchFlow.create(
+        batch_config_loader, "batch-args", {"arg1": "new-val"}
+    )
+    ctx = flow._ctx
+
+    assert ctx.args == {"arg1": "new-val", "arg2": "val2"}
+
+
+async def test_pipeline_args_extra(batch_config_loader: ConfigLoader) -> None:
+    with pytest.raises(ValueError, match=r"Unsupported arg\(s\): arg3"):
+        await RunningBatchFlow.create(
+            batch_config_loader, "batch-args", {"arg3": "new-val"}
+        )
+
+
+async def test_pipeline_args_missing_required(
+    batch_config_loader: ConfigLoader,
+) -> None:
+    with pytest.raises(
+        EvalError, match=r"Arg arg2 is not initialized and has no default value"
+    ):
+        await RunningBatchFlow.create(batch_config_loader, "batch-args-required", {})
+
+
+async def test_pipeline_args_required_set(batch_config_loader: ConfigLoader) -> None:
+    flow = await RunningBatchFlow.create(
+        batch_config_loader, "batch-args-required", {"arg2": "val2"}
+    )
     ctx = flow._ctx
 
     assert ctx.args == {"arg1": "val1", "arg2": "val2"}

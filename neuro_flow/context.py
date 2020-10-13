@@ -647,20 +647,28 @@ async def setup_inputs_ctx(
 
 async def setup_args_ctx(
     ctx: RootABC,
+    args: Optional[Mapping[str, str]],
     ast_args: Optional[Mapping[str, ast.Arg]],
 ) -> ArgsCtx:
-    args = {}
+    if args is None:
+        args = {}
+    new_args = {}
     if ast_args is not None:
         for k, v in ast_args.items():
-            default = await v.default.eval(ctx)
-            if default is None:
+            value = args.get(k) or await v.default.eval(ctx)
+            if value is None:
                 raise EvalError(
                     f"Arg {k} is not initialized and has no default value",
                     v._start,
                     v._end,
                 )
-            args[k] = default
-    return args
+            new_args[k] = value
+    extra = args.keys() - new_args.keys()
+    if extra:
+        raise ValueError(
+            f"Unsupported arg(s): {','.join(sorted(extra))}",
+        )
+    return new_args
 
 
 async def setup_strategy_ctx(
@@ -1112,14 +1120,17 @@ class RunningBatchFlow(RunningBatchBase[BatchContext]):
 
     @classmethod
     async def create(
-        cls, config_loader: ConfigLoader, batch: str
+        cls,
+        config_loader: ConfigLoader,
+        batch: str,
+        args: Optional[Mapping[str, str]] = None,
     ) -> "RunningBatchFlow":
         ast_flow = await config_loader.fetch_flow(batch)
 
         assert isinstance(ast_flow, ast.BatchFlow)
 
         flow_ctx = await setup_flow_ctx(EMPTY_ROOT, ast_flow, batch, config_loader)
-        args_ctx = await setup_args_ctx(EMPTY_ROOT, ast_flow.args)
+        args_ctx = await setup_args_ctx(EMPTY_ROOT, args, ast_flow.args)
         step_1_ctx = BatchContextStep1(
             flow=flow_ctx,
             args=args_ctx,

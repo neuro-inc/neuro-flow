@@ -86,7 +86,9 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         await self.close()
 
     # Next function is also used in tests:
-    async def _setup_exc_data(self, batch_name: str) -> ExecutorData:
+    async def _setup_exc_data(
+        self, batch_name: str, args: Optional[Mapping[str, str]] = None
+    ) -> ExecutorData:
         # batch_name is a name of yaml config inside self._workspace / .neuro
         # folder without the file extension
 
@@ -95,7 +97,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         click.echo("Check config... ", nl=False)
 
         # Check that the yaml is parseable
-        flow = await RunningBatchFlow.create(self.config_loader, batch_name)
+        flow = await RunningBatchFlow.create(self.config_loader, batch_name, args)
 
         for volume in flow.volumes.values():
             if volume.local is not None:
@@ -114,6 +116,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             config_meta,
             configs,
             graphs=graphs,
+            args=args,
         )
         click.echo(f"Bake {fmt_id(str(bake))} is created")
 
@@ -160,8 +163,13 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         executor = await LocalsBatchExecutor.create(data, self._client, self._storage)
         await executor.run()
 
-    async def bake(self, batch_name: str, local_executor: bool = False) -> None:
-        data = await self._setup_exc_data(batch_name)
+    async def bake(
+        self,
+        batch_name: str,
+        local_executor: bool = False,
+        args: Optional[Mapping[str, str]] = None,
+    ) -> None:
+        data = await self._setup_exc_data(batch_name, args)
         await self._run_bake(data, local_executor)
 
     async def _run_bake(self, data: ExecutorData, local_executor: bool) -> None:
