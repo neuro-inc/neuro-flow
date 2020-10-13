@@ -16,7 +16,7 @@ from neuro_flow.context import (
     RunningLiveFlow,
     setup_inputs_ctx,
 )
-from neuro_flow.expr import EvalError, SimpleOptStrExpr, StrExpr
+from neuro_flow.expr import EvalError, SimpleOptStrExpr, SimpleStrExpr, StrExpr
 from neuro_flow.parser import ConfigDir
 from neuro_flow.tokenizer import Pos
 from neuro_flow.types import LocalPath, RemotePath, TaskStatus
@@ -418,11 +418,21 @@ async def test_batch_action_default(batch_config_loader: ConfigLoader) -> None:
     assert task.cache == CacheConf(strategy=ast.CacheStrategy.DEFAULT, life_span=1800)
 
 
-def _make_ast_args(args: Mapping[str, str]) -> Mapping[str, StrExpr]:
+def _make_ast_call(args: Mapping[str, str]) -> ast.BaseActionCall:
+    def _make_simple_str_expr(res: Optional[str]) -> SimpleStrExpr:
+        return SimpleStrExpr(
+            Pos(0, 0, LocalPath("fake")), Pos(0, 0, LocalPath("fake")), res
+        )
+
     def _make_str_expr(res: str) -> StrExpr:
         return StrExpr(Pos(0, 0, LocalPath("fake")), Pos(0, 0, LocalPath("fake")), res)
 
-    return {key: _make_str_expr(value) for key, value in args.items()}
+    return ast.BaseActionCall(
+        _start=Pos(0, 0, LocalPath("fake")),
+        _end=Pos(0, 0, LocalPath("fake")),
+        action=_make_simple_str_expr("ws:test"),
+        args={key: _make_str_expr(value) for key, value in args.items()},
+    )
 
 
 def _make_ast_inputs(args: Mapping[str, Optional[str]]) -> Mapping[str, ast.Input]:
@@ -446,10 +456,10 @@ async def test_setup_inputs_ctx(
     batch_config_loader: ConfigLoader,
 ) -> None:
 
-    with pytest.raises(ValueError, match=r"Unsupported input\(s\): other,unknown"):
+    with pytest.raises(EvalError, match=r"Unsupported input\(s\): other,unknown"):
         await setup_inputs_ctx(
             EMPTY_ROOT,
-            _make_ast_args({"other": "1", "unknown": "2"}),
+            _make_ast_call({"other": "1", "unknown": "2"}),
             _make_ast_inputs({"expected": None}),
         )
 
@@ -457,10 +467,10 @@ async def test_setup_inputs_ctx(
 async def test_batch_action_without_inputs_unsupported(
     batch_config_loader: ConfigLoader,
 ) -> None:
-    with pytest.raises(ValueError, match=r"Unsupported input\(s\): other,unknown"):
+    with pytest.raises(EvalError, match=r"Unsupported input\(s\): other,unknown"):
         await setup_inputs_ctx(
             EMPTY_ROOT,
-            _make_ast_args({"other": "1", "unknown": "2"}),
+            _make_ast_call({"other": "1", "unknown": "2"}),
             _make_ast_inputs({}),
         )
 
@@ -468,10 +478,10 @@ async def test_batch_action_without_inputs_unsupported(
 async def test_batch_action_with_inputs_no_default(
     batch_config_loader: ConfigLoader,
 ) -> None:
-    with pytest.raises(ValueError, match=r"Required input\(s\): arg1"):
+    with pytest.raises(EvalError, match=r"Required input\(s\): arg1"):
         await setup_inputs_ctx(
             EMPTY_ROOT,
-            _make_ast_args({"arg2": "2"}),
+            _make_ast_call({"arg2": "2"}),
             _make_ast_inputs({"arg1": None, "arg2": "default"}),
         )
 
@@ -479,7 +489,7 @@ async def test_batch_action_with_inputs_no_default(
 async def test_batch_action_with_inputs_ok(batch_config_loader: ConfigLoader) -> None:
     inputs = await setup_inputs_ctx(
         EMPTY_ROOT,
-        _make_ast_args({"arg1": "v1", "arg2": "v2"}),
+        _make_ast_call({"arg1": "v1", "arg2": "v2"}),
         _make_ast_inputs({"arg1": None, "arg2": "default"}),
     )
 
@@ -491,7 +501,7 @@ async def test_batch_action_with_inputs_default_ok(
 ) -> None:
     inputs = await setup_inputs_ctx(
         EMPTY_ROOT,
-        _make_ast_args({"arg1": "v1"}),
+        _make_ast_call({"arg1": "v1"}),
         _make_ast_inputs({"arg1": None, "arg2": "default"}),
     )
 

@@ -29,7 +29,7 @@ from yarl import URL
 
 from neuro_flow import ast
 from neuro_flow.config_loader import ConfigLoader
-from neuro_flow.expr import EnableExpr, EvalError, LiteralT, RootABC, StrExpr, TypeT
+from neuro_flow.expr import EnableExpr, EvalError, LiteralT, RootABC, TypeT
 from neuro_flow.types import AlwaysT, FullID, LocalPath, RemotePath, TaskStatus
 
 
@@ -617,17 +617,21 @@ async def setup_images_ctx(
 
 async def setup_inputs_ctx(
     ctx: RootABC,
-    ast_args: Optional[Mapping[str, StrExpr]],
+    call_ast: ast.BaseActionCall,  # Only used to generate errors
     ast_inputs: Optional[Mapping[str, ast.Input]],
 ) -> InputsCtx:
-    if ast_args:
-        inputs = {k: await v.eval(ctx) for k, v in ast_args.items()}
+    if call_ast.args:
+        inputs = {k: await v.eval(ctx) for k, v in call_ast.args.items()}
     else:
         inputs = {}
 
     if ast_inputs is None:
         if inputs:
-            raise ValueError(f"Unsupported input(s): {','.join(sorted(inputs))}")
+            raise EvalError(
+                f"Unsupported input(s): {','.join(sorted(inputs))}",
+                call_ast._start,
+                call_ast._end,
+            )
         else:
             return {}
 
@@ -641,10 +645,18 @@ async def setup_inputs_ctx(
             new_inputs[name] = val
     extra = new_inputs.keys() - ast_inputs.keys()
     if extra:
-        raise ValueError(f"Unsupported input(s): {','.join(sorted(extra))}")
+        raise EvalError(
+            f"Unsupported input(s): {','.join(sorted(extra))}",
+            call_ast._start,
+            call_ast._end,
+        )
     missing = ast_inputs.keys() - new_inputs.keys()
     if missing:
-        raise ValueError(f"Required input(s): {','.join(sorted(missing))}")
+        raise EvalError(
+            f"Required input(s): {','.join(sorted(missing))}",
+            call_ast._start,
+            call_ast._end,
+        )
     return new_inputs
 
 
@@ -808,7 +820,7 @@ class RunningLiveFlow:
             ctx = LiveActionContext(
                 tags=self._ctx.tags,
                 env={},  # TODO: Is it correct?
-                inputs=await setup_inputs_ctx(ctx, job.args, action_ast.inputs),
+                inputs=await setup_inputs_ctx(ctx, job, action_ast.inputs),
             )
             defaults = DefaultsConf()
             job = action_ast.job
@@ -996,7 +1008,7 @@ class RunningBatchBase(Generic[_T]):
                 tags=self._ctx.tags,
                 env={},  # TODO: Is it correct?
                 inputs=await setup_inputs_ctx(
-                    ctx, prep_task.args, prep_task.action.inputs
+                    ctx, prep_task.call, prep_task.action.inputs
                 ),
             )
             defaults = DefaultsConf()  # TODO: Is it correct?
@@ -1071,7 +1083,7 @@ class RunningBatchBase(Generic[_T]):
             ast_action=prep_task.action,
             base_cache=prep_task.cache,
             base_strategy=prep_task.strategy,
-            inputs=await setup_inputs_ctx(ctx, prep_task.args, prep_task.action.inputs),
+            inputs=await setup_inputs_ctx(ctx, prep_task.call, prep_task.action.inputs),
             tags=ctx.tags,
             config_loader=self._cl,
         )
@@ -1111,7 +1123,7 @@ class RunningBatchFlow(RunningBatchBase[BatchContext]):
         action_ctx = LocalActionContext(
             tags=self._ctx.tags,  # TODO: Is it correct?
             env={},  # TODO: Is it correct?
-            inputs=await setup_inputs_ctx(ctx, prep_task.args, prep_task.action.inputs),
+            inputs=await setup_inputs_ctx(ctx, prep_task.call, prep_task.action.inputs),
         )
 
         return LocalTask(
@@ -1269,7 +1281,7 @@ class BasePrepTask:
     def to_batch_call(
         self,
         action: ast.BatchAction,
-        args: Mapping[str, StrExpr],
+        call: ast.TaskActionCall,
     ) -> "PrepBatchCall":
         return PrepBatchCall(
             id=self.id,
@@ -1280,13 +1292,13 @@ class BasePrepTask:
             cache=self.cache,
             enable=self.enable,
             action=action,
-            args=args,
+            call=call,
         )
 
     def to_local_call(
         self,
         action: ast.LocalAction,
-        args: Mapping[str, StrExpr],
+        call: ast.TaskActionCall,
     ) -> "PrepLocalCall":
         return PrepLocalCall(
             id=self.id,
@@ -1297,13 +1309,13 @@ class BasePrepTask:
             cache=self.cache,
             enable=self.enable,
             action=action,
-            args=args,
+            call=call,
         )
 
     def to_stateful_call(
         self,
         action: ast.StatefulAction,
-        args: Mapping[str, StrExpr],
+        call: ast.TaskActionCall,
     ) -> "PrepStatefulCall":
         return PrepStatefulCall(
             id=self.id,
@@ -1315,7 +1327,7 @@ class BasePrepTask:
             enable=self.enable,
             ast_task=action.main,
             action=action,
-            args=args,
+            call=call,
         )
 
     def to_post_task(self, ast_task: ast.ExecUnit, state_from: str) -> "PrepPostTask":
@@ -1339,20 +1351,20 @@ class PrepTask(BasePrepTask):
 
 @dataclass(frozen=True)
 class PrepBatchCall(BasePrepTask):
+    call: ast.TaskActionCall
     action: ast.BatchAction
-    args: Mapping[str, StrExpr]
 
 
 @dataclass(frozen=True)
 class PrepLocalCall(BasePrepTask):
+    call: ast.TaskActionCall
     action: ast.LocalAction
-    args: Mapping[str, StrExpr]
 
 
 @dataclass(frozen=True)
 class PrepStatefulCall(PrepTask):
+    call: ast.TaskActionCall
     action: ast.StatefulAction
-    args: Mapping[str, StrExpr]
 
 
 @dataclass(frozen=True)
@@ -1426,17 +1438,11 @@ class TaskGraphBuilder:
                     action_name = await ast_task.action.eval(EMPTY_ROOT)
                     action = await self._cl.fetch_action(action_name)
                     if isinstance(action, ast.BatchAction):
-                        prep_tasks[real_id] = base.to_batch_call(
-                            action, ast_task.args or {}
-                        )
+                        prep_tasks[real_id] = base.to_batch_call(action, ast_task)
                     elif isinstance(action, ast.LocalAction):
-                        prep_tasks[real_id] = base.to_local_call(
-                            action, ast_task.args or {}
-                        )
+                        prep_tasks[real_id] = base.to_local_call(action, ast_task)
                     elif isinstance(action, ast.StatefulAction):
-                        prep_tasks[real_id] = base.to_stateful_call(
-                            action, ast_task.args or {}
-                        )
+                        prep_tasks[real_id] = base.to_stateful_call(action, ast_task)
                         if action.post:
                             post_tasks_group.append(
                                 replace(
