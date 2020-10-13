@@ -701,7 +701,6 @@ async def setup_cache(
     return CacheConf(strategy=strategy, life_span=life_span)
 
 
-# Todo: rename to something better
 class RunningLiveFlow:
     _ast_flow: ast.LiveFlow
     _ctx: LiveContext
@@ -1100,7 +1099,7 @@ class RunningBatchFlow(RunningBatchBase[BatchContext]):
         ctx = self._task_context(real_id, needs, {})
 
         action_ctx = LocalActionContext(
-            tags=self._ctx.tags,  # TODO: Is it correct?
+            tags=self._ctx.tags,  # TODO: do we need tags for local actions?
             env={},  # TODO: Is it correct?
             inputs=await setup_inputs_ctx(ctx, prep_task.call, prep_task.action.inputs),
         )
