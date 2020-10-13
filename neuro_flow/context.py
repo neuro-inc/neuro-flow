@@ -132,12 +132,6 @@ class StrategyCtx:
 
 
 @dataclass(frozen=True)
-class CacheCtx:
-    strategy: ast.CacheStrategy = ast.CacheStrategy.DEFAULT
-    life_span: float = 14 * 24 * 3600
-
-
-@dataclass(frozen=True)
 class DepCtx:
     result: TaskStatus
     outputs: Mapping[str, str]
@@ -260,6 +254,11 @@ class WithFlowContext(Context):
 
 
 @dataclass(frozen=True)
+class WithEnvContext(Context):
+    env: EnvCtx
+
+
+@dataclass(frozen=True)
 class LiveContextStep1(WithFlowContext, Context):
     def to_step_2(self, env: EnvCtx, tags: TagsCtx) -> "LiveContextStep2":
         return LiveContextStep2(
@@ -270,8 +269,7 @@ class LiveContextStep1(WithFlowContext, Context):
 
 
 @dataclass(frozen=True)
-class LiveContextStep2(LiveContextStep1):
-    env: EnvCtx
+class LiveContextStep2(WithEnvContext, LiveContextStep1):
     tags: TagsCtx
 
     def to_live_ctx(self, volumes: VolumesCtx, images: ImagesCtx) -> "LiveContext":
@@ -302,8 +300,7 @@ class LiveContextMulti(LiveContext):
 
 
 @dataclass(frozen=True)
-class LiveActionContext(Context):
-    env: EnvCtx
+class LiveActionContext(WithEnvContext, Context):
     tags: TagsCtx
     inputs: InputsCtx
 
@@ -322,8 +319,7 @@ class BatchContextStep1(WithFlowContext, Context):
 
 
 @dataclass(frozen=True)
-class BatchContextStep2(BatchContextStep1):
-    env: EnvCtx
+class BatchContextStep2(WithEnvContext, BatchContextStep1):
     tags: TagsCtx
 
     def to_step_3(self, volumes: VolumesCtx, images: ImagesCtx) -> "BatchContextStep3":
@@ -357,8 +353,7 @@ class BatchContextStep3(BatchContextStep2):
         )
 
 
-class BaseBatchContext(Context):
-    env: EnvCtx
+class BaseBatchContext(WithEnvContext, Context):
     tags: TagsCtx
     strategy: StrategyCtx
 
@@ -484,15 +479,13 @@ class BatchActionTaskContext(BaseTaskContext, BatchActionMatrixContext):
 
 
 @dataclass(frozen=True)
-class StatefulActionContext(Context):
-    env: EnvCtx
+class StatefulActionContext(WithEnvContext, Context):
     tags: TagsCtx
     inputs: InputsCtx
 
 
 @dataclass(frozen=True)
-class LocalActionContext(Context):
-    env: EnvCtx
+class LocalActionContext(WithEnvContext, Context):
     tags: TagsCtx
     inputs: InputsCtx
 
@@ -806,7 +799,9 @@ class RunningLiveFlow:
         job = await self._get_job(ctx, self._defaults, job_id)
         return replace(job, tags=job.tags | {f"multi:{suffix}"})
 
-    async def _get_job(self, ctx: RootABC, defaults: DefaultsConf, job_id: str) -> Job:
+    async def _get_job(
+        self, ctx: WithEnvContext, defaults: DefaultsConf, job_id: str
+    ) -> Job:
         job = self._get_job_ast(job_id)
         if isinstance(job, ast.JobActionCall):
             action_ast = await self._get_action_ast(job)
@@ -823,7 +818,7 @@ class RunningLiveFlow:
         if job.tags is not None:
             tags |= {await v.eval(ctx) for v in job.tags}
 
-        env = {}
+        env = dict(ctx.env)
         if job.env is not None:
             env.update({k: await v.eval(ctx) for k, v in job.env.items()})
 
@@ -869,12 +864,16 @@ class RunningLiveFlow:
         )
 
     @classmethod
-    async def create(cls, config_loader: ConfigLoader) -> "RunningLiveFlow":
-        ast_flow = await config_loader.fetch_flow("live")
+    async def create(
+        cls, config_loader: ConfigLoader, config_name: str = "live"
+    ) -> "RunningLiveFlow":
+        ast_flow = await config_loader.fetch_flow(config_name)
 
         assert isinstance(ast_flow, ast.LiveFlow)
 
-        flow_ctx = await setup_flow_ctx(EMPTY_ROOT, ast_flow, "live", config_loader)
+        flow_ctx = await setup_flow_ctx(
+            EMPTY_ROOT, ast_flow, config_name, config_loader
+        )
 
         step_1_ctx = LiveContextStep1(flow=flow_ctx)
 
@@ -989,9 +988,8 @@ class RunningBatchBase(Generic[_T]):
         assert isinstance(prep_task, (PrepTask, PrepStatefulCall))  # Already checked
 
         task_ctx = self._task_context(real_id, needs, state)
-        ctx: RootABC = task_ctx
+        ctx: WithEnvContext = task_ctx
         defaults = self._defaults
-        env = dict(task_ctx.env)
 
         if isinstance(prep_task, PrepStatefulCall):
             ctx = StatefulActionContext(
@@ -1002,18 +1000,16 @@ class RunningBatchBase(Generic[_T]):
                 ),
             )
             defaults = DefaultsConf()  # TODO: Is it correct?
-            env = {}
 
         full_id = prefix + (real_id,)
 
+        env = dict(ctx.env)
         if prep_task.ast_task.env is not None:
             env.update(
                 {k: await v.eval(ctx) for k, v in prep_task.ast_task.env.items()}
             )
 
         title = await prep_task.ast_task.title.eval(ctx)
-        if title is None:
-            title = ".".join(full_id)
 
         tags = set()
         if prep_task.ast_task.tags is not None:
@@ -1587,6 +1583,8 @@ def _ctx_default(val: Any) -> Any:
     elif isinstance(val, collections.abc.Set):
         return sorted(val)
     elif isinstance(val, AlwaysT):
+        return str(val)
+    elif isinstance(val, URL):
         return str(val)
     else:
         raise TypeError(f"Cannot dump {val!r}")

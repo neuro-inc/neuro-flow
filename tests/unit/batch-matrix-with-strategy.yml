@@ -24,3 +24,6 @@ tasks:
       life_span: 1h30m
     image: ubuntu
     cmd: echo abc
+  - id: simple
+    image: ubuntu
+    cmd: echo abc
