@@ -260,26 +260,21 @@ class WithEnvContext(Context):
 
 @dataclass(frozen=True)
 class LiveContextStep1(WithFlowContext, Context):
-    def to_step_2(self, env: EnvCtx, tags: TagsCtx) -> "LiveContextStep2":
-        return LiveContextStep2(
+    def to_live_ctx(
+        self, env: EnvCtx, tags: TagsCtx, volumes: VolumesCtx, images: ImagesCtx
+    ) -> "LiveContext":
+        return LiveContext(
             flow=self.flow,
             env=env,
             tags=tags,
+            volumes=volumes,
+            images=images,
         )
 
 
 @dataclass(frozen=True)
-class LiveContextStep2(WithEnvContext, LiveContextStep1):
+class LiveContext(WithEnvContext, LiveContextStep1):
     tags: TagsCtx
-
-    def to_live_ctx(self, volumes: VolumesCtx, images: ImagesCtx) -> "LiveContext":
-        return LiveContext(
-            flow=self.flow, env=self.env, tags=self.tags, volumes=volumes, images=images
-        )
-
-
-@dataclass(frozen=True)
-class LiveContext(LiveContextStep2):
     volumes: VolumesCtx
     images: ImagesCtx
 
@@ -309,32 +304,22 @@ class LiveActionContext(WithEnvContext, Context):
 class BatchContextStep1(WithFlowContext, Context):
     args: ArgsCtx
 
-    def to_step_2(self, env: EnvCtx, tags: TagsCtx) -> "BatchContextStep2":
+    def to_step_2(
+        self, env: EnvCtx, tags: TagsCtx, volumes: VolumesCtx, images: ImagesCtx
+    ) -> "BatchContextStep2":
         return BatchContextStep2(
             flow=self.flow,
             args=self.args,
             env=env,
             tags=tags,
-        )
-
-
-@dataclass(frozen=True)
-class BatchContextStep2(WithEnvContext, BatchContextStep1):
-    tags: TagsCtx
-
-    def to_step_3(self, volumes: VolumesCtx, images: ImagesCtx) -> "BatchContextStep3":
-        return BatchContextStep3(
-            flow=self.flow,
-            args=self.args,
-            env=self.env,
-            tags=self.tags,
             volumes=volumes,
             images=images,
         )
 
 
 @dataclass(frozen=True)
-class BatchContextStep3(BatchContextStep2):
+class BatchContextStep2(WithEnvContext, BatchContextStep1):
+    tags: TagsCtx
     volumes: VolumesCtx
     images: ImagesCtx
 
@@ -379,7 +364,7 @@ class BaseTaskContext(BaseMatrixContext):
 
 
 @dataclass(frozen=True)
-class BatchContext(BaseBatchContext, BatchContextStep3):
+class BatchContext(BaseBatchContext, BatchContextStep2):
     strategy: StrategyCtx
 
     def to_matrix_ctx(
@@ -893,19 +878,13 @@ class RunningLiveFlow:
             step_1_ctx, ast_flow.defaults
         )
 
-        step_2_ctx = step_1_ctx.to_step_2(
+        live_ctx = step_1_ctx.to_live_ctx(
             env=env,
             tags=tags,
+            volumes=await setup_volumes_ctx(step_1_ctx, ast_flow.volumes),
+            images=await setup_images_ctx(step_1_ctx, ast_flow.images),
         )
 
-        # volumes / images needs a context with defaults only for self initialization
-        volumes_ctx = await setup_volumes_ctx(step_2_ctx, ast_flow.volumes)
-        images_ctx = await setup_images_ctx(step_2_ctx, ast_flow.images)
-
-        live_ctx = step_2_ctx.to_live_ctx(
-            volumes=volumes_ctx,
-            images=images_ctx,
-        )
         return cls(ast_flow, live_ctx, config_loader, defaults)
 
 
@@ -1154,15 +1133,8 @@ class RunningBatchFlow(RunningBatchBase[BatchContext]):
         step_2_ctx = step_1_ctx.to_step_2(
             env=env,
             tags=tags,
-        )
-
-        step_3_ctx = step_2_ctx.to_step_3(
-            volumes=await setup_volumes_ctx(step_2_ctx, ast_flow.volumes),
-            images=await setup_images_ctx(step_2_ctx, ast_flow.images),
-        )
-
-        batch_ctx = step_3_ctx.to_batch_ctx(
-            strategy=await setup_strategy_ctx(step_3_ctx, ast_flow.defaults),
+            volumes=await setup_volumes_ctx(step_1_ctx, ast_flow.volumes),
+            images=await setup_images_ctx(step_1_ctx, ast_flow.images),
         )
 
         if ast_flow.defaults:
@@ -1170,8 +1142,13 @@ class RunningBatchFlow(RunningBatchBase[BatchContext]):
         else:
             ast_cache = None
         cache_conf = await setup_cache(
-            step_3_ctx, CacheConf(), ast_cache, ast.CacheStrategy.INHERIT
+            step_2_ctx, CacheConf(), ast_cache, ast.CacheStrategy.INHERIT
         )
+
+        batch_ctx = step_2_ctx.to_batch_ctx(
+            strategy=await setup_strategy_ctx(step_2_ctx, ast_flow.defaults),
+        )
+
         tasks = await TaskGraphBuilder(
             batch_ctx, config_loader, cache_conf, ast_flow.tasks
         ).build()
