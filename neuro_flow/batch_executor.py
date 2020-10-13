@@ -22,13 +22,16 @@ from typing import (
 from .commands import CmdProcessor
 from .config_loader import BatchRemoteCL
 from .context import (
-    BatchActionContext,
-    BatchContext,
+    BaseBatchContext,
     DepCtx,
-    LocalActionContext,
+    LocalTask,
     NeedsCtx,
+    RunningBatchActionFlow,
+    RunningBatchBase,
+    RunningBatchFlow,
     StateCtx,
-    TaskContext,
+    Task,
+    TaskMeta,
 )
 from .storage import Attempt, BatchStorage, FinishedTask, StartedTask
 from .types import AlwaysT, FullID, TaskStatus
@@ -38,7 +41,7 @@ from .utils import TERMINATED_JOB_STATUSES, fmt_id, fmt_raw_id, fmt_status
 if sys.version_info >= (3, 9):
     import graphlib
 else:
-    from . import backport_graphlib as graphlib
+    from . import ast, backport_graphlib as graphlib
 
 
 class NotFinished(ValueError):
@@ -200,30 +203,33 @@ class BakeTasksManager:
             needs[dep_id] = DepCtx(TaskStatus(dep.status), dep.outputs)
         return needs
 
-    def build_state(self, state_from: Optional[FullID]) -> Optional[StateCtx]:
+    def build_state(self, prefix: FullID, state_from: Optional[str]) -> StateCtx:
         if state_from is None:
-            return None
-        dep = self._finished.get(state_from)
+            return {}
+        full_id = prefix + (state_from,)
+        dep = self._finished.get(full_id)
         if dep is None:
-            raise NotFinished(state_from)
+            raise NotFinished(full_id)
         return dep.state
 
 
 class BatchExecutor:
     def __init__(
         self,
-        top_ctx: TaskContext,
+        flow: RunningBatchFlow,
         attempt: Attempt,
         client: Client,
         storage: BatchStorage,
         *,
         polling_timeout: float = 1,
     ) -> None:
-        self._top_ctx = top_ctx
+        self._top_flow = flow
         self._attempt = attempt
         self._client = client
         self._storage = storage
-        self._graphs: Graph[TaskContext] = Graph(top_ctx.graph, top_ctx)
+        self._graphs: Graph[RunningBatchBase[BaseBatchContext]] = Graph(
+            flow.graph, flow
+        )
         self._tasks_mgr = BakeTasksManager()
         self._is_cancelling = False
 
@@ -257,13 +263,13 @@ class BatchExecutor:
             meta,
             load_from_storage=lambda name: storage.fetch_config(bake, name),
         )
-        top_ctx = await BatchContext.create(config_loader, bake.batch)
+        flow = await RunningBatchFlow.create(config_loader, bake.batch)
 
         click.echo("Find last attempt")
         attempt = await storage.find_attempt(bake)
 
         return cls(
-            top_ctx,
+            flow,
             attempt,
             client,
             storage,
@@ -277,30 +283,38 @@ class BatchExecutor:
 
     # Exact task/action contexts helpers
 
-    async def _enter_task_ctx(self, full_id: FullID) -> TaskContext:
+    async def _get_meta(self, full_id: FullID) -> TaskMeta:
         prefix, tid = full_id[:-1], full_id[-1]
-        ctx = self._graphs.get_meta(full_id)
-        needs = self._tasks_mgr.build_needs(prefix, ctx.graph[tid])
-        state = self._tasks_mgr.build_state(await ctx.state_from(tid))
-        return await ctx.with_task(tid, needs=needs, state=state)
+        flow = self._graphs.get_meta(full_id)
+        needs = self._tasks_mgr.build_needs(prefix, flow.graph[tid])
+        state = self._tasks_mgr.build_state(prefix, await flow.state_from(tid))
+        return await flow.get_meta(tid, needs=needs, state=state)
 
-    async def _enter_local_ctx(self, full_id: FullID) -> LocalActionContext:
+    async def _get_task(self, full_id: FullID) -> Task:
         prefix, tid = full_id[:-1], full_id[-1]
-        ctx = self._graphs.get_meta(full_id)
-        needs = self._tasks_mgr.build_needs(prefix, ctx.graph[tid])
-        return await ctx.with_local(tid, needs=needs)
+        flow = self._graphs.get_meta(full_id)
+        needs = self._tasks_mgr.build_needs(prefix, flow.graph[tid])
+        state = self._tasks_mgr.build_state(prefix, await flow.state_from(tid))
+        return await flow.get_task(prefix, tid, needs=needs, state=state)
 
-    async def _enter_action_ctx(self, full_id: FullID) -> BatchActionContext:
+    async def _get_local(self, full_id: FullID) -> LocalTask:
         prefix, tid = full_id[:-1], full_id[-1]
         ctx = self._graphs.get_meta(full_id)
         needs = self._tasks_mgr.build_needs(prefix, ctx.graph[tid])
-        return await ctx.with_action(tid, needs=needs)
+        assert isinstance(ctx, RunningBatchFlow)
+        return await ctx.get_local(tid, needs=needs)
+
+    async def _get_action(self, full_id: FullID) -> RunningBatchActionFlow:
+        prefix, tid = full_id[:-1], full_id[-1]
+        ctx = self._graphs.get_meta(full_id)
+        needs = self._tasks_mgr.build_needs(prefix, ctx.graph[tid])
+        return await ctx.get_action(tid, needs=needs)
 
     # Graph helpers
 
     async def _embed_action(self, full_id: FullID) -> None:
-        action_ctx = await self._enter_action_ctx(full_id)
-        self._graphs.embed(full_id, action_ctx.graph, action_ctx)
+        action = await self._get_action(full_id)
+        self._graphs.embed(full_id, action.graph, action)
 
     # New tasks processers
 
@@ -322,17 +336,28 @@ class BatchExecutor:
         click.echo(f"Action {fmt_id(st.id)} is {str_started}")
 
     async def _process_task(self, full_id: FullID) -> None:
+
+        task = await self._get_task(full_id)
+
         # Check is is task fits in max_parallel
         for n in range(1, len(full_id) + 1):
             node = full_id[:n]
             prefix = node[:-1]
-            ctx = self._graphs.get_meta(node)
-            if self._tasks_mgr.count_running(prefix) >= ctx.strategy.max_parallel:
+            if self._tasks_mgr.count_running(prefix) >= task.strategy.max_parallel:
                 return
 
-        task_ctx = await self._enter_task_ctx(full_id)
+        cache_strategy = task.cache.strategy
+        if cache_strategy == ast.CacheStrategy.NONE:
+            ft = None
+        else:
+            assert cache_strategy == ast.CacheStrategy.DEFAULT
+            ft = await self._storage.check_cache(
+                self._attempt,
+                full_id,
+                task.caching_key,
+                datetime.timedelta(task.cache.life_span),
+            )
 
-        ft = await self._storage.check_cache(self._attempt, full_id, task_ctx)
         if ft is not None:
             str_cached = click.style("cached", fg="magenta")
             click.echo(
@@ -341,7 +366,7 @@ class BatchExecutor:
             assert ft.status == TaskStatus.SUCCEEDED
             self._mark_finished(ft)
         else:
-            st = await self._start_task(task_ctx)
+            st = await self._start_task(full_id, task)
             self._tasks_mgr.add_started(st)
             str_started = click.style("started", fg="cyan")
             raw_id = fmt_raw_id(st.raw_id)
@@ -378,19 +403,20 @@ class BatchExecutor:
         await self._load_previous_run()
 
         while await self._should_continue():
-            for full_id, ctx in self._graphs.get_ready_with_meta():
-                prefix, tid = full_id[:-1], full_id[-1]
+            for full_id, flow in self._graphs.get_ready_with_meta():
+                tid = full_id[-1]
                 if full_id in self._tasks_mgr.started:
                     continue  # Already started
-                needs = self._tasks_mgr.build_needs(prefix, ctx.graph[tid])
-                enabled = await ctx.is_enabled(tid, needs=needs)
-                if not enabled or (self._is_cancelling and enabled is not AlwaysT()):
+                meta = await self._get_meta(full_id)
+                if not meta.enable or (
+                    self._is_cancelling and meta.enable is not AlwaysT()
+                ):
                     # Make task started and immediatelly skipped
                     await self._skip_task(full_id)
                     continue
-                if await ctx.is_local(tid):
+                if await flow.is_local(tid):
                     await self._process_local(full_id)
-                elif await ctx.is_action(tid):
+                elif await flow.is_action(tid):
                     await self._process_action(full_id)
                 else:
                     await self._process_task(full_id)
@@ -418,14 +444,20 @@ class BatchExecutor:
 
     async def _stop_running(self) -> None:
         for full_id, st in self._tasks_mgr.running_tasks.items():
-            task_context = await self._enter_task_ctx(full_id)
-            if task_context.task.enable is not AlwaysT():
+            task = await self._get_task(full_id)
+            if task.enable is not AlwaysT():
                 click.echo(f"Task {fmt_id(st.id)} is being killed")
                 await self._client.jobs.kill(st.raw_id)
 
     async def _store_to_cache(self, ft: FinishedTask) -> None:
-        task_ctx = await self._enter_task_ctx(ft.id)
-        await self._storage.write_cache(self._attempt, task_ctx, ft)
+        task = await self._get_task(ft.id)
+        cache_strategy = task.cache.strategy
+        if cache_strategy == ast.CacheStrategy.NONE:
+            return
+        if ft.status != TaskStatus.SUCCEEDED:
+            return
+
+        await self._storage.write_cache(self._attempt, ft, task.caching_key)
 
     async def _process_started(self) -> bool:
         # Process tasks
@@ -454,18 +486,13 @@ class BatchExecutor:
                 for key, value in ft.outputs.items():
                     click.echo(f"  {key}: {value}")
 
-                task_ctx = await self._enter_task_ctx(st.id)
-                if (
-                    job_descr.status != JobStatus.SUCCEEDED
-                    and task_ctx.strategy.fail_fast
-                ):
+                task_meta = await self._get_meta(full_id)
+                if ft.status != TaskStatus.SUCCEEDED and task_meta.strategy.fail_fast:
                     return False
-                else:
-                    return True
         # Process batch actions
         for full_id in self._graphs.get_ready_done_embeds():
             # done action, make it finished
-            ctx = await self._enter_action_ctx(full_id)
+            ctx = await self._get_action(full_id)
 
             needs = self._tasks_mgr.build_needs(full_id, await ctx.get_output_needs())
             outputs = await ctx.calc_outputs(needs, is_cancelling=self._is_cancelling)
@@ -485,8 +512,8 @@ class BatchExecutor:
             for key, value in ft.outputs.items():
                 click.echo(f"  {key}: {value}")
 
-            parent_ctx = self._graphs.get_meta(full_id)
-            if ft.status != TaskStatus.SUCCEEDED and parent_ctx.strategy.fail_fast:
+            task_meta = await self._get_meta(full_id)
+            if ft.status != TaskStatus.SUCCEEDED and task_meta.strategy.fail_fast:
                 return False
         return True
 
@@ -499,8 +526,7 @@ class BatchExecutor:
 
         return JobStatus.SUCCEEDED
 
-    async def _start_task(self, task_ctx: TaskContext) -> StartedTask:
-        task = task_ctx.task
+    async def _start_task(self, full_id: FullID, task: Task) -> StartedTask:
 
         preset_name = task.preset
         if preset_name is None:
@@ -508,7 +534,7 @@ class BatchExecutor:
         preset = self._client.config.presets[preset_name]
 
         env_dict, secret_env_dict = self._client.parse.env(
-            [f"{k}={v}" for k, v in task_ctx.env.items()]
+            [f"{k}={v}" for k, v in task.env.items()]
         )
         resources = Resources(
             memory_mb=preset.memory_mb,
@@ -542,11 +568,11 @@ class BatchExecutor:
             container,
             is_preemptible=preset.is_preemptible,
             name=task.name,
-            tags=list(task_ctx.tags),
+            tags=list(task.tags),
             description=task.title,
             life_span=task.life_span,
         )
-        return await self._storage.start_task(self._attempt, task.full_id, job)
+        return await self._storage.start_task(self._attempt, full_id, job)
 
 
 class LocalsBatchExecutor(BatchExecutor):
@@ -567,19 +593,16 @@ class LocalsBatchExecutor(BatchExecutor):
         )
 
     async def _process_local(self, full_id: FullID) -> None:
-        local_ctx = await self._enter_local_ctx(full_id)
+        local = await self._get_local(full_id)
         st = await self._storage.start_action(self._attempt, full_id)
         self._tasks_mgr.add_started(st)
         str_started = click.style("started", fg="cyan")
         click.echo(f"Local action {fmt_id(st.id)} is {str_started}")
 
-        root_ctx = self._graphs.get_meta(())
-        assert isinstance(root_ctx, BatchContext)
-
         subprocess = await asyncio.create_subprocess_shell(
-            local_ctx.cmd,
+            local.cmd,
             stdout=asyncio.subprocess.PIPE,
-            cwd=root_ctx.flow.workspace,
+            cwd=local.workdir,
         )
         (stdout_data, stderr_data) = await subprocess.communicate()
         async with CmdProcessor() as proc:
@@ -616,8 +639,8 @@ class LocalsBatchExecutor(BatchExecutor):
         pass  # Skip for local
 
     async def _should_continue(self) -> bool:
-        for full_id, ctx in self._graphs.get_ready_with_meta():
-            if await ctx.is_local(full_id[-1]):
+        for full_id, flow in self._graphs.get_ready_with_meta():
+            if await flow.is_local(full_id[-1]):
                 return True
         return False
 

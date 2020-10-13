@@ -14,7 +14,7 @@ from typing import AbstractSet, AsyncIterator, Iterable, List, Optional, Tuple, 
 from typing_extensions import AsyncContextManager
 
 from .config_loader import LiveLocalCL
-from .context import ImageCtx, LiveContext, UnknownJob, VolumeCtx
+from .context import ImageCtx, JobMeta, RunningLiveFlow, UnknownJob, VolumeCtx
 from .parser import ConfigDir
 from .utils import (
     RUNNING_JOB_STATUSES,
@@ -38,14 +38,14 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
     def __init__(self, config_dir: ConfigDir) -> None:
         self._config_dir = config_dir
         self._config_loader: Optional[LiveLocalCL] = None
-        self._ctx: Optional[LiveContext] = None
+        self._flow: Optional[RunningLiveFlow] = None
         self._client: Optional[Client] = None
 
     async def post_init(self) -> None:
-        if self._ctx is not None:
+        if self._flow is not None:
             return
         self._config_loader = LiveLocalCL(self._config_dir)
-        self._ctx = await LiveContext.create(self._config_loader, "live")
+        self._flow = await RunningLiveFlow.create(self._config_loader)
         self._client = await Factory().get()
 
     async def close(self) -> None:
@@ -67,9 +67,9 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
         await self.close()
 
     @property
-    def ctx(self) -> LiveContext:
-        assert self._ctx is not None
-        return self._ctx
+    def flow(self) -> RunningLiveFlow:
+        assert self._flow is not None
+        return self._flow
 
     @property
     def client(self) -> Client:
@@ -91,10 +91,10 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
 
     async def _ensure_meta(
         self, job_id: str, suffix: Optional[str], *, skip_check: bool = False
-    ) -> LiveContext:
+    ) -> JobMeta:
         try:
-            ctx = await self.ctx.with_meta(job_id)
-            if ctx.meta.multi:
+            meta = await self.flow.get_meta(job_id)
+            if meta.multi:
                 if suffix is None:
                     if not skip_check:
                         raise click.BadArgumentUsage(
@@ -105,27 +105,26 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
                     raise click.BadArgumentUsage(
                         f"Suffix is not allowed for non-multijob {fmt_id(job_id)}"
                     )
-            return ctx
+            return meta
         except UnknownJob:
             click.secho(f"Unknown job {fmt_id(job_id)}", fg="red")
-            jobs_str = ",".join(self.ctx.job_ids)
+            jobs_str = ",".join(self.flow.job_ids)
             click.secho(f"Existing jobs: {jobs_str}", dim=True)
             sys.exit(1)
 
     async def _resolve_jobs(
-        self, meta_ctx: LiveContext, suffix: Optional[str]
+        self, meta: JobMeta, suffix: Optional[str]
     ) -> AsyncIterator[JobDescription]:
-        meta = meta_ctx.meta
         found = False
         if meta.multi and not suffix:
             async for job in self.client.jobs.list(
-                tags=meta_ctx.tags,
+                tags=meta.tags,
                 reverse=True,
             ):
                 found = True
                 yield job
         else:
-            tags = list(meta_ctx.tags)
+            tags = list(meta.tags)
             if meta.multi and suffix:
                 tags.append(f"multi:{suffix}")
             async for job in self.client.jobs.list(
@@ -140,11 +139,11 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
             raise ResourceNotFound
 
     async def _job_status(self, job_id: str) -> List[JobInfo]:
-        meta_ctx = await self._ensure_meta(job_id, None, skip_check=True)
+        meta = await self._ensure_meta(job_id, None, skip_check=True)
         ret = []
         found_suffixes = set()
         try:
-            async for descr in self._resolve_jobs(meta_ctx, None):
+            async for descr in self._resolve_jobs(meta, None):
                 if descr.status == JobStatus.PENDING:
                     when = descr.history.created_at
                 elif descr.status == JobStatus.RUNNING:
@@ -168,14 +167,14 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
                         JobInfo(real_id, descr.status, descr.id, descr.tags, when)
                     )
         except ResourceNotFound:
-            ret.append(JobInfo(job_id, JobStatus.UNKNOWN, None, meta_ctx.tags, None))
+            ret.append(JobInfo(job_id, JobStatus.UNKNOWN, None, meta.tags, None))
         return ret
 
     async def list_suffixes(self, job_id: str) -> AbstractSet[str]:
-        meta_ctx = await self._ensure_meta(job_id, None, skip_check=True)
+        meta = await self._ensure_meta(job_id, None, skip_check=True)
         result = set()
         try:
-            async for job in self._resolve_jobs(meta_ctx, None):
+            async for job in self._resolve_jobs(meta, None):
                 for tag in job.tags:
                     key, sep, val = tag.partition(":")
                     if sep and key == "multi":
@@ -199,7 +198,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
             ]
         )
         tasks = []
-        for job_id in self.ctx.job_ids:
+        for job_id in self.flow.job_ids:
             tasks.append(loop.create_task(self._job_status(job_id)))
 
         for bulk in await asyncio.gather(*tasks):
@@ -236,13 +235,13 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
     async def _try_attach_to_running(
         self, job_id: str, suffix: Optional[str], args: Optional[Tuple[str]]
     ) -> bool:
-        is_multi = await self.ctx.is_multi(job_id)
+        is_multi = await self.flow.is_multi(job_id)
 
         if not is_multi or suffix:
-            meta_ctx = await self._ensure_meta(job_id, suffix)
+            meta = await self._ensure_meta(job_id, suffix)
             try:
                 jobs = []
-                async for descr in self._resolve_jobs(meta_ctx, suffix):
+                async for descr in self._resolve_jobs(meta, suffix):
                     jobs.append(descr)
                 if len(jobs) > 1:
                     # Should never happen, but just in case
@@ -263,13 +262,10 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
                 if descr.status == JobStatus.RUNNING:
                     click.echo(f"Job {fmt_id(job_id)} is running, " "connecting...")
                     if not is_multi:
-                        job_ctx = await meta_ctx.with_job(job_id)
-                        job = job_ctx.job
+                        job = await self.flow.get_job(job_id)
                     else:
                         assert suffix is not None
-                        multi_ctx = await meta_ctx.with_multi(suffix=suffix, args=())
-                        job_ctx = await multi_ctx.with_job(job_id)
-                        job = job_ctx.job
+                        job = await self.flow.get_multi_job(job_id, suffix, ())
                     # attach to job if needed, browse first
                     if job.browse:
                         await self._run_subproc("neuro", "job", "browse", descr.id)
@@ -287,7 +283,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
     ) -> None:
         """Run a named job"""
 
-        is_multi = await self.ctx.is_multi(job_id)
+        is_multi = await self.flow.is_multi(job_id)
 
         if not is_multi and args:
             raise click.BadArgumentUsage(
@@ -298,16 +294,11 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
             return  # Attached to running job
 
         if not is_multi:
-            meta_ctx = await self._ensure_meta(job_id, suffix)
-            job_ctx = await meta_ctx.with_job(job_id)
-            job = job_ctx.job
+            job = await self.flow.get_job(job_id)
         else:
             if suffix is None:
                 suffix = secrets.token_hex(5)
-            meta_ctx = await self._ensure_meta(job_id, suffix)
-            multi_ctx = await meta_ctx.with_multi(suffix=suffix, args=args)
-            job_ctx = await multi_ctx.with_job(job_id)
-            job = job_ctx.job
+            job = await self.flow.get_multi_job(job_id, suffix, args)
 
         run_args = ["run"]
         if job.title:
@@ -327,11 +318,11 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
             run_args.append(f"--entrypoint={job.entrypoint}")
         if job.workdir is not None:
             run_args.append(f"--workdir={job.workdir}")
-        for k, v in job_ctx.env.items():
+        for k, v in job.env.items():
             run_args.append(f"--env={k}={v}")
         for v in job.volumes:
             run_args.append(f"--volume={v}")
-        for t in job_ctx.tags:
+        for t in job.tags:
             run_args.append(f"--tag={t}")
         if job.life_span is not None:
             run_args.append(f"--life-span={int(job.life_span)}s")
@@ -412,7 +403,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
                 return job_id
 
         async for descr in self.client.jobs.list(
-            tags=self.ctx.tags, statuses=RUNNING_JOB_STATUSES
+            tags=self.flow.tags, statuses=RUNNING_JOB_STATUSES
         ):
             tasks.append(loop.create_task(kill(descr)))
 
@@ -422,10 +413,10 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
     # volumes subsystem
 
     async def find_volume(self, volume: str) -> VolumeCtx:
-        volume_ctx = self.ctx.volumes.get(volume)
+        volume_ctx = self.flow.volumes.get(volume)
         if volume_ctx is None:
             click.secho(f"Unknown volume {click.style(volume, bold=True)}", fg="red")
-            volumes = sorted([volume for volume in self.ctx.volumes.keys()])
+            volumes = sorted([volume for volume in self.flow.volumes.keys()])
             volumes_str = ",".join(volumes)
             click.secho(f"Existing volumes: {volumes_str}", dim=True)
             sys.exit(1)
@@ -463,22 +454,22 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
         await self._run_subproc("neuro", "rm", "--recursive", str(volume_ctx.remote))
 
     async def upload_all(self) -> None:
-        for volume in self.ctx.volumes.values():
+        for volume in self.flow.volumes.values():
             if volume.local is not None:
                 await self.upload(volume.id)
 
     async def download_all(self) -> None:
-        for volume in self.ctx.volumes.values():
+        for volume in self.flow.volumes.values():
             if volume.local is not None:
                 await self.download(volume.id)
 
     async def clean_all(self) -> None:
-        for volume in self.ctx.volumes.values():
+        for volume in self.flow.volumes.values():
             if volume.local is not None:
                 await self.clean(volume.id)
 
     async def mkvolumes(self) -> None:
-        for volume in self.ctx.volumes.values():
+        for volume in self.flow.volumes.values():
             if volume.local is not None:
                 volume_ctx = await self.find_volume(volume.id)
                 click.echo(f"Create volume {fmt_id(volume.id)}")
@@ -492,10 +483,10 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
     # images subsystem
 
     async def find_image(self, image: str) -> ImageCtx:
-        image_ctx = self.ctx.images.get(image)
+        image_ctx = self.flow.images.get(image)
         if image_ctx is None:
             click.secho(f"Unknown image {click.style(image, bold=True)}", fg="red")
-            images = sorted([image for image in self.ctx.images.keys()])
+            images = sorted([image for image in self.flow.images.keys()])
             images_str = ",".join(images)
             click.secho(f"Existing images: {images_str}", dim=True)
             sys.exit(1)
@@ -529,6 +520,6 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
         await self._run_subproc("neuro-extras", "image", "build", *cmd)
 
     async def build_all(self) -> None:
-        for image, image_ctx in self.ctx.images.items():
+        for image, image_ctx in self.flow.images.items():
             if image_ctx.context is not None:
                 await self.build(image)

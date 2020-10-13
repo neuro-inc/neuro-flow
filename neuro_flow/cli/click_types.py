@@ -76,7 +76,7 @@ class LiveJobType(AsyncType[str]):
         incomplete: str,
     ) -> List[Tuple[str, Optional[str]]]:
         async with LiveRunner(config_dir) as runner:
-            variants = runner.ctx.job_ids
+            variants = list(runner.flow.job_ids)
             if self._allow_all:
                 variants += ["ALL"]
             return [
@@ -147,7 +147,7 @@ class LiveImageType(AsyncType[str]):
         async with LiveRunner(config_dir) as runner:
             variants = [
                 image
-                for image, image_ctx in runner.ctx.images.items()
+                for image, image_ctx in runner.flow.images.items()
                 if image_ctx.context is not None
             ]
             if self._allow_all:
@@ -183,7 +183,7 @@ class LiveVolumeType(AsyncType[str]):
         async with LiveRunner(config_dir) as runner:
             variants = [
                 volume.id
-                for volume in runner.ctx.volumes.values()
+                for volume in runner.flow.volumes.values()
                 if volume.local is not None
             ]
             if self._allow_all:

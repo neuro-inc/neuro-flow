@@ -162,6 +162,10 @@ class JobsMock:
             self._data[descr.id] = descr
         self._outputs[descr.id] = output
 
+    def clear(self) -> None:
+        self._data = {}
+        self._outputs = {}
+
     # Fake Jobs methods
 
     async def run(
@@ -736,6 +740,41 @@ async def test_fully_cached_with_action(
     )
     await executor_task
 
-    print("foo")
-
     await run_executor(assets, "batch-action-call")
+
+
+async def test_cached_same_needs(
+    jobs_mock: JobsMock,
+    assets: Path,
+    run_executor: Callable[[Path, str], Awaitable[None]],
+) -> None:
+    executor_task = asyncio.ensure_future(run_executor(assets, "batch-test-cache"))
+
+    await jobs_mock.mark_done("task-1", "::set-output name=arg::val".encode())
+    await jobs_mock.mark_done("task-2")
+    await executor_task
+
+    jobs_mock.clear()
+    executor_task = asyncio.ensure_future(run_executor(assets, "batch-test-cache"))
+
+    await jobs_mock.mark_done("task-1", "::set-output name=arg::val".encode())
+    await executor_task
+
+
+async def test_not_cached_if_different_needs(
+    jobs_mock: JobsMock,
+    assets: Path,
+    run_executor: Callable[[Path, str], Awaitable[None]],
+) -> None:
+    executor_task = asyncio.ensure_future(run_executor(assets, "batch-test-cache"))
+
+    await jobs_mock.mark_done("task-1", "::set-output name=arg::val".encode())
+    await jobs_mock.mark_done("task-2")
+    await executor_task
+
+    jobs_mock.clear()
+    executor_task = asyncio.ensure_future(run_executor(assets, "batch-test-cache"))
+
+    await jobs_mock.mark_done("task-1", "::set-output name=arg::val2".encode())
+    await jobs_mock.mark_done("task-2")
+    await executor_task
