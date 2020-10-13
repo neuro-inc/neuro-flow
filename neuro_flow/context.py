@@ -1586,6 +1586,8 @@ def _ctx_default(val: Any) -> Any:
         return val.value
     elif isinstance(val, RemotePath):
         return str(val)
+    elif isinstance(val, LocalPath):
+        return str(val)
     elif isinstance(val, collections.abc.Set):
         return sorted(val)
     elif isinstance(val, AlwaysT):
