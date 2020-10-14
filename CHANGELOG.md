@@ -5,6 +5,12 @@
 
 [comment]: # (towncrier release notes start)
 
+Neuro_Flow 20.10.14 (2020-10-14)
+================================
+
+No significant changes.
+
+
 Neuro_Flow 20.10.12 (2020-10-12)
 ================================
 
