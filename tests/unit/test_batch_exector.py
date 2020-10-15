@@ -114,7 +114,7 @@ class JobsMock:
                     return descr
             await asyncio.sleep(0.01)
 
-    async def get_task(self, task_name: str, timeout: float = 1) -> JobDescription:
+    async def get_task(self, task_name: str, timeout: float = 2) -> JobDescription:
         try:
             return await asyncio.wait_for(self._get_task(task_name), timeout=timeout)
         except asyncio.TimeoutError:
@@ -296,7 +296,7 @@ def start_executor(
 ) -> Callable[[ExecutorData], Awaitable[None]]:
     async def start(data: ExecutorData) -> None:
         executor = await BatchExecutor.create(
-            data, patched_client, batch_storage, polling_timeout=0.01
+            data, patched_client, batch_storage, polling_timeout=0.05
         )
         await executor.run()
 
@@ -436,7 +436,7 @@ async def test_enable_cancels_depending_tasks(
     assets: Path,
     run_executor: Callable[[Path, str], Awaitable[None]],
 ) -> None:
-    await asyncio.wait_for(run_executor(assets, "batch-first-disabled"), timeout=1)
+    await asyncio.wait_for(run_executor(assets, "batch-first-disabled"), timeout=5)
 
 
 async def test_disabled_task_is_not_required(
