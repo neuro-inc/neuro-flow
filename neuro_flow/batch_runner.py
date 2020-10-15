@@ -3,6 +3,7 @@ import dataclasses
 import asyncio
 import click
 import sys
+from collections import defaultdict
 from graphviz import Digraph
 from neuromation.api import Client, JobStatus
 from neuromation.cli.formatters import ftable  # TODO: extract into a separate library
@@ -145,8 +146,10 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
 
             for tid in graph:
                 if await flow.is_action(tid):
+                    # TODO: defaultdict(str) here is hotfix. Rework this place
                     fake_needs = {
-                        key: DepCtx(TaskStatus.SUCCEEDED, {}) for key in graph[tid]
+                        key: DepCtx(TaskStatus.SUCCEEDED, defaultdict(str))
+                        for key in graph[tid]
                     }
                     sub_ctx = await flow.get_action(tid, needs=fake_needs)
                     to_check.append((prefix + (tid,), sub_ctx))
