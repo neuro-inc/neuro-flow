@@ -40,7 +40,7 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
             Pos(0, 0, config_file),
             "Global title",
         ),
-        args=None,
+        params=None,
         images={
             "image_a": ast.Image(
                 _start=Pos(4, 4, config_file),
@@ -229,7 +229,7 @@ def test_parse_seq(assets: pathlib.Path) -> None:
             Pos(0, 0, config_file),
             None,
         ),
-        args=None,
+        params=None,
         images=None,
         volumes=None,
         defaults=None,
@@ -336,7 +336,7 @@ def test_parse_needs(assets: pathlib.Path) -> None:
             Pos(0, 0, config_file),
             None,
         ),
-        args=None,
+        params=None,
         images=None,
         volumes=None,
         defaults=None,
@@ -445,7 +445,7 @@ def test_parse_matrix(assets: pathlib.Path) -> None:
             Pos(0, 0, config_file),
             None,
         ),
-        args=None,
+        params=None,
         images=None,
         volumes=None,
         defaults=None,
@@ -564,7 +564,7 @@ def test_parse_matrix_with_strategy(assets: pathlib.Path) -> None:
             Pos(0, 0, config_file),
             None,
         ),
-        args=None,
+        params=None,
         images=None,
         volumes=None,
         defaults=ast.BatchFlowDefaults(
@@ -736,7 +736,7 @@ def test_parse_matrix_with_strategy(assets: pathlib.Path) -> None:
 
 def test_parse_args(assets: pathlib.Path) -> None:
     workspace = assets
-    config_file = workspace / "batch-args.yml"
+    config_file = workspace / "batch-params.yml"
     flow = parse_batch(workspace, config_file)
     assert flow == ast.BatchFlow(
         Pos(0, 0, config_file),
@@ -752,8 +752,8 @@ def test_parse_args(assets: pathlib.Path) -> None:
             Pos(0, 0, config_file),
             None,
         ),
-        args={
-            "arg1": ast.Arg(
+        params={
+            "arg1": ast.Param(
                 _start=Pos(2, 8, config_file),
                 _end=Pos(
                     2,
@@ -771,7 +771,7 @@ def test_parse_args(assets: pathlib.Path) -> None:
                     None,
                 ),
             ),
-            "arg2": ast.Arg(
+            "arg2": ast.Param(
                 _start=Pos(
                     4,
                     4,
@@ -801,10 +801,10 @@ def test_parse_args(assets: pathlib.Path) -> None:
             _end=Pos(10, 0, config_file),
             tags=[
                 StrExpr(
-                    Pos(0, 0, config_file), Pos(0, 0, config_file), "${{ args.arg1 }}"
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "${{ params.arg1 }}"
                 ),
                 StrExpr(
-                    Pos(0, 0, config_file), Pos(0, 0, config_file), "${{ args.arg2 }}"
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "${{ params.arg2 }}"
                 ),
             ],
             env=None,
@@ -890,7 +890,7 @@ def test_parse_enable(assets: pathlib.Path) -> None:
             Pos(0, 0, config_file),
             None,
         ),
-        args=None,
+        params=None,
         images=None,
         volumes=None,
         defaults=None,

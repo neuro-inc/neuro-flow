@@ -56,7 +56,7 @@ TagsCtx = AbstractSet[str]
 VolumesCtx = Mapping[str, "VolumeCtx"]
 ImagesCtx = Mapping[str, "ImageCtx"]
 InputsCtx = Mapping[str, str]
-ArgsCtx = Mapping[str, str]
+ParamsCtx = Mapping[str, str]
 
 NeedsCtx = Mapping[str, "DepCtx"]
 StateCtx = Mapping[str, str]
@@ -302,14 +302,14 @@ class LiveActionContext(WithEnvContext, Context):
 
 @dataclass(frozen=True)
 class BatchContextStep1(WithFlowContext, Context):
-    args: ArgsCtx
+    params: ParamsCtx
 
     def to_step_2(
         self, env: EnvCtx, tags: TagsCtx, volumes: VolumesCtx, images: ImagesCtx
     ) -> "BatchContextStep2":
         return BatchContextStep2(
             flow=self.flow,
-            args=self.args,
+            params=self.params,
             env=env,
             tags=tags,
             volumes=volumes,
@@ -329,7 +329,7 @@ class BatchContextStep2(WithEnvContext, BatchContextStep1):
     ) -> "BatchContext":
         return BatchContext(
             flow=self.flow,
-            args=self.args,
+            params=self.params,
             env=self.env,
             tags=self.tags,
             volumes=self.volumes,
@@ -372,7 +372,7 @@ class BatchContext(BaseBatchContext, BatchContextStep2):
     ) -> "BatchMatrixContext":
         return BatchMatrixContext(
             flow=self.flow,
-            args=self.args,
+            params=self.params,
             env=self.env,
             tags=self.tags,
             volumes=self.volumes,
@@ -389,7 +389,7 @@ class BatchMatrixContext(BaseMatrixContext, BatchContext):
     def to_task_ctx(self, needs: NeedsCtx, state: StateCtx) -> "BatchTaskContext":
         return BatchTaskContext(
             flow=self.flow,
-            args=self.args,
+            params=self.params,
             env=self.env,
             tags=self.tags,
             volumes=self.volumes,
@@ -645,30 +645,30 @@ async def setup_inputs_ctx(
     return new_inputs
 
 
-async def setup_args_ctx(
+async def setup_params_ctx(
     ctx: RootABC,
-    args: Optional[Mapping[str, str]],
-    ast_args: Optional[Mapping[str, ast.Arg]],
-) -> ArgsCtx:
-    if args is None:
-        args = {}
-    new_args = {}
-    if ast_args is not None:
-        for k, v in ast_args.items():
-            value = args.get(k) or await v.default.eval(ctx)
+    params: Optional[Mapping[str, str]],
+    ast_params: Optional[Mapping[str, ast.Param]],
+) -> ParamsCtx:
+    if params is None:
+        params = {}
+    new_params = {}
+    if ast_params is not None:
+        for k, v in ast_params.items():
+            value = params.get(k) or await v.default.eval(ctx)
             if value is None:
                 raise EvalError(
                     f"Arg {k} is not initialized and has no default value",
                     v._start,
                     v._end,
                 )
-            new_args[k] = value
-    extra = args.keys() - new_args.keys()
+            new_params[k] = value
+    extra = params.keys() - new_params.keys()
     if extra:
         raise ValueError(
             f"Unsupported arg(s): {','.join(sorted(extra))}",
         )
-    return new_args
+    return new_params
 
 
 async def setup_strategy_ctx(
@@ -1123,17 +1123,17 @@ class RunningBatchFlow(RunningBatchBase[BatchContext]):
         cls,
         config_loader: ConfigLoader,
         batch: str,
-        args: Optional[Mapping[str, str]] = None,
+        params: Optional[Mapping[str, str]] = None,
     ) -> "RunningBatchFlow":
         ast_flow = await config_loader.fetch_flow(batch)
 
         assert isinstance(ast_flow, ast.BatchFlow)
 
         flow_ctx = await setup_flow_ctx(EMPTY_ROOT, ast_flow, batch, config_loader)
-        args_ctx = await setup_args_ctx(EMPTY_ROOT, args, ast_flow.args)
+        params_ctx = await setup_params_ctx(EMPTY_ROOT, params, ast_flow.params)
         step_1_ctx = BatchContextStep1(
             flow=flow_ctx,
-            args=args_ctx,
+            params=params_ctx,
         )
 
         defaults, env, tags = await setup_defaults_env_tags_ctx(

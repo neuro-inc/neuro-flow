@@ -328,7 +328,7 @@ def _executor_data_to_bake_id(data: ExecutorData) -> str:
         when=data.when,
         suffix=data.suffix,
         graphs={},  # not needed for bake_id calculation
-        args={},
+        params={},
     ).bake_id
 
 
@@ -784,17 +784,17 @@ async def test_not_cached_if_different_needs(
     await executor_task
 
 
-async def test_batch_args(
+async def test_batch_params(
     jobs_mock: JobsMock,
     assets: Path,
     run_executor: Callable[[Path, str, Mapping[str, str]], Awaitable[None]],
 ) -> None:
     executor_task = asyncio.ensure_future(
-        run_executor(assets, "batch-args-required", {"arg2": "test_value"})
+        run_executor(assets, "batch-params-required", {"arg2": "test_value"})
     )
     task_descr = await jobs_mock.get_task("task-1")
     assert set(task_descr.tags) == {
-        "flow:batch-args-required",
+        "flow:batch-params-required",
         "test_value",
         "val1",
         "project:unit",

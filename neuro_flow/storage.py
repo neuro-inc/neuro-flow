@@ -62,7 +62,7 @@ class Bake:
     suffix: str
     # prefix -> { id -> deps }
     graphs: Mapping[FullID, Mapping[FullID, AbstractSet[FullID]]]
-    args: Optional[Mapping[str, str]]
+    params: Optional[Mapping[str, str]]
 
     def __str__(self) -> str:
         folder = "_".join([self.batch, _dt2str(self.when), self.suffix])
@@ -141,7 +141,7 @@ class BatchStorage(abc.ABC):
             when=datetime.datetime.now(),
             suffix="suffix",
             graphs={},
-            args={},
+            params={},
         )
         yield bake
 
@@ -153,7 +153,7 @@ class BatchStorage(abc.ABC):
         configs_meta: Mapping[str, Any],
         configs: Sequence[ConfigFile],
         graphs: Mapping[FullID, Mapping[FullID, AbstractSet[FullID]]],
-        args: Optional[Mapping[str, str]],
+        params: Optional[Mapping[str, str]],
     ) -> Bake:
         pass
 
@@ -543,7 +543,7 @@ class BatchFSStorage(BatchStorage):
         configs_meta: Mapping[str, Any],
         configs: Sequence[ConfigFile],
         graphs: Mapping[FullID, Mapping[FullID, AbstractSet[FullID]]],
-        args: Optional[Mapping[str, str]],
+        params: Optional[Mapping[str, str]],
     ) -> Bake:
         when = _now()
         bake = Bake(
@@ -552,7 +552,7 @@ class BatchFSStorage(BatchStorage):
             when=when,
             suffix=secrets.token_hex(3),
             graphs=graphs,
-            args=args,
+            params=params,
         )
         bake_uri = _mk_bake_uri(self._fs, bake)
         await self._fs.mkdir(bake_uri, parents=True)
@@ -879,7 +879,7 @@ def _bake_to_json(bake: Bake) -> Dict[str, Any]:
         "when": bake.when.isoformat(),
         "suffix": bake.suffix,
         "graphs": graphs,
-        "args": bake.args,
+        "params": bake.params,
     }
 
 
@@ -896,7 +896,7 @@ def _bake_from_json(data: Dict[str, Any]) -> Bake:
         when=datetime.datetime.fromisoformat(data["when"]),
         suffix=data["suffix"],
         graphs=graphs,
-        args=data["args"],
+        params=data["params"],
     )
 
 

@@ -792,20 +792,20 @@ FLOW = {
     "images": None,
     "volumes": None,
     "defaults": None,
-    "args": None,
+    "params": None,
     "jobs": None,
     "tasks": None,
 }
 
 
-ARGS = {"default": SimpleOptStrExpr, "descr": SimpleOptStrExpr}
+PARAMS = {"default": SimpleOptStrExpr, "descr": SimpleOptStrExpr}
 
 
-def parse_arg(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Arg:
-    return parse_dict(ctor, node, ARGS, ast.Arg)
+def parse_param(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Param:
+    return parse_dict(ctor, node, PARAMS, ast.Param)
 
 
-def parse_args(ctor: BaseConstructor, node: yaml.MappingNode) -> Dict[str, ast.Arg]:
+def parse_params(ctor: BaseConstructor, node: yaml.MappingNode) -> Dict[str, ast.Param]:
     ret = {}
     for k, v in node.value:
         key = ctor.construct_id(k)
@@ -813,20 +813,20 @@ def parse_args(ctor: BaseConstructor, node: yaml.MappingNode) -> Dict[str, ast.A
             default = ctor.construct_object(v)  # type: ignore[no-untyped-call]
             start = mark2pos(v.start_mark)
             end = mark2pos(v.end_mark)
-            ret[key] = ast.Arg(
+            ret[key] = ast.Param(
                 _start=start,
                 _end=end,
                 default=SimpleOptStrExpr(start, end, default),
                 descr=SimpleOptStrExpr(start, end, None),
             )
         else:
-            arg = parse_arg(ctor, v)
+            arg = parse_param(ctor, v)
             ret[key] = arg
     return ret
 
 
-FlowLoader.add_path_resolver("flow:args", [(dict, "args")])  # type: ignore
-FlowLoader.add_constructor("flow:args", parse_args)  # type: ignore
+FlowLoader.add_path_resolver("flow:params", [(dict, "params")])  # type: ignore
+FlowLoader.add_constructor("flow:params", parse_params)  # type: ignore
 
 
 def find_flow_type(

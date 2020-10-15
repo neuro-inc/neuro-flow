@@ -203,9 +203,9 @@ class LiveFlow(BaseFlow):
 
 
 @dataclass(frozen=True)
-class Arg(Base):
-    # Possible args in yaml:
-    # args:
+class Param(Base):
+    # Possible params in yaml:
+    # params:
     #  name: ~
     #  name: value
     #  name:
@@ -218,7 +218,7 @@ class Arg(Base):
 @dataclass(frozen=True)
 class BatchFlow(BaseFlow):
     # self.kind == Kind.Batch
-    args: Optional[Mapping[str, Arg]] = field(metadata={"allow_none": True})
+    params: Optional[Mapping[str, Param]] = field(metadata={"allow_none": True})
     tasks: Sequence[Union[Task, TaskActionCall]]
 
     defaults: Optional[BatchFlowDefaults] = field(metadata={"allow_none": True})
