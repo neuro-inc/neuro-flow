@@ -357,6 +357,11 @@ class BaseMatrixContext(BaseBatchContext):
         pass
 
 
+@dataclass(frozen=True)
+class MatrixOnlyContext(Context):
+    matrix: MatrixCtx
+
+
 class BaseTaskContext(BaseMatrixContext):
     strategy: StrategyCtx
     needs: NeedsCtx
@@ -678,6 +683,45 @@ async def setup_strategy_ctx(
     return StrategyCtx(fail_fast=fail_fast, max_parallel=max_parallel)
 
 
+async def setup_matrix(ast_matrix: Optional[ast.Matrix]) -> Sequence[MatrixCtx]:
+    if ast_matrix is None:
+        return [{}]
+    # Init
+    products = []
+    for k, lst in ast_matrix.products.items():
+        lst2 = [{k: await i.eval(EMPTY_ROOT)} for i in lst]
+        products.append(lst2)
+    matrices = []
+    for row in itertools.product(*products):
+        dct: Dict[str, LiteralT] = {}
+        for elem in row:
+            dct.update(elem)
+        matrices.append(dct)
+    # Exclude
+    exclude = []
+    for exc_spec in ast_matrix.exclude:
+        exclude.append({k: await v.eval(EMPTY_ROOT) for k, v in exc_spec.items()})
+    filtered = []
+    for matrix in matrices:
+        include = True
+        for exc in exclude:
+            match = True
+            for k, v in exc.items():
+                if matrix[k] != v:
+                    match = False
+                    break
+            if match:
+                include = False
+                break
+        if include:
+            filtered.append(matrix)
+    matrices = filtered
+    # Include
+    for inc_spec in ast_matrix.include:
+        matrices.append({k: await v.eval(EMPTY_ROOT) for k, v in inc_spec.items()})
+    return matrices
+
+
 async def setup_cache(
     ctx: RootABC,
     base_cache: CacheConf,
@@ -890,18 +934,12 @@ class RunningLiveFlow:
 _T = TypeVar("_T", bound=BaseBatchContext, covariant=True)
 
 
-class RunningBatchBase(Generic[_T]):
+class EarlyBatch:
     def __init__(
-        self,
-        ctx: _T,
-        tasks: Mapping[str, "BasePrepTask"],
-        config_loader: ConfigLoader,
-        defaults: DefaultsConf,
+        self, tasks: Mapping[str, "BaseEarlyTask"], config_loader: ConfigLoader
     ):
-        self._ctx = ctx
-        self._tasks: Mapping[str, BasePrepTask] = tasks
         self._cl = config_loader
-        self._defaults = defaults
+        self._tasks = tasks
 
     @property
     def graph(self) -> Mapping[str, AbstractSet[str]]:
@@ -910,31 +948,62 @@ class RunningBatchBase(Generic[_T]):
     @lru_cache()
     def _graph(self) -> Mapping[str, AbstractSet[str]]:
         # This function is only needed for mypy
-        return {key: prep_task.needs for key, prep_task in self._tasks.items()}
+        return {key: early_task.needs for key, early_task in self._tasks.items()}
 
-    def _get_prep(self, real_id: str) -> "BasePrepTask":
+    def _get_prep(self, real_id: str) -> "BaseEarlyTask":
         try:
             return self._tasks[real_id]
         except KeyError:
             raise UnknownTask(real_id)
 
     async def is_task(self, real_id: str) -> bool:
-        prep_task = self._get_prep(real_id)
-        return isinstance(prep_task, (PrepTask, PrepStatefulCall))
+        early_task = self._get_prep(real_id)
+        return isinstance(early_task, EarlyTask)
 
     async def is_local(self, real_id: str) -> bool:
-        prep_task = self._get_prep(real_id)
-        return isinstance(prep_task, PrepLocalCall)
+        early_task = self._get_prep(real_id)
+        return isinstance(early_task, EarlyLocalCall)
 
     async def is_action(self, real_id: str) -> bool:
-        prep_task = self._get_prep(real_id)
-        return isinstance(prep_task, PrepBatchCall)
+        early_task = self._get_prep(real_id)
+        return isinstance(early_task, EarlyBatchCall)
 
     async def state_from(self, real_id: str) -> Optional[str]:
         prep_task = self._get_prep(real_id)
-        if isinstance(prep_task, PrepPostTask):
+        if isinstance(prep_task, EarlyPostTask):
             return prep_task.state_from
         return None
+
+    async def get_action_early(self, real_id: str) -> "EarlyBatch":
+        assert await self.is_action(
+            real_id
+        ), f"get_task() cannot used for action call {real_id}"
+        prep_task = self._get_prep(real_id)
+        assert isinstance(prep_task, PrepBatchCall)  # Already checked
+
+        tasks = await EarlyTaskGraphBuilder(self._cl, prep_task.action.tasks).build()
+
+        return EarlyBatch(tasks, self._cl)
+
+
+class RunningBatchBase(Generic[_T], EarlyBatch):
+    _tasks: Mapping[str, "BasePrepTask"]
+
+    def __init__(
+        self,
+        ctx: _T,
+        tasks: Mapping[str, "BasePrepTask"],
+        config_loader: ConfigLoader,
+        defaults: DefaultsConf,
+    ):
+        super().__init__(tasks, config_loader)
+        self._ctx = ctx
+        self._defaults = defaults
+
+    def _get_prep(self, real_id: str) -> "BasePrepTask":
+        prep_task = super()._get_prep(real_id)
+        assert isinstance(prep_task, BasePrepTask)
+        return prep_task
 
     def _task_context(
         self, real_id: str, needs: NeedsCtx, state: StateCtx
@@ -1232,15 +1301,125 @@ class RunningBatchActionFlow(RunningBatchBase[BatchActionContext]):
 
 
 @dataclass(frozen=True)
-class BasePrepTask:
+class BaseEarlyTask:
     id: Optional[str]
     real_id: str
     needs: AbstractSet[str]  # A set of batch.id
 
     matrix: MatrixCtx
+    enable: EnableExpr
+
+    def to_task(self, ast_task: ast.ExecUnit) -> "EarlyTask":
+        return EarlyTask(
+            id=self.id,
+            real_id=self.real_id,
+            needs=self.needs,
+            matrix=self.matrix,
+            enable=self.enable,
+            ast_task=ast_task,
+        )
+
+    def to_batch_call(
+        self,
+        action: ast.BatchAction,
+        call: ast.TaskActionCall,
+    ) -> "EarlyBatchCall":
+        return EarlyBatchCall(
+            id=self.id,
+            real_id=self.real_id,
+            needs=self.needs,
+            matrix=self.matrix,
+            enable=self.enable,
+            action=action,
+            call=call,
+        )
+
+    def to_local_call(
+        self,
+        action: ast.LocalAction,
+        call: ast.TaskActionCall,
+    ) -> "EarlyLocalCall":
+        return EarlyLocalCall(
+            id=self.id,
+            real_id=self.real_id,
+            needs=self.needs,
+            matrix=self.matrix,
+            enable=self.enable,
+            action=action,
+            call=call,
+        )
+
+    def to_stateful_call(
+        self,
+        action: ast.StatefulAction,
+        call: ast.TaskActionCall,
+    ) -> "EarlyStatefulCall":
+        return EarlyStatefulCall(
+            id=self.id,
+            real_id=self.real_id,
+            needs=self.needs,
+            matrix=self.matrix,
+            ast_task=action.main,
+            enable=self.enable,
+            action=action,
+            call=call,
+        )
+
+    def to_post_task(self, ast_task: ast.ExecUnit, state_from: str) -> "EarlyPostTask":
+        return EarlyPostTask(
+            id=self.id,
+            real_id=self.real_id,
+            needs=self.needs,
+            matrix=self.matrix,
+            enable=self.enable,
+            ast_task=ast_task,
+            state_from=state_from,
+        )
+
+    def to_prep_base(self, strategy: StrategyCtx, cache: CacheConf) -> "BasePrepTask":
+        return BasePrepTask(
+            id=self.id,
+            real_id=self.real_id,
+            needs=self.needs,
+            matrix=self.matrix,
+            enable=self.enable,
+            strategy=strategy,
+            cache=cache,
+        )
+
+
+@dataclass(frozen=True)
+class EarlyTask(BaseEarlyTask):
+    ast_task: ast.ExecUnit
+
+
+@dataclass(frozen=True)
+class EarlyBatchCall(BaseEarlyTask):
+    call: ast.TaskActionCall
+    action: ast.BatchAction
+
+
+@dataclass(frozen=True)
+class EarlyLocalCall(BaseEarlyTask):
+    call: ast.TaskActionCall
+    action: ast.LocalAction
+
+
+@dataclass(frozen=True)
+class EarlyStatefulCall(EarlyTask):
+    call: ast.TaskActionCall
+    action: ast.StatefulAction
+
+
+@dataclass(frozen=True)
+class EarlyPostTask(EarlyTask):
+    state_from: str
+
+
+@dataclass(frozen=True)
+class BasePrepTask(BaseEarlyTask):
     strategy: StrategyCtx
     cache: CacheConf
-    enable: EnableExpr
 
     def to_task(self, ast_task: ast.ExecUnit) -> "PrepTask":
         return PrepTask(
@@ -1321,60 +1500,57 @@ class BasePrepTask:
 
 
 @dataclass(frozen=True)
-class PrepTask(BasePrepTask):
-    ast_task: ast.ExecUnit
+class PrepTask(EarlyTask, BasePrepTask):
+    pass
 
 
 @dataclass(frozen=True)
-class PrepBatchCall(BasePrepTask):
-    call: ast.TaskActionCall
-    action: ast.BatchAction
+class PrepBatchCall(EarlyBatchCall, BasePrepTask):
+    pass
 
 
 @dataclass(frozen=True)
-class PrepLocalCall(BasePrepTask):
-    call: ast.TaskActionCall
-    action: ast.LocalAction
+class PrepLocalCall(EarlyLocalCall, BasePrepTask):
+    pass
 
 
 @dataclass(frozen=True)
-class PrepStatefulCall(PrepTask):
-    call: ast.TaskActionCall
-    action: ast.StatefulAction
+class PrepStatefulCall(EarlyStatefulCall, PrepTask):
+    pass
 
 
 @dataclass(frozen=True)
-class PrepPostTask(PrepTask):
-    state_from: str
+class PrepPostTask(EarlyPostTask, PrepTask):
+    pass
 
 
-class TaskGraphBuilder:
+class EarlyTaskGraphBuilder:
     MATRIX_SIZE_LIMIT = 256
 
     def __init__(
         self,
-        ctx: BaseBatchContext,
         config_loader: ConfigLoader,
-        default_cache: CacheConf,
         ast_tasks: Sequence[Union[ast.Task, ast.TaskActionCall]],
     ):
-        self._ctx = ctx
         self._cl = config_loader
-        self._default_cache = default_cache
         self._ast_tasks = ast_tasks
 
-    async def build(self) -> Mapping[str, BasePrepTask]:
-        post_tasks: List[List[BasePrepTask]] = []
-        prep_tasks: Dict[str, BasePrepTask] = {}
+    async def _extend_base(
+        self, base: BaseEarlyTask, ast_task: Union[ast.Task, ast.TaskActionCall]
+    ) -> BaseEarlyTask:
+        return base
+
+    async def build(self) -> Mapping[str, BaseEarlyTask]:
+        post_tasks: List[List[EarlyPostTask]] = []
+        prep_tasks: Dict[str, BaseEarlyTask] = {}
         last_needs: Set[str] = set()
         for num, ast_task in enumerate(self._ast_tasks, 1):
             assert isinstance(ast_task, (ast.Task, ast.TaskActionCall))
 
-            strategy = await self._setup_strategy(ast_task.strategy)
             matrix_ast = ast_task.strategy.matrix if ast_task.strategy else None
-            matrix = await self._setup_matrix(matrix_ast)
+            matrices = await setup_matrix(matrix_ast)
 
-            if len(matrix) > TaskGraphBuilder.MATRIX_SIZE_LIMIT:
+            if len(matrices) > self.MATRIX_SIZE_LIMIT:
                 assert matrix_ast
                 raise EvalError(
                     f"The matrix size for task #{num} exceeds the limit of 256",
@@ -1383,29 +1559,22 @@ class TaskGraphBuilder:
                 )
 
             real_ids = set()
-            post_tasks_group: List[BasePrepTask] = []
-            for row in matrix:
+            post_tasks_group = []
+            for matrix in matrices:
                 # make prep patch(es)
-                matrix_ctx = self._ctx.to_matrix_ctx(matrix=row, strategy=strategy)
+                matrix_ctx = MatrixOnlyContext(matrix=matrix)
 
                 task_id, real_id = await self._setup_ids(matrix_ctx, num, ast_task)
                 needs = await self._setup_needs(matrix_ctx, last_needs, ast_task)
-                cache = await setup_cache(
-                    matrix_ctx,
-                    self._default_cache,
-                    ast_task.cache,
-                    ast.CacheStrategy.INHERIT,
-                )
 
-                base = BasePrepTask(
+                base = BaseEarlyTask(
                     id=task_id,
                     real_id=real_id,
                     needs=needs,
-                    matrix=row,
-                    strategy=strategy,
-                    cache=cache,
+                    matrix=matrix,
                     enable=ast_task.enable,
                 )
+                base = await self._extend_base(base, ast_task)
 
                 if isinstance(ast_task, ast.Task):
                     prep_tasks[real_id] = base.to_task(ast_task)
@@ -1418,7 +1587,6 @@ class TaskGraphBuilder:
                     elif isinstance(action, ast.LocalAction):
                         prep_tasks[real_id] = base.to_local_call(action, ast_task)
                     elif isinstance(action, ast.StatefulAction):
-                        prep_tasks[real_id] = base.to_stateful_call(action, ast_task)
                         if action.post:
                             post_tasks_group.append(
                                 replace(
@@ -1429,6 +1597,8 @@ class TaskGraphBuilder:
                                     enable=action.post_if,
                                 ).to_post_task(action.post, real_id),
                             )
+                        prep_tasks[real_id] = base.to_stateful_call(action, ast_task)
+
                     else:
                         raise ValueError(
                             f"Action {action_name} has kind {action.kind}, "
@@ -1451,77 +1621,8 @@ class TaskGraphBuilder:
 
         return prep_tasks
 
-    async def _setup_strategy(
-        self, ast_strategy: Optional[ast.Strategy]
-    ) -> StrategyCtx:
-        if ast_strategy is None:
-            return self._ctx.strategy
-
-        fail_fast = await ast_strategy.fail_fast.eval(self._ctx)
-        if fail_fast is None:
-            fail_fast = self._ctx.strategy.fail_fast
-        max_parallel = await ast_strategy.max_parallel.eval(self._ctx)
-        if max_parallel is None:
-            max_parallel = self._ctx.strategy.max_parallel
-
-        return StrategyCtx(fail_fast=fail_fast, max_parallel=max_parallel)
-
-    async def _setup_matrix(
-        self, ast_matrix: Optional[ast.Matrix]
-    ) -> Sequence[MatrixCtx]:
-        if ast_matrix is not None:
-            matrix = await self._matrix_init(ast_matrix)
-            matrix = await self._matrix_include(ast_matrix, matrix)
-            matrix = await self._matrix_exclude(ast_matrix, matrix)
-        else:
-            matrix = [{}]  # dummy
-        return matrix
-
-    async def _matrix_init(self, ast_matrix: ast.Matrix) -> Sequence[MatrixCtx]:
-        products = []
-        for k, lst in ast_matrix.products.items():
-            lst2 = [{k: await i.eval(self._ctx)} for i in lst]
-            products.append(lst2)
-        ret = []
-        for row in itertools.product(*products):
-            dct: Dict[str, LiteralT] = {}
-            for elem in row:
-                dct.update(elem)
-            ret.append(dct)
-        return ret
-
-    async def _matrix_exclude(
-        self, ast_matrix: ast.Matrix, matrix: Sequence[MatrixCtx]
-    ) -> Sequence[MatrixCtx]:
-        exclude = []
-        for dct in ast_matrix.exclude:
-            exclude.append({k: await v.eval(self._ctx) for k, v in dct.items()})
-        ret = []
-        for row in matrix:
-            include = True
-            for exc in exclude:
-                match = True
-                for k, v in exc.items():
-                    if row[k] != v:
-                        match = False
-                        break
-                if match:
-                    include = False
-                    break
-            if include:
-                ret.append(row)
-        return ret
-
-    async def _matrix_include(
-        self, ast_matrix: ast.Matrix, matrix: Sequence[MatrixCtx]
-    ) -> Sequence[MatrixCtx]:
-        ret = list(matrix)
-        for dct in ast_matrix.include:
-            ret.append({k: await v.eval(self._ctx) for k, v in dct.items()})
-        return ret
-
     async def _setup_ids(
-        self, ctx: BaseMatrixContext, num: int, ast_task: ast.TaskBase
+        self, ctx: MatrixOnlyContext, num: int, ast_task: ast.TaskBase
     ) -> Tuple[Optional[str], str]:
         task_id = await ast_task.id.eval(ctx)
         if task_id is None:
@@ -1539,6 +1640,61 @@ class TaskGraphBuilder:
         if ast_task.needs is not None:
             return {await need.eval(ctx) for need in ast_task.needs}
         return default_needs
+
+
+class TaskGraphBuilder(EarlyTaskGraphBuilder):
+    MATRIX_SIZE_LIMIT = 256
+
+    def __init__(
+        self,
+        ctx: BaseBatchContext,
+        config_loader: ConfigLoader,
+        default_cache: CacheConf,
+        ast_tasks: Sequence[Union[ast.Task, ast.TaskActionCall]],
+    ):
+        super().__init__(config_loader, ast_tasks)
+        self._ctx = ctx
+        self._default_cache = default_cache
+
+    async def _extend_base(
+        self, base: BaseEarlyTask, ast_task: Union[ast.Task, ast.TaskActionCall]
+    ) -> BasePrepTask:
+        strategy = await self._setup_strategy(ast_task.strategy)
+
+        matrix_ctx = self._ctx.to_matrix_ctx(matrix=base.matrix, strategy=strategy)
+        cache = await setup_cache(
+            matrix_ctx,
+            self._default_cache,
+            ast_task.cache,
+            ast.CacheStrategy.INHERIT,
+        )
+
+        return base.to_prep_base(strategy, cache)
+
+    async def build(self) -> Mapping[str, BasePrepTask]:
+        # Super method already returns proper type (thanks to _extend_base),
+        # but it is hard to properly annotate, so we have to do runtime check here
+        ret = {}
+        tasks = await super().build()
+        for key, value in tasks.items():
+            assert isinstance(value, BasePrepTask)
+            ret[key] = value
+        return ret
+
+    async def _setup_strategy(
+        self, ast_strategy: Optional[ast.Strategy]
+    ) -> StrategyCtx:
+        if ast_strategy is None:
+            return self._ctx.strategy
+
+        fail_fast = await ast_strategy.fail_fast.eval(self._ctx)
+        if fail_fast is None:
+            fail_fast = self._ctx.strategy.fail_fast
+        max_parallel = await ast_strategy.max_parallel.eval(self._ctx)
+        if max_parallel is None:
+            max_parallel = self._ctx.strategy.max_parallel
+
+        return StrategyCtx(fail_fast=fail_fast, max_parallel=max_parallel)
 
 
 # Utils

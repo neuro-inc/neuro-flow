@@ -114,7 +114,7 @@ class JobsMock:
                     return descr
             await asyncio.sleep(0.01)
 
-    async def get_task(self, task_name: str, timeout: float = 1) -> JobDescription:
+    async def get_task(self, task_name: str, timeout: float = 2) -> JobDescription:
         try:
             return await asyncio.wait_for(self._get_task(task_name), timeout=timeout)
         except asyncio.TimeoutError:
@@ -296,7 +296,7 @@ def start_executor(
 ) -> Callable[[ExecutorData], Awaitable[None]]:
     async def start(data: ExecutorData) -> None:
         executor = await BatchExecutor.create(
-            data, patched_client, batch_storage, polling_timeout=0.01
+            data, patched_client, batch_storage, polling_timeout=0.05
         )
         await executor.run()
 
@@ -376,6 +376,7 @@ async def test_batch_with_action_ok(
             [("o1", "t1"), ("o1", "t2"), ("o2", "t1"), ("o2", "t2"), ("o3", "t3")],
         ),
         ("batch-matrix-4", [("o2", "t1"), ("o2", "t2"), ("o3", "t3")]),
+        ("batch-matrix-5", [("o2", "t1"), ("o2", "t2"), ("o1", "t1")]),
     ],
 )
 async def test_batch_matrix(
@@ -435,7 +436,7 @@ async def test_enable_cancels_depending_tasks(
     assets: Path,
     run_executor: Callable[[Path, str], Awaitable[None]],
 ) -> None:
-    await asyncio.wait_for(run_executor(assets, "batch-first-disabled"), timeout=1)
+    await asyncio.wait_for(run_executor(assets, "batch-first-disabled"), timeout=5)
 
 
 async def test_disabled_task_is_not_required(
@@ -515,6 +516,50 @@ async def test_graphs(
         ("test",): {
             ("test", "task_1"): set(),
             ("test", "task_2"): {("test", "task_1")},
+        },
+    }
+
+
+async def test_early_graph(
+    batch_storage: BatchStorage,
+    make_batch_runner: MakeBatchRunner,
+    assets: Path,
+) -> None:
+    batch_runner = await make_batch_runner(assets / "early_graph")
+    data = await batch_runner._setup_exc_data("batch")
+    bake = await batch_storage.fetch_bake(
+        data.project, data.batch, data.when, data.suffix
+    )
+    assert bake.graphs == {
+        (): {
+            ("first_ac",): set(),
+            ("second",): {("first_ac",)},
+            ("third",): {("first_ac",)},
+        },
+        ("first_ac",): {("first_ac", "task_2"): set()},
+        ("second",): {
+            ("second", "task-1-e3-o3-t3"): set(),
+            ("second", "task-1-o1-t1"): set(),
+            ("second", "task-1-o2-t1"): set(),
+            ("second", "task-1-o2-t2"): set(),
+            ("second", "task_2"): {
+                ("second", "task-1-e3-o3-t3"),
+                ("second", "task-1-o1-t1"),
+                ("second", "task-1-o2-t1"),
+                ("second", "task-1-o2-t2"),
+            },
+        },
+        ("third",): {
+            ("third", "task-1-e3-o3-t3"): set(),
+            ("third", "task-1-o1-t1"): set(),
+            ("third", "task-1-o2-t1"): set(),
+            ("third", "task-1-o2-t2"): set(),
+            ("third", "task_2"): {
+                ("third", "task-1-e3-o3-t3"),
+                ("third", "task-1-o1-t1"),
+                ("third", "task-1-o2-t1"),
+                ("third", "task-1-o2-t2"),
+            },
         },
     }
 

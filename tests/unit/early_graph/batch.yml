@@ -1,0 +1,17 @@
+kind: batch
+tasks:
+  - id: first_ac
+    action: ws:action-1
+
+  - id: second
+    needs: [first_ac]
+    action: ws:action-2
+    args:
+      arg: ${{ needs.first_ac.outputs.out_first }}
+
+
+  - id: third
+    needs: [first_ac]
+    action: ws:action-2
+    args:
+      arg: ${{ needs.first_ac.outputs.out_first }}

@@ -3,7 +3,6 @@ import dataclasses
 import asyncio
 import click
 import sys
-from collections import defaultdict
 from graphviz import Digraph
 from neuromation.api import Client, JobStatus
 from neuromation.cli.formatters import ftable  # TODO: extract into a separate library
@@ -16,13 +15,7 @@ from . import __version__
 from .batch_executor import BatchExecutor, ExecutorData, LocalsBatchExecutor
 from .commands import CmdProcessor
 from .config_loader import BatchLocalCL
-from .context import (
-    EMPTY_ROOT,
-    BaseBatchContext,
-    DepCtx,
-    RunningBatchBase,
-    RunningBatchFlow,
-)
+from .context import EMPTY_ROOT, EarlyBatch, RunningBatchFlow
 from .parser import ConfigDir
 from .storage import Attempt, Bake, BatchStorage, FinishedTask
 from .types import FullID, LocalPath, TaskStatus
@@ -129,9 +122,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         self, top_flow: RunningBatchFlow
     ) -> Mapping[FullID, Mapping[FullID, AbstractSet[FullID]]]:
         graphs = {}
-        to_check: List[Tuple[FullID, RunningBatchBase[BaseBatchContext]]] = [
-            ((), top_flow)
-        ]
+        to_check: List[Tuple[FullID, EarlyBatch]] = [((), top_flow)]
         while to_check:
             prefix, flow = to_check.pop(0)
             graph = flow.graph
@@ -146,13 +137,8 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
 
             for tid in graph:
                 if await flow.is_action(tid):
-                    # TODO: defaultdict(str) here is hotfix. Rework this place
-                    fake_needs = {
-                        key: DepCtx(TaskStatus.SUCCEEDED, defaultdict(str))
-                        for key in graph[tid]
-                    }
-                    sub_ctx = await flow.get_action(tid, needs=fake_needs)
-                    to_check.append((prefix + (tid,), sub_ctx))
+                    sub_flow = await flow.get_action_early(tid)
+                    to_check.append((prefix + (tid,), sub_flow))
         return graphs
 
     # Next function is also used in tests:
