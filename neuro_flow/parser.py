@@ -590,12 +590,14 @@ JOB = {
     "browse": OptBoolExpr,
     "port_forward": SimpleSeq(PortPairExpr),
     "multi": SimpleOptBoolExpr,
+    "params": None,
     **EXEC_UNIT,
 }
 
 JOB_ACTION_CALL = {
     "action": SimpleStrExpr,
     "args": SimpleMapping(StrExpr),
+    "params": None,
 }
 
 
@@ -826,6 +828,10 @@ def parse_params(ctor: BaseConstructor, node: yaml.MappingNode) -> Dict[str, ast
 
 
 FlowLoader.add_path_resolver("flow:params", [(dict, "params")])  # type: ignore
+FlowLoader.add_path_resolver(  # type: ignore
+    "flow:params",
+    [(dict, "jobs"), (dict, None), (dict, "params")],
+)
 FlowLoader.add_constructor("flow:params", parse_params)  # type: ignore
 
 
@@ -1130,6 +1136,13 @@ def preprocess_action(
             f"missing mandatory key 'kind'",
             node.start_mark,
         )
+
+    if kind == ast.ActionKind.LIVE:
+        if "job" in dct and dct["job"].params is not None:
+            raise ConnectionError(
+                f"job.params is not supported inside live action, use inputs instead.",
+                node.start_mark,
+            )
 
     outputs_tmp: Optional[BatchActionOutputs] = dct.get("outputs")
     if outputs_tmp and kind != ast.ActionKind.BATCH:

@@ -10,7 +10,16 @@ import sys
 from neuromation.api import Client, Factory, JobDescription, JobStatus, ResourceNotFound
 from neuromation.cli.formatters import ftable  # TODO: extract into a separate library
 from types import TracebackType
-from typing import AbstractSet, AsyncIterator, Iterable, List, Optional, Tuple, Type
+from typing import (
+    AbstractSet,
+    AsyncIterator,
+    Iterable,
+    List,
+    Mapping,
+    Optional,
+    Tuple,
+    Type,
+)
 from typing_extensions import AsyncContextManager
 
 from .config_loader import LiveLocalCL
@@ -233,7 +242,11 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
             sys.exit(1)
 
     async def _try_attach_to_running(
-        self, job_id: str, suffix: Optional[str], args: Optional[Tuple[str]]
+        self,
+        job_id: str,
+        suffix: Optional[str],
+        args: Optional[Tuple[str]],
+        params: Mapping[str, str],
     ) -> bool:
         is_multi = await self.flow.is_multi(job_id)
 
@@ -262,10 +275,10 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
                 if descr.status == JobStatus.RUNNING:
                     click.echo(f"Job {fmt_id(job_id)} is running, " "connecting...")
                     if not is_multi:
-                        job = await self.flow.get_job(job_id)
+                        job = await self.flow.get_job(job_id, params)
                     else:
                         assert suffix is not None
-                        job = await self.flow.get_multi_job(job_id, suffix, ())
+                        job = await self.flow.get_multi_job(job_id, suffix, (), params)
                     # attach to job if needed, browse first
                     if job.browse:
                         await self._run_subproc("neuro", "job", "browse", descr.id)
@@ -279,7 +292,11 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
         return False
 
     async def run(
-        self, job_id: str, suffix: Optional[str], args: Optional[Tuple[str]]
+        self,
+        job_id: str,
+        suffix: Optional[str],
+        args: Optional[Tuple[str]],
+        params: Mapping[str, str],
     ) -> None:
         """Run a named job"""
 
@@ -290,15 +307,15 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
                 "Additional job arguments are supported by multi-jobs only"
             )
 
-        if await self._try_attach_to_running(job_id, suffix, args):
+        if await self._try_attach_to_running(job_id, suffix, args, params):
             return  # Attached to running job
 
         if not is_multi:
-            job = await self.flow.get_job(job_id)
+            job = await self.flow.get_job(job_id, params)
         else:
             if suffix is None:
                 suffix = secrets.token_hex(5)
-            job = await self.flow.get_multi_job(job_id, suffix, args)
+            job = await self.flow.get_multi_job(job_id, suffix, args, params)
 
         run_args = ["run"]
         if job.title:

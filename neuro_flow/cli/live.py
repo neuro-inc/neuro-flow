@@ -1,5 +1,5 @@
 import click
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 
 from neuro_flow.cli.click_types import LIVE_JOB, LIVE_JOB_OR_ALL, SUFFIX_AFTER_LIVE_JOB
 from neuro_flow.cli.utils import argument, option, wrap_async
@@ -17,6 +17,9 @@ async def ps(config_dir: ConfigDir) -> None:
 
 @click.command()
 @option("-s", "--suffix", help="Optional suffix for multi-jobs")
+@click.option(
+    "--param", type=(str, str), multiple=True, help="Set params of the batch config"
+)
 @argument("job-id", type=LIVE_JOB)
 @argument("args", nargs=-1)
 @wrap_async()
@@ -25,6 +28,7 @@ async def run(
     job_id: str,
     suffix: Optional[str],
     args: Optional[Tuple[str]],
+    param: List[Tuple[str, str]],
 ) -> None:
     """Run a job.
 
@@ -33,7 +37,7 @@ async def run(
     For multi-jobs an explicit job suffix can be used with explicit job arguments.
     """
     async with LiveRunner(config_dir) as runner:
-        await runner.run(job_id, suffix, args)
+        await runner.run(job_id, suffix, args, {key: value for key, value in param})
 
 
 @click.command()

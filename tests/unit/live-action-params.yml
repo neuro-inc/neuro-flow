@@ -1,0 +1,15 @@
+kind: live
+name: Test live Action
+author: Andrew Svetlov
+descr: description of test action
+inputs:
+  arg1:
+    descr: param 1
+  arg2:
+    descr: param 2
+    default: value 2
+job:
+  params:
+    test: val1
+  image: ubuntu
+  bash: echo A ${{ inputs.arg1 }} B ${{ inputs.arg2 }} C
