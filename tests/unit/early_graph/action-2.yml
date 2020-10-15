@@ -1,0 +1,21 @@
+kind: batch
+inputs:
+  arg:
+    descr: param 1
+tasks:
+  - strategy:
+      matrix:
+        one: [o1, o2]
+        two: [t1, t2]
+        exclude:
+          - one: o1
+            two: t2
+        include:
+          - one: o3
+            two: t3
+            extra: e3
+    image: ubuntu
+    bash: echo ${{ matrix.one }} ${{ matrix.two }}
+  - id: task_2
+    image: ubuntu
+    bash: echo ${{ inputs.arg }}

@@ -519,6 +519,50 @@ async def test_graphs(
     }
 
 
+async def test_early_graph(
+    batch_storage: BatchStorage,
+    make_batch_runner: MakeBatchRunner,
+    assets: Path,
+) -> None:
+    batch_runner = await make_batch_runner(assets / "early_graph")
+    data = await batch_runner._setup_exc_data("batch")
+    bake = await batch_storage.fetch_bake(
+        data.project, data.batch, data.when, data.suffix
+    )
+    assert bake.graphs == {
+        (): {
+            ("first_ac",): set(),
+            ("second",): {("first_ac",)},
+            ("third",): {("first_ac",)},
+        },
+        ("first_ac",): {("first_ac", "task_2"): set()},
+        ("second",): {
+            ("second", "task-1-e3-o3-t3"): set(),
+            ("second", "task-1-o1-t1"): set(),
+            ("second", "task-1-o2-t1"): set(),
+            ("second", "task-1-o2-t2"): set(),
+            ("second", "task_2"): {
+                ("second", "task-1-e3-o3-t3"),
+                ("second", "task-1-o1-t1"),
+                ("second", "task-1-o2-t1"),
+                ("second", "task-1-o2-t2"),
+            },
+        },
+        ("third",): {
+            ("third", "task-1-e3-o3-t3"): set(),
+            ("third", "task-1-o1-t1"): set(),
+            ("third", "task-1-o2-t1"): set(),
+            ("third", "task-1-o2-t2"): set(),
+            ("third", "task_2"): {
+                ("third", "task-1-e3-o3-t3"),
+                ("third", "task-1-o1-t1"),
+                ("third", "task-1-o2-t1"),
+                ("third", "task-1-o2-t2"),
+            },
+        },
+    }
+
+
 async def test_always_after_disabled(
     jobs_mock: JobsMock,
     assets: Path,

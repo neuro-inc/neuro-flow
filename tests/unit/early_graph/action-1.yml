@@ -1,0 +1,10 @@
+kind: batch
+outputs:
+  needs: [task_2]
+  out_first:
+    descr: action result 1
+    value: ${{ needs.task_2.outputs.task2 }}
+tasks:
+  - id: task_2
+    image: ubuntu
+    bash: echo ::set-output name=task2::foo
