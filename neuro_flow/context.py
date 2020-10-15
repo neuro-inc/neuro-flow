@@ -697,9 +697,6 @@ async def setup_matrix(ast_matrix: Optional[ast.Matrix]) -> Sequence[MatrixCtx]:
         for elem in row:
             dct.update(elem)
         matrices.append(dct)
-    # Include
-    for inc_spec in ast_matrix.include:
-        matrices.append({k: await v.eval(EMPTY_ROOT) for k, v in inc_spec.items()})
     # Exclude
     exclude = []
     for exc_spec in ast_matrix.exclude:
@@ -718,7 +715,11 @@ async def setup_matrix(ast_matrix: Optional[ast.Matrix]) -> Sequence[MatrixCtx]:
                 break
         if include:
             filtered.append(matrix)
-    return filtered
+    matrices = filtered
+    # Include
+    for inc_spec in ast_matrix.include:
+        matrices.append({k: await v.eval(EMPTY_ROOT) for k, v in inc_spec.items()})
+    return matrices
 
 
 async def setup_cache(
