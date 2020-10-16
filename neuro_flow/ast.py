@@ -114,7 +114,25 @@ class Strategy(Base):
 
 
 @dataclass(frozen=True)
-class Job(ExecUnit):
+class Param(Base):
+    # Possible params in yaml:
+    # params:
+    #  name: ~
+    #  name: value
+    #  name:
+    #    default: value
+    #    descr: description
+    default: SimpleOptStrExpr
+    descr: SimpleOptStrExpr
+
+
+@dataclass(frozen=True)
+class JobBase(Base):
+    params: Optional[Mapping[str, Param]] = field(metadata={"allow_none": True})
+
+
+@dataclass(frozen=True)
+class Job(ExecUnit, JobBase):
     # Interactive job used by Kind.Live flow
 
     detach: OptBoolExpr
@@ -155,7 +173,7 @@ class BaseActionCall(Base):
 
 
 @dataclass(frozen=True)
-class JobActionCall(BaseActionCall):
+class JobActionCall(BaseActionCall, JobBase):
     pass
 
 
@@ -200,19 +218,6 @@ class BaseFlow(Base):
 class LiveFlow(BaseFlow):
     # self.kind == Kind.Job
     jobs: Mapping[str, Union[Job, JobActionCall]]
-
-
-@dataclass(frozen=True)
-class Param(Base):
-    # Possible params in yaml:
-    # params:
-    #  name: ~
-    #  name: value
-    #  name:
-    #    default: value
-    #    descr: description
-    default: SimpleOptStrExpr
-    descr: SimpleOptStrExpr
 
 
 @dataclass(frozen=True)

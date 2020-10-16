@@ -71,7 +71,7 @@ async def test_env_defaults(live_config_loader: ConfigLoader) -> None:
 
 async def test_env_from_job(live_config_loader: ConfigLoader) -> None:
     flow = await RunningLiveFlow.create(live_config_loader, "live-full")
-    job = await flow.get_job("test_a")
+    job = await flow.get_job("test_a", {})
     assert job.env == {
         "global_a": "val-a",
         "global_b": "val-b",
@@ -140,7 +140,7 @@ async def test_defaults(live_config_loader: ConfigLoader) -> None:
 
 async def test_job(live_config_loader: ConfigLoader) -> None:
     flow = await RunningLiveFlow.create(live_config_loader, "live-full")
-    job = await flow.get_job("test_a")
+    job = await flow.get_job("test_a", {})
 
     assert job.id == "test_a"
     assert job.title == "Job title"
@@ -174,7 +174,7 @@ async def test_bad_expr_type_after_eval(live_config_loader: ConfigLoader) -> Non
     )
 
     with pytest.raises(EvalError) as cm:
-        await flow.get_job("test")
+        await flow.get_job("test", {})
     assert str(cm.value) == dedent(
         """\
         'abc def' is not an integer
@@ -544,7 +544,7 @@ async def test_batch_action_with_inputs_default_ok(
 
 async def test_job_with_live_action(live_config_loader: ConfigLoader) -> None:
     flow = await RunningLiveFlow.create(live_config_loader, "live-action-call")
-    job = await flow.get_job("test")
+    job = await flow.get_job("test", {})
 
     assert job.id == "test"
     assert job.title == "live_action_call.test"
@@ -560,6 +560,32 @@ async def test_job_with_live_action(live_config_loader: ConfigLoader) -> None:
     assert job.tags == {
         "project:unit",
         "flow:live-action-call",
+        "job:test",
+    }
+    assert job.life_span is None
+    assert job.port_forward == []
+    assert not job.detach
+    assert not job.browse
+
+
+async def test_job_with_params(live_config_loader: ConfigLoader) -> None:
+    flow = await RunningLiveFlow.create(live_config_loader, "live-params")
+    job = await flow.get_job("test", {"arg1": "value"})
+
+    assert job.id == "test"
+    assert job.title == "live_params.test"
+    assert job.name is None
+    assert job.image == "ubuntu"
+    assert job.preset is None
+    assert job.http_port is None
+    assert not job.http_auth
+    assert job.entrypoint is None
+    assert job.cmd == "bash -euo pipefail -c 'echo value val2'"
+    assert job.workdir is None
+    assert job.volumes == []
+    assert job.tags == {
+        "project:unit",
+        "flow:live-params",
         "job:test",
     }
     assert job.life_span is None

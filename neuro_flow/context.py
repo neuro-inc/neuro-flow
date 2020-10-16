@@ -278,20 +278,39 @@ class LiveContext(WithEnvContext, LiveContextStep1):
     volumes: VolumesCtx
     images: ImagesCtx
 
-    def to_multi_ctx(self, multi: MultiCtx) -> "LiveContextMulti":
-        return LiveContextMulti(
+    def to_job_ctx(self, params: ParamsCtx) -> "LiveJobContext":
+        return LiveJobContext(
+            flow=self.flow,
+            env=self.env,
+            tags=self.tags,
+            volumes=self.volumes,
+            images=self.images,
+            params=params,
+        )
+
+    def to_multi_job_ctx(
+        self, multi: MultiCtx, params: ParamsCtx
+    ) -> "LiveMultiJobContext":
+        return LiveMultiJobContext(
             flow=self.flow,
             env=self.env,
             tags=self.tags,
             volumes=self.volumes,
             images=self.images,
             multi=multi,
+            params=params,
         )
 
 
 @dataclass(frozen=True)
-class LiveContextMulti(LiveContext):
+class LiveJobContext(LiveContext):
+    params: ParamsCtx
+
+
+@dataclass(frozen=True)
+class LiveMultiJobContext(LiveContext):
     multi: MultiCtx
+    params: ParamsCtx
 
 
 @dataclass(frozen=True)
@@ -824,14 +843,22 @@ class RunningLiveFlow:
             tags=tags,
         )
 
-    async def get_job(self, job_id: str) -> Job:
+    async def get_job(self, job_id: str, params: Mapping[str, str]) -> Job:
         assert not await self.is_multi(
             job_id
         ), "Use get_multi_job() for multi jobs instead of get_job()"
-        return await self._get_job(self._ctx, self._defaults, job_id)
+        job_ast = self._get_job_ast(job_id)
+        ctx = self._ctx.to_job_ctx(
+            params=await setup_params_ctx(EMPTY_ROOT, params, job_ast.params)
+        )
+        return await self._get_job(ctx, self._defaults, job_id, params)
 
     async def get_multi_job(
-        self, job_id: str, suffix: str, args: Optional[Sequence[str]]
+        self,
+        job_id: str,
+        suffix: str,
+        args: Optional[Sequence[str]],
+        params: Mapping[str, str],
     ) -> Job:
         assert await self.is_multi(
             job_id
@@ -841,14 +868,20 @@ class RunningLiveFlow:
             args_str = ""
         else:
             args_str = " ".join(shlex.quote(arg) for arg in args)
-        ctx = self._ctx.to_multi_ctx(
+        job_ast = self._get_job_ast(job_id)
+        ctx = self._ctx.to_multi_job_ctx(
             multi=MultiCtx(suffix=suffix, args=args_str),
+            params=await setup_params_ctx(EMPTY_ROOT, params, job_ast.params),
         )
-        job = await self._get_job(ctx, self._defaults, job_id)
+        job = await self._get_job(ctx, self._defaults, job_id, params)
         return replace(job, tags=job.tags | {f"multi:{suffix}"})
 
     async def _get_job(
-        self, ctx: WithEnvContext, defaults: DefaultsConf, job_id: str
+        self,
+        ctx: WithEnvContext,
+        defaults: DefaultsConf,
+        job_id: str,
+        params: Mapping[str, str],
     ) -> Job:
         job = self._get_job_ast(job_id)
         if isinstance(job, ast.JobActionCall):

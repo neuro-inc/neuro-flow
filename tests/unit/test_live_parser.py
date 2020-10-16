@@ -86,6 +86,96 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
                 multi=SimpleOptBoolExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
+                params=None,
+            )
+        },
+    )
+
+
+def test_parse_params(assets: pathlib.Path) -> None:
+    workspace = assets
+    config_file = workspace / "live-params.yml"
+    flow = parse_live(workspace, config_file)
+    assert flow == ast.LiveFlow(
+        Pos(0, 0, config_file),
+        Pos(10, 0, config_file),
+        id=SimpleOptIdExpr(
+            Pos(0, 0, config_file),
+            Pos(0, 0, config_file),
+            None,
+        ),
+        kind=ast.FlowKind.LIVE,
+        title=SimpleOptStrExpr(
+            Pos(0, 0, config_file),
+            Pos(0, 0, config_file),
+            None,
+        ),
+        images=None,
+        volumes=None,
+        defaults=None,
+        jobs={
+            "test": ast.Job(
+                Pos(3, 4, config_file),
+                Pos(10, 0, config_file),
+                name=OptStrExpr(Pos(3, 4, config_file), Pos(5, 0, config_file), None),
+                image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
+                preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                entrypoint=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                cmd=OptBashExpr(
+                    Pos(0, 0, config_file),
+                    Pos(0, 0, config_file),
+                    "echo ${{ params.arg1 }} ${{ params.arg2 }}",
+                ),
+                workdir=OptRemotePathExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                env=None,
+                volumes=None,
+                tags=None,
+                life_span=OptLifeSpanExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                detach=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                browse=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                http_port=OptIntExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                http_auth=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                port_forward=None,
+                multi=SimpleOptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                params={
+                    "arg1": ast.Param(
+                        _start=Pos(4, 12, config_file),
+                        _end=Pos(4, 16, config_file),
+                        default=SimpleOptStrExpr(
+                            Pos(0, 0, config_file), Pos(0, 0, config_file), "val1"
+                        ),
+                        descr=SimpleOptStrExpr(
+                            Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                        ),
+                    ),
+                    "arg2": ast.Param(
+                        _start=Pos(6, 8, config_file),
+                        _end=Pos(8, 4, config_file),
+                        default=SimpleOptStrExpr(
+                            Pos(0, 0, config_file), Pos(0, 0, config_file), "val2"
+                        ),
+                        descr=SimpleOptStrExpr(
+                            Pos(0, 0, config_file), Pos(0, 0, config_file), "Second arg"
+                        ),
+                    ),
+                },
             )
         },
     )
@@ -286,6 +376,7 @@ def test_parse_full(assets: pathlib.Path) -> None:
                 multi=SimpleOptBoolExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
+                params=None,
             )
         },
     )
@@ -353,6 +444,7 @@ def test_parse_bash(assets: pathlib.Path) -> None:
                 multi=SimpleOptBoolExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
+                params=None,
             )
         },
     )
@@ -420,6 +512,7 @@ def test_parse_python(assets: pathlib.Path) -> None:
                 multi=SimpleOptBoolExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
+                params=None,
             )
         },
     )
@@ -533,6 +626,7 @@ def test_parse_multi(assets: pathlib.Path) -> None:
                 multi=SimpleOptBoolExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), True
                 ),
+                params=None,
             )
         },
     )
@@ -600,6 +694,7 @@ def test_parse_explicit_flow_id(assets: pathlib.Path) -> None:
                 multi=SimpleOptBoolExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
+                params=None,
             )
         },
     )

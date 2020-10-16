@@ -1,3 +1,4 @@
+import pytest
 from unittest.mock import ANY
 
 from neuro_flow import ast
@@ -97,8 +98,19 @@ def test_parse_live_action(assets: LocalPath) -> None:
             multi=SimpleOptBoolExpr(
                 Pos(0, 0, config_file), Pos(0, 0, config_file), None
             ),
+            params=None,
         ),
     )
+
+
+def test_params_forbidden_in_live_action(assets: LocalPath) -> None:
+    config_file = assets / "live-action-params.yml"
+    with pytest.raises(
+        ConnectionError,
+        match=r"job.params is not supported inside "
+        r"live action, use inputs instead.",
+    ):
+        parse_action(config_file)
 
 
 def test_parse_batch_action(assets: LocalPath) -> None:
@@ -418,6 +430,7 @@ def test_parse_live_call(assets: LocalPath) -> None:
                         Pos(0, 0, config_file), Pos(0, 0, config_file), "val 1"
                     )
                 },
+                params=None,
             )
         },
     )

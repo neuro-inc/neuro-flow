@@ -1,0 +1,10 @@
+kind: live
+jobs:
+  test:
+    params:
+      arg1: val1
+      arg2:
+        default: val2
+        descr: Second arg
+    image: ubuntu
+    bash: echo ${{ params.arg1 }} ${{ params.arg2 }}
