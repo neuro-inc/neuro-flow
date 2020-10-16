@@ -72,7 +72,7 @@ jobs:
     life_span: 10d
     volumes:
       - ${{ volumes.data.ref_ro }}
-      - ${{ volumes.code.ref_rw }}
+      - ${{ upload(volumes.code).ref_rw }}
       - ${{ volumes.config.ref_ro }}
       - ${{ volumes.results.ref_rw }}
     env:
@@ -88,7 +88,7 @@ jobs:
     life_span: 10d
     volumes:
       - ${{ volumes.data.ref_ro }}
-      - ${{ volumes.code.ref_rw }}
+      - ${{ upload(volumes.code).ref_rw }}
       - ${{ volumes.config.ref_ro }}
       - ${{ volumes.results.ref_rw }}
     env:
@@ -103,7 +103,7 @@ jobs:
     action: ws:.neuro/jupyter
     args:
       volume_data: $[[ volumes.data.ref_ro ]]
-      volume_code: ${{ volumes.code.ref_rw }}
+      volume_code: ${{ upload(volumes.code).ref_rw }}
       volume_config: ${{ volumes.config.ref_ro }}
       volume_notebooks: ${{ volumes.notebooks.ref_rw }}
       volume_results: ${{ volumes.results.ref_rw }}

@@ -46,6 +46,7 @@ from yarl import URL
 
 from .tokenizer import Pos, Token, tokenize
 from .types import AlwaysT, LocalPath, RemotePath, TaskStatus
+from .utils import run_subproc
 
 
 _T = TypeVar("_T")
@@ -185,6 +186,23 @@ async def hash_files(ctx: CallCtx, *patterns: str) -> str:
     return hasher.hexdigest()
 
 
+async def upload(ctx: CallCtx, volume_ctx: ContainerT) -> ContainerT:
+    from .context import VolumeCtx
+
+    if not isinstance(volume_ctx, VolumeCtx):
+        raise ValueError("upload() argument should be volume")
+    await run_subproc(
+        "neuro",
+        "cp",
+        "--recursive",
+        "--update",
+        "--no-target-directory",
+        str(volume_ctx.full_local_path),
+        str(volume_ctx.remote),
+    )
+    return volume_ctx
+
+
 def _check_has_needs(ctx: CallCtx, *, func_name: str) -> None:
     try:
         ctx.root.lookup("needs")
@@ -260,6 +278,7 @@ FUNCTIONS = _build_signatures(
     failure=failure,
     hash_files=hash_files,
     always=always,
+    upload=upload,
 )
 
 

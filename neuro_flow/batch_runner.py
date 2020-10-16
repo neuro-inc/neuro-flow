@@ -1,6 +1,5 @@
 import dataclasses
 
-import asyncio
 import click
 import sys
 from graphviz import Digraph
@@ -19,7 +18,7 @@ from .context import EMPTY_ROOT, EarlyBatch, RunningBatchFlow
 from .parser import ConfigDir
 from .storage import Attempt, Bake, BatchStorage, FinishedTask
 from .types import FullID, LocalPath, TaskStatus
-from .utils import TERMINATED_JOB_STATUSES, fmt_id, fmt_raw_id, fmt_status
+from .utils import TERMINATED_JOB_STATUSES, fmt_id, fmt_raw_id, fmt_status, run_subproc
 
 
 if sys.version_info >= (3, 9):
@@ -169,7 +168,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         else:
             click.echo(f"Starting remove executor")
             param = data.serialize()
-            await self._run_subproc(
+            await run_subproc(
                 "neuro",
                 "run",
                 "--restart=on-failure",
@@ -406,19 +405,6 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             )
         await self._storage.finish_attempt(attempt, JobStatus.CANCELLED)
         click.echo(f"Attempt #{attempt.number} of bake {bake.bake_id} was cancelled.")
-
-    async def _run_subproc(self, exe: str, *args: str) -> None:
-        proc = await asyncio.create_subprocess_exec(exe, *args)
-        try:
-            retcode = await proc.wait()
-            if retcode:
-                raise SystemExit(retcode)
-        finally:
-            if proc.returncode is None:
-                # Kill neuro process if not finished
-                # (e.g. if KeyboardInterrupt or cancellation was received)
-                proc.kill()
-                await proc.wait()
 
     async def clear_cache(self, batch: Optional[str] = None) -> None:
         await self._storage.clear_cache(self.project, batch)
