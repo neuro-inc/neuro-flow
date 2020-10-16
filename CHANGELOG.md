@@ -5,6 +5,22 @@
 
 [comment]: # (towncrier release notes start)
 
+Neuro_Flow 20.10.16 (2020-10-16)
+================================
+
+Features
+--------
+
+
+- Added --param option to `neuro-flow bake` command that allows to pass arguments to `params` section
+  of the config file. ([#128](https://github.com/neuro-inc/neuro-flow/issues/128))
+
+- Added --param option to `neuro-flow run` command that allows to pass arguments to `param` section
+  of the job in config file. ([#132](https://github.com/neuro-inc/neuro-flow/issues/132))
+
+- Added `upload()` function to re-upload volumes just before starting job in live mode. ([#133](https://github.com/neuro-inc/neuro-flow/issues/133))
+
+
 Neuro_Flow 20.10.14 (2020-10-14)
 ================================
 

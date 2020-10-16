@@ -3,7 +3,7 @@ import dataclasses
 import click
 import sys
 from graphviz import Digraph
-from neuromation.api import Client, JobStatus
+from neuromation.api import Client, JobStatus, ResourceNotFound
 from neuromation.cli.formatters import ftable  # TODO: extract into a separate library
 from operator import attrgetter
 from types import TracebackType
@@ -229,7 +229,15 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             ]
         )
 
-        bake = await self._storage.fetch_bake_by_id(self.project, bake_id)
+        try:
+            bake = await self._storage.fetch_bake_by_id(self.project, bake_id)
+        except ResourceNotFound:
+            click.secho("Bake not found", fg="yellow")
+            click.echo(
+                f"Please make sure that the bake {fmt_id(bake_id)} and "
+                f"project {fmt_id(self.project)} are correct."
+            )
+            exit(1)
         attempt = await self._storage.find_attempt(bake, attempt_no)
 
         click.echo(
