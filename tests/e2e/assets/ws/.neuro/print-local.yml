@@ -1,0 +1,18 @@
+kind: batch
+params:
+  file_path:
+    descr: path from workspace
+tasks:
+  - action: ws:.neuro/upload-local-action.yml
+    args:
+      from: ${{ flow.workspace }}/${{ params.file_path }}
+      to: "storage:neuro-flow-e2e/${{ flow.project_id }}/file.txt"
+
+  - image: ubuntu
+    id: print_readme
+    cache:
+      strategy: none
+    volumes:
+      - "storage:neuro-flow-e2e/${{ flow.project_id }}:/mnt/storage:ro"
+    bash:
+      echo ::set-output name=file_content::`cat /mnt/storage/file.txt`

@@ -1,0 +1,8 @@
+kind: local
+inputs:
+  from:
+    descr: Local path
+  to:
+    descr: "Path on storage. Should start with 'storage:'"
+cmd:
+  neuro cp -r ${{ inputs.from }} ${{ inputs.to }}

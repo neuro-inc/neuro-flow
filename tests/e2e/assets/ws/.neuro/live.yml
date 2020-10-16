@@ -1,0 +1,64 @@
+kind: live
+title: Test live config
+
+defaults:
+  preset: cpu-small
+  env:
+    FOO: FOO_ENV
+
+volumes:
+  ro_dir:
+    remote: storage:neuro-flow-e2e/$[[ flow.project_id ]]/ro_dir
+    mount: /project/ro_dir
+    local: ro_dir
+    read_only: True
+  rw_dir:
+    remote: storage:neuro-flow-e2e/${{ flow.project_id }}/rw_dir
+    mount: /project/rw_dir
+    local: rw_dir
+
+images:
+  img:
+    ref: image:${{ flow.project_id }}:v1.0
+    dockerfile: ${{ flow.workspace }}/Dockerfile
+    context: ${{ flow.workspace }}
+
+jobs:
+
+  job_ctx_full:
+    image: ubuntu
+    env:
+      BAR: BAR_ENV
+    params:
+      arg1: val1
+      arg2:
+        default: val2
+        descr: second argument
+    bash: |
+      echo DUMP_START
+      echo {
+      echo '"flow": ${{ to_json(flow) }},'
+      echo '"env": ${{ to_json(env) }},'
+      echo '"tags": ${{ to_json(tags) }},'
+      echo '"volumes": ${{ to_json(volumes) }},'
+      echo '"images": ${{ to_json(images) }},'
+      echo '"params": ${{ to_json(params) }}'
+      echo }
+      echo DUMP_END
+
+  volumes_test:
+    image: ubuntu
+    volumes:
+      - ${{ upload(volumes.ro_dir).ref_ro }}
+      - ${{ volumes.rw_dir.ref_rw }}
+    bash: |
+      cat /project/ro_dir/updated_file
+      cat /project/rw_dir/initial_file
+
+  image_py:
+    image: ${{ images.img.ref }}
+    params:
+      py_script:
+        descr: Python script to execute
+    python: ${{ params.py_script }}
+

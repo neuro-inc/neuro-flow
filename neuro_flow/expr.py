@@ -1,11 +1,12 @@
 # expression parser/evaluator
 # ${{ <expression> }}
-
 import dataclasses
 
 import abc
 import asyncio
+import collections
 import datetime
+import enum
 import hashlib
 import inspect
 import json
@@ -154,6 +155,18 @@ class JSONEncoder(json.JSONEncoder):
     def default(self, obj: Any) -> Any:
         if dataclasses.is_dataclass(obj):
             return dataclasses.asdict(obj)
+        elif isinstance(obj, enum.Enum):
+            return obj.value
+        elif isinstance(obj, RemotePath):
+            return str(obj)
+        elif isinstance(obj, LocalPath):
+            return str(obj)
+        elif isinstance(obj, collections.abc.Set):
+            return sorted(obj)
+        elif isinstance(obj, AlwaysT):
+            return str(obj)
+        elif isinstance(obj, URL):
+            return str(obj)
         # Let the base class default method raise the TypeError
         return super().default(obj)
 

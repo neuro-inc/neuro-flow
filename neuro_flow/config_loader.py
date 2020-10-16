@@ -134,6 +134,7 @@ class LocalCL(StreamCL, abc.ABC):
             if path.exists():
                 with path.open() as f:
                     yield f
+                    return
         yield None
 
     def flow_path(self, name: str) -> LocalPath:
@@ -376,7 +377,8 @@ class BatchRemoteCL(BatchStreamCL):
     async def project_stream(self) -> AsyncIterator[Optional[TextIO]]:
         if self._meta.project_config:
             yield await self._fetch_config(self._meta.project_config)
-        yield None
+        else:
+            yield None
 
     @asynccontextmanager
     async def action_stream(self, action_name: str) -> AsyncIterator[TextIO]:

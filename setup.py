@@ -34,6 +34,7 @@ setup(
         'async_exit_stack>=1.0.1; python_version<"3.7"',
         "neuro-extras>=20.9.25",
         "graphviz>=0.14",
+        "yarl<1.6",
     ],
     packages=find_packages(),
     classifiers=[

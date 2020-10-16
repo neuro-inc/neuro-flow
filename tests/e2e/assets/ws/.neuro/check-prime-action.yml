@@ -1,0 +1,28 @@
+kind: batch
+descr: Is primary check for numbers <= 16
+inputs:
+  number:
+    descr: Number to check
+outputs:
+  needs: [setup_output]
+  result:
+    value: ${{ needs.setup_output.outputs.result }}
+tasks:
+  - strategy:
+      matrix:
+        p: ["2", "3", "5", "7", "11", "13"]
+    image: ubuntu
+    enable: ${{ matrix.p != inputs.number }}
+    bash: echo OK
+  - id: test_task
+    image: ubuntu
+    bash: echo not prime
+  - id: setup_output
+    enable: ${{ always() }}
+    image: python
+    python: |
+      if ${{ success() }}:
+        print("::set-output name=result::${{inputs.number}} is not prime")
+      else:
+        print("::set-output name=result::${{inputs.number}} is prime")
+
