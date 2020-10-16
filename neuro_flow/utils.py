@@ -1,3 +1,4 @@
+import asyncio
 import click
 from neuromation.api import JobStatus
 from typing import Union
@@ -46,3 +47,17 @@ TERMINATED_JOB_STATUSES = {
 
 
 JOB_TAG_PATTERN = r"\A[a-z](?:[-.:/]?[a-z0-9]){0,255}\Z"
+
+
+async def run_subproc(exe: str, *args: str) -> None:
+    proc = await asyncio.create_subprocess_exec(exe, *args)
+    try:
+        retcode = await proc.wait()
+        if retcode:
+            raise SystemExit(retcode)
+    finally:
+        if proc.returncode is None:
+            # Kill neuro process if not finished
+            # (e.g. if KeyboardInterrupt or cancellation was received)
+            proc.kill()
+            await proc.wait()

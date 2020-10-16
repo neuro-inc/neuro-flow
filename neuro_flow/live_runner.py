@@ -22,6 +22,7 @@ from .utils import (
     fmt_id,
     fmt_raw_id,
     fmt_status,
+    run_subproc,
 )
 
 
@@ -75,19 +76,6 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
     def client(self) -> Client:
         assert self._client is not None
         return self._client
-
-    async def _run_subproc(self, exe: str, *args: str) -> None:
-        proc = await asyncio.create_subprocess_exec(exe, *args)
-        try:
-            retcode = await proc.wait()
-            if retcode:
-                raise SystemExit(retcode)
-        finally:
-            if proc.returncode is None:
-                # Kill neuro process if not finished
-                # (e.g. if KeyboardInterrupt or cancellation was received)
-                proc.kill()
-                await proc.wait()
 
     async def _ensure_meta(
         self, job_id: str, suffix: Optional[str], *, skip_check: bool = False
@@ -227,7 +215,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
         meta_ctx = await self._ensure_meta(job_id, suffix)
         try:
             async for descr in self._resolve_jobs(meta_ctx, suffix):
-                await self._run_subproc("neuro", "status", descr.id)
+                await run_subproc("neuro", "status", descr.id)
         except ResourceNotFound:
             click.echo(f"Job {fmt_id(job_id)} is not running")
             sys.exit(1)
@@ -268,9 +256,9 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
                         job = await self.flow.get_multi_job(job_id, suffix, ())
                     # attach to job if needed, browse first
                     if job.browse:
-                        await self._run_subproc("neuro", "job", "browse", descr.id)
+                        await run_subproc("neuro", "job", "browse", descr.id)
                     if not job.detach:
-                        await self._run_subproc("neuro", "attach", descr.id)
+                        await run_subproc("neuro", "attach", descr.id)
                     return True
                 # Here the status is SUCCEED, CANCELLED or FAILED, restart
             except ResourceNotFound:
@@ -340,14 +328,14 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
         if job.multi and args:
             run_args.extend(args)
 
-        await self._run_subproc("neuro", *run_args)
+        await run_subproc("neuro", *run_args)
 
     async def logs(self, job_id: str, suffix: Optional[str]) -> None:
         """Return job logs"""
         meta_ctx = await self._ensure_meta(job_id, suffix)
         try:
             async for descr in self._resolve_jobs(meta_ctx, suffix):
-                await self._run_subproc("neuro", "logs", descr.id)
+                await run_subproc("neuro", "logs", descr.id)
         except ResourceNotFound:
             click.echo(f"Job {fmt_id(job_id)} is not running")
             sys.exit(1)
@@ -427,7 +415,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
 
     async def upload(self, volume: str) -> None:
         volume_ctx = await self.find_volume(volume)
-        await self._run_subproc(
+        await run_subproc(
             "neuro",
             "cp",
             "--recursive",
@@ -439,7 +427,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
 
     async def download(self, volume: str) -> None:
         volume_ctx = await self.find_volume(volume)
-        await self._run_subproc(
+        await run_subproc(
             "neuro",
             "cp",
             "--recursive",
@@ -451,7 +439,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
 
     async def clean(self, volume: str) -> None:
         volume_ctx = await self.find_volume(volume)
-        await self._run_subproc("neuro", "rm", "--recursive", str(volume_ctx.remote))
+        await run_subproc("neuro", "rm", "--recursive", str(volume_ctx.remote))
 
     async def upload_all(self) -> None:
         for volume in self.flow.volumes.values():
@@ -473,7 +461,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
             if volume.local is not None:
                 volume_ctx = await self.find_volume(volume.id)
                 click.echo(f"Create volume {fmt_id(volume.id)}")
-                await self._run_subproc(
+                await run_subproc(
                     "neuro",
                     "mkdir",
                     "--parents",
@@ -517,7 +505,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
             cmd.append(f"--env={k}={v}")
         cmd.append(str(image_ctx.full_context_path))
         cmd.append(str(image_ctx.ref))
-        await self._run_subproc("neuro-extras", "image", "build", *cmd)
+        await run_subproc("neuro-extras", "image", "build", *cmd)
 
     async def build_all(self) -> None:
         for image, image_ctx in self.flow.images.items():
