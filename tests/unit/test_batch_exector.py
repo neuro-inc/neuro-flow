@@ -27,6 +27,7 @@ from typing import (
     Iterable,
     Iterator,
     List,
+    Mapping,
     Optional,
     Sequence,
     Tuple,
@@ -309,9 +310,11 @@ def run_executor(
     start_locals_executor: Callable[[ExecutorData], Awaitable[None]],
     start_executor: Callable[[ExecutorData], Awaitable[None]],
 ) -> Callable[[Path, str], Awaitable[None]]:
-    async def run(config_loc: Path, batch_name: str) -> None:
+    async def run(
+        config_loc: Path, batch_name: str, args: Optional[Mapping[str, str]] = None
+    ) -> None:
         runner = await make_batch_runner(config_loc)
-        data = await runner._setup_exc_data(batch_name)
+        data = await runner._setup_exc_data(batch_name, args)
         await start_locals_executor(data)
         await start_executor(data)
 
@@ -325,6 +328,7 @@ def _executor_data_to_bake_id(data: ExecutorData) -> str:
         when=data.when,
         suffix=data.suffix,
         graphs={},  # not needed for bake_id calculation
+        params={},
     ).bake_id
 
 
@@ -822,4 +826,25 @@ async def test_not_cached_if_different_needs(
 
     await jobs_mock.mark_done("task-1", "::set-output name=arg::val2".encode())
     await jobs_mock.mark_done("task-2")
+    await executor_task
+
+
+async def test_batch_params(
+    jobs_mock: JobsMock,
+    assets: Path,
+    run_executor: Callable[[Path, str, Mapping[str, str]], Awaitable[None]],
+) -> None:
+    executor_task = asyncio.ensure_future(
+        run_executor(assets, "batch-params-required", {"arg2": "test_value"})
+    )
+    task_descr = await jobs_mock.get_task("task-1")
+    assert set(task_descr.tags) == {
+        "flow:batch-params-required",
+        "test_value",
+        "val1",
+        "project:unit",
+        "task:task-1",
+    }
+    await jobs_mock.mark_done("task-1")
+
     await executor_task

@@ -2,7 +2,7 @@ import click
 import signal
 import sys
 from neuromation.api import get as api_get
-from typing import Optional
+from typing import List, Optional, Tuple
 
 from neuro_flow.batch_executor import ExecutorData
 from neuro_flow.batch_runner import BatchRunner
@@ -26,9 +26,17 @@ else:
 
 @click.command()
 @option("--local-executor", is_flag=True, default=False, help="Run primary job locally")
+@click.option(
+    "--param", type=(str, str), multiple=True, help="Set params of the batch config"
+)
 @argument("batch", type=BATCH)
 @wrap_async()
-async def bake(config_dir: ConfigDir, batch: str, local_executor: bool) -> None:
+async def bake(
+    config_dir: ConfigDir,
+    batch: str,
+    local_executor: bool,
+    param: List[Tuple[str, str]],
+) -> None:
     """Start a batch.
 
     Run BATCH pipeline remotely on the cluster.
@@ -41,7 +49,7 @@ async def bake(config_dir: ConfigDir, batch: str, local_executor: bool) -> None:
         runner = await stack.enter_async_context(
             BatchRunner(config_dir, client, storage)
         )
-        await runner.bake(batch, local_executor)
+        await runner.bake(batch, local_executor, {key: value for key, value in param})
 
 
 @click.command(hidden=True)

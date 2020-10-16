@@ -1,0 +1,13 @@
+kind: batch
+params:
+  arg1: val1
+  arg2:
+    default: val2
+    descr: descr2
+defaults:
+  tags:
+    - ${{ params.arg1 }}
+    - ${{ params.arg2 }}
+tasks:
+  - image: ubuntu
+    cmd: echo abc

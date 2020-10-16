@@ -430,7 +430,7 @@ def test_parse_batch_call(assets: LocalPath) -> None:
     assert flow == ast.BatchFlow(
         Pos(0, 0, config_file),
         Pos(6, 0, config_file),
-        args=None,
+        params=None,
         id=SimpleOptIdExpr(
             Pos(0, 0, config_file),
             Pos(0, 0, config_file),
