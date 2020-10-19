@@ -44,7 +44,9 @@ RunCLI = Callable[[List[str]], SysCap]
 
 
 @pytest.fixture
-def run_cli(assets: pathlib.Path, api_config: Optional[pathlib.Path]) -> RunCLI:
+def run_cli(
+    loop: None, assets: pathlib.Path, api_config: Optional[pathlib.Path]
+) -> RunCLI:
     def _run(
         arguments: List[str],
     ) -> SysCap:
