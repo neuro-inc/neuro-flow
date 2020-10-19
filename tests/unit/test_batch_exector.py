@@ -39,7 +39,7 @@ from neuro_flow.batch_executor import BatchExecutor, ExecutorData, LocalsBatchEx
 from neuro_flow.batch_runner import BatchRunner
 from neuro_flow.parser import ConfigDir
 from neuro_flow.storage import Bake, BatchFSStorage, BatchStorage, LocalFS
-from neuro_flow.types import LocalPath
+from neuro_flow.types import LocalPath, TaskStatus
 
 
 MakeBatchRunner = Callable[[Path], Awaitable[BatchRunner]]
@@ -747,7 +747,7 @@ async def test_restart(batch_storage: BatchStorage, batch_runner: BatchRunner) -
         {},
     )
 
-    await batch_storage.finish_attempt(attempt, JobStatus.FAILED)
+    await batch_storage.finish_attempt(attempt, TaskStatus.FAILED)
 
     data2 = await batch_runner._restart(bake.bake_id)
     assert data == data2

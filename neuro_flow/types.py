@@ -23,10 +23,24 @@ class AlwaysT:
 class TaskStatus(str, enum.Enum):
     # Almost copy of neuromation.api.JobStatus, but adds new SKIPPED state
 
+    def __rich__(self) -> str:
+        return f"[{COLORS[self]}]{self}"
+
+    UNKNOWN = "unknown"
     PENDING = "pending"
     RUNNING = "running"
     SUCCEEDED = "succeeded"
     FAILED = "failed"
     CANCELLED = "cancelled"
-    UNKNOWN = "unknown"
     SKIPPED = "skipped"
+
+
+COLORS = {
+    TaskStatus.UNKNOWN: "reverse bright_black",
+    TaskStatus.PENDING: "cyan",
+    TaskStatus.RUNNING: "blue",
+    TaskStatus.SUCCEEDED: "green",
+    TaskStatus.FAILED: "red",
+    TaskStatus.CANCELLED: "yellow",
+    TaskStatus.SKIPPED: "magenta",
+}

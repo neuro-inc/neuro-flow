@@ -3,9 +3,10 @@ import dataclasses
 import click
 import sys
 from graphviz import Digraph
-from neuromation.api import Client, JobStatus, ResourceNotFound
-from neuromation.cli.formatters import ftable  # TODO: extract into a separate library
+from neuromation.api import Client, ResourceNotFound
 from operator import attrgetter
+from rich import box, print
+from rich.table import Table
 from types import TracebackType
 from typing import AbstractSet, Dict, List, Mapping, Optional, Tuple, Type
 from typing_extensions import AsyncContextManager, AsyncIterator
@@ -18,7 +19,7 @@ from .context import EMPTY_ROOT, EarlyBatch, RunningBatchFlow
 from .parser import ConfigDir
 from .storage import Attempt, Bake, BatchStorage, FinishedTask
 from .types import FullID, LocalPath, TaskStatus
-from .utils import TERMINATED_JOB_STATUSES, fmt_id, fmt_raw_id, fmt_status, run_subproc
+from .utils import TERMINATED_TASK_STATUSES, fmt_id, fmt_status, run_subproc
 
 
 if sys.version_info >= (3, 9):
@@ -197,20 +198,24 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         return await self._storage.find_attempt(bake, attempt_no)
 
     async def list_bakes(self) -> None:
+        table = Table(box=box.MINIMAL_HEAVY_HEAD)
+        table.add_column("ID", style="bold")
+        table.add_column("STATUS")
+
         rows: List[List[str]] = []
         async for bake in self._storage.list_bakes(self.project):
             try:
                 attempt = await self._storage.find_attempt(bake)
             except ValueError:
-                click.secho(f"Bake {bake} is malformed, skipping", fg="yellow")
+                print(f"[yellow]Bake [b]{bake}[/b] is malformed, skipping")
             else:
-                rows.append([fmt_id(bake.bake_id), fmt_status(attempt.result)])
+                rows.append([bake.bake_id, attempt.result])
 
         rows.sort()
 
-        rows.insert(0, [click.style("ID", bold=True), click.style("Status", bold=True)])
-        for line in ftable.table(rows):
-            click.echo(line)
+        for row in rows:
+            table.add_row(*row)
+        print(table)
 
     async def inspect(
         self,
@@ -222,14 +227,10 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         save_pdf: bool = False,
         view_pdf: bool = False,
     ) -> None:
-        rows: List[List[str]] = []
-        rows.append(
-            [
-                click.style("ID", bold=True),
-                click.style("Status", bold=True),
-                click.style("Raw ID", bold=True),
-            ]
-        )
+        table = Table(box=box.MINIMAL_HEAVY_HEAD)
+        table.add_column("ID", style="bold")
+        table.add_column("STATUS")
+        table.add_column("RAW ID", style="bright_black")
 
         try:
             bake = await self._storage.fetch_bake_by_id(self.project, bake_id)
@@ -240,16 +241,10 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                 f"project {fmt_id(self.project)} are correct."
             )
             exit(1)
+
         attempt = await self._storage.find_attempt(bake, attempt_no)
 
-        click.echo(
-            " ".join(
-                [
-                    fmt_id(f"Attempt #{attempt.number}"),
-                    fmt_status(attempt.result),
-                ]
-            )
-        )
+        print(f"[b]Attempt #{attempt.number}[/b]", attempt.result)
 
         started, finished = await self._storage.fetch_attempt(attempt)
         statuses = {}
@@ -257,12 +252,10 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             task_id = task.id
             raw_id = task.raw_id
             if task_id in finished:
-                rows.append(
-                    [
-                        fmt_id(task_id),
-                        fmt_status(finished[task_id].status),
-                        fmt_raw_id(raw_id),
-                    ]
+                table.add_row(
+                    ".".join(task_id),
+                    finished[task_id].status,
+                    raw_id,
                 )
             else:
                 if raw_id:
@@ -270,16 +263,13 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                     statuses[task_id] = TaskStatus(info.status)
                 else:
                     statuses[task_id] = TaskStatus.RUNNING
-                rows.append(
-                    [
-                        fmt_id(task_id),
-                        fmt_status(statuses[task_id]),
-                        fmt_raw_id(raw_id),
-                    ]
+                table.add_row(
+                    ".".join(task_id),
+                    statuses[task_id],
+                    raw_id,
                 )
 
-        for line in ftable.table(rows):
-            click.echo(line)
+        print(table)
 
         if output is None:
             output = LocalPath(f"{bake.bake_id}_{attempt.number}").with_suffix(".gv")
@@ -409,11 +399,11 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
     async def cancel(self, bake_id: str, *, attempt_no: int = -1) -> None:
         bake = await self._storage.fetch_bake_by_id(self.project, bake_id)
         attempt = await self._storage.find_attempt(bake, attempt_no)
-        if attempt.result in TERMINATED_JOB_STATUSES:
+        if attempt.result in TERMINATED_TASK_STATUSES:
             raise click.BadArgumentUsage(
                 f"Attempt #{attempt.number} of {bake.bake_id} is already stopped."
             )
-        await self._storage.finish_attempt(attempt, JobStatus.CANCELLED)
+        await self._storage.finish_attempt(attempt, TaskStatus.CANCELLED)
         click.echo(f"Attempt #{attempt.number} of bake {bake.bake_id} was cancelled.")
 
     async def clear_cache(self, batch: Optional[str] = None) -> None:
@@ -441,7 +431,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
     ) -> ExecutorData:
         bake = await self._storage.fetch_bake_by_id(self.project, bake_id)
         attempt = await self._storage.find_attempt(bake, attempt_no)
-        if attempt.result not in TERMINATED_JOB_STATUSES:
+        if attempt.result not in TERMINATED_TASK_STATUSES:
             raise click.BadArgumentUsage(
                 f"Cannot re-run still running attempt #{attempt.number} "
                 f"of {bake.bake_id}."

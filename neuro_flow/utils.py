@@ -3,18 +3,7 @@ import click
 from neuromation.api import JobStatus
 from typing import Union
 
-from .types import FullID, TaskStatus
-
-
-COLORS = {
-    TaskStatus.PENDING: "cyan",
-    TaskStatus.RUNNING: "blue",
-    TaskStatus.SUCCEEDED: "green",
-    TaskStatus.CANCELLED: "yellow",
-    TaskStatus.SKIPPED: "magenta",
-    TaskStatus.FAILED: "red",
-    TaskStatus.UNKNOWN: "bright_black",
-}
+from .types import COLORS, FullID, TaskStatus
 
 
 def fmt_status(status: Union[JobStatus, TaskStatus]) -> str:
@@ -38,11 +27,18 @@ def fmt_raw_id(raw_id: str) -> str:
 
 
 RUNNING_JOB_STATUSES = {JobStatus.PENDING, JobStatus.RUNNING}
+RUNNING_TASK_STATUSES = {TaskStatus.PENDING, TaskStatus.RUNNING}
 
 TERMINATED_JOB_STATUSES = {
     JobStatus.FAILED,
     JobStatus.SUCCEEDED,
     JobStatus.CANCELLED,
+}
+
+TERMINATED_TASK_STATUSES = {
+    TaskStatus.FAILED,
+    TaskStatus.SUCCEEDED,
+    TaskStatus.CANCELLED,
 }
 
 
