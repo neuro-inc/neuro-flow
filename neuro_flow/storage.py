@@ -757,7 +757,15 @@ class BatchFSStorage(BatchStorage):
                 return None
             if data["caching_key"] != caching_key:
                 return None
-            ret = FinishedTask(
+            st = StartedTask(
+                attempt=attempt,
+                id=task_id,
+                raw_id=data["raw_id"],
+                when=datetime.datetime.fromisoformat(data["when"]),
+                created_at=datetime.datetime.fromisoformat(data["created_at"]),
+            )
+            await self.write_start(st)
+            ft = FinishedTask(
                 attempt=attempt,
                 id=task_id,
                 raw_id=data["raw_id"],
@@ -772,8 +780,8 @@ class BatchFSStorage(BatchStorage):
                 outputs=data["outputs"],
                 state=data["state"],
             )
-            await self.write_finish(ret)
-            return ret
+            await self.write_finish(ft)
+            return ft
         except (KeyError, ValueError, TypeError):
             # something is wrong with stored JSON,
             # e.g. the structure doesn't match the expected schema
