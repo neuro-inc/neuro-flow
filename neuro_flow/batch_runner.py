@@ -111,7 +111,9 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             graphs=graphs,
             params=params,
         )
-        click.echo(f"Bake {fmt_id(str(bake))} is created")
+        click.echo(
+            f"Bake {fmt_id(bake.batch)} of project {fmt_id(bake.project)} is created"
+        )
 
         return ExecutorData(
             project=bake.project,
