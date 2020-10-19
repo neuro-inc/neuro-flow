@@ -1,0 +1,1 @@
+Fix noisy error report for `neuro kill ALL` command.
