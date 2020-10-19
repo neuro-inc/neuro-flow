@@ -35,6 +35,7 @@ setup(
         "neuro-extras>=20.9.25",
         "graphviz>=0.14",
         "yarl<1.6",
+        "multidict<5.0",
     ],
     packages=find_packages(),
     classifiers=[
