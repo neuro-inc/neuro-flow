@@ -1,5 +1,8 @@
 import click
 import logging
+import sys
+from click.exceptions import Abort as ClickAbort, Exit as ClickExit
+from neuromation.cli.log_formatter import ConsoleHandler
 from typing import Any, List, Optional
 
 from neuro_flow.cli import batch, completion, images, live, storage
@@ -7,11 +10,48 @@ from neuro_flow.parser import ConfigDir, find_workspace
 from neuro_flow.types import LocalPath
 
 
+log = logging.getLogger(__name__)
+
+
+LOG_ERROR = log.error
+
+
+def setup_logging(verbosity: int) -> None:
+    root_logger = logging.getLogger()
+    handler = ConsoleHandler()
+    root_logger.addHandler(handler)
+    root_logger.setLevel(logging.DEBUG)
+
+    if verbosity <= 1:
+        formatter = logging.Formatter()
+    else:
+        formatter = logging.Formatter("%(name)s.%(funcName)s: %(message)s")
+
+    if verbosity < -1:
+        loglevel = logging.CRITICAL
+    elif verbosity == -1:
+        loglevel = logging.ERROR
+    elif verbosity == 0:
+        loglevel = logging.WARNING
+    elif verbosity == 1:
+        loglevel = logging.INFO
+    else:
+        loglevel = logging.DEBUG
+
+    handler.setFormatter(formatter)
+    handler.setLevel(loglevel)
+
+
 class MainGroup(click.Group):
     def _process_args(
-        self, ctx: click.Context, config: Optional[str], fake_workspace: bool
+        self,
+        ctx: click.Context,
+        config: Optional[str],
+        fake_workspace: bool,
+        verbose: int,
+        quiet: int,
+        show_traceback: bool,
     ) -> None:
-        logging.basicConfig(level=logging.INFO)
         if fake_workspace:
             config_dir = ConfigDir(
                 LocalPath("running-with-fake-workspace"),
@@ -19,6 +59,13 @@ class MainGroup(click.Group):
             )
         else:
             config_dir = find_workspace(config)
+
+        setup_logging(verbosity=verbose - quiet)
+
+        global LOG_ERROR
+        if show_traceback:
+            LOG_ERROR = log.exception
+
         ctx.obj = config_dir
 
     def make_context(
@@ -56,40 +103,87 @@ class MainGroup(click.Group):
     metavar="PATH",
 )
 @click.option(
+    "-v",
+    "--verbose",
+    count=True,
+    type=int,
+    default=0,
+    help="Give more output. Option is additive, and can be used up to 2 times.",
+)
+@click.option(
+    "-q",
+    "--quiet",
+    count=True,
+    type=int,
+    default=0,
+    help="Give less output. Option is additive, and can be used up to 2 times.",
+)
+@click.option(
+    "--show-traceback",
+    is_flag=True,
+    help="Show python traceback on error, useful for debugging the tool.",
+)
+@click.option(
     "--fake-workspace",
     hidden=True,
     is_flag=True,
     default=False,
     required=False,
 )
-def main(config: Optional[str], fake_workspace: bool) -> None:
+def cli(
+    config: Optional[str],
+    fake_workspace: bool,
+    verbose: int,
+    quiet: int,
+    show_traceback: bool,
+) -> None:
     pass  # parameters processed in MainGroup._process_args
 
 
 # Live commands
-main.add_command(live.run)
-main.add_command(live.ps)
-main.add_command(live.logs)
-main.add_command(live.status)
-main.add_command(live.kill)
+cli.add_command(live.run)
+cli.add_command(live.ps)
+cli.add_command(live.logs)
+cli.add_command(live.status)
+cli.add_command(live.kill)
 
 # Batch commands
-main.add_command(batch.bake)
-main.add_command(batch.execute)
-main.add_command(batch.bakes)
-main.add_command(batch.show)
-main.add_command(batch.inspect)
-main.add_command(batch.cancel)
-main.add_command(batch.clear_cache)
+cli.add_command(batch.bake)
+cli.add_command(batch.execute)
+cli.add_command(batch.bakes)
+cli.add_command(batch.show)
+cli.add_command(batch.inspect)
+cli.add_command(batch.cancel)
+cli.add_command(batch.clear_cache)
 
 # Volumes commands
-main.add_command(storage.upload)
-main.add_command(storage.download)
-main.add_command(storage.clean)
-main.add_command(storage.mkvolumes)
+cli.add_command(storage.upload)
+cli.add_command(storage.download)
+cli.add_command(storage.clean)
+cli.add_command(storage.mkvolumes)
 
 # Image commands
-main.add_command(images.build)
+cli.add_command(images.build)
 
 # Completion commands
-main.add_command(completion.completion)
+cli.add_command(completion.completion)
+
+
+def main(args: Optional[List[str]] = None) -> None:
+    try:
+        cli.main(args=args, standalone_mode=False)
+    except ClickAbort:
+        LOG_ERROR("Aborting.")
+        sys.exit(130)
+    except click.ClickException as e:
+        e.show()
+        sys.exit(e.exit_code)
+    except ClickExit as e:
+        sys.exit(e.exit_code)  # type: ignore
+
+    except SystemExit:
+        raise
+
+    except Exception as e:
+        LOG_ERROR(f"{e}")
+        sys.exit(1)
