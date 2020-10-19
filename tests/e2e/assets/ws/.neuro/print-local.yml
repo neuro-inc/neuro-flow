@@ -3,6 +3,9 @@ params:
   file_path:
     descr: path from workspace
 tasks:
+  - action: ws:.neuro/mkdir-local-action.yml
+    args:
+      path: "storage:neuro-flow-e2e/${{ flow.project_id }}"
   - action: ws:.neuro/upload-local-action.yml
     args:
       from: ${{ flow.workspace }}/${{ params.file_path }}
