@@ -412,8 +412,8 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
         ):
             tasks.append(loop.create_task(kill(descr)))
 
-        for job_id, ret in await asyncio.gather(*tasks):
-            click.echo(f"Killed job {fmt_id(job_id)}")
+        for job_info in await asyncio.gather(*tasks):
+            click.echo(f"Killed job {fmt_id(job_info)}")
 
     # volumes subsystem
 
