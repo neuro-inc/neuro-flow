@@ -6,7 +6,7 @@ import pathlib
 import pytest
 import subprocess
 from neuromation.api import login_with_token
-from typing import Any, AsyncIterator, Callable, List
+from typing import Any, AsyncIterator, Callable, List, Optional
 from yarl import URL
 
 
@@ -19,7 +19,7 @@ def assets() -> pathlib.Path:
 
 
 @pytest.fixture
-async def api_config(tmp_path_factory: Any) -> AsyncIterator[pathlib.Path]:
+async def api_config(tmp_path_factory: Any) -> AsyncIterator[Optional[pathlib.Path]]:
     e2e_test_token = os.environ.get("E2E_USER_TOKEN")
     if e2e_test_token:
         tmp_path = tmp_path_factory.mktemp("config")
@@ -44,10 +44,12 @@ RunCLI = Callable[[List[str]], SysCap]
 
 
 @pytest.fixture
-def run_cli(assets: pathlib.Path) -> RunCLI:
+def run_cli(assets: pathlib.Path, api_config: Optional[pathlib.Path]) -> RunCLI:
     def _run(
         arguments: List[str],
     ) -> SysCap:
+        if api_config:
+            os.environ["NEUROMATION_CONFIG"] = str(api_config)
         proc = subprocess.run(
             ["neuro-flow"] + arguments,
             timeout=300,
