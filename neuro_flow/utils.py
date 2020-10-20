@@ -1,5 +1,4 @@
 import asyncio
-import click
 from neuromation.api import JobStatus
 from typing import Union
 
@@ -11,7 +10,8 @@ def fmt_status(status: Union[JobStatus, TaskStatus]) -> str:
         status = TaskStatus(status)
     else:
         assert isinstance(status, TaskStatus)
-    return click.style(status.value, fg=COLORS.get(status, "reset"))
+    color = COLORS.get(status, "none")
+    return f"[{color}]{status.value}[/{color}]"
 
 
 def fmt_id(id: Union[str, FullID]) -> str:
@@ -19,11 +19,11 @@ def fmt_id(id: Union[str, FullID]) -> str:
         s_id = id
     else:
         s_id = ".".join(id)
-    return click.style(s_id, bold=True)
+    return f"[b]{s_id}[/b]"
 
 
 def fmt_raw_id(raw_id: str) -> str:
-    return click.style(raw_id, dim=True)
+    return f"[bright_black]{raw_id}[/bright_black]"
 
 
 RUNNING_JOB_STATUSES = {JobStatus.PENDING, JobStatus.RUNNING}

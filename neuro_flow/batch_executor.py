@@ -35,7 +35,7 @@ from .context import (
 )
 from .storage import Attempt, BatchStorage, FinishedTask, StartedTask
 from .types import AlwaysT, FullID, TaskStatus
-from .utils import TERMINATED_JOB_STATUSES, TERMINATED_TASK_STATUSES
+from .utils import TERMINATED_JOB_STATUSES, TERMINATED_TASK_STATUSES, fmt_id, fmt_raw_id
 
 
 if sys.version_info >= (3, 9):
@@ -326,7 +326,7 @@ class BatchExecutor:
         st, ft = await self._storage.skip_task(self._attempt, full_id)
         self._tasks_mgr.add_started(st)
         self._mark_finished(ft)
-        self._console.print(f"Task [b]{'.'.join(full_id)}[/b] is", TaskStatus.SKIPPED)
+        self._console.print(f"Task {fmt_id(full_id)} is", TaskStatus.SKIPPED)
 
     async def _process_local(self, full_id: FullID) -> None:
         raise ValueError("Processing of local actions is not supported")
@@ -335,7 +335,7 @@ class BatchExecutor:
         st = await self._storage.start_action(self._attempt, full_id)
         self._tasks_mgr.add_started(st)
         await self._embed_action(full_id)
-        self._console.print(f"Action [b]{'.'.join(st.id)} is", TaskStatus.PENDING)
+        self._console.print(f"Action {fmt_id(st.id)} is", TaskStatus.PENDING)
 
     async def _process_task(self, full_id: FullID) -> None:
 
@@ -362,8 +362,8 @@ class BatchExecutor:
 
         if ft is not None:
             self._console.print(
-                f"Task [b]{'.'.join(ft.id)}[/b] ",
-                rf"\[[bright_black]{ft.raw_id}[/bright_black]] is",
+                f"Task {fmt_id(ft.id)} ",
+                rf"\[{fmt_raw_id(ft.raw_id)}] is",
                 TaskStatus.CACHED,
             )
             assert ft.status == TaskStatus.SUCCEEDED
@@ -372,8 +372,8 @@ class BatchExecutor:
             st = await self._start_task(full_id, task)
             self._tasks_mgr.add_started(st)
             self._console.print(
-                f"Task [b]{'.'.join(st.id)}[/b] ",
-                rf"\[[bright_black]{st.raw_id}[/bright_black]] is",
+                f"Task {fmt_id(st.id)} ",
+                rf"\[{fmt_raw_id(st.raw_id)}] is",
                 TaskStatus.PENDING,
             )
 
@@ -450,7 +450,7 @@ class BatchExecutor:
         for full_id, st in self._tasks_mgr.running_tasks.items():
             task = await self._get_task(full_id)
             if task.enable is not AlwaysT():
-                self._console.print(f"Task [b]{'.'.join(st.id)}[/b] is being killed")
+                self._console.print(f"Task {fmt_id(st.id)} is being killed")
                 await self._client.jobs.kill(st.raw_id)
 
     async def _store_to_cache(self, ft: FinishedTask) -> None:
@@ -482,8 +482,8 @@ class BatchExecutor:
                 await self._store_to_cache(ft)
 
                 self._console.print(
-                    f"Task [b]{'.'.join(ft.id)}[/b] "
-                    rf"\[[bright_black]{ft.raw_id}[/bright_black]] is",
+                    f"Task {fmt_id(ft.id)} "
+                    rf"\[{fmt_raw_id(ft.raw_id)}] is",
                     ft.status,
                     (" with following outputs:" if ft.outputs else ""),
                 )
@@ -509,7 +509,7 @@ class BatchExecutor:
             self._mark_finished(ft)
 
             self._console.print(
-                f"Action [b]{'.'.join(ft.id)}[/b] is",
+                f"Action {fmt_id(ft.id)} is",
                 ft.status,
                 (" with following outputs:" if ft.outputs else ""),
             )
@@ -601,7 +601,7 @@ class LocalsBatchExecutor(BatchExecutor):
         local = await self._get_local(full_id)
         st = await self._storage.start_action(self._attempt, full_id)
         self._tasks_mgr.add_started(st)
-        self._console.print(f"Local action [b]{'.'.join(st.id)} is", TaskStatus.PENDING)
+        self._console.print(f"Local action {fmt_id(st.id)} is", TaskStatus.PENDING)
 
         subprocess = await asyncio.create_subprocess_shell(
             local.cmd,
@@ -629,7 +629,7 @@ class LocalsBatchExecutor(BatchExecutor):
         self._mark_finished(ft)
 
         self._console.print(
-            f"Action [b]{'.'.join(ft.id)}[/b] is",
+            f"Action {fmt_id(ft.id)} is",
             ft.status,
             (" with following outputs:" if ft.outputs else ""),
         )
