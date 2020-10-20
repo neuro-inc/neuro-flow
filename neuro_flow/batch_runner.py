@@ -1,12 +1,14 @@
 import dataclasses
 
 import click
+import datetime
+import humanize
 import neuro_extras
 import neuromation
 import sys
 from graphviz import Digraph
 from neuromation.api import Client, ResourceNotFound
-from operator import attrgetter
+from operator import attrgetter, itemgetter
 from rich import box
 from rich.console import Console
 from rich.table import Table
@@ -221,8 +223,9 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         table = Table(box=box.MINIMAL_HEAVY_HEAD)
         table.add_column("ID", style="bold")
         table.add_column("STATUS")
+        table.add_column("WHEN")
 
-        rows: List[List[str]] = []
+        rows: List[Tuple[str, TaskStatus, datetime.datetime]] = []
         async for bake in self._storage.list_bakes(self.project):
             try:
                 attempt = await self._storage.find_attempt(bake)
@@ -231,12 +234,19 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                     f"[yellow]Bake [b]{bake}[/b] is malformed, skipping"
                 )
             else:
-                rows.append([bake.bake_id, attempt.result])
+                rows.append((bake.bake_id, attempt.result, attempt.when))
 
-        rows.sort()
+        # sort by date, ascending order (last is bottommost)
+        rows.sort(key=itemgetter(2))
 
         for row in rows:
-            table.add_row(*row)
+            bake_id, result, when = row
+            delta = datetime.datetime.now(datetime.timezone.utc) - when
+            if delta < datetime.timedelta(days=1):
+                when_humanized = humanize.naturaltime(delta)
+            else:
+                when_humanized = humanize.naturaldate(when.astimezone())
+            table.add_row(bake_id, result, when_humanized)
         self._console.print(table)
 
     async def inspect(
