@@ -482,8 +482,7 @@ class BatchExecutor:
                 await self._store_to_cache(ft)
 
                 self._console.print(
-                    f"Task {fmt_id(ft.id)} "
-                    rf"\[{fmt_raw_id(ft.raw_id)}] is",
+                    f"Task {fmt_id(ft.id)} " rf"\[{fmt_raw_id(ft.raw_id)}] is",
                     ft.status,
                     (" with following outputs:" if ft.outputs else ""),
                 )
