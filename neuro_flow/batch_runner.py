@@ -212,7 +212,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             except ValueError:
                 print(f"[yellow]Bake [b]{bake}[/b] is malformed, skipping")
             else:
-                rows.append([bake.bake_id, attempt.result, attempt.when])
+                rows.append((bake.bake_id, attempt.result, attempt.when))
 
         # sort by date, ascending order (last is bottommost)
         rows.sort(key=itemgetter(2))
