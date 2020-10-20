@@ -1,6 +1,8 @@
 import dataclasses
 
 import click
+import datetime
+import humanize
 import sys
 from graphviz import Digraph
 from neuromation.api import Client, ResourceNotFound
@@ -203,7 +205,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         table.add_column("STATUS")
         table.add_column("WHEN")
 
-        rows: List[List[str]] = []
+        rows: List[Tuple[str, TaskStatus, datetime.datetime]] = []
         async for bake in self._storage.list_bakes(self.project):
             try:
                 attempt = await self._storage.find_attempt(bake)
@@ -213,10 +215,16 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                 rows.append([bake.bake_id, attempt.result, attempt.when])
 
         # sort by date, ascending order (last is bottommost)
-        rows.sort(key=itemgetter(2))  
+        rows.sort(key=itemgetter(2))
 
         for row in rows:
-            table.add_row(*row)
+            bake_id, result, when = row
+            delta = datetime.datetime.now(datetime.timezone.utc) - when
+            if delta < datetime.timedelta(days=1):
+                when_humanized = humanize.naturaltime(delta)
+            else:
+                when_humanized = humanize.naturaldate(when.astimezone())
+            table.add_row(bake_id, result, when_humanized)
         print(table)
 
     async def inspect(
