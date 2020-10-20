@@ -4,7 +4,7 @@ import click
 import sys
 from graphviz import Digraph
 from neuromation.api import Client, ResourceNotFound
-from operator import attrgetter
+from operator import attrgetter, itemgetter
 from rich import box, print
 from rich.table import Table
 from types import TracebackType
@@ -201,6 +201,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         table = Table(box=box.MINIMAL_HEAVY_HEAD)
         table.add_column("ID", style="bold")
         table.add_column("STATUS")
+        table.add_column("WHEN")
 
         rows: List[List[str]] = []
         async for bake in self._storage.list_bakes(self.project):
@@ -209,9 +210,10 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             except ValueError:
                 print(f"[yellow]Bake [b]{bake}[/b] is malformed, skipping")
             else:
-                rows.append([bake.bake_id, attempt.result])
+                rows.append([bake.bake_id, attempt.result, attempt.when])
 
-        rows.sort()
+        # sort by date, ascending order (last is bottommost)
+        rows.sort(key=itemgetter(2))  
 
         for row in rows:
             table.add_row(*row)
