@@ -2,11 +2,11 @@ import dataclasses
 
 import asyncio
 import base64
-import click
 import datetime
 import json
 import sys
 from neuromation.api import Client, Container, HTTPPort, Resources
+from rich import print
 from typing import (
     AbstractSet,
     Dict,
@@ -35,13 +35,7 @@ from .context import (
 )
 from .storage import Attempt, BatchStorage, FinishedTask, StartedTask
 from .types import AlwaysT, FullID, TaskStatus
-from .utils import (
-    TERMINATED_JOB_STATUSES,
-    TERMINATED_TASK_STATUSES,
-    fmt_id,
-    fmt_raw_id,
-    fmt_status,
-)
+from .utils import TERMINATED_JOB_STATUSES, TERMINATED_TASK_STATUSES
 
 
 if sys.version_info >= (3, 9):
@@ -255,7 +249,7 @@ class BatchExecutor:
         *,
         polling_timeout: float = 1,
     ) -> "BatchExecutor":
-        click.echo("Fetch bake data")
+        print("Fetch bake data")
         bake = await storage.fetch_bake(
             executor_data.project,
             executor_data.batch,
@@ -263,7 +257,7 @@ class BatchExecutor:
             executor_data.suffix,
         )
 
-        click.echo("Fetch configs metadata")
+        print("Fetch configs metadata")
         meta = await storage.fetch_configs_meta(bake)
         config_loader = BatchRemoteCL(
             meta,
@@ -271,7 +265,7 @@ class BatchExecutor:
         )
         flow = await RunningBatchFlow.create(config_loader, bake.batch, bake.params)
 
-        click.echo("Find last attempt")
+        print("Find last attempt")
         attempt = await storage.find_attempt(bake)
 
         return cls(
@@ -328,8 +322,7 @@ class BatchExecutor:
         st, ft = await self._storage.skip_task(self._attempt, full_id)
         self._tasks_mgr.add_started(st)
         self._mark_finished(ft)
-        str_skipped = click.style("skipped", fg="magenta")
-        click.echo(f"Task {fmt_id(full_id)} is {str_skipped}")
+        print(f"Task [b]{'.'.join(full_id)}[/b] is", TaskStatus.SKIPPED)
 
     async def _process_local(self, full_id: FullID) -> None:
         raise ValueError("Processing of local actions is not supported")
@@ -338,8 +331,7 @@ class BatchExecutor:
         st = await self._storage.start_action(self._attempt, full_id)
         self._tasks_mgr.add_started(st)
         await self._embed_action(full_id)
-        str_started = click.style("started", fg="cyan")
-        click.echo(f"Action {fmt_id(st.id)} is {str_started}")
+        print(f"Action [b]{'.'.join(st.id)} is", TaskStatus.PENDING)
 
     async def _process_task(self, full_id: FullID) -> None:
 
@@ -365,18 +357,21 @@ class BatchExecutor:
             )
 
         if ft is not None:
-            str_cached = click.style("cached", fg="magenta")
-            click.echo(
-                f"Task {fmt_id(ft.id)} [{fmt_raw_id(ft.raw_id)}] " f"is {str_cached}"
+            print(
+                f"Task [b]{'.'.join(ft.id)}[/b] ",
+                rf"\[[bright_black]{ft.raw_id}[/bright_black]] is",
+                TaskStatus.CACHED,
             )
             assert ft.status == TaskStatus.SUCCEEDED
             self._mark_finished(ft)
         else:
             st = await self._start_task(full_id, task)
             self._tasks_mgr.add_started(st)
-            str_started = click.style("started", fg="cyan")
-            raw_id = fmt_raw_id(st.raw_id)
-            click.echo(f"Task {fmt_id(st.id)} [{raw_id}] is {str_started}")
+            print(
+                f"Task [b]{'.'.join(st.id)}[/b] ",
+                rf"\[[bright_black]{st.raw_id}[/bright_black]] is",
+                TaskStatus.PENDING,
+            )
 
     async def _load_previous_run(self) -> None:
         # Loads tasks that previous executor run processed.
@@ -443,16 +438,15 @@ class BatchExecutor:
 
     async def _finish_run(self) -> None:
         attempt_status = self._accumulate_result()
-        str_attempt_status = fmt_status(attempt_status)
         if self._attempt.result not in TERMINATED_TASK_STATUSES:
             await self._storage.finish_attempt(self._attempt, attempt_status)
-        click.echo(f"Attempt #{self._attempt.number} {str_attempt_status}")
+        print(f"[b]Attempt #{self._attempt.number}[/b]", attempt_status)
 
     async def _stop_running(self) -> None:
         for full_id, st in self._tasks_mgr.running_tasks.items():
             task = await self._get_task(full_id)
             if task.enable is not AlwaysT():
-                click.echo(f"Task {fmt_id(st.id)} is being killed")
+                print(f"Task [b]{'.'.join(st.id)}[/b] is being killed")
                 await self._client.jobs.kill(st.raw_id)
 
     async def _store_to_cache(self, ft: FinishedTask) -> None:
@@ -483,14 +477,14 @@ class BatchExecutor:
 
                 await self._store_to_cache(ft)
 
-                str_status = fmt_status(ft.status)
-                raw_id = fmt_raw_id(ft.raw_id)
-                click.echo(
-                    f"Task {fmt_id(ft.id)} [{raw_id}] is {str_status}"
-                    + (" with following outputs:" if ft.outputs else "")
+                print(
+                    f"Task [b]{'.'.join(ft.id)}[/b] "
+                    rf"\[[bright_black]{ft.raw_id}[/bright_black]] is",
+                    ft.status,
+                    (" with following outputs:" if ft.outputs else ""),
                 )
                 for key, value in ft.outputs.items():
-                    click.echo(f"  {key}: {value}")
+                    print(f"  {key}: {value}")
 
                 task_meta = await self._get_meta(full_id)
                 if ft.status != TaskStatus.SUCCEEDED and task_meta.strategy.fail_fast:
@@ -510,13 +504,13 @@ class BatchExecutor:
             )
             self._mark_finished(ft)
 
-            str_status = fmt_status(ft.status)
-            click.echo(
-                f"Action {fmt_id(ft.id)} is {str_status}"
-                + (" with following outputs:" if ft.outputs else "")
+            print(
+                f"Action [b]{'.'.join(ft.id)}[/b] is",
+                ft.status,
+                (" with following outputs:" if ft.outputs else ""),
             )
             for key, value in ft.outputs.items():
-                click.echo(f"  {key}: {value}")
+                print(f"  {key}: {value}")
 
             task_meta = await self._get_meta(full_id)
             if ft.status != TaskStatus.SUCCEEDED and task_meta.strategy.fail_fast:
@@ -602,8 +596,7 @@ class LocalsBatchExecutor(BatchExecutor):
         local = await self._get_local(full_id)
         st = await self._storage.start_action(self._attempt, full_id)
         self._tasks_mgr.add_started(st)
-        str_started = click.style("started", fg="cyan")
-        click.echo(f"Local action {fmt_id(st.id)} is {str_started}")
+        print(f"Local action [b]{'.'.join(st.id)} is", TaskStatus.PENDING)
 
         subprocess = await asyncio.create_subprocess_shell(
             local.cmd,
@@ -613,9 +606,9 @@ class LocalsBatchExecutor(BatchExecutor):
         (stdout_data, stderr_data) = await subprocess.communicate()
         async with CmdProcessor() as proc:
             async for line in proc.feed_chunk(stdout_data):
-                click.echo(line)
+                print(line)
             async for line in proc.feed_eof():
-                click.echo(line)
+                print(line)
         if subprocess.returncode == 0:
             result_status = TaskStatus.SUCCEEDED
         else:
@@ -630,13 +623,13 @@ class LocalsBatchExecutor(BatchExecutor):
         )
         self._mark_finished(ft)
 
-        str_status = fmt_status(ft.status)
-        click.echo(
-            f"Action {fmt_id(ft.id)} is {str_status}"
-            + (" with following outputs:" if ft.outputs else "")
+        print(
+            f"Action [b]{'.'.join(ft.id)}[/b] is",
+            ft.status,
+            (" with following outputs:" if ft.outputs else ""),
         )
         for key, value in ft.outputs.items():
-            click.echo(f"  {key}: {value}")
+            print(f"  {key}: {value}")
 
     async def _process_action(self, full_id: FullID) -> None:
         pass  # Skip for local

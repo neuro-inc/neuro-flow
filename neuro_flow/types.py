@@ -33,6 +33,7 @@ class TaskStatus(str, enum.Enum):
     FAILED = "failed"
     CANCELLED = "cancelled"
     SKIPPED = "skipped"
+    CACHED = "cached"
 
 
 COLORS = {
@@ -42,5 +43,6 @@ COLORS = {
     TaskStatus.SUCCEEDED: "green",
     TaskStatus.FAILED: "red",
     TaskStatus.CANCELLED: "yellow",
-    TaskStatus.SKIPPED: "magenta",
+    TaskStatus.SKIPPED: "bright_black",
+    TaskStatus.CACHED: "magenta",
 }

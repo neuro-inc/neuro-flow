@@ -12,8 +12,8 @@ tasks:
       matrix:
         arg1: ['a', 'b', 'c']
         arg2: [1, 2]
-  # action: ws:.neuro/batch-action.yml
-    action: gh:neuro-inc/neuro-flow-test-action@v0.2
+    action: ws:.neuro/batch-action.yml
+    # action: gh:neuro-inc/neuro-flow-test-action@v0.2
     args:
       arg1: ${{ matrix.arg1 }}
       arg2: ${{ matrix.arg2 }}
