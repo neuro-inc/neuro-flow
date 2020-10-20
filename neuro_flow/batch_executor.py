@@ -6,7 +6,7 @@ import datetime
 import json
 import sys
 from neuromation.api import Client, Container, HTTPPort, Resources
-from rich import print
+from rich.console import Console
 from typing import (
     AbstractSet,
     Dict,
@@ -216,6 +216,7 @@ class BakeTasksManager:
 class BatchExecutor:
     def __init__(
         self,
+        console: Console,
         flow: RunningBatchFlow,
         attempt: Attempt,
         client: Client,
@@ -223,6 +224,7 @@ class BatchExecutor:
         *,
         polling_timeout: float = 1,
     ) -> None:
+        self._console = console
         self._top_flow = flow
         self._attempt = attempt
         self._client = client
@@ -243,13 +245,14 @@ class BatchExecutor:
     @classmethod
     async def create(
         cls,
+        console: Console,
         executor_data: ExecutorData,
         client: Client,
         storage: BatchStorage,
         *,
         polling_timeout: float = 1,
     ) -> "BatchExecutor":
-        print("Fetch bake data")
+        console.print("Fetch bake data")
         bake = await storage.fetch_bake(
             executor_data.project,
             executor_data.batch,
@@ -257,7 +260,7 @@ class BatchExecutor:
             executor_data.suffix,
         )
 
-        print("Fetch configs metadata")
+        console.print("Fetch configs metadata")
         meta = await storage.fetch_configs_meta(bake)
         config_loader = BatchRemoteCL(
             meta,
@@ -265,10 +268,11 @@ class BatchExecutor:
         )
         flow = await RunningBatchFlow.create(config_loader, bake.batch, bake.params)
 
-        print("Find last attempt")
+        console.print("Find last attempt")
         attempt = await storage.find_attempt(bake)
 
         return cls(
+            console,
             flow,
             attempt,
             client,
@@ -322,7 +326,7 @@ class BatchExecutor:
         st, ft = await self._storage.skip_task(self._attempt, full_id)
         self._tasks_mgr.add_started(st)
         self._mark_finished(ft)
-        print(f"Task [b]{'.'.join(full_id)}[/b] is", TaskStatus.SKIPPED)
+        self._console.print(f"Task [b]{'.'.join(full_id)}[/b] is", TaskStatus.SKIPPED)
 
     async def _process_local(self, full_id: FullID) -> None:
         raise ValueError("Processing of local actions is not supported")
@@ -331,7 +335,7 @@ class BatchExecutor:
         st = await self._storage.start_action(self._attempt, full_id)
         self._tasks_mgr.add_started(st)
         await self._embed_action(full_id)
-        print(f"Action [b]{'.'.join(st.id)} is", TaskStatus.PENDING)
+        self._console.print(f"Action [b]{'.'.join(st.id)} is", TaskStatus.PENDING)
 
     async def _process_task(self, full_id: FullID) -> None:
 
@@ -357,7 +361,7 @@ class BatchExecutor:
             )
 
         if ft is not None:
-            print(
+            self._console.print(
                 f"Task [b]{'.'.join(ft.id)}[/b] ",
                 rf"\[[bright_black]{ft.raw_id}[/bright_black]] is",
                 TaskStatus.CACHED,
@@ -367,7 +371,7 @@ class BatchExecutor:
         else:
             st = await self._start_task(full_id, task)
             self._tasks_mgr.add_started(st)
-            print(
+            self._console.print(
                 f"Task [b]{'.'.join(st.id)}[/b] ",
                 rf"\[[bright_black]{st.raw_id}[/bright_black]] is",
                 TaskStatus.PENDING,
@@ -440,13 +444,13 @@ class BatchExecutor:
         attempt_status = self._accumulate_result()
         if self._attempt.result not in TERMINATED_TASK_STATUSES:
             await self._storage.finish_attempt(self._attempt, attempt_status)
-        print(f"[b]Attempt #{self._attempt.number}[/b]", attempt_status)
+        self._console.print(f"[b]Attempt #{self._attempt.number}[/b]", attempt_status)
 
     async def _stop_running(self) -> None:
         for full_id, st in self._tasks_mgr.running_tasks.items():
             task = await self._get_task(full_id)
             if task.enable is not AlwaysT():
-                print(f"Task [b]{'.'.join(st.id)}[/b] is being killed")
+                self._console.print(f"Task [b]{'.'.join(st.id)}[/b] is being killed")
                 await self._client.jobs.kill(st.raw_id)
 
     async def _store_to_cache(self, ft: FinishedTask) -> None:
@@ -477,14 +481,14 @@ class BatchExecutor:
 
                 await self._store_to_cache(ft)
 
-                print(
+                self._console.print(
                     f"Task [b]{'.'.join(ft.id)}[/b] "
                     rf"\[[bright_black]{ft.raw_id}[/bright_black]] is",
                     ft.status,
                     (" with following outputs:" if ft.outputs else ""),
                 )
                 for key, value in ft.outputs.items():
-                    print(f"  {key}: {value}")
+                    self._console.print(f"  {key}: {value}")
 
                 task_meta = await self._get_meta(full_id)
                 if ft.status != TaskStatus.SUCCEEDED and task_meta.strategy.fail_fast:
@@ -504,13 +508,13 @@ class BatchExecutor:
             )
             self._mark_finished(ft)
 
-            print(
+            self._console.print(
                 f"Action [b]{'.'.join(ft.id)}[/b] is",
                 ft.status,
                 (" with following outputs:" if ft.outputs else ""),
             )
             for key, value in ft.outputs.items():
-                print(f"  {key}: {value}")
+                self._console.print(f"  {key}: {value}")
 
             task_meta = await self._get_meta(full_id)
             if ft.status != TaskStatus.SUCCEEDED and task_meta.strategy.fail_fast:
@@ -579,6 +583,7 @@ class LocalsBatchExecutor(BatchExecutor):
     @classmethod
     async def create(
         cls,
+        console: Console,
         executor_data: ExecutorData,
         client: Client,
         storage: BatchStorage,
@@ -589,14 +594,14 @@ class LocalsBatchExecutor(BatchExecutor):
             polling_timeout is None
         ), "polling_timeout is disabled for LocalsBatchExecutor"
         return await super(cls, LocalsBatchExecutor).create(
-            executor_data, client, storage, polling_timeout=0
+            console, executor_data, client, storage, polling_timeout=0
         )
 
     async def _process_local(self, full_id: FullID) -> None:
         local = await self._get_local(full_id)
         st = await self._storage.start_action(self._attempt, full_id)
         self._tasks_mgr.add_started(st)
-        print(f"Local action [b]{'.'.join(st.id)} is", TaskStatus.PENDING)
+        self._console.print(f"Local action [b]{'.'.join(st.id)} is", TaskStatus.PENDING)
 
         subprocess = await asyncio.create_subprocess_shell(
             local.cmd,
@@ -606,9 +611,9 @@ class LocalsBatchExecutor(BatchExecutor):
         (stdout_data, stderr_data) = await subprocess.communicate()
         async with CmdProcessor() as proc:
             async for line in proc.feed_chunk(stdout_data):
-                print(line)
+                self._console.print(line)
             async for line in proc.feed_eof():
-                print(line)
+                self._console.print(line)
         if subprocess.returncode == 0:
             result_status = TaskStatus.SUCCEEDED
         else:
@@ -623,13 +628,13 @@ class LocalsBatchExecutor(BatchExecutor):
         )
         self._mark_finished(ft)
 
-        print(
+        self._console.print(
             f"Action [b]{'.'.join(ft.id)}[/b] is",
             ft.status,
             (" with following outputs:" if ft.outputs else ""),
         )
         for key, value in ft.outputs.items():
-            print(f"  {key}: {value}")
+            self._console.print(f"  {key}: {value}")
 
     async def _process_action(self, full_id: FullID) -> None:
         pass  # Skip for local

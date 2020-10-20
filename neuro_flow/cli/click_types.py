@@ -11,6 +11,8 @@ from neuro_flow.live_runner import LiveRunner
 from neuro_flow.parser import ConfigDir
 from neuro_flow.storage import BatchFSStorage, BatchStorage, NeuroStorageFS
 
+from .root import Root
+
 
 if sys.version_info >= (3, 7):
     from contextlib import AsyncExitStack
@@ -25,14 +27,14 @@ class AsyncType(click.ParamType, Generic[_T], abc.ABC):
         self, value: str, param: Optional[click.Parameter], ctx: Optional[click.Context]
     ) -> _T:
         assert ctx is not None
-        root = cast(ConfigDir, ctx.obj)
+        root = cast(Root, ctx.obj)
         with Runner() as runner:
             return runner.run(self.async_convert(root, value, param, ctx))
 
     @abc.abstractmethod
     async def async_convert(
         self,
-        root: ConfigDir,
+        root: Root,
         value: str,
         param: Optional[click.Parameter],
         ctx: Optional[click.Context],
@@ -42,13 +44,13 @@ class AsyncType(click.ParamType, Generic[_T], abc.ABC):
     def complete(
         self, ctx: click.Context, args: Sequence[str], incomplete: str
     ) -> List[Tuple[str, Optional[str]]]:
-        root = cast(ConfigDir, ctx.obj)
+        root = cast(Root, ctx.obj)
         with Runner() as runner:
             return runner.run(self.async_complete(root, ctx, args, incomplete))
 
     @abc.abstractmethod
     async def async_complete(
-        self, root: ConfigDir, ctx: click.Context, args: Sequence[str], incomplete: str
+        self, root: Root, ctx: click.Context, args: Sequence[str], incomplete: str
     ) -> List[Tuple[str, Optional[str]]]:
         pass
 
@@ -61,7 +63,7 @@ class LiveJobType(AsyncType[str]):
 
     async def async_convert(
         self,
-        config_dir: ConfigDir,
+        root: Root,
         value: str,
         param: Optional[click.Parameter],
         ctx: Optional[click.Context],
@@ -70,12 +72,12 @@ class LiveJobType(AsyncType[str]):
 
     async def async_complete(
         self,
-        config_dir: ConfigDir,
+        root: Root,
         ctx: click.Context,
         args: Sequence[str],
         incomplete: str,
     ) -> List[Tuple[str, Optional[str]]]:
-        async with LiveRunner(config_dir) as runner:
+        async with LiveRunner(root.config_dir, root.console) as runner:
             variants = list(runner.flow.job_ids)
             if self._allow_all:
                 variants += ["ALL"]
@@ -96,7 +98,7 @@ class LiveJobSuffixType(AsyncType[str]):
 
     async def async_convert(
         self,
-        config_dir: ConfigDir,
+        root: Root,
         value: str,
         param: Optional[click.Parameter],
         ctx: Optional[click.Context],
@@ -105,13 +107,13 @@ class LiveJobSuffixType(AsyncType[str]):
 
     async def async_complete(
         self,
-        config_dir: ConfigDir,
+        root: Root,
         ctx: click.Context,
         args: Sequence[str],
         incomplete: str,
     ) -> List[Tuple[str, Optional[str]]]:
         job_id = self._args_to_job_id(args)
-        async with LiveRunner(config_dir) as runner:
+        async with LiveRunner(root.config_dir, root.console) as runner:
             return [
                 (suffix, None)
                 for suffix in await runner.list_suffixes(job_id)
@@ -130,7 +132,7 @@ class LiveImageType(AsyncType[str]):
 
     async def async_convert(
         self,
-        config_dir: ConfigDir,
+        root: Root,
         value: str,
         param: Optional[click.Parameter],
         ctx: Optional[click.Context],
@@ -139,12 +141,12 @@ class LiveImageType(AsyncType[str]):
 
     async def async_complete(
         self,
-        config_dir: ConfigDir,
+        root: Root,
         ctx: click.Context,
         args: Sequence[str],
         incomplete: str,
     ) -> List[Tuple[str, Optional[str]]]:
-        async with LiveRunner(config_dir) as runner:
+        async with LiveRunner(root.config_dir, root.console) as runner:
             variants = [
                 image
                 for image, image_ctx in runner.flow.images.items()
@@ -166,7 +168,7 @@ class LiveVolumeType(AsyncType[str]):
 
     async def async_convert(
         self,
-        config_dir: ConfigDir,
+        root: Root,
         value: str,
         param: Optional[click.Parameter],
         ctx: Optional[click.Context],
@@ -175,12 +177,12 @@ class LiveVolumeType(AsyncType[str]):
 
     async def async_complete(
         self,
-        config_dir: ConfigDir,
+        root: Root,
         ctx: click.Context,
         args: Sequence[str],
         incomplete: str,
     ) -> List[Tuple[str, Optional[str]]]:
-        async with LiveRunner(config_dir) as runner:
+        async with LiveRunner(root.config_dir, root.console) as runner:
             variants = [
                 volume.id
                 for volume in runner.flow.volumes.values()
@@ -202,7 +204,7 @@ class BatchType(AsyncType[str]):
 
     async def async_convert(
         self,
-        config_dir: ConfigDir,
+        root: Root,
         value: str,
         param: Optional[click.Parameter],
         ctx: Optional[click.Context],
@@ -211,13 +213,13 @@ class BatchType(AsyncType[str]):
 
     async def async_complete(
         self,
-        config_dir: ConfigDir,
+        root: Root,
         ctx: click.Context,
         args: Sequence[str],
         incomplete: str,
     ) -> List[Tuple[str, Optional[str]]]:
         variants = []
-        for file in config_dir.config_dir.rglob("*.yml"):
+        for file in root.config_dir.config_dir.rglob("*.yml"):
             # We are not trying to parse properly to allow autocompletion of
             # broken yaml files
             if "batch" in file.read_text():
@@ -236,7 +238,7 @@ class BakeType(AsyncType[str]):
 
     async def async_convert(
         self,
-        config_dir: ConfigDir,
+        root: Root,
         value: str,
         param: Optional[click.Parameter],
         ctx: Optional[click.Context],
@@ -245,7 +247,7 @@ class BakeType(AsyncType[str]):
 
     async def async_complete(
         self,
-        config_dir: ConfigDir,
+        root: Root,
         ctx: click.Context,
         args: Sequence[str],
         incomplete: str,
@@ -257,7 +259,7 @@ class BakeType(AsyncType[str]):
                 BatchFSStorage(NeuroStorageFS(client))
             )
             runner: BatchRunner = await stack.enter_async_context(
-                BatchRunner(config_dir, client, storage)
+                BatchRunner(root.config_dir, root.console, client, storage)
             )
             try:
                 async for bake in runner.get_bakes():
@@ -288,7 +290,7 @@ class BakeTaskType(AsyncType[str]):
 
     async def async_convert(
         self,
-        config_dir: ConfigDir,
+        root: Root,
         value: str,
         param: Optional[click.Parameter],
         ctx: Optional[click.Context],
@@ -297,7 +299,7 @@ class BakeTaskType(AsyncType[str]):
 
     async def async_complete(
         self,
-        config_dir: ConfigDir,
+        root: Root,
         ctx: click.Context,
         args: Sequence[str],
         incomplete: str,
@@ -311,7 +313,7 @@ class BakeTaskType(AsyncType[str]):
                 BatchFSStorage(NeuroStorageFS(client))
             )
             runner: BatchRunner = await stack.enter_async_context(
-                BatchRunner(config_dir, client, storage)
+                BatchRunner(root.config_dir, root.console, client, storage)
             )
             attempt = await runner.get_bake_attempt(bake_id, attempt_no=attempt_no)
             started, finished = await storage.fetch_attempt(attempt)

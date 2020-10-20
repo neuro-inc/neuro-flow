@@ -8,7 +8,8 @@ import secrets
 import shlex
 import sys
 from neuromation.api import Client, Factory, JobDescription, JobStatus, ResourceNotFound
-from rich import box, print
+from rich import box
+from rich.console import Console
 from rich.table import Table
 from types import TracebackType
 from typing import (
@@ -40,8 +41,9 @@ class JobInfo:
 
 
 class LiveRunner(AsyncContextManager["LiveRunner"]):
-    def __init__(self, config_dir: ConfigDir) -> None:
+    def __init__(self, config_dir: ConfigDir, console: Console) -> None:
         self._config_dir = config_dir
+        self._console = console
         self._config_loader: Optional[LiveLocalCL] = None
         self._flow: Optional[RunningLiveFlow] = None
         self._client: Optional[Client] = None
@@ -207,7 +209,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
                     when_humanized,
                 )
 
-        print(table)
+        self._console.print(table)
 
     async def status(self, job_id: str, suffix: Optional[str]) -> None:
         meta_ctx = await self._ensure_meta(job_id, suffix)
