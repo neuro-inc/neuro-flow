@@ -5,8 +5,6 @@ from neuro_flow.cli.root import Root
 from neuro_flow.cli.utils import argument, wrap_async
 from neuro_flow.live_runner import LiveRunner
 
-from .root import Root
-
 
 @click.command()
 @argument("volume", type=LIVE_VOLUME_OR_ALL)

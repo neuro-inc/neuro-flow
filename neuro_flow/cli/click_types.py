@@ -11,8 +11,6 @@ from neuro_flow.cli.root import Root
 from neuro_flow.live_runner import LiveRunner
 from neuro_flow.storage import BatchFSStorage, BatchStorage, NeuroStorageFS
 
-from .root import Root
-
 
 if sys.version_info >= (3, 7):
     from contextlib import AsyncExitStack
