@@ -373,7 +373,7 @@ class ProjectLoader(Reader, Scanner, Parser, Composer, BaseConstructor, BaseReso
         BaseResolver.__init__(self)
 
 
-PROJECT = {"id": None}
+PROJECT = {"id": SimpleIdExpr}
 
 
 def parse_project_main(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Project:

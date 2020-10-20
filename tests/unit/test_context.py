@@ -428,7 +428,7 @@ async def test_pipeline_args_missing_required(
     batch_config_loader: ConfigLoader,
 ) -> None:
     with pytest.raises(
-        EvalError, match=r"Arg arg2 is not initialized and has no default value"
+        EvalError, match=r"Param arg2 is not initialized and has no default value"
     ):
         await RunningBatchFlow.create(batch_config_loader, "batch-params-required", {})
 

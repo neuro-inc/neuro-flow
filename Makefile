@@ -1,6 +1,6 @@
-ISORT_DIRS := neuro_flow tests/unit setup.py
+ISORT_DIRS := neuro_flow tests setup.py
 BLACK_DIRS := $(ISORT_DIRS)
-MYPY_DIRS :=  neuro_flow tests/unit
+MYPY_DIRS :=  neuro_flow tests
 FLAKE8_DIRS := $(ISORT_DIRS)
 PYTEST_ARGS=
 
@@ -34,6 +34,12 @@ clean:
 .PHONY: test
 test:
 	pytest tests/unit
+
+
+.PHONY: test-e2e
+test-e2e:
+	# E2E test are bound by IO, so it's OK to run a lot in parallel
+	pytest -n 10 tests/e2e
 
 
 .PHONY: build
