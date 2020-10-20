@@ -1,6 +1,7 @@
 import click
 
 from neuro_flow.cli.click_types import LIVE_IMAGE_OR_ALL
+from neuro_flow.cli.root import Root
 from neuro_flow.cli.utils import argument, wrap_async
 from neuro_flow.live_runner import LiveRunner
 

@@ -1,0 +1,20 @@
+kind: batch
+defaults:
+  cache:
+    strategy: none
+tasks:
+  - id: is_5_prime
+    action: ws:.neuro/check-prime-action.yml
+    args:
+      number: 5
+  - id: is_9_prime
+    needs: []
+    action: ws:.neuro/check-prime-action.yml
+    args:
+      number: 9
+  - id: is_11_prime
+    needs: []
+    action: ws:.neuro/check-prime-action.yml
+    args:
+      number: 11
+

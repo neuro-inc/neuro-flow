@@ -527,6 +527,9 @@ class BatchFSStorage(BatchStorage):
 
         async for fs in self._fs.ls(url):
             name = fs.name
+            if name.startswith("."):
+                # Ignore hidden file or folder
+                continue
             try:
                 data = await self._read_json(url / name / "00.init.json")
                 yield _bake_from_json(data)

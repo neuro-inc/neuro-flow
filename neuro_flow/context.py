@@ -682,7 +682,7 @@ async def setup_params_ctx(
             value = params.get(k) or await v.default.eval(ctx)
             if value is None:
                 raise EvalError(
-                    f"Arg {k} is not initialized and has no default value",
+                    f"Param {k} is not initialized and has no default value",
                     v._start,
                     v._end,
                 )
