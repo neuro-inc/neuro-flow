@@ -9,6 +9,8 @@ from neuro_flow.cli import batch, completion, images, live, storage
 from neuro_flow.parser import ConfigDir, find_workspace
 from neuro_flow.types import LocalPath
 
+from .root import Root
+
 
 log = logging.getLogger(__name__)
 
@@ -66,7 +68,7 @@ class MainGroup(click.Group):
         if show_traceback:
             LOG_ERROR = log.exception
 
-        ctx.obj = config_dir
+        ctx.obj = Root(config_dir=config_dir)
 
     def make_context(
         self,

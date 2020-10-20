@@ -4,14 +4,17 @@ from typing import List, Optional, Tuple
 from neuro_flow.cli.click_types import LIVE_JOB, LIVE_JOB_OR_ALL, SUFFIX_AFTER_LIVE_JOB
 from neuro_flow.cli.utils import argument, option, wrap_async
 from neuro_flow.live_runner import LiveRunner
-from neuro_flow.parser import ConfigDir
+
+from .root import Root
 
 
 @click.command()
 @wrap_async()
-async def ps(config_dir: ConfigDir) -> None:
+async def ps(
+    root: Root,
+) -> None:
     """List all jobs"""
-    async with LiveRunner(config_dir) as runner:
+    async with LiveRunner(root.config_dir) as runner:
         await runner.ps()
 
 
@@ -24,7 +27,7 @@ async def ps(config_dir: ConfigDir) -> None:
 @argument("args", nargs=-1)
 @wrap_async()
 async def run(
-    config_dir: ConfigDir,
+    root: Root,
     job_id: str,
     suffix: Optional[str],
     args: Optional[Tuple[str]],
@@ -41,7 +44,7 @@ async def run(
             "args are deprecated, use --param instead",
             fg="yellow",
         )
-    async with LiveRunner(config_dir) as runner:
+    async with LiveRunner(root.config_dir) as runner:
         await runner.run(job_id, suffix, args, {key: value for key, value in param})
 
 
@@ -49,12 +52,16 @@ async def run(
 @argument("job-id", type=LIVE_JOB)
 @argument("suffix", required=False, type=SUFFIX_AFTER_LIVE_JOB)
 @wrap_async()
-async def logs(config_dir: ConfigDir, job_id: str, suffix: Optional[str]) -> None:
+async def logs(
+    root: Root,
+    job_id: str,
+    suffix: Optional[str],
+) -> None:
     """Print logs.
 
     Display logs for JOB-ID
     """
-    async with LiveRunner(config_dir) as runner:
+    async with LiveRunner(root.config_dir) as runner:
         await runner.logs(job_id, suffix)
 
 
@@ -62,12 +69,16 @@ async def logs(config_dir: ConfigDir, job_id: str, suffix: Optional[str]) -> Non
 @argument("job-id", type=LIVE_JOB)
 @argument("suffix", required=False, type=SUFFIX_AFTER_LIVE_JOB)
 @wrap_async()
-async def status(config_dir: ConfigDir, job_id: str, suffix: Optional[str]) -> None:
+async def status(
+    root: Root,
+    job_id: str,
+    suffix: Optional[str],
+) -> None:
     """Show job status.
 
     Print status for JOB-ID
     """
-    async with LiveRunner(config_dir) as runner:
+    async with LiveRunner(root.config_dir) as runner:
         await runner.status(job_id, suffix)
 
 
@@ -75,11 +86,15 @@ async def status(config_dir: ConfigDir, job_id: str, suffix: Optional[str]) -> N
 @argument("job-id", type=LIVE_JOB_OR_ALL)
 @argument("suffix", required=False, type=SUFFIX_AFTER_LIVE_JOB)
 @wrap_async()
-async def kill(config_dir: ConfigDir, job_id: str, suffix: Optional[str]) -> None:
+async def kill(
+    root: Root,
+    job_id: str,
+    suffix: Optional[str],
+) -> None:
     """Kill a job.
 
     Kill JOB-ID, use `kill ALL` for killing all jobs."""
-    async with LiveRunner(config_dir) as runner:
+    async with LiveRunner(root.config_dir) as runner:
         if job_id != "ALL":
             await runner.kill(job_id, suffix)
         else:
