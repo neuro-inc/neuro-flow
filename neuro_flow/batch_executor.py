@@ -6,7 +6,7 @@ import click
 import datetime
 import json
 import sys
-from neuromation.api import Client, Container, HTTPPort, JobStatus, Resources
+from neuromation.api import Client, Container, HTTPPort, Resources
 from typing import (
     AbstractSet,
     Dict,
@@ -35,7 +35,13 @@ from .context import (
 )
 from .storage import Attempt, BatchStorage, FinishedTask, StartedTask
 from .types import AlwaysT, FullID, TaskStatus
-from .utils import TERMINATED_JOB_STATUSES, fmt_id, fmt_raw_id, fmt_status
+from .utils import (
+    TERMINATED_JOB_STATUSES,
+    TERMINATED_TASK_STATUSES,
+    fmt_id,
+    fmt_raw_id,
+    fmt_status,
+)
 
 
 if sys.version_info >= (3, 9):
@@ -427,7 +433,7 @@ class BatchExecutor:
             if not self._is_cancelling:
                 await self._refresh_attempt()
 
-                if not ok or self._attempt.result == JobStatus.CANCELLED:
+                if not ok or self._attempt.result == TaskStatus.CANCELLED:
                     self._is_cancelling = True
                     await self._stop_running()
 
@@ -438,7 +444,7 @@ class BatchExecutor:
     async def _finish_run(self) -> None:
         attempt_status = self._accumulate_result()
         str_attempt_status = fmt_status(attempt_status)
-        if self._attempt.result not in TERMINATED_JOB_STATUSES:
+        if self._attempt.result not in TERMINATED_TASK_STATUSES:
             await self._storage.finish_attempt(self._attempt, attempt_status)
         click.echo(f"Attempt #{self._attempt.number} {str_attempt_status}")
 
@@ -517,14 +523,14 @@ class BatchExecutor:
                 return False
         return True
 
-    def _accumulate_result(self) -> JobStatus:
+    def _accumulate_result(self) -> TaskStatus:
         for task in self._tasks_mgr.finished.values():
             if task.status == TaskStatus.CANCELLED:
-                return JobStatus.CANCELLED
+                return TaskStatus.CANCELLED
             elif task.status == TaskStatus.FAILED:
-                return JobStatus.FAILED
+                return TaskStatus.FAILED
 
-        return JobStatus.SUCCEEDED
+        return TaskStatus.SUCCEEDED
 
     async def _start_task(self, full_id: FullID, task: Task) -> StartedTask:
 
