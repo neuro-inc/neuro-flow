@@ -5,6 +5,27 @@
 
 [comment]: # (towncrier release notes start)
 
+Neuro_Flow 20.10.19 (2020-10-19)
+================================
+
+Features
+--------
+
+
+- Added `--show-traceback` option. ([#134](https://github.com/neuro-inc/neuro-flow/issues/134))
+
+- Tune a message about bake starting ([#135](https://github.com/neuro-inc/neuro-flow/issues/135))
+
+
+Bugfixes
+--------
+
+
+- Fix noisy error report for `neuro kill ALL` command. ([#136](https://github.com/neuro-inc/neuro-flow/issues/136))
+
+- Fix invariant by saving both started and finished records for cached task ([#139](https://github.com/neuro-inc/neuro-flow/issues/139))
+
+
 Neuro_Flow 20.10.16 (2020-10-16)
 ================================
 

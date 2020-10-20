@@ -36,6 +36,7 @@ setup(
         "graphviz>=0.14",
         "yarl<1.6",
         "multidict<5.0",
+        "rich>=9.0.0",
     ],
     packages=find_packages(),
     classifiers=[

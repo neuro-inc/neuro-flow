@@ -8,7 +8,8 @@ import secrets
 import shlex
 import sys
 from neuromation.api import Client, Factory, JobDescription, JobStatus, ResourceNotFound
-from neuromation.cli.formatters import ftable  # TODO: extract into a separate library
+from rich import box, print
+from rich.table import Table
 from types import TracebackType
 from typing import (
     AbstractSet,
@@ -25,14 +26,8 @@ from typing_extensions import AsyncContextManager
 from .config_loader import LiveLocalCL
 from .context import ImageCtx, JobMeta, RunningLiveFlow, UnknownJob, VolumeCtx
 from .parser import ConfigDir
-from .utils import (
-    RUNNING_JOB_STATUSES,
-    TERMINATED_JOB_STATUSES,
-    fmt_id,
-    fmt_raw_id,
-    fmt_status,
-    run_subproc,
-)
+from .types import TaskStatus
+from .utils import RUNNING_JOB_STATUSES, TERMINATED_JOB_STATUSES, fmt_id, run_subproc
 
 
 @dataclasses.dataclass(frozen=True)
@@ -185,15 +180,12 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
 
         # TODO: make concurent queries for job statuses
         loop = asyncio.get_event_loop()
-        rows: List[List[str]] = []
-        rows.append(
-            [
-                click.style("JOB", bold=True),
-                click.style("STATUS", bold=True),
-                click.style("RAW ID", bold=True),
-                click.style("WHEN", bold=True),
-            ]
-        )
+        table = Table(box=box.MINIMAL_HEAVY_HEAD)
+        table.add_column("JOB", style="bold")
+        table.add_column("STATUS")
+        table.add_column("RAW ID", style="bright_black")
+        table.add_column("WHEN")
+
         tasks = []
         for job_id in self.flow.job_ids:
             tasks.append(loop.create_task(self._job_status(job_id)))
@@ -208,17 +200,14 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
                         when_humanized = humanize.naturaltime(delta)
                     else:
                         when_humanized = humanize.naturaldate(info.when.astimezone())
-                rows.append(
-                    [
-                        fmt_id(info.id),
-                        fmt_status(info.status),
-                        fmt_raw_id(info.raw_id or "N/A"),
-                        when_humanized,
-                    ]
+                table.add_row(
+                    info.id,
+                    TaskStatus(info.status),
+                    info.raw_id or "N/A",
+                    when_humanized,
                 )
 
-        for line in ftable.table(rows):
-            click.echo(line)
+        print(table)
 
     async def status(self, job_id: str, suffix: Optional[str]) -> None:
         meta_ctx = await self._ensure_meta(job_id, suffix)
@@ -412,8 +401,8 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
         ):
             tasks.append(loop.create_task(kill(descr)))
 
-        for job_id, ret in await asyncio.gather(*tasks):
-            click.echo(f"Killed job {fmt_id(job_id)}")
+        for job_info in await asyncio.gather(*tasks):
+            click.echo(f"Killed job {fmt_id(job_info)}")
 
     # volumes subsystem
 

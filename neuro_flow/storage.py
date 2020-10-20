@@ -15,7 +15,6 @@ from neuromation.api import (
     FileStatus,
     FileStatusType,
     JobDescription,
-    JobStatus,
     ResourceNotFound,
 )
 from types import TracebackType
@@ -78,7 +77,7 @@ class Attempt:
     bake: Bake
     when: datetime.datetime
     number: int
-    result: JobStatus
+    result: TaskStatus
 
     def __str__(self) -> str:
         folder = "_".join([self.bake.batch, _dt2str(self.bake.when), self.bake.suffix])
@@ -190,7 +189,7 @@ class BatchStorage(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def finish_attempt(self, attempt: Attempt, result: JobStatus) -> None:
+    async def finish_attempt(self, attempt: Attempt, result: TaskStatus) -> None:
         pass
 
     async def start_task(
@@ -604,7 +603,9 @@ class BatchFSStorage(BatchStorage):
         await self._fs.mkdir(attempt_uri)
         pre = "0".zfill(DIGITS)
         when = _now()
-        ret = Attempt(bake=bake, when=when, number=attempt_no, result=JobStatus.PENDING)
+        ret = Attempt(
+            bake=bake, when=when, number=attempt_no, result=TaskStatus.PENDING
+        )
         await self._write_json(attempt_uri / f"{pre}.init.json", _attempt_to_json(ret))
         return ret
 
@@ -695,7 +696,7 @@ class BatchFSStorage(BatchStorage):
         assert finished.keys() <= started.keys()
         return started, finished
 
-    async def finish_attempt(self, attempt: Attempt, result: JobStatus) -> None:
+    async def finish_attempt(self, attempt: Attempt, result: TaskStatus) -> None:
         bake_uri = _mk_bake_uri(self._fs, attempt.bake)
         attempt_url = bake_uri / f"{attempt.number:02d}.attempt"
         pre = "9" * DIGITS
@@ -757,7 +758,15 @@ class BatchFSStorage(BatchStorage):
                 return None
             if data["caching_key"] != caching_key:
                 return None
-            ret = FinishedTask(
+            st = StartedTask(
+                attempt=attempt,
+                id=task_id,
+                raw_id=data["raw_id"],
+                when=datetime.datetime.fromisoformat(data["when"]),
+                created_at=datetime.datetime.fromisoformat(data["created_at"]),
+            )
+            await self.write_start(st)
+            ft = FinishedTask(
                 attempt=attempt,
                 id=task_id,
                 raw_id=data["raw_id"],
@@ -772,8 +781,8 @@ class BatchFSStorage(BatchStorage):
                 outputs=data["outputs"],
                 state=data["state"],
             )
-            await self.write_finish(ret)
-            return ret
+            await self.write_finish(ft)
+            return ft
         except (KeyError, ValueError, TypeError):
             # something is wrong with stored JSON,
             # e.g. the structure doesn't match the expected schema
@@ -923,9 +932,9 @@ def _attempt_from_json(
     init_data: Dict[str, Any], result_data: Optional[Dict[str, Any]]
 ) -> Attempt:
     if result_data is not None:
-        result = JobStatus(result_data["result"])
+        result = TaskStatus(result_data["result"])
     else:
-        result = JobStatus.RUNNING
+        result = TaskStatus.RUNNING
     return Attempt(
         bake=_bake_from_json(init_data["bake"]),
         when=datetime.datetime.fromisoformat(init_data["when"]),
