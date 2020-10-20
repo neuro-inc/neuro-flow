@@ -8,7 +8,6 @@ from typing import Callable, Generic, List, Optional, Sequence, Tuple, TypeVar, 
 
 from neuro_flow.batch_runner import BatchRunner
 from neuro_flow.live_runner import LiveRunner
-from neuro_flow.parser import ConfigDir
 from neuro_flow.storage import BatchFSStorage, BatchStorage, NeuroStorageFS
 
 from .root import Root

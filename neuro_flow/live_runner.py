@@ -101,9 +101,9 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
                     )
             return meta
         except UnknownJob:
-            click.secho(f"Unknown job {fmt_id(job_id)}", fg="red")
+            self._console.print(f"[red]Unknown job [b]{job_id}[/b]")
             jobs_str = ",".join(self.flow.job_ids)
-            click.secho(f"Existing jobs: {jobs_str}", dim=True)
+            self._console.print(f"[dim]Existing jobs: {jobs_str}")
             sys.exit(1)
 
     async def _resolve_jobs(
@@ -217,7 +217,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
             async for descr in self._resolve_jobs(meta_ctx, suffix):
                 await run_subproc("neuro", "status", descr.id)
         except ResourceNotFound:
-            click.echo(f"Job {fmt_id(job_id)} is not running")
+            self._console.print(f"Job [b]{job_id}[/b] is not running")
             sys.exit(1)
 
     async def _try_attach_to_running(
@@ -249,10 +249,14 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
                         "Multi job with such suffix is already running."
                     )
                 if descr.status == JobStatus.PENDING:
-                    click.echo(f"Job {fmt_id(job_id)} is pending, " "try again later")
+                    self._console.print(
+                        f"Job [b]{job_id}[/b] is pending, " "try again later"
+                    )
                     sys.exit(2)
                 if descr.status == JobStatus.RUNNING:
-                    click.echo(f"Job {fmt_id(job_id)} is running, " "connecting...")
+                    self._console.print(
+                        f"Job [b]{job_id}[/b] is running, " "connecting..."
+                    )
                     if not is_multi:
                         job = await self.flow.get_job(job_id, params)
                     else:
@@ -345,7 +349,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
             async for descr in self._resolve_jobs(meta_ctx, suffix):
                 await run_subproc("neuro", "logs", descr.id)
         except ResourceNotFound:
-            click.echo(f"Job {fmt_id(job_id)} is not running")
+            self._console.print(f"Job {fmt_id(job_id)} is not running")
             sys.exit(1)
 
     async def kill_job(self, job_id: str, suffix: Optional[str]) -> bool:
@@ -368,9 +372,9 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
     async def kill(self, job_id: str, suffix: Optional[str]) -> None:
         """Kill named job"""
         if await self.kill_job(job_id, suffix):
-            click.echo(f"Killed job {fmt_id(job_id)}")
+            self._console.print(f"Killed job [b]{job_id}[/b]")
         else:
-            click.echo(f"Job {fmt_id(job_id)} is not running")
+            self._console.print(f"Job [b]{job_id}[/b] is not running")
 
     async def kill_all(self) -> None:
         """Kill all jobs"""
@@ -404,20 +408,20 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
             tasks.append(loop.create_task(kill(descr)))
 
         for job_info in await asyncio.gather(*tasks):
-            click.echo(f"Killed job {fmt_id(job_info)}")
+            self._console.print(f"Killed job [b]{job_info}[/b]")
 
     # volumes subsystem
 
     async def find_volume(self, volume: str) -> VolumeCtx:
         volume_ctx = self.flow.volumes.get(volume)
         if volume_ctx is None:
-            click.secho(f"Unknown volume {click.style(volume, bold=True)}", fg="red")
+            self._console.print(f"[red]Unknown volume [b]{volume}[/b]")
             volumes = sorted([volume for volume in self.flow.volumes.keys()])
             volumes_str = ",".join(volumes)
-            click.secho(f"Existing volumes: {volumes_str}", dim=True)
+            self._console.print(f"[dim]Existing volumes: {volumes_str}")
             sys.exit(1)
         if volume_ctx.local is None:
-            click.echo(f"Volume's {click.style('local', bold=True)} part is not set")
+            self._console.print(f"Volume's [b]local[/b] part is not set")
             sys.exit(2)
         return volume_ctx
 
@@ -468,7 +472,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
         for volume in self.flow.volumes.values():
             if volume.local is not None:
                 volume_ctx = await self.find_volume(volume.id)
-                click.echo(f"Create volume {fmt_id(volume.id)}")
+                self._console.print(f"Create volume [b]{volume.id}[/b]")
                 await run_subproc(
                     "neuro",
                     "mkdir",
@@ -481,18 +485,16 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
     async def find_image(self, image: str) -> ImageCtx:
         image_ctx = self.flow.images.get(image)
         if image_ctx is None:
-            click.secho(f"Unknown image {click.style(image, bold=True)}", fg="red")
+            self._console.print(f"[red]Unknown image [b]{image}[/b]")
             images = sorted([image for image in self.flow.images.keys()])
             images_str = ",".join(images)
-            click.secho(f"Existing images: {images_str}", dim=True)
+            self._console.print(f"[dim]Existing images: {images_str}")
             sys.exit(1)
         if image_ctx.context is None:
-            click.echo(f"Image's {click.style('context', bold=True)} part is not set")
+            self._console.print(f"Image's [b]context[/b] part is not set")
             sys.exit(2)
         if image_ctx.dockerfile is None:
-            click.echo(
-                f"Image's {click.style('dockerfile', bold=True)} part is not set"
-            )
+            self._console.print(f"Image's [b]dockerfile[/b] part is not set")
             sys.exit(3)
         return image_ctx
 

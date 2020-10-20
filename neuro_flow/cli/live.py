@@ -40,9 +40,8 @@ async def run(
     For multi-jobs an explicit job suffix can be used with explicit job arguments.
     """
     if args:
-        click.secho(
-            "args are deprecated, use --param instead",
-            fg="yellow",
+        root.console.print(
+            "[yellow]args are deprecated, use --param instead",
         )
     async with LiveRunner(root.config_dir, root.console) as runner:
         await runner.run(job_id, suffix, args, {key: value for key, value in param})

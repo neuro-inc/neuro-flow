@@ -3,12 +3,13 @@ import logging
 import sys
 from click.exceptions import Abort as ClickAbort, Exit as ClickExit
 from neuromation.cli.log_formatter import ConsoleHandler
+from rich.console import Console
 from typing import Any, List, Optional
 
 from neuro_flow.cli import batch, completion, images, live, storage
 from neuro_flow.parser import ConfigDir, find_workspace
 from neuro_flow.types import LocalPath
-from rich.console import Console
+
 from .root import Root
 
 
