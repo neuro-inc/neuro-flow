@@ -527,7 +527,7 @@ class BatchFSStorage(BatchStorage):
 
         async for fs in self._fs.ls(url):
             name = fs.name
-            if name.startswith('.'):
+            if name.startswith("."):
                 # Ignore hidden file or folder
                 continue
             try:
