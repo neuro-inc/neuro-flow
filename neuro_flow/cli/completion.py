@@ -5,6 +5,8 @@ import sys
 from neuro_flow.cli.utils import wrap_async
 from neuro_flow.types import LocalPath
 
+from .root import Root
+
 
 CFG_FILE = {"bash": LocalPath("~/.bashrc"), "zsh": LocalPath("~/.zshrc")}
 SOURCE_CMD = {"bash": "source", "zsh": "source_zsh"}
@@ -21,13 +23,15 @@ def completion() -> None:
 
 @completion.command()
 @click.argument("shell", type=click.Choice(["bash", "zsh"]))
-@wrap_async(pass_obj=False)
-async def generate(shell: str) -> None:
+@wrap_async()
+async def generate(root: Root, shell: str) -> None:
     """
     Provide an instruction for shell completion generation.
     """
-    click.echo(f"Push the following line into your {CFG_FILE[shell]}")
-    click.echo(ACTIVATION_TEMPLATE.format(cmd=SOURCE_CMD[shell], exe=sys.argv[0]))
+    root.console.print(f"Push the following line into your {CFG_FILE[shell]}")
+    root.console.print(
+        ACTIVATION_TEMPLATE.format(cmd=SOURCE_CMD[shell], exe=sys.argv[0])
+    )
 
 
 @completion.command()

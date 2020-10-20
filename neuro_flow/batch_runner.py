@@ -3,17 +3,21 @@ import dataclasses
 import click
 import datetime
 import humanize
+import neuro_extras
+import neuromation
 import sys
 from graphviz import Digraph
 from neuromation.api import Client, ResourceNotFound
 from operator import attrgetter, itemgetter
-from rich import box, print
+from rich import box
+from rich.console import Console
 from rich.table import Table
 from types import TracebackType
 from typing import AbstractSet, Dict, List, Mapping, Optional, Tuple, Type
 from typing_extensions import AsyncContextManager, AsyncIterator
 
-from . import __version__
+import neuro_flow
+
 from .batch_executor import BatchExecutor, ExecutorData, LocalsBatchExecutor
 from .commands import CmdProcessor
 from .config_loader import BatchLocalCL
@@ -21,7 +25,7 @@ from .context import EMPTY_ROOT, EarlyBatch, RunningBatchFlow
 from .parser import ConfigDir
 from .storage import Attempt, Bake, BatchStorage, FinishedTask
 from .types import FullID, LocalPath, TaskStatus
-from .utils import TERMINATED_TASK_STATUSES, fmt_id, fmt_status, run_subproc
+from .utils import TERMINATED_TASK_STATUSES, run_subproc
 
 
 if sys.version_info >= (3, 9):
@@ -29,7 +33,7 @@ if sys.version_info >= (3, 9):
 else:
     from . import backport_graphlib as graphlib
 
-EXECUTOR_IMAGE = f"neuromation/neuro-flow:{__version__}"
+EXECUTOR_IMAGE = f"neuromation/neuro-flow:{neuro_flow.__version__}"
 
 
 GRAPH_COLORS = {
@@ -45,9 +49,14 @@ GRAPH_COLORS = {
 
 class BatchRunner(AsyncContextManager["BatchRunner"]):
     def __init__(
-        self, config_dir: ConfigDir, client: Client, storage: BatchStorage
+        self,
+        config_dir: ConfigDir,
+        console: Console,
+        client: Client,
+        storage: BatchStorage,
     ) -> None:
         self._config_dir = config_dir
+        self._console = console
         self._client = client
         self._storage = storage
         self._config_loader: Optional[BatchLocalCL] = None
@@ -87,10 +96,14 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
     ) -> ExecutorData:
         # batch_name is a name of yaml config inside self._workspace / .neuro
         # folder without the file extension
+        self._console.print(f"[bright_black]neuromation=={neuromation.__version__}")
+        self._console.print(f"[bright_black]neuro-extras=={neuro_extras.__version__}")
+        self._console.print(f"[bright_black]neuro-flow=={neuro_flow.__version__}")
+        self._console.print(
+            f"Use config file {self.config_loader.flow_path(batch_name)}"
+        )
 
-        click.echo(f"Use config file {self.config_loader.flow_path(batch_name)}")
-
-        click.echo("Check config... ", nl=False)
+        self._console.print("Check config... ", end="")
 
         # Check that the yaml is parseable
         flow = await RunningBatchFlow.create(self.config_loader, batch_name, params)
@@ -102,9 +115,9 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
 
         graphs = await self._build_graphs(flow)
 
-        click.echo("ok")
+        self._console.print("[green]ok")
 
-        click.echo("Create bake")
+        self._console.print("Create bake")
         config_meta, configs = await self.config_loader.collect_configs(batch_name)
         bake = await self._storage.create_bake(
             flow.project_id,
@@ -114,8 +127,8 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             graphs=graphs,
             params=params,
         )
-        click.echo(
-            f"Bake {fmt_id(bake.batch)} of project {fmt_id(bake.project)} is created"
+        self._console.print(
+            f"Bake [b]{bake.bake_id}[/b] of project [b]{bake.project}[/b] is created"
         )
 
         return ExecutorData(
@@ -153,7 +166,12 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         self,
         data: ExecutorData,
     ) -> None:
-        executor = await LocalsBatchExecutor.create(data, self._client, self._storage)
+        executor = await LocalsBatchExecutor.create(
+            self._console,
+            data,
+            self._client,
+            self._storage,
+        )
         await executor.run()
 
     async def bake(
@@ -168,10 +186,10 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
     async def _run_bake(self, data: ExecutorData, local_executor: bool) -> None:
         await self._run_locals(data)
         if local_executor:
-            click.echo(f"Using local executor")
+            self._console.print(f"[bright_black]Using local executor")
             await self.process(data)
         else:
-            click.echo(f"Starting remove executor")
+            self._console.print(f"[bright_black]Starting remote executor")
             param = data.serialize()
             await run_subproc(
                 "neuro",
@@ -189,7 +207,9 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         self,
         data: ExecutorData,
     ) -> None:
-        executor = await BatchExecutor.create(data, self._client, self._storage)
+        executor = await BatchExecutor.create(
+            self._console, data, self._client, self._storage
+        )
         await executor.run()
 
     def get_bakes(self) -> AsyncIterator[Bake]:
@@ -210,7 +230,9 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             try:
                 attempt = await self._storage.find_attempt(bake)
             except ValueError:
-                print(f"[yellow]Bake [b]{bake}[/b] is malformed, skipping")
+                self._console.print(
+                    f"[yellow]Bake [b]{bake}[/b] is malformed, skipping"
+                )
             else:
                 rows.append((bake.bake_id, attempt.result, attempt.when))
 
@@ -225,7 +247,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             else:
                 when_humanized = humanize.naturaldate(when.astimezone())
             table.add_row(bake_id, result, when_humanized)
-        print(table)
+        self._console.print(table)
 
     async def inspect(
         self,
@@ -245,16 +267,16 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         try:
             bake = await self._storage.fetch_bake_by_id(self.project, bake_id)
         except ResourceNotFound:
-            click.secho("Bake not found", fg="yellow")
-            click.echo(
-                f"Please make sure that the bake {fmt_id(bake_id)} and "
-                f"project {fmt_id(self.project)} are correct."
+            self._console.print("[yellow]Bake not found")
+            self._console.print(
+                "Please make sure that the bake [b]{bake_id}[/b] and "
+                f"project [b]{self.project}[/b] are correct."
             )
             exit(1)
 
         attempt = await self._storage.find_attempt(bake, attempt_no)
 
-        print(f"[b]Attempt #{attempt.number}[/b]", attempt.result)
+        self._console.print(f"[b]Attempt #{attempt.number}[/b]", attempt.result)
 
         started, finished = await self._storage.fetch_attempt(attempt)
         statuses = {}
@@ -279,7 +301,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                     raw_id,
                 )
 
-        print(table)
+        self._console.print(table)
 
         if output is None:
             output = LocalPath(f"{bake.bake_id}_{attempt.number}").with_suffix(".gv")
@@ -292,13 +314,13 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         await self._subgraph(dot, graphs, (), {}, statuses, finished)
 
         if save_dot:
-            click.echo(f"Saving file {dot.filename}")
+            self._console.print(f"Saving file {dot.filename}")
             dot.save()
         if save_pdf:
-            click.echo(f"Rendering {dot.filename}.pdf")
+            self._console.print(f"Rendering {dot.filename}.pdf")
             dot.render(view=view_pdf)
         elif view_pdf:
-            click.echo(f"Opening {dot.filename}.pdf")
+            self._console.print(f"Opening {dot.filename}.pdf")
             dot.view()
 
     async def _subgraph(
@@ -375,36 +397,22 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         else:
             task = finished[full_id]
 
-        click.echo(
-            " ".join(
-                [
-                    fmt_id(f"Attempt #{attempt.number}"),
-                    fmt_status(attempt.result),
-                ]
-            )
-        )
-        click.echo(
-            " ".join(
-                [
-                    (f"Task {fmt_id(task_id)}"),
-                    fmt_status(task.status),
-                ]
-            )
-        )
+        self._console.print(f"[b]Attempt #{attempt.number}[/b]", attempt.result)
+        self._console.print(f"Task [b]{task_id}[/b]", task.status)
 
         if not task.raw_id:
             return
 
         if raw:
             async for chunk in self._client.jobs.monitor(task.raw_id):
-                click.echo(chunk.decode("utf-8", "replace"), nl=False)
+                self._console.print(chunk.decode("utf-8", "replace"), end="")
         else:
             async with CmdProcessor() as proc:
                 async for chunk in self._client.jobs.monitor(task.raw_id):
                     async for line in proc.feed_chunk(chunk):
-                        click.echo(line.decode("utf-8", "replace"), nl=False)
+                        self._console.print(line.decode("utf-8", "replace"), end="")
                 async for line in proc.feed_eof():
-                    click.echo(line.decode("utf-8", "replace"), nl=False)
+                    self._console.print(line.decode("utf-8", "replace"), end="")
 
     async def cancel(self, bake_id: str, *, attempt_no: int = -1) -> None:
         bake = await self._storage.fetch_bake_by_id(self.project, bake_id)
@@ -414,7 +422,10 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                 f"Attempt #{attempt.number} of {bake.bake_id} is already stopped."
             )
         await self._storage.finish_attempt(attempt, TaskStatus.CANCELLED)
-        click.echo(f"Attempt #{attempt.number} of bake {bake.bake_id} was cancelled.")
+        self._console.print(
+            f"[b]Attempt #{attempt.number}[/b] of bake "
+            "[b]{bake.bake_id}[/b] was cancelled."
+        )
 
     async def clear_cache(self, batch: Optional[str] = None) -> None:
         await self._storage.clear_cache(self.project, batch)
@@ -471,7 +482,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                         )
                         handled.add(task.id)
 
-        click.echo(f"Attempt # {fmt_id(str(new_att.number))} is created")
+        self._console.print(f"[b]Attempt #{new_att.number}[/b] is created")
         data = ExecutorData(
             project=bake.project,
             batch=bake.batch,

@@ -18,6 +18,7 @@ from neuromation.api import (
     get as api_get,
 )
 from pathlib import Path
+from rich import get_console
 from tempfile import TemporaryDirectory
 from typing import (
     AsyncIterator,
@@ -248,7 +249,9 @@ async def make_batch_runner(
         )
         nonlocal runner
         # BatchRunner should not use client in this case
-        runner = BatchRunner(config_dir, cast(Client, None), batch_storage)
+        runner = BatchRunner(
+            config_dir, get_console(), cast(Client, None), batch_storage
+        )
         await runner.__aenter__()
         return runner
 
@@ -285,7 +288,12 @@ def start_locals_executor(
     batch_storage: BatchStorage, patched_client: Client
 ) -> Callable[[ExecutorData], Awaitable[None]]:
     async def start(data: ExecutorData) -> None:
-        executor = await LocalsBatchExecutor.create(data, patched_client, batch_storage)
+        executor = await LocalsBatchExecutor.create(
+            get_console(),
+            data,
+            patched_client,
+            batch_storage,
+        )
         await executor.run()
 
     return start
@@ -297,7 +305,11 @@ def start_executor(
 ) -> Callable[[ExecutorData], Awaitable[None]]:
     async def start(data: ExecutorData) -> None:
         executor = await BatchExecutor.create(
-            data, patched_client, batch_storage, polling_timeout=0.05
+            get_console(),
+            data,
+            patched_client,
+            batch_storage,
+            polling_timeout=0.05,
         )
         await executor.run()
 

@@ -14,7 +14,7 @@ async def ps(
     root: Root,
 ) -> None:
     """List all jobs"""
-    async with LiveRunner(root.config_dir) as runner:
+    async with LiveRunner(root.config_dir, root.console) as runner:
         await runner.ps()
 
 
@@ -40,11 +40,10 @@ async def run(
     For multi-jobs an explicit job suffix can be used with explicit job arguments.
     """
     if args:
-        click.secho(
-            "args are deprecated, use --param instead",
-            fg="yellow",
+        root.console.print(
+            "[yellow]args are deprecated, use --param instead",
         )
-    async with LiveRunner(root.config_dir) as runner:
+    async with LiveRunner(root.config_dir, root.console) as runner:
         await runner.run(job_id, suffix, args, {key: value for key, value in param})
 
 
@@ -61,7 +60,7 @@ async def logs(
 
     Display logs for JOB-ID
     """
-    async with LiveRunner(root.config_dir) as runner:
+    async with LiveRunner(root.config_dir, root.console) as runner:
         await runner.logs(job_id, suffix)
 
 
@@ -78,7 +77,7 @@ async def status(
 
     Print status for JOB-ID
     """
-    async with LiveRunner(root.config_dir) as runner:
+    async with LiveRunner(root.config_dir, root.console) as runner:
         await runner.status(job_id, suffix)
 
 
@@ -94,7 +93,7 @@ async def kill(
     """Kill a job.
 
     Kill JOB-ID, use `kill ALL` for killing all jobs."""
-    async with LiveRunner(root.config_dir) as runner:
+    async with LiveRunner(root.config_dir, root.console) as runner:
         if job_id != "ALL":
             await runner.kill(job_id, suffix)
         else:

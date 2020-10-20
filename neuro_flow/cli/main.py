@@ -3,6 +3,7 @@ import logging
 import sys
 from click.exceptions import Abort as ClickAbort, Exit as ClickExit
 from neuromation.cli.log_formatter import ConsoleHandler
+from rich.console import Console
 from typing import Any, List, Optional
 
 from neuro_flow.cli import batch, completion, images, live, storage
@@ -68,7 +69,7 @@ class MainGroup(click.Group):
         if show_traceback:
             LOG_ERROR = log.exception
 
-        ctx.obj = Root(config_dir=config_dir)
+        ctx.obj = Root(config_dir=config_dir, console=Console(highlight=False))
 
     def make_context(
         self,

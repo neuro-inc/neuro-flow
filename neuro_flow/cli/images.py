@@ -14,7 +14,7 @@ async def build(root: Root, image: str) -> None:
 
     Assemble the IMAGE remotely and publish it.
     """
-    async with LiveRunner(root.config_dir) as runner:
+    async with LiveRunner(root.config_dir, root.console) as runner:
         if image == "ALL":
             await runner.build_all()
         else:

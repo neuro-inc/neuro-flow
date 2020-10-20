@@ -9,21 +9,20 @@ inputs:
     descr: param 2
     default: value 2
 outputs:
-  needs: ["task_1_${{ inputs.arg1 }}_second", task_2]
+  needs: [task_1_second, task_2]
   res1:
     descr: action result 1
-    value: ${{ needs[fmt('task_1_{}_second', inputs.arg1)].outputs.task1 }} ${{ needs.task_2.outputs.task2 }}
+    value: ${{ needs.task_1_second.outputs.task1 }} ${{ needs.task_2.outputs.task2 }}
   res2:
     descr: action result 2
     value: ${{ needs.task_2.outputs.task2 }}
 tasks:
   - strategy:
       matrix:
-        v1: ["${{ inputs.arg1 }}", "first"]
-        v2: ["${{ inputs.arg2 }}", "second"]
-    id: task_1_${{ matrix.v1 }}_${{ matrix.v2}}
+        v1: ["first", "second"]
+    id: task_1_${{ matrix.v1 }}
     image: ubuntu
-    bash: echo ::set-output name=task1::Task 1 ${{ matrix.v1 }} ${{ matrix.v2 }}
+    bash: echo ::set-output name=task1::Task 1 ${{ matrix.v1 }} ${{ inputs.arg1 }}
   - id: task_2
     image: ubuntu
     bash: echo ::set-output name=task2::Task 2 ${{ inputs.arg2 }}
