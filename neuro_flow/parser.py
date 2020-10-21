@@ -582,6 +582,7 @@ EXEC_UNIT = {
     "life_span": OptLifeSpanExpr,
     "http_port": OptIntExpr,
     "http_auth": OptBoolExpr,
+    "pass_config": OptBoolExpr,
 }
 
 

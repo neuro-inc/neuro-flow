@@ -49,3 +49,4 @@ tasks:
     life_span: 2h55m
     http_port: 8080
     http_auth: false
+    pass_config: true

@@ -5,7 +5,10 @@ import base64
 import datetime
 import json
 import sys
-from neuromation.api import Client, Container, HTTPPort, Resources
+import uuid
+from neuromation.api import Client, Container, HTTPPort, Resources, Volume
+from neuromation.cli.job import STORAGE_MOUNTPOINT
+from neuromation.cli.utils import NEURO_STEAL_CONFIG
 from rich.console import Console
 from typing import (
     AbstractSet,
@@ -18,6 +21,7 @@ from typing import (
     Tuple,
     TypeVar,
 )
+from yarl import URL
 
 from .commands import CmdProcessor
 from .config_loader import BatchRemoteCL
@@ -548,10 +552,21 @@ class BatchExecutor:
             tpu_software_version=preset.tpu_software_version,
         )
         volumes_parsed = self._client.parse.volumes(task.volumes)
+        volumes = list(volumes_parsed.volumes)
 
         http_auth = task.http_auth
         if http_auth is None:
             http_auth = HTTPPort.requires_auth
+
+        if task.pass_config:
+            env_name = NEURO_STEAL_CONFIG
+            if env_name in env_dict:
+                raise ValueError(f"{env_name} is already set to {env_dict[env_name]}")
+            env_var, secret_volume = await upload_and_map_config(
+                self._console, self._client
+            )
+            env_dict[NEURO_STEAL_CONFIG] = env_var
+            volumes.append(secret_volume)
 
         container = Container(
             image=self._client.parse.remote_image(task.image),
@@ -561,7 +576,7 @@ class BatchExecutor:
             resources=resources,
             env=env_dict,
             secret_env=secret_env_dict,
-            volumes=list(volumes_parsed.volumes),
+            volumes=volumes,
             secret_files=list(volumes_parsed.secret_files),
             disk_volumes=list(volumes_parsed.disk_volumes),
             tty=False,
@@ -648,3 +663,38 @@ class LocalsBatchExecutor(BatchExecutor):
 
     async def _finish_run(self) -> None:
         pass  # Do nothing for locals run
+
+
+async def upload_and_map_config(console: Console, client: Client) -> Tuple[str, Volume]:
+
+    # store the Neuro CLI config on the storage under some random path
+    nmrc_path = URL(client.config._path.expanduser().resolve().as_uri())
+    random_nmrc_filename = f"{uuid.uuid4()}-cfg"
+    storage_nmrc_folder = URL(
+        f"storage://{client.config.cluster_name}/{client.config.username}/.neuro/"
+    )
+    storage_nmrc_path = storage_nmrc_folder / random_nmrc_filename
+    local_nmrc_folder = f"{STORAGE_MOUNTPOINT}/.neuro/"
+    local_nmrc_path = f"{local_nmrc_folder}{random_nmrc_filename}"
+    console.print(
+        f"[bright_black]Temporary config file created on storage: {storage_nmrc_path}."
+    )
+    console.print(
+        f"[bright_black]Inside container it will be available at: {local_nmrc_path}."
+    )
+    await client.storage.mkdir(storage_nmrc_folder, parents=True, exist_ok=True)
+
+    async def skip_tmp(fname: str) -> bool:
+        return not fname.endswith(("-shm", "-wal", "-journal"))
+
+    await client.storage.upload_dir(nmrc_path, storage_nmrc_path, filter=skip_tmp)
+    # specify a container volume and mount the storage path
+    # into specific container path
+    return (
+        local_nmrc_path,
+        Volume(
+            storage_uri=storage_nmrc_folder,
+            container_path=local_nmrc_folder,
+            read_only=False,
+        ),
+    )
