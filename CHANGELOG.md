@@ -5,6 +5,25 @@
 
 [comment]: # (towncrier release notes start)
 
+Neuro_Flow 20.10.21 (2020-10-21)
+================================
+
+Features
+--------
+
+
+- Sort bakes by creation time. ([#147](https://github.com/neuro-inc/neuro-flow/issues/147))
+
+- Support pass_config: true YAML option for task/job ([#151](https://github.com/neuro-inc/neuro-flow/issues/151))
+
+
+Bugfixes
+--------
+
+
+- Ignore hidden files and folders (e.g. .cache) when getting the list of bakes ([#146](https://github.com/neuro-inc/neuro-flow/issues/146))
+
+
 Neuro_Flow 20.10.19 (2020-10-19)
 ================================
 
