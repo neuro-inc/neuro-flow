@@ -55,3 +55,4 @@ jobs:
     browse: true
     port_forward:
     - "2211:22"
+    pass_config: true

@@ -95,6 +95,7 @@ class ExecUnit(Base):
     life_span: OptLifeSpanExpr
     http_port: OptIntExpr
     http_auth: OptBoolExpr
+    pass_config: OptBoolExpr
 
 
 @dataclass(frozen=True)

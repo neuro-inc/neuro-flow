@@ -28,7 +28,7 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
     flow = parse_batch(workspace, config_file)
     assert flow == ast.BatchFlow(
         Pos(0, 0, config_file),
-        Pos(51, 0, config_file),
+        Pos(52, 0, config_file),
         id=SimpleOptIdExpr(
             Pos(0, 0, config_file),
             Pos(0, 0, config_file),
@@ -130,7 +130,7 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
         tasks=[
             ast.Task(
                 _start=Pos(31, 4, config_file),
-                _end=Pos(51, 0, config_file),
+                _end=Pos(52, 0, config_file),
                 id=OptIdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "test_a"),
                 title=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "Batch title"
@@ -199,6 +199,9 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
                 http_auth=OptBoolExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), False
                 ),
+                pass_config=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), True
+                ),
                 strategy=None,
                 cache=None,
                 enable=EnableExpr(
@@ -266,6 +269,9 @@ def test_parse_seq(assets: pathlib.Path) -> None:
                 http_auth=OptBoolExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
+                pass_config=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
                 strategy=None,
                 cache=None,
                 enable=EnableExpr(
@@ -304,6 +310,9 @@ def test_parse_seq(assets: pathlib.Path) -> None:
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
                 http_auth=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                pass_config=OptBoolExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
                 strategy=None,
@@ -373,6 +382,9 @@ def test_parse_needs(assets: pathlib.Path) -> None:
                 http_auth=OptBoolExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
+                pass_config=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
                 strategy=None,
                 cache=None,
                 enable=EnableExpr(
@@ -413,6 +425,9 @@ def test_parse_needs(assets: pathlib.Path) -> None:
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
                 http_auth=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                pass_config=OptBoolExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
                 strategy=None,
@@ -476,6 +491,9 @@ def test_parse_matrix(assets: pathlib.Path) -> None:
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
                 http_auth=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                pass_config=OptBoolExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
                 id=OptIdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
@@ -619,6 +637,9 @@ def test_parse_matrix_with_strategy(assets: pathlib.Path) -> None:
                 http_auth=OptBoolExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
+                pass_config=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
                 id=OptIdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 needs=None,
                 strategy=ast.Strategy(
@@ -727,6 +748,9 @@ def test_parse_matrix_with_strategy(assets: pathlib.Path) -> None:
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
                 http_auth=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                pass_config=OptBoolExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
             ),
@@ -858,6 +882,9 @@ def test_parse_args(assets: pathlib.Path) -> None:
                 http_auth=OptBoolExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
+                pass_config=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
                 id=OptIdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 needs=None,
                 strategy=None,
@@ -927,6 +954,9 @@ def test_parse_enable(assets: pathlib.Path) -> None:
                 http_auth=OptBoolExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
+                pass_config=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
                 strategy=None,
                 cache=None,
                 enable=EnableExpr(
@@ -967,6 +997,9 @@ def test_parse_enable(assets: pathlib.Path) -> None:
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
                 http_auth=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                pass_config=OptBoolExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
                 strategy=None,

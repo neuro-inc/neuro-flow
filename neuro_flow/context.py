@@ -166,6 +166,7 @@ class ExecUnit:
     preset: Optional[str]
     http_port: Optional[int]
     http_auth: Optional[bool]
+    pass_config: Optional[bool]
     entrypoint: Optional[str]
     cmd: Optional[str]
     workdir: Optional[RemotePath]
@@ -938,6 +939,7 @@ class RunningLiveFlow:
             life_span=life_span,
             http_port=await job.http_port.eval(ctx),
             http_auth=await job.http_auth.eval(ctx),
+            pass_config=await job.pass_config.eval(ctx),
             port_forward=port_forward,
             multi=await self.is_multi(job_id),
             env=env,
@@ -1147,6 +1149,7 @@ class RunningBatchBase(Generic[_T], EarlyBatch):
             life_span=life_span,
             http_port=await prep_task.ast_task.http_port.eval(ctx),
             http_auth=await prep_task.ast_task.http_auth.eval(ctx),
+            pass_config=await prep_task.ast_task.pass_config.eval(ctx),
             enable=enable,
             cache=prep_task.cache,
             strategy=prep_task.strategy,

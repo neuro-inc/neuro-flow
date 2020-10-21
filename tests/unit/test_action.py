@@ -94,6 +94,9 @@ def test_parse_live_action(assets: LocalPath) -> None:
             browse=OptBoolExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
             http_port=OptIntExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
             http_auth=OptBoolExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+            pass_config=OptBoolExpr(
+                Pos(0, 0, config_file), Pos(0, 0, config_file), None
+            ),
             port_forward=None,
             multi=SimpleOptBoolExpr(
                 Pos(0, 0, config_file), Pos(0, 0, config_file), None
@@ -234,6 +237,9 @@ def test_parse_batch_action(assets: LocalPath) -> None:
                 http_auth=OptBoolExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
+                pass_config=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
                 id=OptIdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "task_1"),
                 needs=None,
                 strategy=None,
@@ -272,6 +278,9 @@ def test_parse_batch_action(assets: LocalPath) -> None:
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
                 http_auth=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                pass_config=OptBoolExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
                 id=OptIdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "task_2"),
@@ -367,6 +376,9 @@ def test_parse_stateful_action(assets: LocalPath) -> None:
             ),
             http_port=OptIntExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
             http_auth=OptBoolExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+            pass_config=OptBoolExpr(
+                Pos(0, 0, config_file), Pos(0, 0, config_file), None
+            ),
         ),
         post=ast.ExecUnit(
             Pos(17, 2, config_file),
@@ -388,6 +400,9 @@ def test_parse_stateful_action(assets: LocalPath) -> None:
             ),
             http_port=OptIntExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
             http_auth=OptBoolExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+            pass_config=OptBoolExpr(
+                Pos(0, 0, config_file), Pos(0, 0, config_file), None
+            ),
         ),
         post_if=EnableExpr(
             Pos(0, 0, config_file), Pos(0, 0, config_file), "${{ always() }}"
