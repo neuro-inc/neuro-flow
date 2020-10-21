@@ -193,7 +193,7 @@ def test_parse_full(assets: pathlib.Path) -> None:
     flow = parse_live(workspace, config_file)
     assert flow == ast.LiveFlow(
         Pos(0, 0, config_file),
-        Pos(57, 0, config_file),
+        Pos(58, 0, config_file),
         id=SimpleOptIdExpr(
             Pos(0, 0, config_file),
             Pos(0, 0, config_file),
@@ -301,7 +301,7 @@ def test_parse_full(assets: pathlib.Path) -> None:
         jobs={
             "test_a": ast.Job(
                 Pos(34, 4, config_file),
-                Pos(57, 0, config_file),
+                Pos(58, 0, config_file),
                 name=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "job-name"
                 ),
