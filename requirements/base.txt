@@ -8,5 +8,5 @@ async_exit_stack==1.0.1; python_version<"3.7"
 neuromation==20.10.7
 neuro-extras==20.10.16
 graphviz==0.14.2
-rich==9.0.0
+rich==9.0.1
 -e .
