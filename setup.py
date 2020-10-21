@@ -35,7 +35,7 @@ setup(
         "neuro-extras>=20.9.25",
         "graphviz>=0.14",
         "yarl<1.6",
-        "multidict<5.0",
+        "multidict<6.0",
         "rich>=9.0.0",
     ],
     packages=find_packages(),
