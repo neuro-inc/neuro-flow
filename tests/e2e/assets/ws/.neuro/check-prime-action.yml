@@ -1,5 +1,5 @@
 kind: batch
-descr: Is primary check for numbers <= 16
+descr: Is primary check for numbers <= 5
 inputs:
   number:
     descr: Number to check
@@ -10,7 +10,7 @@ outputs:
 tasks:
   - strategy:
       matrix:
-        p: ["2", "3", "5", "7", "11", "13"]
+        p: ["2", "3", "5"]
     image: ubuntu
     enable: ${{ matrix.p != inputs.number }}
     bash: echo OK
