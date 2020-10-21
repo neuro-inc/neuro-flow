@@ -424,7 +424,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         await self._storage.finish_attempt(attempt, TaskStatus.CANCELLED)
         self._console.print(
             f"[b]Attempt #{attempt.number}[/b] of bake "
-            "[b]{bake.bake_id}[/b] was cancelled."
+            f"[b]{bake.bake_id}[/b] was cancelled."
         )
 
     async def clear_cache(self, batch: Optional[str] = None) -> None:
