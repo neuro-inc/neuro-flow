@@ -44,6 +44,6 @@ test-e2e:
 
 .PHONY: build
 build:
-	docker build -t neuromation/neuro-flow:latest \
+	docker build -t neuromation/neuro-flow:"$(shell python setup.py --version)" \
 	    --build-arg NEURO_FLOW_VERSION="$(shell python setup.py --version)" \
 	    .
