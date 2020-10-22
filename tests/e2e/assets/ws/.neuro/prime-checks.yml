@@ -7,14 +7,14 @@ tasks:
     action: ws:.neuro/check-prime-action.yml
     args:
       number: 5
-  - id: is_9_prime
+  - id: is_4_prime
     needs: []
     action: ws:.neuro/check-prime-action.yml
     args:
-      number: 9
-  - id: is_11_prime
+      number: 4
+  - id: is_3_prime
     needs: []
     action: ws:.neuro/check-prime-action.yml
     args:
-      number: 11
+      number: 3
 

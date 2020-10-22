@@ -68,7 +68,7 @@ def run_cli(loop: None, ws: pathlib.Path, api_config: Optional[pathlib.Path]) ->
             os.environ["NEUROMATION_CONFIG"] = str(api_config)
         proc = subprocess.run(
             ["neuro-flow"] + arguments,
-            timeout=300,
+            timeout=600,
             cwd=ws,
             encoding="utf8",
             errors="replace",
