@@ -158,6 +158,7 @@ cli.add_command(batch.show)
 cli.add_command(batch.inspect)
 cli.add_command(batch.cancel)
 cli.add_command(batch.clear_cache)
+cli.add_command(batch.restart)
 
 # Volumes commands
 cli.add_command(storage.upload)
