@@ -24,7 +24,7 @@ from .context import EMPTY_ROOT, EarlyBatch, RunningBatchFlow
 from .parser import ConfigDir
 from .storage import Attempt, Bake, BatchStorage, FinishedTask
 from .types import FullID, LocalPath, TaskStatus
-from .utils import TERMINATED_TASK_STATUSES, run_subproc, fmt_datetime
+from .utils import TERMINATED_TASK_STATUSES, fmt_datetime, run_subproc
 
 
 if sys.version_info >= (3, 9):
@@ -276,7 +276,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
 
         started, finished = await self._storage.fetch_attempt(attempt)
         statuses = {}
-        for task in sorted(started.values(), key=attrgetter('when')):
+        for task in sorted(started.values(), key=attrgetter("when")):
             task_id = task.id
             raw_id = task.raw_id
             finished_task = finished.get(task_id)

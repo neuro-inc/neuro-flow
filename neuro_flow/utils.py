@@ -69,4 +69,3 @@ async def run_subproc(exe: str, *args: str) -> None:
             # (e.g. if KeyboardInterrupt or cancellation was received)
             proc.kill()
             await proc.wait()
-

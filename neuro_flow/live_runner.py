@@ -27,7 +27,13 @@ from .config_loader import LiveLocalCL
 from .context import ImageCtx, JobMeta, RunningLiveFlow, UnknownJob, VolumeCtx
 from .parser import ConfigDir
 from .types import TaskStatus
-from .utils import RUNNING_JOB_STATUSES, TERMINATED_JOB_STATUSES, fmt_id, run_subproc, fmt_datetime
+from .utils import (
+    RUNNING_JOB_STATUSES,
+    TERMINATED_JOB_STATUSES,
+    fmt_datetime,
+    fmt_id,
+    run_subproc,
+)
 
 
 @dataclasses.dataclass(frozen=True)
