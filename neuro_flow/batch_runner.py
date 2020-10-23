@@ -2,7 +2,6 @@ import dataclasses
 
 import click
 import datetime
-import humanize
 import neuro_extras
 import neuromation
 import sys
@@ -25,7 +24,7 @@ from .context import EMPTY_ROOT, EarlyBatch, RunningBatchFlow
 from .parser import ConfigDir
 from .storage import Attempt, Bake, BatchStorage, FinishedTask
 from .types import FullID, LocalPath, TaskStatus
-from .utils import TERMINATED_TASK_STATUSES, run_subproc
+from .utils import TERMINATED_TASK_STATUSES, run_subproc, fmt_datetime
 
 
 if sys.version_info >= (3, 9):
@@ -241,12 +240,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
 
         for row in rows:
             bake_id, result, when = row
-            delta = datetime.datetime.now(datetime.timezone.utc) - when
-            if delta < datetime.timedelta(days=1):
-                when_humanized = humanize.naturaltime(delta)
-            else:
-                when_humanized = humanize.naturaldate(when.astimezone())
-            table.add_row(bake_id, result, when_humanized)
+            table.add_row(bake_id, result, fmt_datetime(when))
         self._console.print(table)
 
     async def inspect(
@@ -263,6 +257,8 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         table.add_column("ID", style="bold")
         table.add_column("STATUS")
         table.add_column("RAW ID", style="bright_black")
+        table.add_column("STARTED")
+        table.add_column("FINISHED")
 
         try:
             bake = await self._storage.fetch_bake_by_id(self.project, bake_id)
@@ -280,14 +276,17 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
 
         started, finished = await self._storage.fetch_attempt(attempt)
         statuses = {}
-        for task in started.values():
+        for task in sorted(started.values(), key=attrgetter('when')):
             task_id = task.id
             raw_id = task.raw_id
-            if task_id in finished:
+            finished_task = finished.get(task_id)
+            if finished_task:
                 table.add_row(
                     ".".join(task_id),
-                    finished[task_id].status,
+                    finished_task.status,
                     raw_id,
+                    fmt_datetime(task.when),
+                    fmt_datetime(finished_task.when),
                 )
             else:
                 if raw_id:
@@ -299,6 +298,8 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                     ".".join(task_id),
                     statuses[task_id],
                     raw_id,
+                    fmt_datetime(task.when),
+                    fmt_datetime(None),
                 )
 
         self._console.print(table)
