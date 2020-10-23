@@ -3,9 +3,9 @@ tasks:
   - image: ubuntu
     cache:
       strategy: none
-    preset: cpu-small
+    preset: cpu-micro
     bash: echo abc
 
   - image: ubuntu
-    preset: cpu-small
+    preset: cpu-micro
     bash: echo def

@@ -2,10 +2,10 @@ kind: batch
 tasks:
   - id: task_a
     image: ubuntu
-    preset: cpu-small
+    preset: cpu-micro
     bash: echo abc
 
   - image: ubuntu
-    preset: cpu-small
+    preset: cpu-micro
     bash: echo def
     needs: [task_a]

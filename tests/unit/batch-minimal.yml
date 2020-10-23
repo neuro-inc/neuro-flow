@@ -33,7 +33,7 @@ tasks:
     title: Batch title
     name: job-name
     image: ${{ images.image_a.ref }}
-    preset: cpu-small
+    preset: cpu-micro
     entrypoint: bash
     cmd: echo abc
     workdir: /local/dir
