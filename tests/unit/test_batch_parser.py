@@ -145,7 +145,7 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
                     "${{ images.image_a.ref }}",
                 ),
                 preset=OptStrExpr(
-                    Pos(0, 0, config_file), Pos(0, 0, config_file), "cpu-small"
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "cpu-micro"
                 ),
                 entrypoint=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "bash"
@@ -246,7 +246,7 @@ def test_parse_seq(assets: pathlib.Path) -> None:
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
                 preset=OptStrExpr(
-                    Pos(0, 0, config_file), Pos(0, 0, config_file), "cpu-small"
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "cpu-micro"
                 ),
                 entrypoint=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
@@ -289,7 +289,7 @@ def test_parse_seq(assets: pathlib.Path) -> None:
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
                 preset=OptStrExpr(
-                    Pos(0, 0, config_file), Pos(0, 0, config_file), "cpu-small"
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "cpu-micro"
                 ),
                 entrypoint=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
@@ -359,7 +359,7 @@ def test_parse_needs(assets: pathlib.Path) -> None:
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
                 preset=OptStrExpr(
-                    Pos(0, 0, config_file), Pos(0, 0, config_file), "cpu-small"
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "cpu-micro"
                 ),
                 entrypoint=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
@@ -404,7 +404,7 @@ def test_parse_needs(assets: pathlib.Path) -> None:
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
                 preset=OptStrExpr(
-                    Pos(0, 0, config_file), Pos(0, 0, config_file), "cpu-small"
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "cpu-micro"
                 ),
                 entrypoint=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
@@ -931,7 +931,7 @@ def test_parse_enable(assets: pathlib.Path) -> None:
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
                 preset=OptStrExpr(
-                    Pos(0, 0, config_file), Pos(0, 0, config_file), "cpu-small"
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "cpu-micro"
                 ),
                 entrypoint=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
@@ -976,7 +976,7 @@ def test_parse_enable(assets: pathlib.Path) -> None:
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
                 preset=OptStrExpr(
-                    Pos(0, 0, config_file), Pos(0, 0, config_file), "cpu-small"
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "cpu-micro"
                 ),
                 entrypoint=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None

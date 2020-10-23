@@ -1,7 +1,7 @@
 kind: batch
 tasks:
   - image: neuromation/neuro-flow:20.10.21
-    preset: cpu-small
+    preset: cpu-micro
     pass_config: true
     bash: |
       echo ::set-output::$(neuro ls)

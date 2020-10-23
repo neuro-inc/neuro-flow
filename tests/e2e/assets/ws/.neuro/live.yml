@@ -2,7 +2,7 @@ kind: live
 title: Test live config
 
 defaults:
-  preset: cpu-small
+  preset: cpu-micro
   env:
     FOO: FOO_ENV
 
