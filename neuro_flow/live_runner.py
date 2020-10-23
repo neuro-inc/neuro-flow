@@ -3,7 +3,6 @@ import dataclasses
 import asyncio
 import click
 import datetime
-import humanize
 import secrets
 import shlex
 import sys
@@ -28,7 +27,13 @@ from .config_loader import LiveLocalCL
 from .context import ImageCtx, JobMeta, RunningLiveFlow, UnknownJob, VolumeCtx
 from .parser import ConfigDir
 from .types import TaskStatus
-from .utils import RUNNING_JOB_STATUSES, TERMINATED_JOB_STATUSES, fmt_id, run_subproc
+from .utils import (
+    RUNNING_JOB_STATUSES,
+    TERMINATED_JOB_STATUSES,
+    fmt_datetime,
+    fmt_id,
+    run_subproc,
+)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -194,19 +199,11 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
 
         for bulk in await asyncio.gather(*tasks):
             for info in bulk:
-                if info.when is None:
-                    when_humanized = "N/A"
-                else:
-                    delta = datetime.datetime.now(datetime.timezone.utc) - info.when
-                    if delta < datetime.timedelta(days=1):
-                        when_humanized = humanize.naturaltime(delta)
-                    else:
-                        when_humanized = humanize.naturaldate(info.when.astimezone())
                 table.add_row(
                     info.id,
                     TaskStatus(info.status),
                     info.raw_id or "N/A",
-                    when_humanized,
+                    fmt_datetime(info.when),
                 )
 
         self._console.print(table)

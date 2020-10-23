@@ -1,6 +1,8 @@
 import asyncio
+import datetime
+import humanize
 from neuromation.api import JobStatus
-from typing import Union
+from typing import Optional, Union, cast
 
 from .types import COLORS, FullID, TaskStatus
 
@@ -24,6 +26,16 @@ def fmt_id(id: Union[str, FullID]) -> str:
 
 def fmt_raw_id(raw_id: str) -> str:
     return f"[bright_black]{raw_id}[/bright_black]"
+
+
+def fmt_datetime(when: Optional[datetime.datetime]) -> str:
+    if when is None:
+        return "N/A"
+    delta = datetime.datetime.now(datetime.timezone.utc) - when
+    if delta < datetime.timedelta(days=1):
+        return cast(str, humanize.naturaltime(delta))
+    else:
+        return cast(str, humanize.naturaldate(when.astimezone()))
 
 
 RUNNING_JOB_STATUSES = {JobStatus.PENDING, JobStatus.RUNNING}
