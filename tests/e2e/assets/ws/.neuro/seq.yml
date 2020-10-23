@@ -5,13 +5,13 @@ params:
 tasks:
   - id: task_a
     image: ubuntu
-    preset: cpu-small
+    preset: cpu-micro
     bash: |
       echo ::set-output name=name::${{ params.token }}
 
   - id: task_b
     needs: [task_a]
     image: ubuntu
-    preset: cpu-small
+    preset: cpu-micro
     bash: |
       echo ::set-output name=task_b_out::${{ needs.task_a.outputs.name }}

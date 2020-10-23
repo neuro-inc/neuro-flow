@@ -90,6 +90,7 @@ jobs:
   e2e:
     name: E2E
     needs: [unit]
+    continue-on-error: true
     strategy:
       matrix:
         python-version: [3.6, 3.7]

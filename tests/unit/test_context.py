@@ -146,7 +146,7 @@ async def test_job(live_config_loader: ConfigLoader) -> None:
     assert job.title == "Job title"
     assert job.name == "job-name"
     assert job.image == "image:banana"
-    assert job.preset == "cpu-small"
+    assert job.preset == "cpu-micro"
     assert job.http_port == 8080
     assert not job.http_auth
     assert job.entrypoint == "bash"
@@ -189,7 +189,7 @@ async def test_pipeline_minimal_ctx(batch_config_loader: ConfigLoader) -> None:
     assert task.title == "Batch title"
     assert task.name == "job-name"
     assert task.image == "image:banana"
-    assert task.preset == "cpu-small"
+    assert task.preset == "cpu-micro"
     assert task.http_port == 8080
     assert not task.http_auth
     assert task.entrypoint == "bash"
@@ -221,7 +221,7 @@ async def test_pipeline_seq(batch_config_loader: ConfigLoader) -> None:
     assert task.title is None
     assert task.name is None
     assert task.image == "ubuntu"
-    assert task.preset == "cpu-small"
+    assert task.preset == "cpu-micro"
     assert task.http_port is None
     assert not task.http_auth
     assert task.entrypoint is None
@@ -246,7 +246,7 @@ async def test_pipeline_needs(batch_config_loader: ConfigLoader) -> None:
     assert task.title is None
     assert task.name is None
     assert task.image == "ubuntu"
-    assert task.preset == "cpu-small"
+    assert task.preset == "cpu-micro"
     assert task.http_port is None
     assert not task.http_auth
     assert task.entrypoint is None
@@ -381,7 +381,7 @@ async def test_pipeline_matrix_2(batch_config_loader: ConfigLoader) -> None:
     assert task.title is None
     assert task.name is None
     assert task.image == "ubuntu"
-    assert task.preset == "cpu-small"
+    assert task.preset == "cpu-micro"
     assert task.http_port is None
     assert not task.http_auth
     assert task.entrypoint is None

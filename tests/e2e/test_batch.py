@@ -41,6 +41,6 @@ def test_batch_with_local(run_cli: RunCLI):
 def test_batch_action(run_cli: RunCLI):
     captured = run_cli(["bake", "prime-checks", "--local-executor"])
 
-    assert f"11 is prime" in captured.out
-    assert f"9 is not prime" in captured.out
     assert f"5 is prime" in captured.out
+    assert f"4 is not prime" in captured.out
+    assert f"3 is prime" in captured.out
