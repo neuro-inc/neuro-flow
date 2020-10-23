@@ -311,7 +311,7 @@ def test_parse_full(assets: pathlib.Path) -> None:
                     "${{ images.image_a.ref }}",
                 ),
                 preset=OptStrExpr(
-                    Pos(0, 0, config_file), Pos(0, 0, config_file), "cpu-small"
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "cpu-micro"
                 ),
                 entrypoint=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "bash"
