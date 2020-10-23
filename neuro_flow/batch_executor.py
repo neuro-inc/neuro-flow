@@ -537,6 +537,7 @@ class BatchExecutor:
         preset_name = task.preset
         if preset_name is None:
             preset_name = next(iter(self._client.config.presets))
+        print(self._client.config.presets.keys())
         preset = self._client.config.presets[preset_name]
 
         env_dict, secret_env_dict = self._client.parse.env(
