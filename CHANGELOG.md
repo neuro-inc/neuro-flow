@@ -5,6 +5,25 @@
 
 [comment]: # (towncrier release notes start)
 
+Neuro_Flow 20.10.26 (2020-10-26)
+================================
+
+Features
+--------
+
+
+- Improve inspect command: sort output by task creation time, add columns with task start and task finish times. ([#156](https://github.com/neuro-inc/neuro-flow/issues/156))
+
+
+Bugfixes
+--------
+
+
+- Fix variable substitution for printed text for bake cancellation ([#152](https://github.com/neuro-inc/neuro-flow/issues/152))
+
+- Add forgotten restart command ([#160](https://github.com/neuro-inc/neuro-flow/issues/160))
+
+
 Neuro_Flow 20.10.21 (2020-10-21)
 ================================
 
