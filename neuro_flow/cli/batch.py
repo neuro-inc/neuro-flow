@@ -294,7 +294,7 @@ async def clear_cache(
 @wrap_async()
 async def restart(
     root: Root,
-    bake: str,
+    bake_id: str,
     attempt: int,
     from_failed: bool,
     local_executor: bool,
@@ -312,7 +312,7 @@ async def restart(
             BatchRunner(root.config_dir, root.console, client, storage)
         )
         await runner.restart(
-            bake,
+            bake_id,
             attempt_no=attempt,
             from_failed=from_failed,
             local_executor=local_executor,
