@@ -1,0 +1,14 @@
+kind: batch
+
+outputs:
+  needs: [ task_2_bad_suffix ]
+  output_var:
+    value: ${{ needs.task_2.outputs.output_var }}
+
+tasks:
+  - id: task_1
+    image: ubuntu
+    bash: echo test
+  - id: task_2
+    image: ubuntu
+    bash: echo ::set-output name=output_var::test

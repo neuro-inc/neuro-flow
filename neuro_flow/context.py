@@ -750,6 +750,23 @@ async def setup_matrix(ast_matrix: Optional[ast.Matrix]) -> Sequence[MatrixCtx]:
     return matrices
 
 
+async def setup_output_needs(
+    outputs: Optional[ast.BatchActionOutputs], known_tasks: AbstractSet[str]
+) -> AbstractSet[str]:
+    output_needs = set()
+    if outputs:
+        for need_expr in outputs.needs:
+            task_id = await need_expr.eval(EMPTY_ROOT)
+            if task_id not in known_tasks:
+                raise EvalError(
+                    f"Action does not contain task '{task_id}'",
+                    outputs._start,
+                    outputs._end,
+                )
+            output_needs.add(task_id)
+    return output_needs
+
+
 async def setup_cache(
     ctx: RootABC,
     base_cache: CacheConf,
@@ -1026,7 +1043,23 @@ class EarlyBatch:
 
         tasks = await EarlyTaskGraphBuilder(self._cl, prep_task.action.tasks).build()
 
-        return EarlyBatch(tasks, self._cl)
+        output_needs = await setup_output_needs(prep_task.action.outputs, tasks.keys())
+
+        return EarlyBatchAction(tasks, self._cl, output_needs)
+
+
+class EarlyBatchAction(EarlyBatch):
+    def __init__(
+        self,
+        tasks: Mapping[str, "BaseEarlyTask"],
+        config_loader: ConfigLoader,
+        output_needs: AbstractSet[str],
+    ):
+        super().__init__(tasks, config_loader)
+        self._output_needs = output_needs
+
+    async def get_output_needs(self) -> AbstractSet[str]:
+        return self._output_needs
 
 
 class RunningBatchBase(Generic[_T], EarlyBatch):
@@ -1279,14 +1312,14 @@ class RunningBatchActionFlow(RunningBatchBase[BatchActionContext]):
         config_loader: ConfigLoader,
         defaults: DefaultsConf,
         action: ast.BatchAction,
+        output_needs: AbstractSet[str],
     ):
         super().__init__(ctx, tasks, config_loader, defaults)
         self._action = action
+        self._output_needs = output_needs
 
     async def get_output_needs(self) -> AbstractSet[str]:
-        if self._action.outputs:
-            return {await need.eval(self._ctx) for need in self._action.outputs.needs}
-        return set()
+        return self._output_needs
 
     async def calc_outputs(self, needs: NeedsCtx, *, is_cancelling: bool) -> DepCtx:
         if any(i.result == TaskStatus.FAILED for i in needs.values()):
@@ -1339,8 +1372,15 @@ class RunningBatchActionFlow(RunningBatchBase[BatchActionContext]):
             action_context, config_loader, cache, ast_action.tasks
         ).build()
 
+        output_needs = await setup_output_needs(ast_action.outputs, tasks.keys())
+
         return RunningBatchActionFlow(
-            action_context, tasks, config_loader, DefaultsConf(), ast_action
+            action_context,
+            tasks,
+            config_loader,
+            DefaultsConf(),
+            ast_action,
+            output_needs,
         )
 
 

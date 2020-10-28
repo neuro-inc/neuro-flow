@@ -681,3 +681,16 @@ async def test_pipeline_with_batch_action(batch_config_loader: ConfigLoader) -> 
         "task_1": set(),
         "task_2": {"task_1"},
     }
+
+
+async def test_pipeline_with_batch_action_bad_output_needs(
+    batch_config_loader: ConfigLoader,
+) -> None:
+    flow = await RunningBatchFlow.create(
+        batch_config_loader, "batch-action-call-bad-output-needs"
+    )
+    with pytest.raises(
+        EvalError, match=r"Action does not contain task 'task_2_bad_suffix'"
+    ):
+        assert await flow.is_action("test")
+        await flow.get_action_early("test")
