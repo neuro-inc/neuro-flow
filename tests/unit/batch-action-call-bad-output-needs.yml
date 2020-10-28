@@ -1,0 +1,6 @@
+kind: batch
+tasks:
+- id: test
+  action: ws:batch-action-bad-output-needs
+  args:
+    arg1: val 1
