@@ -193,7 +193,9 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             await run_subproc(
                 "neuro",
                 "run",
-                "--restart=on-failure",
+                # TODO: re-enable restarting following issue is fixed:
+                # https://github.com/neuro-inc/platform-client-python/issues/1797
+                # "--restart=on-failure",
                 "--pass-config",
                 EXECUTOR_IMAGE,
                 "neuro-flow",
