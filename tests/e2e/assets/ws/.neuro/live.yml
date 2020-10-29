@@ -61,4 +61,3 @@ jobs:
       py_script:
         descr: Python script to execute
     python: ${{ params.py_script }}
-

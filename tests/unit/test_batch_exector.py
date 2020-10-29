@@ -371,14 +371,10 @@ async def test_batch_with_action_ok(
 ) -> None:
     executor_task = asyncio.ensure_future(run_executor(assets, "batch-action-call"))
     await jobs_mock.get_task("test.task-1")
-    await jobs_mock.mark_done(
-        "test.task-1", "::set-output name=task1::Task 1 val 1".encode()
-    )
+    await jobs_mock.mark_done("test.task-1", b"::set-output name=task1::Task 1 val 1")
 
     await jobs_mock.get_task("test.task-2")
-    await jobs_mock.mark_done(
-        "test.task-2", "::set-output name=task2::Task 2 value 2".encode()
-    )
+    await jobs_mock.mark_done("test.task-2", b"::set-output name=task2::Task 2 value 2")
     await executor_task
 
 
@@ -679,7 +675,7 @@ async def test_stateful_with_state(
     )
 
     await jobs_mock.mark_done("first")
-    await jobs_mock.mark_done("test", "::save-state name=const::constant".encode())
+    await jobs_mock.mark_done("test", b"::save-state name=const::constant")
     await jobs_mock.mark_done("last")
     await jobs_mock.mark_done("post-test")
 
@@ -793,12 +789,8 @@ async def test_fully_cached_with_action(
     run_executor: Callable[[Path, str], Awaitable[None]],
 ) -> None:
     executor_task = asyncio.ensure_future(run_executor(assets, "batch-action-call"))
-    await jobs_mock.mark_done(
-        "test.task-1", "::set-output name=task1::Task 1 val 1".encode()
-    )
-    await jobs_mock.mark_done(
-        "test.task-2", "::set-output name=task2::Task 2 value 2".encode()
-    )
+    await jobs_mock.mark_done("test.task-1", b"::set-output name=task1::Task 1 val 1")
+    await jobs_mock.mark_done("test.task-2", b"::set-output name=task2::Task 2 value 2")
     await executor_task
 
     await run_executor(assets, "batch-action-call")
@@ -811,14 +803,14 @@ async def test_cached_same_needs(
 ) -> None:
     executor_task = asyncio.ensure_future(run_executor(assets, "batch-test-cache"))
 
-    await jobs_mock.mark_done("task-1", "::set-output name=arg::val".encode())
+    await jobs_mock.mark_done("task-1", b"::set-output name=arg::val")
     await jobs_mock.mark_done("task-2")
     await executor_task
 
     jobs_mock.clear()
     executor_task = asyncio.ensure_future(run_executor(assets, "batch-test-cache"))
 
-    await jobs_mock.mark_done("task-1", "::set-output name=arg::val".encode())
+    await jobs_mock.mark_done("task-1", b"::set-output name=arg::val")
     await executor_task
 
 
@@ -829,14 +821,14 @@ async def test_not_cached_if_different_needs(
 ) -> None:
     executor_task = asyncio.ensure_future(run_executor(assets, "batch-test-cache"))
 
-    await jobs_mock.mark_done("task-1", "::set-output name=arg::val".encode())
+    await jobs_mock.mark_done("task-1", b"::set-output name=arg::val")
     await jobs_mock.mark_done("task-2")
     await executor_task
 
     jobs_mock.clear()
     executor_task = asyncio.ensure_future(run_executor(assets, "batch-test-cache"))
 
-    await jobs_mock.mark_done("task-1", "::set-output name=arg::val2".encode())
+    await jobs_mock.mark_done("task-1", b"::set-output name=arg::val2")
     await jobs_mock.mark_done("task-2")
     await executor_task
 

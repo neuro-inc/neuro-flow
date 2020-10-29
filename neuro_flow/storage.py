@@ -899,7 +899,7 @@ def _bake_from_json(data: Dict[str, Any]) -> Bake:
     graphs = {}
     for pre, gr in data["graphs"].items():
         graphs[_id_from_json(pre)] = {
-            _id_from_json(full_id): set(_id_from_json(dep) for dep in deps)
+            _id_from_json(full_id): {_id_from_json(dep) for dep in deps}
             for full_id, deps in gr.items()
         }
     return Bake(

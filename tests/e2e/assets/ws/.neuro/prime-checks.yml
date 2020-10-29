@@ -17,4 +17,3 @@ tasks:
     action: ws:.neuro/check-prime-action.yml
     args:
       number: 3
-
