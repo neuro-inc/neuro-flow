@@ -1,0 +1,35 @@
+kind: batch
+defaults:
+  cache:
+    strategy: none
+  max_parallel: 2
+tasks:
+  - id: id1
+    action: ws:.neuro/tst-action.yml
+    args:
+      caller: id1
+
+  - id: id2
+    needs: [id1]
+    strategy:
+      matrix: 
+        box: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+    action: ws:.neuro/tst-action.yml
+    args:
+      caller: id2-${{ matrix.box }}
+
+  - id: id3
+    needs: []
+    action: ws:.neuro/tst-action.yml
+    image: ubuntu
+    args:
+      caller: id3
+
+  - id: id4
+    needs: [id3]
+    strategy:
+      matrix: 
+        box: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+    action: ws:.neuro/tst-action.yml
+    args:
+      caller: id4-${{ matrix.box }}

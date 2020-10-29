@@ -1,0 +1,27 @@
+kind: batch
+name: Test batch Action
+author: Andrew Svetlov
+descr: description of test action
+inputs:
+  caller:
+    descr: caller's name
+tasks:
+  - id: b1
+    image: python:3.9
+    python: |
+      import time
+      import random
+      delay = random.randint(50, 360)
+      print("Sleep", delay)
+      time.sleep(delay)
+      print("::set-output name=b1::", "${{ inputs.caller }}", "b1", delay)
+  - id: b2
+    needs: [b1]
+    image: python:3.9
+    python: |
+      import time
+      import random
+      delay = random.randint(1, 5)
+      print("Sleep", delay)
+      time.sleep(delay)
+      print("::set-output name=b2::", "${{ inputs.caller }}", "b2", delay)
