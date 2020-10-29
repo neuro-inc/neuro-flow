@@ -37,7 +37,7 @@ neuro-flow run train
 
 Multitrain (several instances of this job can be executed on parallel):
 ```
-neuro-flow run multitrain -s bert -- --model bert 
+neuro-flow run multitrain -s bert -- --model bert
 ```
 * Use `-s` to provide a custom suffix (otherwise a generated suffix is assigned).
 * Pass additional parameters after `--`.

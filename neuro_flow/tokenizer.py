@@ -26,7 +26,7 @@ class Token:
         return "%d,%d-%d,%d:" % (sl, sp, el, ep)
 
     def __str__(self) -> str:
-        s = "%s %s '%s'" % (self._pos_str(), self.type, self.value)
+        s = f"{self._pos_str()} {self.type} '{self.value}'"
         return s.strip()
 
     @property
@@ -34,7 +34,7 @@ class Token:
         return self.value
 
     def pformat(self) -> str:
-        return "%s %s '%s'" % (
+        return "{} {} '{}'".format(
             self._pos_str().ljust(20),
             self.type.ljust(14),
             self.value,
@@ -48,7 +48,7 @@ class LexerError(Exception):
 
     def __str__(self) -> str:
         s = "cannot tokenize data"
-        return '{}: {},{}: "{}"'.format(s, self.place.line, self.place.col, self.msg)
+        return f'{s}: {self.place.line},{self.place.col}: "{self.msg}"'
 
 
 class Tokenizer:

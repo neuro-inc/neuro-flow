@@ -12,7 +12,7 @@ tasks:
   - id: id2
     needs: [id1]
     strategy:
-      matrix: 
+      matrix:
         box: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
     action: ws:.neuro/tst-action.yml
     args:
@@ -28,7 +28,7 @@ tasks:
   - id: id4
     needs: [id3]
     strategy:
-      matrix: 
+      matrix:
         box: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
     action: ws:.neuro/tst-action.yml
     args:
