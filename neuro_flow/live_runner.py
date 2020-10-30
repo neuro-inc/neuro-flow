@@ -26,7 +26,7 @@ from typing_extensions import AsyncContextManager
 from .config_loader import LiveLocalCL
 from .context import ImageCtx, JobMeta, RunningLiveFlow, UnknownJob, VolumeCtx
 from .parser import ConfigDir
-from .storage import BatchStorage
+from .storage import Storage
 from .types import TaskStatus
 from .utils import (
     RUNNING_JOB_STATUSES,
@@ -52,7 +52,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
         config_dir: ConfigDir,
         console: Console,
         client: Client,
-        storage: BatchStorage,
+        storage: Storage,
     ) -> None:
         self._config_dir = config_dir
         self._console = console
@@ -343,7 +343,11 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
 
         if job.multi and args:
             run_args.extend(args)
-
+        jobs = []
+        for job_id in self.flow.job_ids:
+            job_meta = await self.flow.get_meta(job_id)
+            jobs.append(job_meta)
+        await self._storage.write_live(self.flow.flow.project_id, jobs)
         await run_subproc("neuro", *run_args)
 
     async def logs(self, job_id: str, suffix: Optional[str]) -> None:

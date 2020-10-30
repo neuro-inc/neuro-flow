@@ -133,8 +133,8 @@ class FinishedTask:
 # There is a possibility to add Postgres storage class later, for example
 
 
-class BatchStorage(abc.ABC):
-    async def __aenter__(self) -> "BatchStorage":
+class Storage(abc.ABC):
+    async def __aenter__(self) -> "Storage":
         return self
 
     async def __aexit__(
@@ -502,7 +502,7 @@ class NeuroStorageFS(FileSystem):
         await self._client.storage.rm(uri, recursive=recursive)
 
 
-class BatchFSStorage(BatchStorage):
+class FSStorage(Storage):
     # A storage that uses storage:.flow directory as a database
 
     # A lack of true atomic operations (and server-side move/rename which prevents

@@ -22,7 +22,7 @@ from .commands import CmdProcessor
 from .config_loader import BatchLocalCL
 from .context import EMPTY_ROOT, EarlyBatch, RunningBatchFlow
 from .parser import ConfigDir
-from .storage import Attempt, Bake, BatchStorage, FinishedTask
+from .storage import Attempt, Bake, FinishedTask, Storage
 from .types import FullID, LocalPath, TaskStatus
 from .utils import TERMINATED_TASK_STATUSES, fmt_datetime, run_subproc
 
@@ -52,7 +52,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         config_dir: ConfigDir,
         console: Console,
         client: Client,
-        storage: BatchStorage,
+        storage: Storage,
     ) -> None:
         self._config_dir = config_dir
         self._console = console

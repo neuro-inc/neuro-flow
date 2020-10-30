@@ -812,6 +812,10 @@ class RunningLiveFlow:
         return sorted(self._ast_flow.jobs)
 
     @property
+    def flow(self) -> FlowCtx:
+        return self._ctx.flow
+
+    @property
     def tags(self) -> AbstractSet[str]:
         return self._ctx.tags
 
