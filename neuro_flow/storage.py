@@ -17,6 +17,7 @@ from neuromation.api import (
     JobDescription,
     ResourceNotFound,
 )
+from operator import attrgetter
 from types import TracebackType
 from typing import (
     AbstractSet,
@@ -545,7 +546,11 @@ class BatchFSStorage(BatchStorage):
             project=project,
             when=when,
             jobs=sorted(
-                [Job(id=job.id, multi=job.multi, tags=sorted(job.tags)) for job in jobs]
+                [
+                    Job(id=job.id, multi=job.multi, tags=sorted(job.tags))
+                    for job in jobs
+                ],
+                key=attrgetter("id"),
             ),
         )
         prj_uri = self._fs.root / project
