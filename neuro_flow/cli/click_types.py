@@ -68,7 +68,7 @@ class LiveJobType(AsyncType[str]):
     ) -> str:
         return value
 
-    async def async_complete(
+    async def async_complete(  # type: ignore[return]
         self,
         root: Root,
         ctx: click.Context,
@@ -110,7 +110,7 @@ class LiveJobSuffixType(AsyncType[str]):
     ) -> str:
         return value
 
-    async def async_complete(
+    async def async_complete(  # type: ignore[return]
         self,
         root: Root,
         ctx: click.Context,
@@ -151,7 +151,7 @@ class LiveImageType(AsyncType[str]):
     ) -> str:
         return value
 
-    async def async_complete(
+    async def async_complete(  # type: ignore[return]
         self,
         root: Root,
         ctx: click.Context,
@@ -194,7 +194,7 @@ class LiveVolumeType(AsyncType[str]):
     ) -> str:
         return value
 
-    async def async_complete(
+    async def async_complete(  # type: ignore[return]
         self,
         root: Root,
         ctx: click.Context,
