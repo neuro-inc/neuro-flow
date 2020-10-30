@@ -75,7 +75,14 @@ class LiveJobType(AsyncType[str]):
         args: Sequence[str],
         incomplete: str,
     ) -> List[Tuple[str, Optional[str]]]:
-        async with LiveRunner(root.config_dir, root.console) as runner:
+        async with AsyncExitStack() as stack:
+            client = await stack.enter_async_context(api_get())
+            storage: BatchStorage = await stack.enter_async_context(
+                BatchFSStorage(NeuroStorageFS(client))
+            )
+            runner = await stack.enter_async_context(
+                LiveRunner(root.config_dir, root.console, client, storage)
+            )
             variants = list(runner.flow.job_ids)
             if self._allow_all:
                 variants += ["ALL"]
@@ -111,7 +118,14 @@ class LiveJobSuffixType(AsyncType[str]):
         incomplete: str,
     ) -> List[Tuple[str, Optional[str]]]:
         job_id = self._args_to_job_id(args)
-        async with LiveRunner(root.config_dir, root.console) as runner:
+        async with AsyncExitStack() as stack:
+            client = await stack.enter_async_context(api_get())
+            storage: BatchStorage = await stack.enter_async_context(
+                BatchFSStorage(NeuroStorageFS(client))
+            )
+            runner = await stack.enter_async_context(
+                LiveRunner(root.config_dir, root.console, client, storage)
+            )
             return [
                 (suffix, None)
                 for suffix in await runner.list_suffixes(job_id)
@@ -144,7 +158,14 @@ class LiveImageType(AsyncType[str]):
         args: Sequence[str],
         incomplete: str,
     ) -> List[Tuple[str, Optional[str]]]:
-        async with LiveRunner(root.config_dir, root.console) as runner:
+        async with AsyncExitStack() as stack:
+            client = await stack.enter_async_context(api_get())
+            storage: BatchStorage = await stack.enter_async_context(
+                BatchFSStorage(NeuroStorageFS(client))
+            )
+            runner = await stack.enter_async_context(
+                LiveRunner(root.config_dir, root.console, client, storage)
+            )
             variants = [
                 image
                 for image, image_ctx in runner.flow.images.items()
@@ -180,7 +201,14 @@ class LiveVolumeType(AsyncType[str]):
         args: Sequence[str],
         incomplete: str,
     ) -> List[Tuple[str, Optional[str]]]:
-        async with LiveRunner(root.config_dir, root.console) as runner:
+        async with AsyncExitStack() as stack:
+            client = await stack.enter_async_context(api_get())
+            storage: BatchStorage = await stack.enter_async_context(
+                BatchFSStorage(NeuroStorageFS(client))
+            )
+            runner = await stack.enter_async_context(
+                LiveRunner(root.config_dir, root.console, client, storage)
+            )
             variants = [
                 volume.id
                 for volume in runner.flow.volumes.values()
