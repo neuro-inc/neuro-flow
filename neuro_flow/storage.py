@@ -17,12 +17,14 @@ from neuromation.api import (
     JobDescription,
     ResourceNotFound,
 )
+from operator import attrgetter
 from types import TracebackType
 from typing import (
     AbstractSet,
     Any,
     AsyncIterator,
     Dict,
+    Iterable,
     Mapping,
     Optional,
     Sequence,
@@ -36,7 +38,7 @@ from yarl import URL
 from neuro_flow.types import LocalPath
 
 from .config_loader import ConfigFile
-from .context import DepCtx
+from .context import DepCtx, JobMeta
 from .types import FullID, TaskStatus
 
 
@@ -51,6 +53,22 @@ log = logging.getLogger(__name__)
 STARTED_RE: Final = re.compile(r"\A(?P<id>[a-zA-Z][a-zA-Z0-9_\-\.]*).started.json\Z")
 FINISHED_RE: Final = re.compile(r"\A(?P<id>[a-zA-Z][a-zA-Z0-9_\-\.]*).finished.json\Z")
 DIGITS = 4
+
+
+@dataclasses.dataclass(frozen=True)
+class Live:
+    project: str
+    when: datetime.datetime
+    jobs: Sequence["Job"]
+
+
+@dataclasses.dataclass(frozen=True)
+class Job:
+    # Job has no 'when' and reference to 'live'
+    # because it always exists as a part of live.jobs sequence.
+    id: str
+    multi: bool
+    tags: Sequence[str]
 
 
 @dataclasses.dataclass(frozen=True)
@@ -115,8 +133,8 @@ class FinishedTask:
 # There is a possibility to add Postgres storage class later, for example
 
 
-class BatchStorage(abc.ABC):
-    async def __aenter__(self) -> "BatchStorage":
+class Storage(abc.ABC):
+    async def __aenter__(self) -> "Storage":
         return self
 
     async def __aexit__(
@@ -129,6 +147,11 @@ class BatchStorage(abc.ABC):
 
     @abc.abstractmethod
     async def close(self) -> None:
+        pass
+
+    # TODO: implement fetch_live() counterpart
+    @abc.abstractmethod
+    async def write_live(self, project: str, jobs: Iterable[JobMeta]) -> Live:
         pass
 
     @abc.abstractmethod
@@ -479,7 +502,7 @@ class NeuroStorageFS(FileSystem):
         await self._client.storage.rm(uri, recursive=recursive)
 
 
-class BatchFSStorage(BatchStorage):
+class FSStorage(Storage):
     # A storage that uses storage:.flow directory as a database
 
     # A lack of true atomic operations (and server-side move/rename which prevents
@@ -509,12 +532,32 @@ class BatchFSStorage(BatchStorage):
     #         +-- 001.<task_id>.started.json
     #         +-- 002.<task_id>.finished.json
     #         +-- 999.result.json
+    #  +-- live.json
 
     def __init__(self, fs: FileSystem) -> None:
         self._fs = fs
 
     async def close(self) -> None:
         pass
+
+    async def write_live(self, project: str, jobs: Iterable[JobMeta]) -> Live:
+        when = _now()
+        live = Live(
+            project=project,
+            when=when,
+            jobs=sorted(
+                [
+                    Job(id=job.id, multi=job.multi, tags=sorted(job.tags))
+                    for job in jobs
+                ],
+                key=attrgetter("id"),
+            ),
+        )
+        prj_uri = self._fs.root / project
+        await self._fs.mkdir(prj_uri, parents=True)
+        url = prj_uri / "live.json"
+        await self._write_json(url, _live_to_json(live), overwrite=True)
+        return live
 
     async def list_bakes(self, project: str) -> AsyncIterator[Bake]:
         url = self._fs.root / project
@@ -528,7 +571,10 @@ class BatchFSStorage(BatchStorage):
         async for fs in self._fs.ls(url):
             name = fs.name
             if name.startswith("."):
-                # Ignore hidden file or folder
+                # Ignore hidden names
+                continue
+            if not fs.is_dir():
+                # Ignore files, bake is always a folder
                 continue
             try:
                 data = await self._read_json(url / name / "00.init.json")
@@ -865,6 +911,16 @@ def _now() -> datetime.datetime:
 
 def _dt2str(dt: datetime.datetime) -> str:
     return dt.isoformat(timespec="seconds")
+
+
+def _live_to_json(live: Live) -> Dict[str, Any]:
+    return {
+        "project": live.project,
+        "when": live.when.isoformat(),
+        "jobs": [
+            {"id": job.id, "multi": job.multi, "tags": job.tags} for job in live.jobs
+        ],
+    }
 
 
 def _mk_bake_uri_from_id(

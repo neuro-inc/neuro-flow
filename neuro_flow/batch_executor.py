@@ -37,7 +37,7 @@ from .context import (
     Task,
     TaskMeta,
 )
-from .storage import Attempt, BatchStorage, FinishedTask, StartedTask
+from .storage import Attempt, FinishedTask, StartedTask, Storage
 from .types import AlwaysT, FullID, TaskStatus
 from .utils import TERMINATED_JOB_STATUSES, TERMINATED_TASK_STATUSES, fmt_id, fmt_raw_id
 
@@ -224,7 +224,7 @@ class BatchExecutor:
         flow: RunningBatchFlow,
         attempt: Attempt,
         client: Client,
-        storage: BatchStorage,
+        storage: Storage,
         *,
         polling_timeout: float = 1,
     ) -> None:
@@ -252,7 +252,7 @@ class BatchExecutor:
         console: Console,
         executor_data: ExecutorData,
         client: Client,
-        storage: BatchStorage,
+        storage: Storage,
         *,
         polling_timeout: float = 1,
     ) -> "BatchExecutor":
@@ -599,7 +599,7 @@ class LocalsBatchExecutor(BatchExecutor):
         console: Console,
         executor_data: ExecutorData,
         client: Client,
-        storage: BatchStorage,
+        storage: Storage,
         *,
         polling_timeout: Optional[float] = None,
     ) -> "BatchExecutor":
