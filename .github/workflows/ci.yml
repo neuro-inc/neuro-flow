@@ -21,10 +21,10 @@ jobs:
     steps:
     - name: Checkout
       uses: actions/checkout@v2
-    - name: Setup Python 3.7
+    - name: Setup Python 3.9
       uses: actions/setup-python@v2
       with:
-        python-version: 3.7
+        python-version: 3.9
     - name: Cache PyPI
       uses: actions/cache@v2
       with:
@@ -52,8 +52,17 @@ jobs:
     needs: [lint]
     strategy:
       matrix:
-        python-version: [3.6, 3.7]
+        python-version: [3.6, 3.7, 3.8, 3.9]
         os: [ubuntu, macos, windows]
+        exclude:
+          - python-version: 3.7
+            os: macos
+          - python-version: 3.7
+            os: windows
+          - python-version: 3.8
+            os: macos
+          - python-version: 3.8
+            os: windows
       fail-fast:
         false
     runs-on: ${{ matrix.os }}-latest
@@ -93,8 +102,17 @@ jobs:
     continue-on-error: true
     strategy:
       matrix:
-        python-version: [3.6, 3.7]
+        python-version: [3.6, 3.7, 3.8, 3.9]
         os: [ubuntu, macos, windows]
+        exclude:
+          - python-version: 3.7
+            os: macos
+          - python-version: 3.7
+            os: windows
+          - python-version: 3.8
+            os: macos
+          - python-version: 3.8
+            os: windows
       fail-fast:
         false
     runs-on: ${{ matrix.os }}-latest
@@ -147,10 +165,10 @@ jobs:
         fi
     - name: Checkout
       uses: actions/checkout@v2
-    - name: Setup Python 3.7
+    - name: Setup Python 3.9
       uses: actions/setup-python@v2
       with:
-        python-version: 3.7
+        python-version: 3.9
     - name: Install dependencies
       uses: py-actions/py-dependency-install@v2
       with:
