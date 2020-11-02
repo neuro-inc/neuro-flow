@@ -2,12 +2,12 @@ name: CI
 
 on:
   push:
-    branches: [ master ]
-    tags: [ 'v*' ]
+    branches: [master]
+    tags: [v*]
   pull_request:
-    branches: [ master ]
+    branches: [master]
   schedule:
-    - cron:  '0 6 * * *'  # Daily 6AM UTC build
+  - cron: 0 6 * * *       # Daily 6AM UTC build
 
 
 jobs:
@@ -31,7 +31,7 @@ jobs:
         key: pip-lint-${{ hashFiles('requirements/*.txt') }}
         path: ~/.cache/pip
         restore-keys: |
-            pip-lint-
+          pip-lint-
     - name: Install dependencies
       uses: py-actions/py-dependency-install@v2
       with:
@@ -42,10 +42,10 @@ jobs:
     - name: Save the package version
       id: version
       run: |
-         echo "::set-output name=version::$(python setup.py --version)"
+        echo "::set-output name=version::$(python setup.py --version)"
     - name: Show version
       run: |
-          echo ${{ steps.version.outputs.version }}
+        echo ${{ steps.version.outputs.version }}
 
   unit:
     name: Unit
@@ -54,8 +54,7 @@ jobs:
       matrix:
         python-version: [3.6, 3.7]
         os: [ubuntu, macos, windows]
-      fail-fast:
-        false
+      fail-fast: false
     runs-on: ${{ matrix.os }}-latest
     timeout-minutes: 10
     steps:
@@ -72,10 +71,11 @@ jobs:
     - name: Cache PyPI
       uses: actions/cache@v2
       with:
-        key: pip-ci-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('requirements/*.txt') }}
+        key: pip-ci-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('requirements/*.txt')
+          }}
         path: ${{ steps.pip-cache.outputs.dir }}
         restore-keys: |
-            pip-ci-${{ runner.os }}-${{ matrix.python-version }}-
+          pip-ci-${{ runner.os }}-${{ matrix.python-version }}-
     - name: Install dependencies
       uses: py-actions/py-dependency-install@v2
       with:
@@ -83,7 +83,7 @@ jobs:
     - name: Run unittests
       env:
         E2E_USER_TOKEN: ${{ secrets.CLIENT_TEST_E2E_USER_NAME }}
-        COLOR: 'yes'
+        COLOR: yes
       run: |
         make test
 
@@ -95,38 +95,38 @@ jobs:
       matrix:
         python-version: [3.6, 3.7]
         os: [ubuntu, macos, windows]
-      fail-fast:
-        false
+      fail-fast: false
     runs-on: ${{ matrix.os }}-latest
     timeout-minutes: 10
     steps:
-      - name: Checkout
-        uses: actions/checkout@v2
-      - name: Setup Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v2
-        with:
-          python-version: ${{ matrix.python-version }}
-      - name: Get pip cache dir
-        id: pip-cache
-        run: |
-          echo "::set-output name=dir::$(pip cache dir)"    # - name: Cache
-      - name: Cache PyPI
-        uses: actions/cache@v2
-        with:
-          key: pip-ci-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('requirements/*.txt') }}
-          path: ${{ steps.pip-cache.outputs.dir }}
-          restore-keys: |
-            pip-ci-${{ runner.os }}-${{ matrix.python-version }}-
-      - name: Install dependencies
-        uses: py-actions/py-dependency-install@v2
-        with:
-          path: requirements/ci.txt
-      - name: Run e2e tests
-        env:
-          E2E_USER_TOKEN: ${{ secrets.CLIENT_TEST_E2E_USER_NAME }}
-          COLOR: 'yes'
-        run: |
-          make test-e2e
+    - name: Checkout
+      uses: actions/checkout@v2
+    - name: Setup Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v2
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Get pip cache dir
+      id: pip-cache
+      run: |
+        echo "::set-output name=dir::$(pip cache dir)"    # - name: Cache
+    - name: Cache PyPI
+      uses: actions/cache@v2
+      with:
+        key: pip-ci-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('requirements/*.txt')
+          }}
+        path: ${{ steps.pip-cache.outputs.dir }}
+        restore-keys: |
+          pip-ci-${{ runner.os }}-${{ matrix.python-version }}-
+    - name: Install dependencies
+      uses: py-actions/py-dependency-install@v2
+      with:
+        path: requirements/ci.txt
+    - name: Run e2e tests
+      env:
+        E2E_USER_TOKEN: ${{ secrets.CLIENT_TEST_E2E_USER_NAME }}
+        COLOR: yes
+      run: |
+        make test-e2e
 
 
   deploy:
@@ -190,4 +190,4 @@ jobs:
             .
     - name: Push
       run: |
-         docker push neuromation/neuro-flow:${{ needs.lint.outputs.version }}
+        docker push neuromation/neuro-flow:${{ needs.lint.outputs.version }}
