@@ -23,6 +23,7 @@ from typing import (
 )
 from yarl import URL
 
+from . import ast
 from .commands import CmdProcessor
 from .config_loader import BatchRemoteCL
 from .context import (
@@ -45,7 +46,7 @@ from .utils import TERMINATED_JOB_STATUSES, TERMINATED_TASK_STATUSES, fmt_id, fm
 if sys.version_info >= (3, 9):
     import graphlib
 else:
-    from . import ast, backport_graphlib as graphlib
+    from . import backport_graphlib as graphlib
 
 
 class NotFinished(ValueError):
