@@ -37,6 +37,8 @@ jobs:
       with:
         path: requirements/ci.txt
     - name: Run linters
+      env:
+        CI_RUN: 1
       run: |
         make lint
     - name: Save the package version

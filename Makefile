@@ -12,7 +12,11 @@ setup init:
 
 .PHONY: fmt format
 fmt format:
+ifdef CI_RUN
 	pre-commit run --all-files --show-diff-on-failure
+else
+	pre-commit run --all-files
+endif
 
 
 .PHONY: lint
