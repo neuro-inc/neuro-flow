@@ -3,7 +3,7 @@ title: Example config
 
 defaults:
   # preset: gpu-small
-  preset: cpu-micro
+  preset: cpu-small
 
 volumes:
   data:
@@ -112,7 +112,7 @@ jobs:
       notebook_dir: ${{ volumes.notebooks.mount }}
 
   tensorboard:
-    preset: cpu-micro
+    preset: cpu-small
     http_port: 6006
     browse: True
     detach: True
@@ -122,7 +122,7 @@ jobs:
     cmd: tensorboard --host=0.0.0.0 --logdir=${{ volumes.results.mount }}
 
   filebrowser:
-    preset: cpu-micro
+    preset: cpu-small
     http_port: 80
     browse: True
     detach: True
