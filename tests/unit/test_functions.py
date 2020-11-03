@@ -41,3 +41,15 @@ async def test_hash_files() -> None:
     folder = LocalPath(__file__).parent / "hash_files"
     ret = await expr.eval(Root({"flow": {"workspace": folder}}))
     assert ret == "d9f10ebd359d46eaaa9560ef0ccee1d746f5874c85cf9c6b4b8ae58e1f30be5f"
+
+
+async def test_lower() -> None:
+    expr = StrExpr(POS, POS, "${{ lower('aBcDeF') }}")
+    ret = await expr.eval(Root({}))
+    assert ret == "abcdef"
+
+
+async def test_upper() -> None:
+    expr = StrExpr(POS, POS, "${{ upper('aBcDeF') }}")
+    ret = await expr.eval(Root({}))
+    assert ret == "ABCDEF"

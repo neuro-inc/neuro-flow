@@ -216,6 +216,20 @@ async def upload(ctx: CallCtx, volume_ctx: ContainerT) -> ContainerT:
     return volume_ctx
 
 
+async def alower(ctx: CallCtx, arg: TypeT) -> int:
+    # Async version of lower(), async is required for the sake of uniformness.
+    if not isinstance(arg, str):
+        raise TypeError(f"lower() requires a str, got {arg!r}")
+    return arg.lower()
+
+
+async def aupper(ctx: CallCtx, arg: TypeT) -> int:
+    # Async version of lower(), async is required for the sake of uniformness.
+    if not isinstance(arg, str):
+        raise TypeError(f"upper() requires a str, got {arg!r}")
+    return arg.upper()
+
+
 def _check_has_needs(ctx: CallCtx, *, func_name: str) -> None:
     try:
         ctx.root.lookup("needs")
@@ -292,6 +306,8 @@ FUNCTIONS = _build_signatures(
     hash_files=hash_files,
     always=always,
     upload=upload,
+    lower=alower,
+    upper=aupper,
 )
 
 
