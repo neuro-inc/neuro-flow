@@ -1,11 +1,20 @@
 import click
+import sys
+from neuromation.api import get as api_get
 from typing import List, Optional, Tuple
 
 from neuro_flow.cli.click_types import LIVE_JOB, LIVE_JOB_OR_ALL, SUFFIX_AFTER_LIVE_JOB
 from neuro_flow.cli.utils import argument, option, wrap_async
 from neuro_flow.live_runner import LiveRunner
+from neuro_flow.storage import FSStorage, NeuroStorageFS, Storage
 
 from .root import Root
+
+
+if sys.version_info >= (3, 7):
+    from contextlib import AsyncExitStack
+else:
+    from async_exit_stack import AsyncExitStack
 
 
 @click.command()
@@ -14,7 +23,14 @@ async def ps(
     root: Root,
 ) -> None:
     """List all jobs"""
-    async with LiveRunner(root.config_dir, root.console) as runner:
+    async with AsyncExitStack() as stack:
+        client = await stack.enter_async_context(api_get())
+        storage: Storage = await stack.enter_async_context(
+            FSStorage(NeuroStorageFS(client))
+        )
+        runner = await stack.enter_async_context(
+            LiveRunner(root.config_dir, root.console, client, storage)
+        )
         await runner.ps()
 
 
@@ -43,7 +59,14 @@ async def run(
         root.console.print(
             "[yellow]args are deprecated, use --param instead",
         )
-    async with LiveRunner(root.config_dir, root.console) as runner:
+    async with AsyncExitStack() as stack:
+        client = await stack.enter_async_context(api_get())
+        storage: Storage = await stack.enter_async_context(
+            FSStorage(NeuroStorageFS(client))
+        )
+        runner = await stack.enter_async_context(
+            LiveRunner(root.config_dir, root.console, client, storage)
+        )
         await runner.run(job_id, suffix, args, {key: value for key, value in param})
 
 
@@ -60,7 +83,14 @@ async def logs(
 
     Display logs for JOB-ID
     """
-    async with LiveRunner(root.config_dir, root.console) as runner:
+    async with AsyncExitStack() as stack:
+        client = await stack.enter_async_context(api_get())
+        storage: Storage = await stack.enter_async_context(
+            FSStorage(NeuroStorageFS(client))
+        )
+        runner = await stack.enter_async_context(
+            LiveRunner(root.config_dir, root.console, client, storage)
+        )
         await runner.logs(job_id, suffix)
 
 
@@ -77,7 +107,14 @@ async def status(
 
     Print status for JOB-ID
     """
-    async with LiveRunner(root.config_dir, root.console) as runner:
+    async with AsyncExitStack() as stack:
+        client = await stack.enter_async_context(api_get())
+        storage: Storage = await stack.enter_async_context(
+            FSStorage(NeuroStorageFS(client))
+        )
+        runner = await stack.enter_async_context(
+            LiveRunner(root.config_dir, root.console, client, storage)
+        )
         await runner.status(job_id, suffix)
 
 
@@ -93,7 +130,14 @@ async def kill(
     """Kill a job.
 
     Kill JOB-ID, use `kill ALL` for killing all jobs."""
-    async with LiveRunner(root.config_dir, root.console) as runner:
+    async with AsyncExitStack() as stack:
+        client = await stack.enter_async_context(api_get())
+        storage: Storage = await stack.enter_async_context(
+            FSStorage(NeuroStorageFS(client))
+        )
+        runner = await stack.enter_async_context(
+            LiveRunner(root.config_dir, root.console, client, storage)
+        )
         if job_id != "ALL":
             await runner.kill(job_id, suffix)
         else:

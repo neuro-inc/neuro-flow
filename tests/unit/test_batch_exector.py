@@ -39,7 +39,7 @@ from yarl import URL
 from neuro_flow.batch_executor import BatchExecutor, ExecutorData, LocalsBatchExecutor
 from neuro_flow.batch_runner import BatchRunner
 from neuro_flow.parser import ConfigDir
-from neuro_flow.storage import Bake, BatchFSStorage, BatchStorage, LocalFS
+from neuro_flow.storage import Bake, FSStorage, LocalFS, Storage
 from neuro_flow.types import LocalPath, TaskStatus
 
 
@@ -229,15 +229,15 @@ class JobsMock:
 
 
 @pytest.fixture()
-def batch_storage(loop: None) -> Iterator[BatchStorage]:
+def batch_storage(loop: None) -> Iterator[Storage]:
     with TemporaryDirectory() as tmpdir:
         fs = LocalFS(Path(tmpdir))
-        yield BatchFSStorage(fs)
+        yield FSStorage(fs)
 
 
 @pytest.fixture()
 async def make_batch_runner(
-    batch_storage: BatchStorage,
+    batch_storage: Storage,
 ) -> AsyncIterator[MakeBatchRunner]:
 
     runner: Optional[BatchRunner] = None
@@ -285,7 +285,7 @@ async def patched_client(
 
 @pytest.fixture()
 def start_locals_executor(
-    batch_storage: BatchStorage, patched_client: Client
+    batch_storage: Storage, patched_client: Client
 ) -> Callable[[ExecutorData], Awaitable[None]]:
     async def start(data: ExecutorData) -> None:
         executor = await LocalsBatchExecutor.create(
@@ -301,7 +301,7 @@ def start_locals_executor(
 
 @pytest.fixture()
 def start_executor(
-    batch_storage: BatchStorage, patched_client: Client
+    batch_storage: Storage, patched_client: Client
 ) -> Callable[[ExecutorData], Awaitable[None]]:
     async def start(data: ExecutorData) -> None:
         executor = await BatchExecutor.create(
@@ -371,14 +371,10 @@ async def test_batch_with_action_ok(
 ) -> None:
     executor_task = asyncio.ensure_future(run_executor(assets, "batch-action-call"))
     await jobs_mock.get_task("test.task-1")
-    await jobs_mock.mark_done(
-        "test.task-1", "::set-output name=task1::Task 1 val 1".encode()
-    )
+    await jobs_mock.mark_done("test.task-1", b"::set-output name=task1::Task 1 val 1")
 
     await jobs_mock.get_task("test.task-2")
-    await jobs_mock.mark_done(
-        "test.task-2", "::set-output name=task2::Task 2 value 2".encode()
-    )
+    await jobs_mock.mark_done("test.task-2", b"::set-output name=task2::Task 2 value 2")
     await executor_task
 
 
@@ -520,7 +516,7 @@ async def test_volumes_parsing(
 
 
 async def test_graphs(
-    batch_storage: BatchStorage,
+    batch_storage: Storage,
     batch_runner: BatchRunner,
 ) -> None:
     data = await batch_runner._setup_exc_data("batch-action-call")
@@ -537,7 +533,7 @@ async def test_graphs(
 
 
 async def test_early_graph(
-    batch_storage: BatchStorage,
+    batch_storage: Storage,
     make_batch_runner: MakeBatchRunner,
     assets: Path,
 ) -> None:
@@ -679,7 +675,7 @@ async def test_stateful_with_state(
     )
 
     await jobs_mock.mark_done("first")
-    await jobs_mock.mark_done("test", "::save-state name=const::constant".encode())
+    await jobs_mock.mark_done("test", b"::save-state name=const::constant")
     await jobs_mock.mark_done("last")
     await jobs_mock.mark_done("post-test")
 
@@ -722,7 +718,7 @@ async def test_stateful_post_after_cancellation(
     await executor_task
 
 
-async def test_restart(batch_storage: BatchStorage, batch_runner: BatchRunner) -> None:
+async def test_restart(batch_storage: Storage, batch_runner: BatchRunner) -> None:
     data = await batch_runner._setup_exc_data("batch-seq")
     bake = await batch_storage.fetch_bake(
         data.project, data.batch, data.when, data.suffix
@@ -793,12 +789,8 @@ async def test_fully_cached_with_action(
     run_executor: Callable[[Path, str], Awaitable[None]],
 ) -> None:
     executor_task = asyncio.ensure_future(run_executor(assets, "batch-action-call"))
-    await jobs_mock.mark_done(
-        "test.task-1", "::set-output name=task1::Task 1 val 1".encode()
-    )
-    await jobs_mock.mark_done(
-        "test.task-2", "::set-output name=task2::Task 2 value 2".encode()
-    )
+    await jobs_mock.mark_done("test.task-1", b"::set-output name=task1::Task 1 val 1")
+    await jobs_mock.mark_done("test.task-2", b"::set-output name=task2::Task 2 value 2")
     await executor_task
 
     await run_executor(assets, "batch-action-call")
@@ -811,14 +803,14 @@ async def test_cached_same_needs(
 ) -> None:
     executor_task = asyncio.ensure_future(run_executor(assets, "batch-test-cache"))
 
-    await jobs_mock.mark_done("task-1", "::set-output name=arg::val".encode())
+    await jobs_mock.mark_done("task-1", b"::set-output name=arg::val")
     await jobs_mock.mark_done("task-2")
     await executor_task
 
     jobs_mock.clear()
     executor_task = asyncio.ensure_future(run_executor(assets, "batch-test-cache"))
 
-    await jobs_mock.mark_done("task-1", "::set-output name=arg::val".encode())
+    await jobs_mock.mark_done("task-1", b"::set-output name=arg::val")
     await executor_task
 
 
@@ -829,14 +821,14 @@ async def test_not_cached_if_different_needs(
 ) -> None:
     executor_task = asyncio.ensure_future(run_executor(assets, "batch-test-cache"))
 
-    await jobs_mock.mark_done("task-1", "::set-output name=arg::val".encode())
+    await jobs_mock.mark_done("task-1", b"::set-output name=arg::val")
     await jobs_mock.mark_done("task-2")
     await executor_task
 
     jobs_mock.clear()
     executor_task = asyncio.ensure_future(run_executor(assets, "batch-test-cache"))
 
-    await jobs_mock.mark_done("task-1", "::set-output name=arg::val2".encode())
+    await jobs_mock.mark_done("task-1", b"::set-output name=arg::val2")
     await jobs_mock.mark_done("task-2")
     await executor_task
 

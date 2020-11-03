@@ -34,7 +34,7 @@ setup(
         'async_exit_stack>=1.0.1; python_version<"3.7"',
         "neuro-extras>=20.9.25",
         "graphviz>=0.14",
-        "yarl<1.6",
+        "yarl<1.7",
         "multidict<6.0",
         "rich>=9.0.0",
     ],

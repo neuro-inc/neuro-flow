@@ -5,6 +5,27 @@
 
 [comment]: # (towncrier release notes start)
 
+Neuro_Flow 20.11.3 (2020-11-03)
+===============================
+
+Features
+--------
+
+
+- Added validation of `outputs.needs` in batch actions. ([#163](https://github.com/neuro-inc/neuro-flow/issues/163))
+
+- Store a JSON with live jobs configuration on every run job start. ([#170](https://github.com/neuro-inc/neuro-flow/issues/170))
+
+- Implement ``lower()`` and ``upper()`` expression functions, e.g.  ``ref: image:${{ lower(flow.project_id) }}:v1.0`` ([#174](https://github.com/neuro-inc/neuro-flow/issues/174))
+
+
+Bugfixes
+--------
+
+
+- Don't raise an error in `neuro-flow run` if the remote folder for the project already exists ([#184](https://github.com/neuro-inc/neuro-flow/issues/184))
+
+
 Neuro_Flow 20.10.26 (2020-10-26)
 ================================
 

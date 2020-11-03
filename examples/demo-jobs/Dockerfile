@@ -1,6 +1,6 @@
 FROM neuromation/base:v1.6
 
-ENV DEBIAN_FRONTEND noninteractive 
+ENV DEBIAN_FRONTEND noninteractive
 
 COPY . /cfg
 

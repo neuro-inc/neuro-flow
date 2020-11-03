@@ -6,7 +6,7 @@ import datetime
 import secrets
 import shlex
 import sys
-from neuromation.api import Client, Factory, JobDescription, JobStatus, ResourceNotFound
+from neuromation.api import Client, JobDescription, JobStatus, ResourceNotFound
 from rich import box
 from rich.console import Console
 from rich.table import Table
@@ -26,6 +26,7 @@ from typing_extensions import AsyncContextManager
 from .config_loader import LiveLocalCL
 from .context import ImageCtx, JobMeta, RunningLiveFlow, UnknownJob, VolumeCtx
 from .parser import ConfigDir
+from .storage import Storage
 from .types import TaskStatus
 from .utils import (
     RUNNING_JOB_STATUSES,
@@ -46,23 +47,27 @@ class JobInfo:
 
 
 class LiveRunner(AsyncContextManager["LiveRunner"]):
-    def __init__(self, config_dir: ConfigDir, console: Console) -> None:
+    def __init__(
+        self,
+        config_dir: ConfigDir,
+        console: Console,
+        client: Client,
+        storage: Storage,
+    ) -> None:
         self._config_dir = config_dir
         self._console = console
         self._config_loader: Optional[LiveLocalCL] = None
         self._flow: Optional[RunningLiveFlow] = None
-        self._client: Optional[Client] = None
+        self._client = client
+        self._storage = storage
 
     async def post_init(self) -> None:
         if self._flow is not None:
             return
         self._config_loader = LiveLocalCL(self._config_dir)
         self._flow = await RunningLiveFlow.create(self._config_loader)
-        self._client = await Factory().get()
 
     async def close(self) -> None:
-        if self._client is not None:
-            await self._client.close()
         if self._config_loader is not None:
             await self._config_loader.close()
 
@@ -338,7 +343,11 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
 
         if job.multi and args:
             run_args.extend(args)
-
+        jobs = []
+        for job_id in self.flow.job_ids:
+            job_meta = await self.flow.get_meta(job_id)
+            jobs.append(job_meta)
+        await self._storage.write_live(self.flow.flow.project_id, jobs)
         await run_subproc("neuro", *run_args)
 
     async def logs(self, job_id: str, suffix: Optional[str]) -> None:
