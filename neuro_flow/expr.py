@@ -216,14 +216,14 @@ async def upload(ctx: CallCtx, volume_ctx: ContainerT) -> ContainerT:
     return volume_ctx
 
 
-async def alower(ctx: CallCtx, arg: TypeT) -> int:
+async def alower(ctx: CallCtx, arg: TypeT) -> str:
     # Async version of lower(), async is required for the sake of uniformness.
     if not isinstance(arg, str):
         raise TypeError(f"lower() requires a str, got {arg!r}")
     return arg.lower()
 
 
-async def aupper(ctx: CallCtx, arg: TypeT) -> int:
+async def aupper(ctx: CallCtx, arg: TypeT) -> str:
     # Async version of lower(), async is required for the sake of uniformness.
     if not isinstance(arg, str):
         raise TypeError(f"upper() requires a str, got {arg!r}")
