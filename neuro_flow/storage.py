@@ -554,7 +554,7 @@ class FSStorage(Storage):
             ),
         )
         prj_uri = self._fs.root / project
-        await self._fs.mkdir(prj_uri, parents=True)
+        await self._fs.mkdir(prj_uri, parents=True, exist_ok=True)
         url = prj_uri / "live.json"
         await self._write_json(url, _live_to_json(live), overwrite=True)
         return live
