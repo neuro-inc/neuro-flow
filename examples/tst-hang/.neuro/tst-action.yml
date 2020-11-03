@@ -11,7 +11,7 @@ tasks:
     python: |
       import time
       import random
-      delay = random.randint(50, 360)
+      delay = random.randint(1, 5)
       print("Sleep", delay)
       time.sleep(delay)
       print("::set-output name=b1::", "${{ inputs.caller }}", "b1", delay)

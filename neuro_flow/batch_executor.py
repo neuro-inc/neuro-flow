@@ -257,7 +257,7 @@ class BatchExecutor:
         *,
         polling_timeout: float = 1,
     ) -> "BatchExecutor":
-        console.print("Fetch bake data")
+        console.log("Fetch bake data")
         bake = await storage.fetch_bake(
             executor_data.project,
             executor_data.batch,
@@ -265,7 +265,7 @@ class BatchExecutor:
             executor_data.suffix,
         )
 
-        console.print("Fetch configs metadata")
+        console.log("Fetch configs metadata")
         meta = await storage.fetch_configs_meta(bake)
         config_loader = BatchRemoteCL(
             meta,
@@ -273,8 +273,9 @@ class BatchExecutor:
         )
         flow = await RunningBatchFlow.create(config_loader, bake.batch, bake.params)
 
-        console.print("Find last attempt")
+        console.log("Find last attempt")
         attempt = await storage.find_attempt(bake)
+        console.log(f"Execute attempt #{attempt.number}")
 
         return cls(
             console,
@@ -331,7 +332,7 @@ class BatchExecutor:
         st, ft = await self._storage.skip_task(self._attempt, full_id)
         self._tasks_mgr.add_started(st)
         self._mark_finished(ft)
-        self._console.print("Task", fmt_id(full_id), "is", TaskStatus.SKIPPED)
+        self._console.log("Task", fmt_id(full_id), "is", TaskStatus.SKIPPED)
 
     async def _process_local(self, full_id: FullID) -> None:
         raise ValueError("Processing of local actions is not supported")
@@ -340,7 +341,7 @@ class BatchExecutor:
         st = await self._storage.start_action(self._attempt, full_id)
         self._tasks_mgr.add_started(st)
         await self._embed_action(full_id)
-        self._console.print(f"Action", fmt_id(st.id), "is", TaskStatus.PENDING)
+        self._console.log(f"Action", fmt_id(st.id), "is", TaskStatus.PENDING)
 
     async def _process_task(self, full_id: FullID) -> None:
 
@@ -366,7 +367,7 @@ class BatchExecutor:
             )
 
         if ft is not None:
-            self._console.print(
+            self._console.log(
                 "Task", fmt_id(ft.id), fmt_raw_id(ft.raw_id), "is", TaskStatus.CACHED
             )
             assert ft.status == TaskStatus.SUCCEEDED
@@ -374,7 +375,7 @@ class BatchExecutor:
         else:
             st = await self._start_task(full_id, task)
             self._tasks_mgr.add_started(st)
-            self._console.print(
+            self._console.log(
                 "Task", fmt_id(st.id), fmt_raw_id(st.raw_id), "is", TaskStatus.PENDING
             )
 
@@ -445,13 +446,13 @@ class BatchExecutor:
         attempt_status = self._accumulate_result()
         if self._attempt.result not in TERMINATED_TASK_STATUSES:
             await self._storage.finish_attempt(self._attempt, attempt_status)
-        self._console.print(f"[b]Attempt #{self._attempt.number}[/b]", attempt_status)
+        self._console.log(f"[b]Attempt #{self._attempt.number}[/b]", attempt_status)
 
     async def _stop_running(self) -> None:
         for full_id, st in self._tasks_mgr.running_tasks.items():
             task = await self._get_task(full_id)
             if task.enable is not AlwaysT():
-                self._console.print(f"Task {fmt_id(st.id)} is being killed")
+                self._console.log(f"Task {fmt_id(st.id)} is being killed")
                 await self._client.jobs.kill(st.raw_id)
 
     async def _store_to_cache(self, ft: FinishedTask) -> None:
@@ -482,7 +483,7 @@ class BatchExecutor:
 
                 await self._store_to_cache(ft)
 
-                self._console.print(
+                self._console.log(
                     "Task",
                     fmt_id(ft.id),
                     fmt_raw_id(ft.raw_id),
@@ -491,7 +492,7 @@ class BatchExecutor:
                     (" with following outputs:" if ft.outputs else ""),
                 )
                 for key, value in ft.outputs.items():
-                    self._console.print(f"  {key}: {value}")
+                    self._console.log(f"  {key}: {value}")
 
                 task_meta = await self._get_meta(full_id)
                 if ft.status != TaskStatus.SUCCEEDED and task_meta.strategy.fail_fast:
@@ -511,13 +512,13 @@ class BatchExecutor:
             )
             self._mark_finished(ft)
 
-            self._console.print(
+            self._console.log(
                 f"Action {fmt_id(ft.id)} is",
                 ft.status,
                 (" with following outputs:" if ft.outputs else ""),
             )
             for key, value in ft.outputs.items():
-                self._console.print(f"  {key}: {value}")
+                self._console.log(f"  {key}: {value}")
 
             task_meta = await self._get_meta(full_id)
             if ft.status != TaskStatus.SUCCEEDED and task_meta.strategy.fail_fast:
@@ -615,7 +616,7 @@ class LocalsBatchExecutor(BatchExecutor):
         local = await self._get_local(full_id)
         st = await self._storage.start_action(self._attempt, full_id)
         self._tasks_mgr.add_started(st)
-        self._console.print(f"Local action {fmt_id(st.id)} is", TaskStatus.PENDING)
+        self._console.log(f"Local action {fmt_id(st.id)} is", TaskStatus.PENDING)
 
         subprocess = await asyncio.create_subprocess_shell(
             local.cmd,
@@ -625,9 +626,9 @@ class LocalsBatchExecutor(BatchExecutor):
         (stdout_data, stderr_data) = await subprocess.communicate()
         async with CmdProcessor() as proc:
             async for line in proc.feed_chunk(stdout_data):
-                self._console.print(line)
+                self._console.log(line)
             async for line in proc.feed_eof():
-                self._console.print(line)
+                self._console.log(line)
         if subprocess.returncode == 0:
             result_status = TaskStatus.SUCCEEDED
         else:
@@ -642,13 +643,13 @@ class LocalsBatchExecutor(BatchExecutor):
         )
         self._mark_finished(ft)
 
-        self._console.print(
+        self._console.log(
             f"Action {fmt_id(ft.id)} is",
             ft.status,
             (" with following outputs:" if ft.outputs else ""),
         )
         for key, value in ft.outputs.items():
-            self._console.print(f"  {key}: {value}")
+            self._console.log(f"  {key}: {value}")
 
     async def _process_action(self, full_id: FullID) -> None:
         pass  # Skip for local
@@ -677,10 +678,10 @@ async def upload_and_map_config(console: Console, client: Client) -> Tuple[str, 
     storage_nmrc_path = storage_nmrc_folder / random_nmrc_filename
     local_nmrc_folder = f"{STORAGE_MOUNTPOINT}/.neuro/"
     local_nmrc_path = f"{local_nmrc_folder}{random_nmrc_filename}"
-    console.print(
+    console.log(
         f"[bright_black]Temporary config file created on storage: {storage_nmrc_path}."
     )
-    console.print(
+    console.log(
         f"[bright_black]Inside container it will be available at: {local_nmrc_path}."
     )
     await client.storage.mkdir(storage_nmrc_folder, parents=True, exist_ok=True)

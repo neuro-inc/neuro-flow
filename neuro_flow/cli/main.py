@@ -69,7 +69,9 @@ class MainGroup(click.Group):
         if show_traceback:
             LOG_ERROR = log.exception
 
-        ctx.obj = Root(config_dir=config_dir, console=Console(highlight=False))
+        ctx.obj = Root(
+            config_dir=config_dir, console=Console(highlight=False, log_path=False)
+        )
 
     def make_context(
         self,

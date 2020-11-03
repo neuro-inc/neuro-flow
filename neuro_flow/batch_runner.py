@@ -95,14 +95,10 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
     ) -> ExecutorData:
         # batch_name is a name of yaml config inside self._workspace / .neuro
         # folder without the file extension
-        self._console.print(f"[bright_black]neuromation=={neuromation.__version__}")
-        self._console.print(f"[bright_black]neuro-extras=={neuro_extras.__version__}")
-        self._console.print(f"[bright_black]neuro-flow=={neuro_flow.__version__}")
-        self._console.print(
-            f"Use config file {self.config_loader.flow_path(batch_name)}"
-        )
-
-        self._console.print("Check config... ", end="")
+        self._console.log(f"[bright_black]neuromation=={neuromation.__version__}")
+        self._console.log(f"[bright_black]neuro-extras=={neuro_extras.__version__}")
+        self._console.log(f"[bright_black]neuro-flow=={neuro_flow.__version__}")
+        self._console.log(f"Use config file {self.config_loader.flow_path(batch_name)}")
 
         # Check that the yaml is parseable
         flow = await RunningBatchFlow.create(self.config_loader, batch_name, params)
@@ -114,9 +110,11 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
 
         graphs = await self._build_graphs(flow)
 
-        self._console.print("[green]ok")
+        self._console.log(
+            "Check config... [green]ok[/green]",
+        )
 
-        self._console.print("Create bake")
+        self._console.log("Create bake...")
         config_meta, configs = await self.config_loader.collect_configs(batch_name)
         bake = await self._storage.create_bake(
             flow.project_id,
@@ -126,7 +124,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             graphs=graphs,
             params=params,
         )
-        self._console.print(
+        self._console.log(
             f"Bake [b]{bake.bake_id}[/b] of project [b]{bake.project}[/b] is created"
         )
 
@@ -185,10 +183,10 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
     async def _run_bake(self, data: ExecutorData, local_executor: bool) -> None:
         await self._run_locals(data)
         if local_executor:
-            self._console.print(f"[bright_black]Using local executor")
+            self._console.log(f"[bright_black]Using local executor")
             await self.process(data)
         else:
-            self._console.print(f"[bright_black]Starting remote executor")
+            self._console.log(f"[bright_black]Starting remote executor")
             param = data.serialize()
             await run_subproc(
                 "neuro",
