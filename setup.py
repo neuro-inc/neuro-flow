@@ -24,7 +24,7 @@ setup(
     python_requires=">=3.6.0",
     include_package_data=True,
     install_requires=[
-        "neuromation>=20.9.24",
+        "neuromation>=20.10.30",
         "pyyaml>=5.3",
         "funcparserlib>=0.3",
         "async_lru>=1.0.2",
@@ -32,7 +32,7 @@ setup(
         "humanize>=0.5.1",
         'backports-datetime-fromisoformat>=1.0.0; python_version<"3.7"',
         'async_exit_stack>=1.0.1; python_version<"3.7"',
-        "neuro-extras>=20.9.25",
+        "neuro-extras>=20.11.1",
         "graphviz>=0.14",
         "yarl>=1.6.2,<1.7",
         "multidict>=5.0,<6.0",
