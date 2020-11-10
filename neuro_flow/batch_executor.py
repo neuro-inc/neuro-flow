@@ -247,6 +247,7 @@ class BatchExecutor:
         storage: Storage,
         *,
         polling_timeout: float = 1,
+        transient_progress: bool = False,
     ) -> None:
         self._progress = Progress(
             TextColumn("[progress.description]{task.description}"),
@@ -255,6 +256,7 @@ class BatchExecutor:
             TextColumn("[progress.remaining]{task.elapsed:.0f} sec"),
             console=console,
             auto_refresh=False,
+            transient=transient_progress,
         )
         self._top_flow = flow
         self._attempt = attempt
@@ -284,6 +286,7 @@ class BatchExecutor:
         storage: Storage,
         *,
         polling_timeout: float = 1,
+        transient_progress: bool = False,
     ) -> AsyncIterator["BatchExecutor"]:
         console.log("Fetch bake data")
         bake = await storage.fetch_bake(
@@ -312,6 +315,7 @@ class BatchExecutor:
             client,
             storage,
             polling_timeout=polling_timeout,
+            transient_progress=transient_progress,
         )
         ret._start()
         yield ret
@@ -673,7 +677,12 @@ class LocalsBatchExecutor(BatchExecutor):
             polling_timeout is None
         ), "polling_timeout is disabled for LocalsBatchExecutor"
         async with super(cls, LocalsBatchExecutor).create(
-            console, executor_data, client, storage, polling_timeout=0
+            console,
+            executor_data,
+            client,
+            storage,
+            polling_timeout=0,
+            transient_progress=True,
         ) as ret:
             yield ret
 
