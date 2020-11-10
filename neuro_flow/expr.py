@@ -194,7 +194,6 @@ async def hash_files(ctx: CallCtx, *patterns: str) -> str:
     for pattern in patterns:
         for fname in sorted(workspace.glob(pattern)):
             relative_fname = fname.relative_to(workspace).as_posix()
-            print(relative_fname)
             hasher.update(bytes(relative_fname, "UTF-8"))
             with fname.open("rb") as stream:
                 while cast(io.BufferedIOBase, stream).readinto1(buffer):
