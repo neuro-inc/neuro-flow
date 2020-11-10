@@ -10,8 +10,11 @@ from neuromation.api import Client, Container, HTTPPort, Resources, Volume
 from neuromation.cli.job import STORAGE_MOUNTPOINT
 from neuromation.cli.utils import NEURO_STEAL_CONFIG
 from rich.console import Console
+from rich.panel import Panel
+from rich.progress import BarColumn, Progress, TaskID, TextColumn
 from typing import (
     AbstractSet,
+    AsyncIterator,
     Dict,
     Generic,
     Iterable,
@@ -40,8 +43,19 @@ from .context import (
 )
 from .storage import Attempt, FinishedTask, StartedTask, Storage
 from .types import AlwaysT, FullID, TaskStatus
-from .utils import TERMINATED_JOB_STATUSES, TERMINATED_TASK_STATUSES, fmt_id, fmt_raw_id
+from .utils import (
+    TERMINATED_JOB_STATUSES,
+    TERMINATED_TASK_STATUSES,
+    fmt_id,
+    fmt_raw_id,
+    fmt_status,
+)
 
+
+if sys.version_info >= (3, 7):  # pragma: no cover
+    from contextlib import asynccontextmanager
+else:
+    from async_generator import asynccontextmanager
 
 if sys.version_info >= (3, 9):
     import graphlib
@@ -97,6 +111,7 @@ class Graph(Generic[_T]):
     def __init__(self, graph: Mapping[str, Iterable[str]], meta: _T):
         topo = graphlib.TopologicalSorter(graph)
         self._topos: Dict[FullID, "graphlib.TopologicalSorter[str]"] = {(): topo}
+        self._sizes: Dict[FullID, int] = {(): len(graph)}
         self._metas: Dict[FullID, _T] = {(): meta}
         topo.prepare()
         self._ready: Set[FullID] = set()
@@ -123,6 +138,9 @@ class Graph(Generic[_T]):
     def get_ready_done_embeds(self) -> AbstractSet[FullID]:
         return self._ready & self._embeds_done
 
+    def get_size(self, prefix: FullID) -> int:
+        return self._sizes[prefix]
+
     def mark_done(self, node: FullID) -> None:
         if node in self._topos:
             assert not self._topos[node].is_active(), (
@@ -145,6 +163,7 @@ class Graph(Generic[_T]):
         assert node not in self._done, f"Cannot embed to already done node {node}"
         assert prefix in self._topos, f"Parent graph for node {node} not found"
         self._topos[node] = graphlib.TopologicalSorter(graph)
+        self._sizes[node] = len(graph)
         self._topos[node].prepare()
         self._metas[node] = meta
         if node in self._ready:
@@ -229,7 +248,14 @@ class BatchExecutor:
         *,
         polling_timeout: float = 1,
     ) -> None:
-        self._console = console
+        self._progress = Progress(
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+            TextColumn("[progress.remaining]{task.elapsed:.0f} sec"),
+            console=console,
+            auto_refresh=False,
+        )
         self._top_flow = flow
         self._attempt = attempt
         self._client = client
@@ -246,8 +272,10 @@ class BatchExecutor:
         # too long timeout makes the waiting longer than expected
         # The missing events subsystem would be great for this task :)
         self._polling_timeout = polling_timeout
+        self._bars: Dict[FullID, TaskID] = {}
 
     @classmethod
+    @asynccontextmanager
     async def create(
         cls,
         console: Console,
@@ -256,7 +284,7 @@ class BatchExecutor:
         storage: Storage,
         *,
         polling_timeout: float = 1,
-    ) -> "BatchExecutor":
+    ) -> AsyncIterator["BatchExecutor"]:
         console.log("Fetch bake data")
         bake = await storage.fetch_bake(
             executor_data.project,
@@ -277,7 +305,7 @@ class BatchExecutor:
         attempt = await storage.find_attempt(bake)
         console.log(f"Execute attempt #{attempt.number}")
 
-        return cls(
+        ret = cls(
             console,
             flow,
             attempt,
@@ -285,6 +313,15 @@ class BatchExecutor:
             storage,
             polling_timeout=polling_timeout,
         )
+        ret._start()
+        yield ret
+        ret._stop()
+
+    def _start(self) -> None:
+        self._progress.start()
+
+    def _stop(self) -> None:
+        self._progress.stop()
 
     async def _refresh_attempt(self) -> None:
         self._attempt = await self._storage.find_attempt(
@@ -325,23 +362,40 @@ class BatchExecutor:
     async def _embed_action(self, full_id: FullID) -> None:
         action = await self._get_action(full_id)
         self._graphs.embed(full_id, action.graph, action)
+        task_id = self._progress.add_task(
+            ".".join(full_id),
+            completed=0,
+            total=(self._graphs.get_size(full_id) - 1) * 2,
+        )
+        self._bars[full_id] = task_id
+
+    def _mark_started(self, st: StartedTask) -> None:
+        self._tasks_mgr.add_started(st)
+        task_id = self._bars[st.id[:-1]]
+        self._progress.update(task_id, advance=1, refresh=True)
+
+    def _mark_finished(self, ft: FinishedTask, advance: int = 1) -> None:
+        self._tasks_mgr.add_finished(ft)
+        self._graphs.mark_done(ft.id)
+        task_id = self._bars[ft.id[:-1]]
+        self._progress.update(task_id, advance=advance, refresh=True)
 
     # New tasks processers
 
     async def _skip_task(self, full_id: FullID) -> None:
         st, ft = await self._storage.skip_task(self._attempt, full_id)
-        self._tasks_mgr.add_started(st)
+        self._mark_started(st)
         self._mark_finished(ft)
-        self._console.log("Task", fmt_id(full_id), "is", TaskStatus.SKIPPED)
+        self._progress.log("Task", fmt_id(full_id), "is", TaskStatus.SKIPPED)
 
     async def _process_local(self, full_id: FullID) -> None:
         raise ValueError("Processing of local actions is not supported")
 
     async def _process_action(self, full_id: FullID) -> None:
         st = await self._storage.start_action(self._attempt, full_id)
-        self._tasks_mgr.add_started(st)
+        self._mark_started(st)
         await self._embed_action(full_id)
-        self._console.log(f"Action", fmt_id(st.id), "is", TaskStatus.PENDING)
+        self._progress.log(f"Action", fmt_id(st.id), "is", TaskStatus.PENDING)
 
     async def _process_task(self, full_id: FullID) -> None:
 
@@ -367,21 +421,29 @@ class BatchExecutor:
             )
 
         if ft is not None:
-            self._console.log(
+            self._progress.log(
                 "Task", fmt_id(ft.id), fmt_raw_id(ft.raw_id), "is", TaskStatus.CACHED
             )
             assert ft.status == TaskStatus.SUCCEEDED
-            self._mark_finished(ft)
+            self._mark_finished(ft, advance=2)
         else:
             st = await self._start_task(full_id, task)
-            self._tasks_mgr.add_started(st)
-            self._console.log(
+            self._mark_started(st)
+            self._progress.log(
                 "Task", fmt_id(st.id), fmt_raw_id(st.raw_id), "is", TaskStatus.PENDING
             )
 
     async def _load_previous_run(self) -> None:
         # Loads tasks that previous executor run processed.
         # Do not handles fail fast option.
+
+        root_id = ()
+        task_id = self._progress.add_task(
+            f"<{self._attempt.bake.batch}>",
+            completed=0,
+            total=(self._graphs.get_size(root_id) - 1) * 2,
+        )
+        self._bars[root_id] = task_id
 
         started, finished = await self._storage.fetch_attempt(self._attempt)
         while (started.keys() != self._tasks_mgr.started.keys()) or (
@@ -390,7 +452,7 @@ class BatchExecutor:
             for full_id, ctx in self._graphs.get_ready_with_meta():
                 if full_id not in started:
                     continue
-                self._tasks_mgr.add_started(started[full_id])
+                self._mark_started(started[full_id])
                 if await ctx.is_action(full_id[-1]):
                     await self._embed_action(full_id)
                 elif full_id in finished:
@@ -398,10 +460,6 @@ class BatchExecutor:
             for full_id in self._graphs.get_ready_done_embeds():
                 if full_id in finished:
                     self._mark_finished(finished[full_id])
-
-    def _mark_finished(self, ft: FinishedTask) -> None:
-        self._tasks_mgr.add_finished(ft)
-        self._graphs.mark_done(ft.id)
 
     async def _should_continue(self) -> bool:
         return self._graphs.is_active
@@ -446,13 +504,18 @@ class BatchExecutor:
         attempt_status = self._accumulate_result()
         if self._attempt.result not in TERMINATED_TASK_STATUSES:
             await self._storage.finish_attempt(self._attempt, attempt_status)
-        self._console.log(f"[b]Attempt #{self._attempt.number}[/b]", attempt_status)
+        self._progress.print(
+            Panel(
+                f"[b]Attempt #{self._attempt.number}[/b] {fmt_status(attempt_status)}"
+            ),
+            justify="center",
+        )
 
     async def _stop_running(self) -> None:
         for full_id, st in self._tasks_mgr.running_tasks.items():
             task = await self._get_task(full_id)
             if task.enable is not AlwaysT():
-                self._console.log(f"Task {fmt_id(st.id)} is being killed")
+                self._progress.log(f"Task {fmt_id(st.id)} is being killed")
                 await self._client.jobs.kill(st.raw_id)
 
     async def _store_to_cache(self, ft: FinishedTask) -> None:
@@ -483,7 +546,7 @@ class BatchExecutor:
 
                 await self._store_to_cache(ft)
 
-                self._console.log(
+                self._progress.log(
                     "Task",
                     fmt_id(ft.id),
                     fmt_raw_id(ft.raw_id),
@@ -492,7 +555,7 @@ class BatchExecutor:
                     (" with following outputs:" if ft.outputs else ""),
                 )
                 for key, value in ft.outputs.items():
-                    self._console.log(f"  {key}: {value}")
+                    self._progress.log(f"  {key}: {value}")
 
                 task_meta = await self._get_meta(full_id)
                 if ft.status != TaskStatus.SUCCEEDED and task_meta.strategy.fail_fast:
@@ -512,13 +575,13 @@ class BatchExecutor:
             )
             self._mark_finished(ft)
 
-            self._console.log(
+            self._progress.log(
                 f"Action {fmt_id(ft.id)} is",
                 ft.status,
                 (" with following outputs:" if ft.outputs else ""),
             )
             for key, value in ft.outputs.items():
-                self._console.log(f"  {key}: {value}")
+                self._progress.log(f"  {key}: {value}")
 
             task_meta = await self._get_meta(full_id)
             if ft.status != TaskStatus.SUCCEEDED and task_meta.strategy.fail_fast:
@@ -565,7 +628,7 @@ class BatchExecutor:
             if env_name in env_dict:
                 raise ValueError(f"{env_name} is already set to {env_dict[env_name]}")
             env_var, secret_volume = await upload_and_map_config(
-                self._console, self._client
+                self._progress, self._client
             )
             env_dict[NEURO_STEAL_CONFIG] = env_var
             volumes.append(secret_volume)
@@ -596,6 +659,7 @@ class BatchExecutor:
 
 class LocalsBatchExecutor(BatchExecutor):
     @classmethod
+    @asynccontextmanager
     async def create(
         cls,
         console: Console,
@@ -604,19 +668,20 @@ class LocalsBatchExecutor(BatchExecutor):
         storage: Storage,
         *,
         polling_timeout: Optional[float] = None,
-    ) -> "BatchExecutor":
+    ) -> AsyncIterator["BatchExecutor"]:
         assert (
             polling_timeout is None
         ), "polling_timeout is disabled for LocalsBatchExecutor"
-        return await super(cls, LocalsBatchExecutor).create(
+        async with super(cls, LocalsBatchExecutor).create(
             console, executor_data, client, storage, polling_timeout=0
-        )
+        ) as ret:
+            yield ret
 
     async def _process_local(self, full_id: FullID) -> None:
         local = await self._get_local(full_id)
         st = await self._storage.start_action(self._attempt, full_id)
-        self._tasks_mgr.add_started(st)
-        self._console.log(f"Local action {fmt_id(st.id)} is", TaskStatus.PENDING)
+        self._mark_started(st)
+        self._progress.log(f"Local action {fmt_id(st.id)} is", TaskStatus.PENDING)
 
         subprocess = await asyncio.create_subprocess_shell(
             local.cmd,
@@ -626,9 +691,9 @@ class LocalsBatchExecutor(BatchExecutor):
         (stdout_data, stderr_data) = await subprocess.communicate()
         async with CmdProcessor() as proc:
             async for line in proc.feed_chunk(stdout_data):
-                self._console.log(line)
+                self._progress.log(line)
             async for line in proc.feed_eof():
-                self._console.log(line)
+                self._progress.log(line)
         if subprocess.returncode == 0:
             result_status = TaskStatus.SUCCEEDED
         else:
@@ -643,13 +708,13 @@ class LocalsBatchExecutor(BatchExecutor):
         )
         self._mark_finished(ft)
 
-        self._console.log(
+        self._progress.log(
             f"Action {fmt_id(ft.id)} is",
             ft.status,
             (" with following outputs:" if ft.outputs else ""),
         )
         for key, value in ft.outputs.items():
-            self._console.log(f"  {key}: {value}")
+            self._progress.log(f"  {key}: {value}")
 
     async def _process_action(self, full_id: FullID) -> None:
         pass  # Skip for local
@@ -667,7 +732,9 @@ class LocalsBatchExecutor(BatchExecutor):
         pass  # Do nothing for locals run
 
 
-async def upload_and_map_config(console: Console, client: Client) -> Tuple[str, Volume]:
+async def upload_and_map_config(
+    progress: Progress, client: Client
+) -> Tuple[str, Volume]:
 
     # store the Neuro CLI config on the storage under some random path
     nmrc_path = URL(client.config._path.expanduser().resolve().as_uri())
@@ -678,10 +745,10 @@ async def upload_and_map_config(console: Console, client: Client) -> Tuple[str, 
     storage_nmrc_path = storage_nmrc_folder / random_nmrc_filename
     local_nmrc_folder = f"{STORAGE_MOUNTPOINT}/.neuro/"
     local_nmrc_path = f"{local_nmrc_folder}{random_nmrc_filename}"
-    console.log(
+    progress.log(
         f"[bright_black]Temporary config file created on storage: {storage_nmrc_path}."
     )
-    console.log(
+    progress.log(
         f"[bright_black]Inside container it will be available at: {local_nmrc_path}."
     )
     await client.storage.mkdir(storage_nmrc_folder, parents=True, exist_ok=True)

@@ -10,6 +10,7 @@ from neuromation.api import Client, ResourceNotFound
 from operator import attrgetter, itemgetter
 from rich import box
 from rich.console import Console
+from rich.panel import Panel
 from rich.table import Table
 from types import TracebackType
 from typing import AbstractSet, Dict, List, Mapping, Optional, Tuple, Type
@@ -163,13 +164,13 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         self,
         data: ExecutorData,
     ) -> None:
-        executor = await LocalsBatchExecutor.create(
+        async with LocalsBatchExecutor.create(
             self._console,
             data,
             self._client,
             self._storage,
-        )
-        await executor.run()
+        ) as executor:
+            await executor.run()
 
     async def bake(
         self,
@@ -177,11 +178,17 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         local_executor: bool = False,
         params: Optional[Mapping[str, str]] = None,
     ) -> None:
+        self._console.print(
+            Panel(f"[bright_blue]Bake [b]{batch_name}[/b]", padding=1),
+            justify="center",
+        )
         data = await self._setup_exc_data(batch_name, params)
         await self._run_bake(data, local_executor)
 
     async def _run_bake(self, data: ExecutorData, local_executor: bool) -> None:
+        self._console.rule("Run local actions")
         await self._run_locals(data)
+        self._console.rule("Run main actions")
         if local_executor:
             self._console.log(f"[bright_black]Using local executor")
             await self.process(data)
@@ -206,10 +213,10 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         self,
         data: ExecutorData,
     ) -> None:
-        executor = await BatchExecutor.create(
+        async with BatchExecutor.create(
             self._console, data, self._client, self._storage
-        )
-        await executor.run()
+        ) as executor:
+            await executor.run()
 
     def get_bakes(self) -> AsyncIterator[Bake]:
         return self._storage.list_bakes(self.project)
