@@ -40,7 +40,7 @@ async def test_hash_files() -> None:
     expr = StrExpr(POS, POS, "${{ hash_files('Dockerfile', 'requirements/*.txt') }}")
     folder = LocalPath(__file__).parent / "hash_files"
     ret = await expr.eval(Root({"flow": {"workspace": folder}}))
-    assert ret == "2fff4da8947c2b48ae110948a6fa2d1f6d7ce88d21e5a797fdcafb9787e9cb80"
+    assert ret == "081fde04651e1184890a0470501bff3db8e0014260224e07acf5688e70e0edbe"
 
 
 async def test_lower() -> None:

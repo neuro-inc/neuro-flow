@@ -9,7 +9,6 @@ import datetime
 import enum
 import hashlib
 import inspect
-import io
 import json
 import operator
 import re
@@ -182,7 +181,8 @@ async def from_json(ctx: CallCtx, arg: str) -> TypeT:
 
 async def hash_files(ctx: CallCtx, *patterns: str) -> str:
     hasher = hashlib.new("sha256")
-    buffer = bytearray(1024 * 1024 * 16)  # 16 MB
+    buffer = bytearray(16 * 1024 * 1024)  # 16 MB
+    view = memoryview(buffer)
     flow = ctx.root.lookup("flow")
     # emulate attr lookup
     workspace: LocalPath = cast(
@@ -195,9 +195,11 @@ async def hash_files(ctx: CallCtx, *patterns: str) -> str:
         for fname in sorted(workspace.glob(pattern)):
             relative_fname = fname.relative_to(workspace).as_posix()
             hasher.update(bytes(relative_fname, "UTF-8"))
-            with fname.open("rb") as stream:
-                while cast(io.BufferedIOBase, stream).readinto1(buffer):
-                    hasher.update(buffer)
+            with fname.open("rb", buffering=0) as stream:
+                read = stream.readinto(buffer)
+                while read:
+                    hasher.update(view[:read])
+                    read = stream.readinto(buffer)
     return hasher.hexdigest()
 
 
