@@ -5,6 +5,16 @@
 
 [comment]: # (towncrier release notes start)
 
+Neuro_Flow 20.11.10 (2020-11-10)
+================================
+
+Features
+--------
+
+
+- Rework output of `neuro bake` command; now with timestamps and progress bars. ([#172](https://github.com/neuro-inc/neuro-flow/issues/172))
+
+
 Neuro_Flow 20.11.3 (2020-11-03)
 ===============================
 

@@ -193,6 +193,7 @@ class JobsMock:
                 reason="",
                 description="",
                 created_at=datetime.now(),
+                restarts=0,
             ),
             container=container,
             is_preemptible=is_preemptible,
@@ -288,13 +289,13 @@ def start_locals_executor(
     batch_storage: Storage, patched_client: Client
 ) -> Callable[[ExecutorData], Awaitable[None]]:
     async def start(data: ExecutorData) -> None:
-        executor = await LocalsBatchExecutor.create(
+        async with LocalsBatchExecutor.create(
             get_console(),
             data,
             patched_client,
             batch_storage,
-        )
-        await executor.run()
+        ) as executor:
+            await executor.run()
 
     return start
 
@@ -304,14 +305,14 @@ def start_executor(
     batch_storage: Storage, patched_client: Client
 ) -> Callable[[ExecutorData], Awaitable[None]]:
     async def start(data: ExecutorData) -> None:
-        executor = await BatchExecutor.create(
+        async with BatchExecutor.create(
             get_console(),
             data,
             patched_client,
             batch_storage,
             polling_timeout=0.05,
-        )
-        await executor.run()
+        ) as executor:
+            await executor.run()
 
     return start
 
