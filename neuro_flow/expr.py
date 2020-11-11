@@ -181,6 +181,8 @@ async def from_json(ctx: CallCtx, arg: str) -> TypeT:
 
 async def hash_files(ctx: CallCtx, *patterns: str) -> str:
     hasher = hashlib.new("sha256")
+    buffer = bytearray(16 * 1024 * 1024)  # 16 MB
+    view = memoryview(buffer)
     flow = ctx.root.lookup("flow")
     # emulate attr lookup
     workspace: LocalPath = cast(
@@ -191,11 +193,15 @@ async def hash_files(ctx: CallCtx, *patterns: str) -> str:
     )
     for pattern in patterns:
         for fname in sorted(workspace.glob(pattern)):
-            with fname.open("rb") as stream:
-                data = stream.read(256 * 1024)
-                if not data:
-                    break
-                hasher.update(data)
+            # On Windows the Python 3.6 glob() returns lower-cased filenames,
+            # resolve() restores the case.
+            relative_fname = fname.resolve().relative_to(workspace.resolve()).as_posix()
+            hasher.update(relative_fname.encode("utf-8"))
+            with fname.open("rb", buffering=0) as stream:
+                read = stream.readinto(buffer)  # type: ignore
+                while read:
+                    hasher.update(view[:read])
+                    read = stream.readinto(buffer)  # type: ignore
     return hasher.hexdigest()
 
 

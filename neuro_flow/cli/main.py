@@ -6,6 +6,7 @@ from neuromation.cli.log_formatter import ConsoleHandler
 from rich.console import Console
 from typing import Any, List, Optional
 
+import neuro_flow
 from neuro_flow.cli import batch, completion, images, live, storage
 from neuro_flow.parser import ConfigDir, find_workspace
 from neuro_flow.types import LocalPath
@@ -134,6 +135,9 @@ class MainGroup(click.Group):
     is_flag=True,
     default=False,
     required=False,
+)
+@click.version_option(
+    version=neuro_flow.__version__, message="neuro-flow package version: %(version)s"
 )
 def cli(
     config: Optional[str],
