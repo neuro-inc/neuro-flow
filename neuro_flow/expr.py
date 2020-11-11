@@ -193,9 +193,9 @@ async def hash_files(ctx: CallCtx, *patterns: str) -> str:
     )
     for pattern in patterns:
         for fname in sorted(workspace.glob(pattern)):
-            # On Windows the Python 3.6 lower-cases the relative_fname
+            # On Windows the Python 3.6 glob() returns lower-cased filenames,
+            # resolve() restores the case.
             relative_fname = fname.resolve().relative_to(workspace.resolve()).as_posix()
-            print("hash_file", ascii(relative_fname), fname.resolve())
             hasher.update(relative_fname.encode("utf-8"))
             with fname.open("rb", buffering=0) as stream:
                 read = stream.readinto(buffer)  # type: ignore
