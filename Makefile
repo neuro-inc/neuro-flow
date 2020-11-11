@@ -37,7 +37,7 @@ clean:
 
 .PHONY: test
 test:
-	pytest tests/unit
+	pytest tests/unit/test_functions.py -s
 
 
 .PHONY: test-e2e
