@@ -24,7 +24,7 @@ setup(
     python_requires=">=3.6.0",
     include_package_data=True,
     install_requires=[
-        "neuromation>=20.10.30",
+        "neuromation>=20.11.10",
         "pyyaml>=5.3",
         "funcparserlib>=0.3",
         "async_lru>=1.0.2",
