@@ -74,6 +74,7 @@ def make_descr(
             status=status,
             reason="",
             description="",
+            restarts=0,
             created_at=created_at,
             started_at=started_at,
             finished_at=finished_at,
