@@ -193,6 +193,7 @@ class JobsMock:
                 reason="",
                 description="",
                 created_at=datetime.now(),
+                restarts=0,
             ),
             container=container,
             is_preemptible=is_preemptible,
