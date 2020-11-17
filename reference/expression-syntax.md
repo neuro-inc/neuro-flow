@@ -14,7 +14,7 @@ ${{ <expression> }}
 
 ### Example setting an environment variable:
 
-```text
+```yaml
 env:
   my_env_var: ${{ <expression> }}
 ```
@@ -29,7 +29,7 @@ In this case, `neuro-flow` accepts square brackets syntax for expressions: `$[[ 
 
 Contexts are a way to access information about workflow runs, jobs, tasks, volumes, images, etc. Contexts use the expression syntax.
 
-```text
+```yaml
 ${{ <context> }}
 ```
 
