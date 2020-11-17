@@ -9,11 +9,11 @@ from neuro_flow.expr import (
     OptBashExpr,
     OptBoolExpr,
     OptIntExpr,
-    OptLifeSpanExpr,
     OptLocalPathExpr,
     OptPythonExpr,
     OptRemotePathExpr,
     OptStrExpr,
+    OptTimeDeltaExpr,
     PortPairExpr,
     RemotePathExpr,
     SimpleOptBoolExpr,
@@ -54,6 +54,9 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
                 name=OptStrExpr(Pos(3, 4, config_file), Pos(5, 0, config_file), None),
                 image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
                 preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                schedule_timeout=OptTimeDeltaExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
                 entrypoint=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
@@ -66,7 +69,7 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
                 env=None,
                 volumes=None,
                 tags=None,
-                life_span=OptLifeSpanExpr(
+                life_span=OptTimeDeltaExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
@@ -123,6 +126,9 @@ def test_parse_params(assets: pathlib.Path) -> None:
                 name=OptStrExpr(Pos(3, 4, config_file), Pos(5, 0, config_file), None),
                 image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
                 preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                schedule_timeout=OptTimeDeltaExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
                 entrypoint=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
@@ -137,7 +143,7 @@ def test_parse_params(assets: pathlib.Path) -> None:
                 env=None,
                 volumes=None,
                 tags=None,
-                life_span=OptLifeSpanExpr(
+                life_span=OptTimeDeltaExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
@@ -193,7 +199,7 @@ def test_parse_full(assets: pathlib.Path) -> None:
     flow = parse_live(workspace, config_file)
     assert flow == ast.LiveFlow(
         Pos(0, 0, config_file),
-        Pos(58, 0, config_file),
+        Pos(60, 0, config_file),
         id=SimpleOptIdExpr(
             Pos(0, 0, config_file),
             Pos(0, 0, config_file),
@@ -275,7 +281,7 @@ def test_parse_full(assets: pathlib.Path) -> None:
         },
         defaults=ast.FlowDefaults(
             Pos(25, 2, config_file),
-            Pos(32, 0, config_file),
+            Pos(33, 0, config_file),
             tags=[
                 StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "tag-a"),
                 StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "tag-b"),
@@ -291,17 +297,20 @@ def test_parse_full(assets: pathlib.Path) -> None:
             workdir=OptRemotePathExpr(
                 Pos(0, 0, config_file), Pos(0, 0, config_file), "/global/dir"
             ),
-            life_span=OptLifeSpanExpr(
+            life_span=OptTimeDeltaExpr(
                 Pos(0, 0, config_file), Pos(0, 0, config_file), "1d4h"
             ),
             preset=OptStrExpr(
                 Pos(0, 0, config_file), Pos(0, 0, config_file), "cpu-large"
             ),
+            schedule_timeout=OptTimeDeltaExpr(
+                Pos(0, 0, config_file), Pos(0, 0, config_file), "24d23h22m21s"
+            ),
         ),
         jobs={
             "test_a": ast.Job(
-                Pos(34, 4, config_file),
-                Pos(58, 0, config_file),
+                Pos(35, 4, config_file),
+                Pos(60, 0, config_file),
                 name=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "job-name"
                 ),
@@ -312,6 +321,9 @@ def test_parse_full(assets: pathlib.Path) -> None:
                 ),
                 preset=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "cpu-micro"
+                ),
+                schedule_timeout=OptTimeDeltaExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "1d2h3m4s"
                 ),
                 entrypoint=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "bash"
@@ -356,7 +368,7 @@ def test_parse_full(assets: pathlib.Path) -> None:
                     StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "tag-1"),
                     StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "tag-2"),
                 ],
-                life_span=OptLifeSpanExpr(
+                life_span=OptTimeDeltaExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "2h55m"
                 ),
                 title=OptStrExpr(
@@ -419,6 +431,9 @@ def test_parse_bash(assets: pathlib.Path) -> None:
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
                 preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                schedule_timeout=OptTimeDeltaExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
                 entrypoint=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
@@ -433,7 +448,7 @@ def test_parse_bash(assets: pathlib.Path) -> None:
                 env=None,
                 volumes=None,
                 tags=None,
-                life_span=OptLifeSpanExpr(
+                life_span=OptTimeDeltaExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
@@ -490,6 +505,9 @@ def test_parse_python(assets: pathlib.Path) -> None:
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
                 preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                schedule_timeout=OptTimeDeltaExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
                 entrypoint=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
@@ -504,7 +522,7 @@ def test_parse_python(assets: pathlib.Path) -> None:
                 env=None,
                 volumes=None,
                 tags=None,
-                life_span=OptLifeSpanExpr(
+                life_span=OptTimeDeltaExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
@@ -609,6 +627,9 @@ def test_parse_multi(assets: pathlib.Path) -> None:
                 name=OptStrExpr(Pos(3, 4, config_file), Pos(5, 0, config_file), None),
                 image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
                 preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                schedule_timeout=OptTimeDeltaExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
                 entrypoint=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
@@ -621,7 +642,7 @@ def test_parse_multi(assets: pathlib.Path) -> None:
                 env=None,
                 volumes=None,
                 tags=None,
-                life_span=OptLifeSpanExpr(
+                life_span=OptTimeDeltaExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
@@ -678,6 +699,9 @@ def test_parse_explicit_flow_id(assets: pathlib.Path) -> None:
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
                 preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                schedule_timeout=OptTimeDeltaExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
                 entrypoint=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
@@ -692,7 +716,7 @@ def test_parse_explicit_flow_id(assets: pathlib.Path) -> None:
                 env=None,
                 volumes=None,
                 tags=None,
-                life_span=OptLifeSpanExpr(
+                life_span=OptTimeDeltaExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),

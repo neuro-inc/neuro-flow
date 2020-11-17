@@ -26,6 +26,7 @@ defaults:
   workdir: /global/dir
   life_span: 1d4h
   preset: cpu-large
+  schedule_timeout: 5d4h3m2s
   fail_fast: true
   max_parallel: 10
 tasks:
@@ -34,6 +35,7 @@ tasks:
     name: job-name
     image: ${{ images.image_a.ref }}
     preset: cpu-micro
+    schedule_timeout: 1d1s
     entrypoint: bash
     cmd: echo abc
     workdir: /local/dir

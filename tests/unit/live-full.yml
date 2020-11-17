@@ -30,11 +30,13 @@ defaults:
   workdir: /global/dir
   life_span: 1d4h
   preset: cpu-large
+  schedule_timeout: 24d23h22m21s
 jobs:
   test_a:
     name: job-name
     image: ${{ images.image_a.ref }}
     preset: cpu-micro
+    schedule_timeout: 1d2h3m4s
     entrypoint: bash
     cmd: echo abc
     workdir: /local/dir
