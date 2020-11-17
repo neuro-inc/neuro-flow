@@ -47,4 +47,18 @@ There are two main sets of contexts: one is available for _live_ mode and anothe
 | params | A mapping of workflow-global parameters \(see also &lt;params&gt; section in YAML\). |
 | multi | Multi-job context. |
 |  |  |
+|  |  |
+|  |  |
+|  |  |
+
+### `flow` context
+
+The `flow`context contains information about the workflow: it's id, title, etc.
+
+| Property name | Type | Description |
+| :--- | :--- | :--- |
+| flow\_id | str | The workflow id. It is auto-calculated from the workflow's YAML filename with a dropped suffix. You can override the `flow_id` by providing &lt;link&gt; attribute in YAML file. |
+| project\_id | str |  |
+| workspace | LocalPath |  |
+| title | str |  |
 
