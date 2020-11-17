@@ -42,11 +42,11 @@ from .expr import (
     OptBoolExpr,
     OptIdExpr,
     OptIntExpr,
-    OptLifeSpanExpr,
     OptLocalPathExpr,
     OptPythonExpr,
     OptRemotePathExpr,
     OptStrExpr,
+    OptTimeDeltaExpr,
     PortPairExpr,
     RemotePathExpr,
     SimpleIdExpr,
@@ -354,7 +354,7 @@ def parse_cache(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Cache:
         node,
         {
             "strategy": ast.CacheStrategy,
-            "life_span": OptLifeSpanExpr,
+            "life_span": OptTimeDeltaExpr,
         },
         ast.Cache,
     )
@@ -571,6 +571,7 @@ EXEC_UNIT = {
     "name": OptStrExpr,
     "image": StrExpr,
     "preset": OptStrExpr,
+    "schedule_timeout": OptTimeDeltaExpr,
     "entrypoint": OptStrExpr,
     "cmd": OptStrExpr,
     "bash": OptBashExpr,
@@ -579,7 +580,7 @@ EXEC_UNIT = {
     "env": SimpleMapping(StrExpr),
     "volumes": SimpleSeq(OptStrExpr),
     "tags": SimpleSeq(StrExpr),
-    "life_span": OptLifeSpanExpr,
+    "life_span": OptTimeDeltaExpr,
     "http_port": OptIntExpr,
     "http_auth": OptBoolExpr,
     "pass_config": OptBoolExpr,
@@ -756,8 +757,9 @@ def parse_flow_defaults(ctor: FlowLoader, node: yaml.MappingNode) -> ast.FlowDef
                 "tags": SimpleSeq(StrExpr),
                 "env": SimpleMapping(StrExpr),
                 "workdir": OptRemotePathExpr,
-                "life_span": OptLifeSpanExpr,
+                "life_span": OptTimeDeltaExpr,
                 "preset": OptStrExpr,
+                "schedule_timeout": OptTimeDeltaExpr,
             },
             ast.FlowDefaults,
         )
@@ -769,8 +771,9 @@ def parse_flow_defaults(ctor: FlowLoader, node: yaml.MappingNode) -> ast.FlowDef
                 "tags": SimpleSeq(StrExpr),
                 "env": SimpleMapping(StrExpr),
                 "workdir": OptRemotePathExpr,
-                "life_span": OptLifeSpanExpr,
+                "life_span": OptTimeDeltaExpr,
                 "preset": OptStrExpr,
+                "schedule_timeout": OptTimeDeltaExpr,
                 "fail_fast": OptBoolExpr,
                 "max_parallel": OptIntExpr,
                 "cache": None,
@@ -778,7 +781,7 @@ def parse_flow_defaults(ctor: FlowLoader, node: yaml.MappingNode) -> ast.FlowDef
             ast.BatchFlowDefaults,
         )
     else:
-        raise ValueError("Unknown kind {ctor._kind}")
+        raise ValueError(f"Unknown kind {ctor._kind}")
 
 
 FlowLoader.add_path_resolver(  # type: ignore

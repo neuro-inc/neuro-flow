@@ -151,6 +151,7 @@ class CacheConf:
 class DefaultsConf:
     workdir: Optional[RemotePath] = None
     life_span: Optional[float] = None
+    schedule_timeout: Optional[float] = None
     preset: Optional[str] = None
 
 
@@ -164,6 +165,7 @@ class ExecUnit:
     name: Optional[str]
     image: str
     preset: Optional[str]
+    schedule_timeout: Optional[float]
     http_port: Optional[int]
     http_auth: Optional[bool]
     pass_config: Optional[bool]
@@ -539,12 +541,14 @@ async def setup_defaults_env_tags_ctx(
         workdir = await ast_defaults.workdir.eval(ctx)
         life_span = await ast_defaults.life_span.eval(ctx)
         preset = await ast_defaults.preset.eval(ctx)
+        schedule_timeout = await ast_defaults.schedule_timeout.eval(ctx)
     else:
         env = {}
         tags = set()
         workdir = None
         life_span = None
         preset = None
+        schedule_timeout = None
 
     tags.add(f"project:{_id2tag(ctx.flow.project_id)}")
     tags.add(f"flow:{_id2tag(ctx.flow.flow_id)}")
@@ -553,6 +557,7 @@ async def setup_defaults_env_tags_ctx(
         workdir=workdir,
         life_span=life_span,
         preset=preset,
+        schedule_timeout=schedule_timeout,
     )
     return defaults, env, tags
 
@@ -941,6 +946,9 @@ class RunningLiveFlow:
         life_span = (await job.life_span.eval(ctx)) or defaults.life_span
 
         preset = (await job.preset.eval(ctx)) or defaults.preset
+        schedule_timeout = (
+            await job.schedule_timeout.eval(ctx)
+        ) or defaults.schedule_timeout
         port_forward = []
         if job.port_forward is not None:
             port_forward = [await val.eval(ctx) for val in job.port_forward]
@@ -953,6 +961,7 @@ class RunningLiveFlow:
             name=await job.name.eval(ctx),
             image=await job.image.eval(ctx),
             preset=preset,
+            schedule_timeout=schedule_timeout,
             entrypoint=await job.entrypoint.eval(ctx),
             cmd=await job.cmd.eval(ctx),
             workdir=workdir,
@@ -1169,7 +1178,9 @@ class RunningBatchBase(Generic[_T], EarlyBatch):
         life_span = (await prep_task.ast_task.life_span.eval(ctx)) or defaults.life_span
 
         preset = (await prep_task.ast_task.preset.eval(ctx)) or defaults.preset
-
+        schedule_timeout = (
+            await prep_task.ast_task.schedule_timeout.eval(ctx)
+        ) or defaults.schedule_timeout
         # Enable should be calculated using outer ctx for stateful calls
         enable = (await self.get_meta(real_id, needs, state)).enable
 
@@ -1179,6 +1190,7 @@ class RunningBatchBase(Generic[_T], EarlyBatch):
             name=(await prep_task.ast_task.name.eval(ctx)),
             image=await prep_task.ast_task.image.eval(ctx),
             preset=preset,
+            schedule_timeout=schedule_timeout,
             entrypoint=await prep_task.ast_task.entrypoint.eval(ctx),
             cmd=await prep_task.ast_task.cmd.eval(ctx),
             workdir=workdir,

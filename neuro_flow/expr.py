@@ -869,18 +869,18 @@ class OptFloatExpr(FloatExprMixin, Expr[float]):
     type = float
 
 
-class OptLifeSpanExpr(OptFloatExpr):
+class OptTimeDeltaExpr(OptFloatExpr):
     RE = re.compile(r"^((?P<d>\d+)d)?((?P<h>\d+)h)?((?P<m>\d+)m)?((?P<s>\d+)s)?$")
 
     @classmethod
     def convert(cls, arg: Union[str, float]) -> float:
         try:
-            return super(cls, OptLifeSpanExpr).convert(arg)
+            return super(cls, OptTimeDeltaExpr).convert(arg)
         except (ValueError, SyntaxError):
             assert isinstance(arg, str)
             match = cls.RE.match(arg)
             if match is None:
-                raise ValueError(f"{arg!r} is not a life span")
+                raise ValueError(f"{arg!r} is not a time delta unit")
             td = datetime.timedelta(
                 days=int(match.group("d") or 0),
                 hours=int(match.group("h") or 0),

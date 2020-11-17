@@ -309,6 +309,8 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
             run_args.append(f"--name={job.name}")
         if job.preset is not None:
             run_args.append(f"--preset={job.preset}")
+        if job.schedule_timeout is not None:
+            run_args.append(f"--schedule-timeout={int(job.schedule_timeout)}s")
         if job.http_port is not None:
             run_args.append(f"--http={job.http_port}")
         if job.http_auth is not None:
