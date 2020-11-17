@@ -369,7 +369,7 @@ class BatchExecutor:
         task_id = self._progress.add_task(
             ".".join(full_id),
             completed=0,
-            total=(self._graphs.get_size(full_id) - 1) * 2,
+            total=self._graphs.get_size(full_id) * 2,
         )
         self._bars[full_id] = task_id
 
@@ -445,7 +445,7 @@ class BatchExecutor:
         task_id = self._progress.add_task(
             f"<{self._attempt.bake.batch}>",
             completed=0,
-            total=(self._graphs.get_size(root_id) - 1) * 2,
+            total=self._graphs.get_size(root_id) * 2,
         )
         self._bars[root_id] = task_id
 
@@ -586,6 +586,9 @@ class BatchExecutor:
             )
             for key, value in ft.outputs.items():
                 self._progress.log(f"  {key}: {value}")
+
+            task_id = self._bars[full_id]
+            self._progress.remove_task(task_id)
 
             task_meta = await self._get_meta(full_id)
             if ft.status != TaskStatus.SUCCEEDED and task_meta.strategy.fail_fast:
