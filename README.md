@@ -10,13 +10,17 @@ The tool builds required Docker images and starts Neu.ro job under the hood but 
 
 The tool is hosted on PyPI and can be installed by `pip` as a regular Python project:
 
-```text
+```bash
 $ pip install neuro-flow
 ```
 
 Use `--upgrade` option for upgrading to the latest version:
 
-```text
+```bash
 $ pip install --upgrade neuro-flow
 ```
+
+## Run the tool
+
+
 
