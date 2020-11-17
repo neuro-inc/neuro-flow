@@ -5,4 +5,3 @@
 ## Reference
 
 * [Expression syntax](reference/expression-syntax.md)
-
