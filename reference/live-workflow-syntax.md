@@ -81,7 +81,55 @@ defaults:
 
 ## `images`
 
-Workflow images
+A mapping of image definitions used by _live_ workflow.
+
+`neuro-flow build <image-id>` creates an image from passed `Dockerfile` and uploads it to the Neu.ro registry.  `${{ images.img_id.ref }}` expression can be used for pointing the image from a [`jobs.<job-id>.image`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-image).
+
+### `images.<image-id>.ref`
+
+Image _reference_ that can be used in [`jobs.<job-id>.image`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-image) expression.
+
+**Example of self-hosted image:**
+
+```yaml
+images:
+  my_image:
+    ref: image:my_image:latest
+```
+
+You cannot use `neuro-flow` to make images in DockerHub or another public registry; but you can use the image definition to _address_ it.
+
+**Example of external image:**
+
+```yaml
+images:
+  python:
+    ref: python:3.9.0
+```
+
+{% hint style="info" %}
+Use `hash_files()` embedded function to calculate the built image tag based on the image's content.
+{% endhint %}
+
+**Example of auto-calculated stable hash:**
+
+```yaml
+images:
+  my_image:
+    ref: image:my_image:${{ hash_files('Dockerfile', 'requirements/*.txt', 'modules/**/*.py') }}
+```
+
+### `images.<image-id>.context`
+
+The Docker _context_ used to build an image, a local path relative to the project root folder. The context should contain the `Dockerfile` and any additional files and folders that should be copied to the image.
+
+**Example:**
+
+```yaml
+images:
+  my_image:
+    context: path/to/context
+```
 
 ## `volumes`
 
@@ -92,6 +140,8 @@ Workflow volumes
 A _live_ workflow can run jobs by their identifiers using `neuro-flow run <job-id>` command. Each job runs remotely on the Neu.ro platform.
 
 ### `jobs.<job-id>.env` <a id="jobs-job-id-env"></a>
+
+### `jobs.<job-id>.image`
 
 ### `jobs.<job-id>.life_span`
 
