@@ -10,10 +10,10 @@ from .expr import (
     OptBoolExpr,
     OptIdExpr,
     OptIntExpr,
-    OptLifeSpanExpr,
     OptLocalPathExpr,
     OptRemotePathExpr,
     OptStrExpr,
+    OptTimeDeltaExpr,
     PortPairExpr,
     RemotePathExpr,
     SimpleIdExpr,
@@ -44,7 +44,7 @@ class Cache(Base):
     # 'default' for root BatchFlowDefaults,
     # 'inherit' for task definitions and actions
     strategy: Optional[CacheStrategy] = field(metadata={"allow_none": True})
-    life_span: OptLifeSpanExpr
+    life_span: OptTimeDeltaExpr
     # TODO: maybe add extra key->value mapping for additional cache keys later
 
 
@@ -86,13 +86,14 @@ class ExecUnit(Base):
     name: OptStrExpr
     image: StrExpr
     preset: OptStrExpr
+    schedule_timeout: OptTimeDeltaExpr
     entrypoint: OptStrExpr
     cmd: OptStrExpr
     workdir: OptRemotePathExpr
     env: Optional[Mapping[str, StrExpr]] = field(metadata={"allow_none": True})
     volumes: Optional[Sequence[OptStrExpr]] = field(metadata={"allow_none": True})
     tags: Optional[Sequence[StrExpr]] = field(metadata={"allow_none": True})
-    life_span: OptLifeSpanExpr
+    life_span: OptTimeDeltaExpr
     http_port: OptIntExpr
     http_auth: OptBoolExpr
     pass_config: OptBoolExpr
@@ -191,9 +192,10 @@ class FlowDefaults(Base):
     env: Optional[Mapping[str, StrExpr]] = field(metadata={"allow_none": True})
     workdir: OptRemotePathExpr
 
-    life_span: OptLifeSpanExpr
+    life_span: OptTimeDeltaExpr
 
     preset: OptStrExpr
+    schedule_timeout: OptTimeDeltaExpr
 
 
 @dataclass(frozen=True)

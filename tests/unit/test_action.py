@@ -10,9 +10,9 @@ from neuro_flow.expr import (
     OptBoolExpr,
     OptIdExpr,
     OptIntExpr,
-    OptLifeSpanExpr,
     OptRemotePathExpr,
     OptStrExpr,
+    OptTimeDeltaExpr,
     SimpleOptBoolExpr,
     SimpleOptIdExpr,
     SimpleOptStrExpr,
@@ -74,6 +74,9 @@ def test_parse_live_action(assets: LocalPath) -> None:
             name=OptStrExpr(Pos(3, 4, config_file), Pos(5, 0, config_file), None),
             image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
             preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+            schedule_timeout=OptTimeDeltaExpr(
+                Pos(0, 0, config_file), Pos(0, 0, config_file), None
+            ),
             entrypoint=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
             cmd=OptBashExpr(
                 Pos(0, 0, config_file),
@@ -86,7 +89,7 @@ def test_parse_live_action(assets: LocalPath) -> None:
             env=None,
             volumes=None,
             tags=None,
-            life_span=OptLifeSpanExpr(
+            life_span=OptTimeDeltaExpr(
                 Pos(0, 0, config_file), Pos(0, 0, config_file), None
             ),
             title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
@@ -202,7 +205,7 @@ def test_parse_batch_action(assets: LocalPath) -> None:
             Pos(19, 2, config_file),
             Pos(21, 0, config_file),
             strategy=ast.CacheStrategy.INHERIT,
-            life_span=OptLifeSpanExpr(
+            life_span=OptTimeDeltaExpr(
                 Pos(0, 0, config_file), Pos(0, 0, config_file), "30m"
             ),
         ),
@@ -214,6 +217,9 @@ def test_parse_batch_action(assets: LocalPath) -> None:
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
                 preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                schedule_timeout=OptTimeDeltaExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
                 entrypoint=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
@@ -228,7 +234,7 @@ def test_parse_batch_action(assets: LocalPath) -> None:
                 env=None,
                 volumes=None,
                 tags=None,
-                life_span=OptLifeSpanExpr(
+                life_span=OptTimeDeltaExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
                 http_port=OptIntExpr(
@@ -257,6 +263,9 @@ def test_parse_batch_action(assets: LocalPath) -> None:
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
                 preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                schedule_timeout=OptTimeDeltaExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
                 entrypoint=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
@@ -271,7 +280,7 @@ def test_parse_batch_action(assets: LocalPath) -> None:
                 env=None,
                 volumes=None,
                 tags=None,
-                life_span=OptLifeSpanExpr(
+                life_span=OptTimeDeltaExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
                 http_port=OptIntExpr(
@@ -359,6 +368,9 @@ def test_parse_stateful_action(assets: LocalPath) -> None:
             name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
             image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
             preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+            schedule_timeout=OptTimeDeltaExpr(
+                Pos(0, 0, config_file), Pos(0, 0, config_file), None
+            ),
             entrypoint=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
             cmd=OptBashExpr(
                 Pos(0, 0, config_file),
@@ -371,7 +383,7 @@ def test_parse_stateful_action(assets: LocalPath) -> None:
             env=None,
             volumes=None,
             tags=None,
-            life_span=OptLifeSpanExpr(
+            life_span=OptTimeDeltaExpr(
                 Pos(0, 0, config_file), Pos(0, 0, config_file), None
             ),
             http_port=OptIntExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
@@ -387,6 +399,9 @@ def test_parse_stateful_action(assets: LocalPath) -> None:
             name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
             image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
             preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+            schedule_timeout=OptTimeDeltaExpr(
+                Pos(0, 0, config_file), Pos(0, 0, config_file), None
+            ),
             entrypoint=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
             cmd=OptBashExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "echo End"),
             workdir=OptRemotePathExpr(
@@ -395,7 +410,7 @@ def test_parse_stateful_action(assets: LocalPath) -> None:
             env=None,
             volumes=None,
             tags=None,
-            life_span=OptLifeSpanExpr(
+            life_span=OptTimeDeltaExpr(
                 Pos(0, 0, config_file), Pos(0, 0, config_file), None
             ),
             http_port=OptIntExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),

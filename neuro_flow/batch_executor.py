@@ -660,6 +660,7 @@ class BatchExecutor:
             tags=list(task.tags),
             description=task.title,
             life_span=task.life_span,
+            schedule_timeout=task.schedule_timeout,
         )
         return await self._storage.start_task(self._attempt, full_id, job)
 

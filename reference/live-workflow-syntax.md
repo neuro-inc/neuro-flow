@@ -198,9 +198,9 @@ images:
 
 ## `volumes`
 
-A mapping of volume definitions available in the _live_ workflow.  
-A volume defines a link between the Neu.ro storage folder, a remote folder that can be mounted to a _live_ job, and a local folder.  
-  
+A mapping of volume definitions available in the _live_ workflow.
+A volume defines a link between the Neu.ro storage folder, a remote folder that can be mounted to a _live_ job, and a local folder.
+
 Volumes can be synchronized between local and storage versions by `neuro-flow upload` and `neuro-flow download` commands and they can be mounted to a job by using [`jobs.<job-id>.volumes`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-volumes) attribute.
 
 {% hint style="info" %}
@@ -276,6 +276,3 @@ A _live_ workflow can run jobs by their identifiers using `neuro-flow run <job-i
 ### `jobs.<job-id>.tags`
 
 ### `jobs.<job-id>.volumes`
-
-
-
