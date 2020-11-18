@@ -87,7 +87,7 @@ A mapping of image definitions used by _live_ workflow.
 
 ### `images.<image-id>.ref`
 
-Image _reference_ that can be used in [`jobs.<job-id>.image`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-image) expression.
+**Required** Image _reference_ that can be used in [`jobs.<job-id>.image`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-image) expression.
 
 **Example of self-hosted image:**
 
@@ -97,7 +97,7 @@ images:
     ref: image:my_image:latest
 ```
 
-You cannot use `neuro-flow` to make images in DockerHub or another public registry; but you can use the image definition to _address_ it.
+You cannot use `neuro-flow` to make images in DockerHub or another public registry, but you can use the image definition to _address_ it.
 
 **Example of external image:**
 
@@ -108,7 +108,7 @@ images:
 ```
 
 {% hint style="info" %}
-Use `hash_files()` embedded function to calculate the built image tag based on the image's content.
+Use [`hash_files()`](expression-functions.md#hash_files-pattern) embedded function to calculate the built image tag based on the image's content.
 {% endhint %}
 
 **Example of auto-calculated stable hash:**
@@ -129,6 +129,65 @@ The Docker _context_ used to build an image, a local path relative to the projec
 images:
   my_image:
     context: path/to/context
+```
+
+{% hint style="info" %}
+`neuro-flow` cannot build images without the context set but can address _pre-built_ images using [`images.<image-id>.ref`](live-workflow-syntax.md#images-less-than-image-id-greater-than-ref)\`\`
+{% endhint %}
+
+### `images.<image-id>.dockerfile`
+
+An optional docker file name used for building images, `Dockerfile` by default.
+
+**Example:**
+
+```yaml
+images:
+  my_image:
+    dockerfile: MyDockerfile
+```
+
+### `images.<image-id>.build_args`
+
+A list of optional build arguments passed to the image builder. See docker [help](https://docs.docker.com/engine/reference/commandline/build/#set-build-time-variables---build-arg) for details.
+
+**Example:**
+
+```yaml
+images:
+  my_image:
+    build_args:
+    - ARG1=val1
+    - ARG2=val2
+```
+
+### `images.<image-id>.env`
+
+A mapping of _environment variables_ passed to the image builder.
+
+**Example:**
+
+```yaml
+images:
+  my_image:
+    env:
+      ENV1: val1
+      ENV2: val2
+```
+
+### `images.<image-id>.volumes`
+
+A list of volume references mounter to the image build process.
+
+**Example:**
+
+```yaml
+images:
+  my_image:
+    volumes:
+    - storage:folder1:/mnt/folder1:ro
+    - storage:folder2:/mnt/folder2
+    - volumes.volume_id.ref
 ```
 
 ## `volumes`
