@@ -8,7 +8,7 @@ The expression \(`${{ <expression }}`\) supports a set of pre-built functions:
 |  |  |
 |  |  |
 
-### `hash_files(pattern, ...)`
+## `hash_files(pattern, ...)`
 
 Calculate SHA256 hash of given files.
 
@@ -31,3 +31,4 @@ The calculated hash contains hashed filenames to generate different results on t
 ```yaml
 ${{ hash_files('Dockerfile', 'requiremtnts/*.txt', 'modules/**/*.py') }}
 ```
+

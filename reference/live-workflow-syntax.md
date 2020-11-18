@@ -6,7 +6,7 @@ The live workflow is always located at `.neuro/live.yml` file under the project 
 
 ## `kind`
 
-**Required** The workflow _kind_, __must be `live` for _live_ workflows.
+**Required** The workflow _kind_, _\_must be `live` for \_live_ workflows.
 
 ## `id`
 
@@ -35,7 +35,7 @@ env:
 
 ### `defaults.life_span`
 
-The default life span for jobs run by the workflow.  It can be overridden  by [`jobs.<job-id>.life_span`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-life_span).  In not set, the default job's life span is 1 day.  The value is a float number of seconds \(`3600` for an hour\) or expression in the following format: `1d6h15m`  \(1 day 6 hours, 15 minutes\). Use an arbitrary huge value \(e.g. `365d`\) for the life-span disabling emulation \(it can be dangerous, a forgotten job consumes the cluster resources\).
+The default life span for jobs run by the workflow. It can be overridden by [`jobs.<job-id>.life_span`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-life_span). In not set, the default job's life span is 1 day. The value is a float number of seconds \(`3600` for an hour\) or expression in the following format: `1d6h15m` \(1 day 6 hours, 15 minutes\). Use an arbitrary huge value \(e.g. `365d`\) for the life-span disabling emulation \(it can be dangerous, a forgotten job consumes the cluster resources\).
 
 {% hint style="warning" %}
 life span shorter than _1 minute_ is forbidden.
@@ -83,7 +83,7 @@ defaults:
 
 A mapping of image definitions used by _live_ workflow.
 
-`neuro-flow build <image-id>` creates an image from passed `Dockerfile` and uploads it to the Neu.ro Registry.  `${{ images.img_id.ref }}` expression can be used for pointing the image from a [`jobs.<job-id>.image`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-image).
+`neuro-flow build <image-id>` creates an image from passed `Dockerfile` and uploads it to the Neu.ro Registry. `${{ images.img_id.ref }}` expression can be used for pointing the image from a [`jobs.<job-id>.image`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-image).
 
 {% hint style="info" %}
 The `images` section is not required, a job can specify the image name as a plain string without referring to `${{ images.my_image.ref }}` context.
@@ -198,14 +198,11 @@ images:
 
 ## `volumes`
 
-A mapping of volume definitions available in the _live_ workflow.
-A volume defines a link between the Neu.ro storage folder, a remote folder that can be mounted to a _live_ job, and a local folder.
+A mapping of volume definitions available in the _live_ workflow. A volume defines a link between the Neu.ro storage folder, a remote folder that can be mounted to a _live_ job, and a local folder.
 
 Volumes can be synchronized between local and storage versions by `neuro-flow upload` and `neuro-flow download` commands and they can be mounted to a job by using [`jobs.<job-id>.volumes`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-volumes) attribute.
 
 {% hint style="info" %}
-
-
 The `volumes` section is optional, a job can mount a volume by a direct reference string.
 
 The section is very handy to use in a bundle with `run`, `upload`, `download` commands: define a volume once and refer everywhere by name without copy-pasting all the definition details.
@@ -263,7 +260,7 @@ volumes:
 
 ## `jobs`
 
-A _live_ workflow can run jobs by their identifiers using `neuro-flow run <job-id>` command. Each job runs remotely on the Neu.ro platform.
+A _live_ workflow can run jobs by their identifiers using `neuro-flow run <job-id>` command. Each job runs remotely on the Neu.ro Platform.
 
 ### `jobs.<job-id>.env` <a id="jobs-job-id-env"></a>
 
@@ -276,3 +273,4 @@ A _live_ workflow can run jobs by their identifiers using `neuro-flow run <job-i
 ### `jobs.<job-id>.tags`
 
 ### `jobs.<job-id>.volumes`
+
