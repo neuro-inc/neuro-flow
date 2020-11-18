@@ -523,6 +523,8 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
             cmd.append(f"--volume={vol}")
         for k, v in image_ctx.env.items():
             cmd.append(f"--env={k}={v}")
+        if image_ctx.build_preset is not None:
+            cmd.append(f"--preset={image_ctx.build_preset}")
         cmd.append(str(image_ctx.full_context_path))
         cmd.append(str(image_ctx.ref))
         await run_subproc("neuro-extras", "image", "build", *cmd)

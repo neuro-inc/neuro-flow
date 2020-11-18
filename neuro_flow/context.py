@@ -117,6 +117,7 @@ class ImageCtx:
     build_args: Sequence[str]
     env: Mapping[str, str]
     volumes: Sequence[str]
+    build_preset: Optional[str]
 
 
 @dataclass(frozen=True)
@@ -594,6 +595,7 @@ async def setup_volumes_ctx(
 async def setup_images_ctx(
     ctx: WithFlowContext,
     ast_images: Optional[Mapping[str, ast.Image]],
+    defaults: DefaultsConf,
 ) -> ImagesCtx:
     images = {}
     if ast_images is not None:
@@ -616,6 +618,8 @@ async def setup_images_ctx(
                     if value:
                         image_volumes.append(value)
 
+            build_preset = (await i.build_preset.eval(ctx)) or defaults.preset
+
             images[k] = ImageCtx(
                 id=k,
                 ref=await i.ref.eval(ctx),
@@ -626,6 +630,7 @@ async def setup_images_ctx(
                 build_args=build_args,
                 env=image_env,
                 volumes=image_volumes,
+                build_preset=build_preset,
             )
     return images
 
@@ -998,7 +1003,7 @@ class RunningLiveFlow:
             env=env,
             tags=tags,
             volumes=await setup_volumes_ctx(step_1_ctx, ast_flow.volumes),
-            images=await setup_images_ctx(step_1_ctx, ast_flow.images),
+            images=await setup_images_ctx(step_1_ctx, ast_flow.images, defaults),
         )
 
         return cls(ast_flow, live_ctx, config_loader, defaults)
@@ -1298,7 +1303,7 @@ class RunningBatchFlow(RunningBatchBase[BatchContext]):
             env=env,
             tags=tags,
             volumes=await setup_volumes_ctx(step_1_ctx, ast_flow.volumes),
-            images=await setup_images_ctx(step_1_ctx, ast_flow.images),
+            images=await setup_images_ctx(step_1_ctx, ast_flow.images, defaults),
         )
 
         if ast_flow.defaults:

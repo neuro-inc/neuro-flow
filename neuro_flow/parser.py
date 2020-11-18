@@ -467,6 +467,7 @@ def parse_image(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Image:
             "build_args": SimpleSeq(StrExpr),
             "env": SimpleMapping(StrExpr),
             "volumes": SimpleSeq(OptStrExpr),
+            "build_preset": OptStrExpr,
         },
         ast.Image,
     )
