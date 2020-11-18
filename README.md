@@ -1,4 +1,4 @@
-# Getting Started
+# Getting started
 
 `neuro-flow` is a tool that simplifies daily jobs with the Neu.ro platform.
 
