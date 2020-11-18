@@ -61,4 +61,3 @@ The `flow`context contains information about the workflow: it's id, title, etc.
 | project\_id | str |  |
 | workspace | LocalPath |  |
 | title | str |  |
-
