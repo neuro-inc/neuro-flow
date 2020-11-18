@@ -4,7 +4,7 @@ from neuromation.api import get as api_get
 
 from neuro_flow.cli.click_types import LIVE_IMAGE_OR_ALL
 from neuro_flow.cli.root import Root
-from neuro_flow.cli.utils import argument, wrap_async
+from neuro_flow.cli.utils import argument, option, wrap_async
 from neuro_flow.live_runner import LiveRunner
 from neuro_flow.storage import FSStorage, NeuroStorageFS, Storage
 
@@ -16,9 +16,16 @@ else:
 
 
 @click.command()
+@option(
+    "-F",
+    "--force-overwrite",
+    default=False,
+    is_flag=True,
+    help="Build even if the destination image already exists.",
+)
 @argument("image", type=LIVE_IMAGE_OR_ALL)
 @wrap_async()
-async def build(root: Root, image: str) -> None:
+async def build(root: Root, force_overwrite: bool, image: str) -> None:
     """Build an image.
 
     Assemble the IMAGE remotely and publish it.
@@ -32,6 +39,6 @@ async def build(root: Root, image: str) -> None:
             LiveRunner(root.config_dir, root.console, client, storage)
         )
         if image == "ALL":
-            await runner.build_all()
+            await runner.build_all(force_overwrite=force_overwrite)
         else:
-            await runner.build(image)
+            await runner.build(image, force_overwrite=force_overwrite)
