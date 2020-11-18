@@ -11,5 +11,6 @@ tasks:
     image: ubuntu
     preset: cpu-small
     bash: |
+      fail fila fsdfsf
       echo "Task B"
       echo ${{ needs.task_a.outputs.name }}
