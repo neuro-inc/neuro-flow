@@ -35,10 +35,10 @@ env:
 
 ### `defaults.life_span`
 
-The default life span for jobs run by the workflow.  It can be overridden  by [`jobs.<job-id>.life_span`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-life_span).  In not set, the default job's life span is 1 day.  The value is a float number of seconds \(`3600` for an hour\) or expression in the following format: `1d6h15m`  \(1 day 6 hours, 15 minutes\). Use `0` for disabling the life-span feature \(it can be dangerous, a forgotten job consumes the cluster resources\).
+The default life span for jobs run by the workflow.  It can be overridden  by [`jobs.<job-id>.life_span`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-life_span).  In not set, the default job's life span is 1 day.  The value is a float number of seconds \(`3600` for an hour\) or expression in the following format: `1d6h15m`  \(1 day 6 hours, 15 minutes\). Use an arbitrary huge value \(e.g. `365d`\) for the life-span disabling emulation \(it can be dangerous, a forgotten job consumes the cluster resources\).
 
 {% hint style="warning" %}
-life spans shorter than _1 minute_ are forbidden.
+life span shorter than _1 minute_ is forbidden.
 {% endhint %}
 
 **Example:**
