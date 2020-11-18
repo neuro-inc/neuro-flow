@@ -83,7 +83,13 @@ defaults:
 
 A mapping of image definitions used by _live_ workflow.
 
-`neuro-flow build <image-id>` creates an image from passed `Dockerfile` and uploads it to the Neu.ro registry.  `${{ images.img_id.ref }}` expression can be used for pointing the image from a [`jobs.<job-id>.image`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-image).
+`neuro-flow build <image-id>` creates an image from passed `Dockerfile` and uploads it to the Neu.ro Registry.  `${{ images.img_id.ref }}` expression can be used for pointing the image from a [`jobs.<job-id>.image`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-image).
+
+{% hint style="info" %}
+The `images` section is not required, a job can specify the image name as a plain string without referring to `${{ images.my_image.ref }}` context.
+
+The section exists for convenience: there is no need to repeat yourself if you can just point the image ref everywhere in the YAML.
+{% endhint %}
 
 ### `images.<image-id>.ref`
 
@@ -192,7 +198,68 @@ images:
 
 ## `volumes`
 
-Workflow volumes
+A mapping of volume definitions available in the _live_ workflow.  
+A volume defines a link between the Neu.ro storage folder, a remote folder that can be mounted to a _live_ job, and a local folder.  
+  
+Volumes can be synchronized between local and storage versions by `neuro-flow upload` and `neuro-flow download` commands and they can be mounted to a job by using [`jobs.<job-id>.volumes`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-volumes) attribute.
+
+{% hint style="info" %}
+
+
+The `volumes` section is optional, a job can mount a volume by a direct reference string.
+
+The section is very handy to use in a bundle with `run`, `upload`, `download` commands: define a volume once and refer everywhere by name without copy-pasting all the definition details.
+{% endhint %}
+
+### `volumes.<volume-id>.remote`
+
+**Required** The volume URI on the Neu.ro Storage.
+
+**Example:**
+
+```yaml
+volumes:
+  folder:
+    remote: storage:path/to/folder
+```
+
+### `volumes.<volume-id>.mount`
+
+**Required** The mount path inside a job.
+
+**Example:**
+
+```yaml
+volumes:
+  folder:
+    mount: /mnt/folder
+```
+
+### `volumes.<volume-id>.local`
+
+A _local_ path relative to the project root. Used for uploading/downloading the content on the storage.
+
+Volumes without `local` attribute set cannot be used by `neuro-flow upload` and `neuro-flow download` commands.
+
+**Example:**
+
+```yaml
+volumes:
+  folder:
+    local: path/to/folder
+```
+
+### `volumes.<volume-id>.read_only`
+
+The volume is mounted as _read-only_ by default if the attribute is set, _read-write_ mode is used otherwise.
+
+**Example:**
+
+```yaml
+volumes:
+  folder:
+    read_only: true
+```
 
 ## `jobs`
 
@@ -207,6 +274,8 @@ A _live_ workflow can run jobs by their identifiers using `neuro-flow run <job-i
 ### `jobs.<job-id>.preset`
 
 ### `jobs.<job-id>.tags`
+
+### `jobs.<job-id>.volumes`
 
 
 
