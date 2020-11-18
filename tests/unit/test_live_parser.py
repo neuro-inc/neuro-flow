@@ -199,7 +199,7 @@ def test_parse_full(assets: pathlib.Path) -> None:
     flow = parse_live(workspace, config_file)
     assert flow == ast.LiveFlow(
         Pos(0, 0, config_file),
-        Pos(60, 0, config_file),
+        Pos(61, 0, config_file),
         id=SimpleOptIdExpr(
             Pos(0, 0, config_file),
             Pos(0, 0, config_file),
@@ -214,7 +214,7 @@ def test_parse_full(assets: pathlib.Path) -> None:
         images={
             "image_a": ast.Image(
                 Pos(4, 4, config_file),
-                Pos(15, 0, config_file),
+                Pos(16, 0, config_file),
                 ref=StrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "image:banana"
                 ),
@@ -243,12 +243,15 @@ def test_parse_full(assets: pathlib.Path) -> None:
                         "secret:key:/var/secret/key.txt",
                     ),
                 ],
+                build_preset=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "gpu-small"
+                ),
             )
         },
         volumes={
             "volume_a": ast.Volume(
-                Pos(17, 4, config_file),
-                Pos(21, 2, config_file),
+                Pos(18, 4, config_file),
+                Pos(22, 2, config_file),
                 remote=URIExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "storage:dir"
                 ),
@@ -263,8 +266,8 @@ def test_parse_full(assets: pathlib.Path) -> None:
                 ),
             ),
             "volume_b": ast.Volume(
-                Pos(22, 4, config_file),
-                Pos(24, 0, config_file),
+                Pos(23, 4, config_file),
+                Pos(25, 0, config_file),
                 remote=URIExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "storage:other"
                 ),
@@ -280,8 +283,8 @@ def test_parse_full(assets: pathlib.Path) -> None:
             ),
         },
         defaults=ast.FlowDefaults(
-            Pos(25, 2, config_file),
-            Pos(33, 0, config_file),
+            Pos(26, 2, config_file),
+            Pos(34, 0, config_file),
             tags=[
                 StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "tag-a"),
                 StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "tag-b"),
@@ -309,8 +312,8 @@ def test_parse_full(assets: pathlib.Path) -> None:
         ),
         jobs={
             "test_a": ast.Job(
-                Pos(35, 4, config_file),
-                Pos(60, 0, config_file),
+                Pos(36, 4, config_file),
+                Pos(61, 0, config_file),
                 name=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "job-name"
                 ),

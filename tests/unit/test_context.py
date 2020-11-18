@@ -127,6 +127,7 @@ async def test_images(live_config_loader: ConfigLoader) -> None:
     assert ctx.images["image_a"].build_args == ["--arg1", "val1", "--arg2=val2"]
     assert ctx.images["image_a"].env == {"SECRET_ENV": "secret:key"}
     assert ctx.images["image_a"].volumes == ["secret:key:/var/secret/key.txt"]
+    assert ctx.images["image_a"].build_preset == "gpu-small"
 
 
 async def test_defaults(live_config_loader: ConfigLoader) -> None:
@@ -136,6 +137,7 @@ async def test_defaults(live_config_loader: ConfigLoader) -> None:
     assert flow._defaults.workdir == RemotePath("/global/dir")
     assert flow._defaults.life_span == 100800.0
     assert flow._defaults.preset == "cpu-large"
+    assert flow._defaults.schedule_timeout == 2157741.0
 
 
 async def test_job(live_config_loader: ConfigLoader) -> None:
