@@ -273,4 +273,3 @@ A _live_ workflow can run jobs by their identifiers using `neuro-flow run <job-i
 ### `jobs.<job-id>.tags`
 
 ### `jobs.<job-id>.volumes`
-
