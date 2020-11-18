@@ -465,6 +465,12 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                 f"Cannot re-run still running attempt #{attempt.number} "
                 f"of {bake.bake_id}."
             )
+        if attempt.result == TaskStatus.SUCCEEDED and from_failed:
+            raise click.BadArgumentUsage(
+                f"Cannot re-run successful attempt #{attempt.number} "
+                f"of {bake.bake_id} with `--from-failed` flag set.\n"
+                "Hint: Try adding --no-from-failed to restart bake from the beginning."
+            )
         if attempt.number >= 99:
             raise click.BadArgumentUsage(
                 f"Cannot re-run {bake.bake_id}, the number of attempts exceeded."
