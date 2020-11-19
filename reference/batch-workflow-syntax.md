@@ -28,7 +28,7 @@ When set to `true`, the system cancels all in-progress tasks if some task fails.
 
 ```yaml
 defaults:
-  fail_fast: False
+  fail_fast: false
 ```
 
 ### `defaults.max_parallel`
@@ -112,6 +112,100 @@ The human-readable description of the param.
 params:
   my-param: 
     descr: This is param description 
+```
+
+## `images`
+
+A mapping of image definitions used by this workflow.
+
+Unlike _live_ flow images, _batch_ flow images cannot be build using `neuro-flow build <image-id>`. 
+
+{% hint style="info" %}
+The `images` section is not required, a task can specify the image name as a plain string without referring to `${{ images.my_image.ref }}` context.
+
+The section exists for convenience: there is no need to repeat yourself if you can just point the image ref everywhere in the YAML.
+{% endhint %}
+
+{% hint style="danger" %}
+The following fields are disabled in _batch_ flow and will cause an error:
+
+* **`images.<image-id>.context`**
+* **`images.<image-id>.dockerfile`**
+* **`images.<image-id>.build_args`**
+* **`images.<image-id>.env`**
+* **`images.<image-id>.volumes`**
+{% endhint %}
+
+### `images.<image-id>`
+
+The key `image-id` is a string and its value is a map of the tasks configuration data. You must replace `<image-id>` with a string that is unique to the `images` object. The `<image-id>` must start with a letter and contain only alphanumeric characters or `_`. Dash `-` is not allowed.
+
+### `images.<image-id>.ref`
+
+**Required** Image _reference_ that can be used in `tasks.image` expression.
+
+You can use the image definition to _address_ images hosted ether on Neu.ro registry or [_Docker Hub_](https://hub.docker.com/search?q=&type=image). 
+
+**Example:**
+
+```yaml
+images:
+  my_image:
+    ref: image:my_image:latest # Neu.ro registry hosted iamge 
+  python:
+    ref: python:3.9.0 # Docker Hub hosted image 
+```
+
+## `volumes`
+
+A mapping of volume definitions available in this workflow. A volume defines a link between the Neu.ro storage folder and a remote folder that can be mounted to a task.
+
+Unlike _live_ flow volumes,  _batch_ flow volumes **cannot** be synchronized by `neuro-flow upload` and `neuro-flow download` commands.  They can only be mounted to a task by using `task.volumes` attribute.
+
+{% hint style="danger" %}
+The following fields are disabled in _batch_ flow and will cause an error:
+
+* **`volumes.<volume-id>.local`**
+{% endhint %}
+
+### `volumes.<volume-id>`
+
+The key `volume-id` is a string and its value is a map of the volume's configuration data. You must replace `<volume-id>` with a string that is unique to the `volumes` object. The `<volume-id>` must start with a letter and contain only alphanumeric characters or `_`. Dash `-` is not allowed.
+
+### `volumes.<volume-id>.remote`
+
+**Required** The volume URI on the Neu.ro Storage.
+
+**Example:**
+
+```yaml
+volumes:
+  folder:
+    remote: storage:path/to/folder
+```
+
+### `volumes.<volume-id>.mount`
+
+**Required** The mount path inside a task.
+
+**Example:**
+
+```yaml
+volumes:
+  folder:
+    mount: /mnt/folder
+```
+
+### `volumes.<volume-id>.read_only`
+
+The volume is mounted as _read-only_ by default if the attribute is set, _read-write_ mode is used otherwise.
+
+**Example:**
+
+```yaml
+volumes:
+  folder:
+    read_only: true
 ```
 
 ## `tasks`
