@@ -466,6 +466,10 @@ jobs:
 
 ### `jobs.<job-id>.params`
 
+Params is a mapping of key-value pairs that have default value and could be overridden from a command line by using `neuro-flow run <job-id> --param NAME1 val1 --param NAME2 val2`
+
+\`\`
+
 #### `jobs.<job-id>.params.<param-name>.default`
 
 #### `jobs.<job-id>.params.<param-name>.descr`
