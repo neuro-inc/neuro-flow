@@ -50,7 +50,7 @@ defaults:
 
 ### `defaults.preset`
 
-The default preset name used by all jobs if not overridden by [`jobs.<job-id>.preset`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-preset).
+The default preset name used by all jobs if not overridden by [`jobs.<job-id>.preset`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-preset).  The system-wide default preset is used if both `defaults.preset` and `jobs.<job-id>.preset` are omitted.
 
 **Example:**
 
@@ -61,34 +61,33 @@ defaults:
 
 ### `defaults.schedule_timeout`
 
-The default timeout for the job scheduling. See `jobs.<job-id>.schedul`[`Live workflow syntax`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-schedule_timeout)`e_timeout` for more information.  The attribute accepts either a `float` number of seconds or a string in`1d6h15m45s` \(1 day 6 hours, 15 minutes, 45 seconds\).  The job has no scheduled timeout if both `default.schedule_timeout` and `jobs.<job-id>.schedule_timeout` are not set.
+The default timeout for a job scheduling. See [`jobs.<job-id>.schedule_timeout`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-schedule_timeout) for more information.  
+
+The attribute accepts either a `float` number of seconds or a string in`1d6h15m45s` \(1 day 6 hours, 15 minutes, 45 seconds\).    
+  
+The cluster-wide timeout is used if both `default.schedule_timeout` and `jobs.<job-id>.schedule_timeout` are omitted.
 
 **Example:**
 
 ```yaml
 defaults:
-  schedule_timeout: 1d  # start the job tomorrow
+  schedule_timeout: 1d  # don't fail until tomorrow
 ```
 
 ### `defaults.tags`
 
-A list of tags that add added to every job created by the workflow. A particular job definition can extend this global list by [`jobs.<job-id>.tags`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-tags).
+A list of tags that are added to every job created by the workflow. A particular job definition can extend this global list by [`jobs.<job-id>.tags`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-tags).
 
-**Example with a tag per line:**
-
-```yaml
-defaults:
-  tags:
-  - tag-a
-  - tag-b
-```
-
-**Example with the compact one-line list:**
+**Example:**
 
 ```yaml
 defaults:
   tags: [tag-a, tag-b]
 ```
+
+### `defaults.workdir`
+
+The default working directory for jobs spawn by this workflow.  See [`jobs.<job-id>.workdir`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-workdir) for more information.
 
 ## `images`
 
@@ -466,25 +465,131 @@ jobs:
 
 ### `jobs.<job-id>.params`
 
-Params is a mapping of key-value pairs that have default value and could be overridden from a command line by using `neuro-flow run <job-id> --param NAME1 val1 --param NAME2 val2`
+Params is a mapping of key-value pairs that have default value and could be overridden from a command line by using `neuro-flow run <job-id> --param name1 val1 --param name2 val2`
 
-\`\`
+This attribute describes a set of param names accepted by a job and their default values. 
 
-#### `jobs.<job-id>.params.<param-name>.default`
+The parameter can be specified in a _short_ and _long_ form.    
+  
+The short form is compact but allows to specify the parameter name and default value only:
 
-#### `jobs.<job-id>.params.<param-name>.descr`
+```yaml
+jobs:
+  my_job:
+    params:
+      name1: default1
+      name2: ~   # None by default
+      name3: ""  # Empty string by default
+```
+
+The long form allows to point the parameter description also \(can be useful for `neuro-flow run` command introspection, the shell autocompletion, and generation a more verbose error message if needed:
+
+```yaml
+jobs:
+  my_job:
+    params:
+      name1:
+        default: default1
+        descr: The name1 description
+      name2:
+        default: ~
+        descr: The name2 description
+      name3:
+        default: ""
+        descr: The name3 description
+```
+
+Both examples above are equal but the last has parameter descriptions.  
+  
+The params can be used in expressions for calculating other job attributes, e.g. [`jobs.<job-id>.cmd`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-cmd) .
+
+**Example:**
+
+```yaml
+jobs:
+  my_job:
+    params:
+      folder: "."  # search in current folder by default
+      pattern: "*"  # all files by default
+    cmd:
+      find ${{ params.folder }} -name ${{ params.pattern }}
+```
 
 ### `jobs.<job-id>.pass_config`
 
+Set the attribute to `true` if you want to pass the Neuro current config used to execute `neuro-flow run ...` command into the spawn job. It can be useful if you uses a job image with Neuro CLI installed and want to execute `neuro ...` commands _inside_ the running job.
+
+By default the config is not passed.
+
+**Example:**
+
+```yaml
+jobs:
+  my_job:
+    pass_config: true
+```
+
 ### `jobs.<job-id>.preset`
+
+The preset name to execute the job with.  [`defaults.preset`](live-workflow-syntax.md#defaults-preset) is used if the preset is not specified for the job. 
 
 ### `jobs.<job-id>.schedule_timeout`
 
+Use this attribute is you want to increase the _schedule timeout_ to prevent the job from fail if the Neu.ro cluster is under high load and requested resources a not available at the moment highly likely.  
+
+If the Neu.ro cluster has no resources to launch a job immediatelly the  job in pushed into the wait queue.  If the job is not started yet at the moment of _schedule timeout_ expiration the job is failed.
+
+The default system-wide _schedule timeout_ is controlled by the cluster administrator and usually is about 5-10 minutes.  If you want to 
+
+The attribute accepts either a `float` number of seconds or a string in`1d6h15m45s` \(1 day 6 hours, 15 minutes, 45 seconds\).
+
+See also [`defaults.schedule_timeout`](live-workflow-syntax.md#defaults-schedule_timeout) if you want set the workflow-wide schedule timeout for all jobs.
+
+**Example:**
+
+```yaml
+jobs:
+  my_job:
+    schedule_timeout: 1d  # don't fail until tomorrow
+```
+
 ### `jobs.<job-id>.tags`
+
+A list of additional job tags. 
+
+Each _live_ job is tagged. The job tags are from tags enumerated by this attribute, [`defaults.tags`](live-workflow-syntax.md#defaults-tags) and system tags \(`project:<project-id>` and `job:<job-id>`\). 
+
+**Example:**
+
+```yaml
+jobs:
+  my_job:
+    tags:
+    - tag-a
+    - tag-b
+```
 
 ### `jobs.<job-id>.title`
 
+The job title. The title is equal to `<job-id>` if not overridden.
+
 ### `jobs.<job-id>.volumes`
 
+A list of job volumes. You can specify a bare string for the volume reference or use `${{ volumes.<volume-id>.ref }}` expression.
+
+**Example:**
+
+```yaml
+jobs:
+  my_job:
+    volumes:
+    - storage:path/to:/mnt/path/to
+    - ${{ volumes.my_volume.ref }}
+```
+
 ### `jobs.<job-id>.workdir`
+
+The current working dir to use inside the job.
+
+This attribute takes a precedence if set. Otherwise [`defaults.workdir`](live-workflow-syntax.md#defaults-workdir) is used if present. Otherwise a [`WORKDIR`](https://docs.docker.com/engine/reference/builder/#workdir) definition from the image is used.
 
