@@ -369,6 +369,34 @@ jobs:
       print("The Python version is", sys.version)
 ```
 
+### `jobs.<job-id>.browse`
+
+Open job's _Http URL_ in a browser. Off by default.   
+  
+Use this attribute in scenarios like starting a Jupyter Notebook job and opening a browser with the notebook session.
+
+**Example:**
+
+```yaml
+jobs:
+  my_job:
+    browse: true
+```
+
+### `jobs.<job-id>.detach`
+
+By default, `neuro-flow run <job-id>` keeps the terminal attached to the spawn job. You can see job logs or type a command in an embedded bash session if any.
+
+Set `detach` attribute to disable this behavior.
+
+**Example:**
+
+```yaml
+jobs:
+  my_job:
+    detach: true
+```
+
 ### `jobs.<job-id>.entrypoint`
 
 You can override the Docker image [`ENTRYPOINT`](https://docs.docker.com/engine/reference/builder/#entrypoint) if needed  or sets it if one wasn't already specified. Unlike the Docker `ENTRYPOINT` instruction which has a shell and exec form, `entrypoint` attribute accepts only a single string defining the executable to be run.
@@ -463,6 +491,18 @@ jobs:
     name: my-name
 ```
 
+### `jobs.<job-id>.multi`
+
+By default, the job can have the only running instance at the time. The next `neuro-flow run <job-id>` call for the same job attaches to the running job instead of recreating a new one.  This can be overridden by setting `multi` attribute.
+
+**Example:**
+
+```yaml
+jobs:
+  my_job:
+    multi: true
+```
+
 ### `jobs.<job-id>.params`
 
 Params is a mapping of key-value pairs that have default value and could be overridden from a command line by using `neuro-flow run <job-id> --param name1 val1 --param name2 val2`
@@ -527,6 +567,26 @@ By default the config is not passed.
 jobs:
   my_job:
     pass_config: true
+```
+
+### `jobs.<job-id>.port-forward`
+
+You can define a list of TCP tunnels for the job.
+
+Each port forward entry is a string with `<LOCAL_PORT>:<REMOTE_PORT>` format.
+
+When the job starts all enumerated _remote ports_ on the job side are bound with the developer's box and available under the corresponding _local port_ numbers.
+
+You can use the feature, for example, for remote debugging or accessing a database running in the job.
+
+**Example:**
+
+```yaml
+jobs:
+  my_job:
+    port_forward:
+    - 6379:6379  # Default Redis port
+    - 9200:9200  # Default Zipkin port
 ```
 
 ### `jobs.<job-id>.preset`
