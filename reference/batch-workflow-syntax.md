@@ -2,7 +2,7 @@
 
 ## _Batch_ workflow
 
-The batch workflow is located at `.neuro/<batch-name>.yml` file under the project root;`.neuro/<batch-name>.yaml` is also supported if you prefer a longer suffix for some reason. The config filename should be a valid identifier if the [`id`](batch-workflow-syntax.md#id) attribute is not specified. The following YAML attributes are supported:
+The batch workflow is located at `.neuro/<batch-name>.yml` file under the project root;`.neuro/<batch-name>.yaml` is also supported if you prefer a longer suffix for some reason. The config filename should not start with a digit and be lowercase if the [`id`](batch-workflow-syntax.md#id) attribute is not specified. The following YAML attributes are supported:
 
 ## `kind`
 
@@ -79,40 +79,37 @@ cache:
 
 ## `params`
 
-Params is a mapping of key-value pairs that have a default value and could be overridden from a command line by using `neuro-flow bake <batch-id> --param NAME1 val1 --param NAME2 val2`
+Params is a mapping of key-value pairs that have default value and could be overridden from a command line by using `neuro-flow bake <batch-id> --param name1 val1 --param name2 val2`
 
-### `params.<param-name>.default`
+This attribute describes a set of param names accepted by a flow and their default values. 
 
-The default value to use when param is not overridden from a command line.
-
-**Example:**
-
-```yaml
-params:
-  my-param: 
-    default: default_value 
-```
-
-{% hint style="info" %}
-In case you only want to specify the default value without description, you can use the following short-cut syntax:
+The parameter can be specified in a _short_ and _long_ form.    
+  
+The short form is compact but allows to specify the parameter name and default value only:
 
 ```yaml
 params:
-  my_param: default_value
+  name1: default1
+  name2: ~   # None by default
+  name3: ""  # Empty string by default
 ```
-{% endhint %}
 
-### `params.<param-name>.descr`
-
-The human-readable description of the param. 
-
-**Example:**
+The long form allows to point the parameter description also \(can be useful for `neuro-flow bake` command introspection, the shell autocompletion, and generation a more verbose error message if needed:
 
 ```yaml
 params:
-  my-param: 
-    descr: This is param description 
+  name1:
+    default: default1
+    descr: The name1 description
+  name2:
+    default: ~
+    descr: The name2 description
+  name3:
+    default: ""
+    descr: The name3 description
 ```
+
+Both examples above are equal but the last has parameter descriptions.
 
 ## `images`
 
@@ -127,7 +124,7 @@ The section exists for convenience: there is no need to repeat yourself if you c
 {% endhint %}
 
 {% hint style="danger" %}
-The following fields are disabled in _batch_ flow and will cause an error:
+The following fields are disabled in _batch_ flow and will be ignored:
 
 * **`images.<image-id>.context`**
 * **`images.<image-id>.dockerfile`**
@@ -394,7 +391,7 @@ cache:
     strategy: "none"
 ```
 
-### `defaults.cache.life_span`
+### `tasks.cache.life_span`
 
 The cache invalidation duration. The attribute accepts either a `float` number of seconds or a string in`1d6h15m45s` \(1 day 6 hours, 15 minutes, 45 seconds\). Defaults to [`defaults.cache.life_span`](batch-workflow-syntax.md#defaults-cache-life_span) if not specified.
 
@@ -409,5 +406,239 @@ cache:
   life_span: 31d # Cache is valid for one month
 ```
 
-####  ExecUnit options are the same as for jobs
+###  `tasks.image`
+
+**Required** Each task is executed remotely on the Neu.ro cluster using a _Docker image_. The image can be hosted on [_Docker Hub_](https://hub.docker.com/search?q=&type=image) \(`python:3.9` or `ubuntu:20.04`\) or on the Neu.ro Registry \(`image:my_image:v2.3`\).
+
+**Example with a constant image string:**
+
+```yaml
+tasks:
+  - image: image:my_image:v2.3
+```
+
+Often you want to use the reference to [`images.<image-id>`](live-workflow-syntax.md#images-less-than-image-id-greater-than).
+
+**Example with a reference to `images` section:**
+
+```yaml
+tasks:
+  - image: ${{ images.my_image.ref }}
+```
+
+### `tasks.cmd`
+
+A tasks executes either a _command_, or _bash_ script, or _python_ script. The `cmd`, `bash,` and `python` are **mutually exclusive**: only one of three is allowed. If none of these three attributes are specified the [`CMD`](https://docs.docker.com/engine/reference/builder/#cmd) from the [`tasks.image`](batch-workflow-syntax.md#tasks-image) is used.
+
+`cmd` attribute points on the command with optional arguments which is available in the executed `tasks.image` .
+
+**Example:**
+
+```yaml
+tasks:
+  - cmd: tensorboard --host=0.0.0.0
+```
+
+### `tasks.bash`
+
+The attribute contains a `bash` script to run. 
+
+Using `cmd` to run bash script is tedious: you need to apply quotas to the executed script and setup the proper bash flags to fail on error.
+
+The `bash` attribute is essentially a shortcut for `cmd: bash -euo pipefail -c <shell_quoted_attr>` .
+
+This form is especially handy for executing multi-line complex bash scripts.
+
+The `cmd`, `bash,` and `python` are **mutually exclusive**.
+
+The `bash` should be pre-installed in the image to make this attribute work.
+
+**Example:**
+
+```yaml
+tasks:
+  - bash: |
+      for arg in {1..5}
+      do
+        echo "Step ${arg}"
+        sleep 1
+      done
+```
+
+### `tasks.python`
+
+The attribute contains a `python` script to run.
+
+Python is the language number one for modern scientific calculations.  If you prefer writing simple inlined commands in `python` instead  of `bash` this notation is developed for you.
+
+The `python` attribute is essentially a shortcut for `cmd: python3 -uc <shell_quoted_attr>` .
+
+The `cmd`, `bash,` and `python` are **mutually exclusive**.
+
+The `python3` should be pre-installed in the image to make this attribute work.
+
+**Example:**
+
+```yaml
+tasks:
+  - python: |
+      import sys
+      print("The Python version is", sys.version)
+```
+
+### `tasks.entrypoint`
+
+You can override the Docker image [`ENTRYPOINT`](https://docs.docker.com/engine/reference/builder/#entrypoint) if needed  or sets it if one wasn't already specified. Unlike the Docker `ENTRYPOINT` instruction which has a shell and exec form, `entrypoint` attribute accepts only a single string defining the executable to be run.
+
+**Example:**
+
+```yaml
+tasks:
+  - entrypoint: sh -c "Echo $HOME"
+```
+
+### `tasks.env` <a id="jobs-job-id-env"></a>
+
+Sets environment variables to use in the executed task. 
+
+**Example:**
+
+```yaml
+tasks:
+  - env:
+      ENV1: val1
+      ENV2: val2
+```
+
+### `tasks.http_auth`
+
+Control whether the HTTP port exposed by the tasks requires the Neu.ro Platform authentication for access.
+
+You can want to disable the authentication to allow everybody to access your task's exposed web resource.
+
+The task has HTTP protection by default.
+
+**Example:**
+
+```yaml
+tasks:
+  - http_auth: false
+```
+
+### `tasks.http_port`
+
+The task HTTP port number to expose globally.
+
+By default, the Neu.ro Platform exposes the task's internal `80` port as HTTPS protected resource.
+
+You may want to expose a different local port. Use `0` to disable the feature entirely.
+
+**Example:**
+
+```yaml
+tasks:
+  - http_port: 8080
+```
+
+### `task.life_span`
+
+The time period at the end of that the task will be automatically killed.
+
+By default, the task lives 1 day.
+
+You may want to increase this period by customizing the attribute.
+
+The value is a float number of seconds \(`3600` for an hour\) or expression in the following format: `1d6h15m` \(1 day 6 hours, 15 minutes\). Use an arbitrary huge value \(e.g. `365d`\) for the life-span disabling emulation \(it can be dangerous, a forgotten tasks consumes the cluster resources\).
+
+**Example:**
+
+```yaml
+tasks:
+  - life_span: 14d12h
+```
+
+### `task.name`
+
+You can specify the task's name if needed.  The name becomes a part of task's internal hostname and exposed HTTP URL, the task can be controlled by it's name when low-level `neuro` tool is used.
+
+The name is _optional_, `neuro-flow` tool doesn't need it.
+
+**Example:**
+
+```yaml
+task:
+  - name: my-name
+```
+
+### `tasks.pass_config`
+
+Set the attribute to `true` if you want to pass the Neuro current config used to execute `neuro-flow bake ...` command into the spawn task. It can be useful if you uses a task image with Neuro CLI installed and want to execute `neuro ...` commands _inside_ the running task.
+
+By default the config is not passed.
+
+**Example:**
+
+```yaml
+tasks:
+  - pass_config: true
+```
+
+### `tasks.preset`
+
+The preset name to execute the task with. 
+
+### `tasks.schedule_timeout`
+
+Use this attribute is you want to increase the _schedule timeout_ to prevent the task from fail if the Neu.ro cluster is under high load and requested resources a not available at the moment highly likely.  
+
+If the Neu.ro cluster has no resources to launch a task immediatelly the task in pushed into the wait queue. If the task is not started yet at the moment of _schedule timeout_ expiration the task is failed.
+
+The default system-wide _schedule timeout_ is controlled by the cluster administrator and usually is about 5-10 minutes.  If you want to **&lt;MISSING PART&gt;**
+
+The attribute accepts either a `float` number of seconds or a string in`1d6h15m45s` \(1 day 6 hours, 15 minutes, 45 seconds\).
+
+**Example:**
+
+```yaml
+tasks:
+  - schedule_timeout: 1d  # don't fail until tomorrow
+```
+
+### `tasks.tags`
+
+A list of additional task tags. 
+
+Each task is tagged. The tasks tags are from tags enumerated by this attribute and system tags \(`project:<project-id>`, `flow:<flow-id>` and `task:<task-id>`\). 
+
+**Example:**
+
+```yaml
+task:
+  - tags:
+    - tag-a
+    - tag-b
+```
+
+### `task.title`
+
+The task title. The title is equal to `<task-id>` if not overridden.
+
+### `task.volumes`
+
+A list of task volumes. You can specify a bare string for the volume reference or use `${{ volumes.<volume-id>.ref }}` expression.
+
+**Example:**
+
+```yaml
+tasks:
+  - volumes:
+    - storage:path/to:/mnt/path/to
+    - ${{ volumes.my_volume.ref }}
+```
+
+### `task.workdir`
+
+The current working dir to use inside the task.
+
+This attribute takes a precedence if set. Otherwise a [`WORKDIR`](https://docs.docker.com/engine/reference/builder/#workdir) definition from the image is used.
 
