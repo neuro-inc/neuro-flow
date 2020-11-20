@@ -27,8 +27,10 @@ repos:
   - id: debug-statements
   - id: check-added-large-files
   - id: end-of-file-fixer
+    exclude: ".md$"
   - id: requirements-txt-fixer
   - id: trailing-whitespace
+    exclude: ".md$"
   - id: check-symlinks
   - id: debug-statements
 # Another entry is required to apply file-contents-sorter to another file

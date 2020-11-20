@@ -51,3 +51,8 @@ build:
 	docker build -t neuromation/neuro-flow:"$(shell python setup.py --version)" \
 	    --build-arg NEURO_FLOW_VERSION="$(shell python setup.py --version)" \
 	    .
+
+.PHONY: docs
+docs:
+	build-tools/cli-help-generator.py CLI.in.md CLI.md
+	markdown-toc -t github -h 6 CLI.md
