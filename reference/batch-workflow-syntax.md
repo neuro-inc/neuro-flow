@@ -542,13 +542,13 @@ tasks:
 
 ### `task.life_span`
 
-The time period at the end of that the task will be automatically killed.
+The time period at the end of the task will be automatically killed.
 
 By default, the task lives 1 day.
 
 You may want to increase this period by customizing the attribute.
 
-The value is a float number of seconds \(`3600` for an hour\) or expression in the following format: `1d6h15m` \(1 day 6 hours, 15 minutes\). Use an arbitrary huge value \(e.g. `365d`\) for the life-span disabling emulation \(it can be dangerous, a forgotten tasks consumes the cluster resources\).
+The value is a float number of seconds \(`3600` for an hour\) or expression in the following format: `1d6h15m` \(1 day 6 hours, 15 minutes\). Use an arbitrary huge value \(e.g. `365d`\) for the life-span disabling emulation \(it can be dangerous, a forgotten task consumes the cluster resources\).
 
 **Example:**
 
@@ -559,7 +559,7 @@ tasks:
 
 ### `task.name`
 
-You can specify the task's name if needed.  The name becomes a part of task's internal hostname and exposed HTTP URL, the task can be controlled by it's name when low-level `neuro` tool is used.
+You can specify the task's name if needed.  The name becomes a part of the task's internal hostname and exposed HTTP URL, the task can be controlled by its name when low-level `neuro` tool is used.
 
 The name is _optional_, `neuro-flow` tool doesn't need it.
 
@@ -589,9 +589,9 @@ The preset name to execute the task with.
 
 ### `tasks.schedule_timeout`
 
-Use this attribute is you want to increase the _schedule timeout_ to prevent the task from fail if the Neu.ro cluster is under high load and requested resources a not available at the moment highly likely.  
+Use this attribute if you want to increase the _schedule timeout_ to prevent the task from failing if the Neu.ro cluster is under high load and requested resources a not available at the moment highly likely.  
 
-If the Neu.ro cluster has no resources to launch a task immediatelly the task in pushed into the wait queue. If the task is not started yet at the moment of _schedule timeout_ expiration the task is failed.
+If the Neu.ro cluster has no resources to launch a task immediately the task is pushed into the wait queue. If the task is not started yet at the moment of _schedule timeout_ expiration the task is failed.
 
 The default system-wide _schedule timeout_ is controlled by the cluster administrator and usually is about 5-10 minutes.  If you want to **&lt;MISSING PART&gt;**
 
@@ -640,5 +640,5 @@ tasks:
 
 The current working dir to use inside the task.
 
-This attribute takes a precedence if set. Otherwise a [`WORKDIR`](https://docs.docker.com/engine/reference/builder/#workdir) definition from the image is used.
+This attribute takes precedence if set. Otherwise a [`WORKDIR`](https://docs.docker.com/engine/reference/builder/#workdir) definition from the image is used.
 
