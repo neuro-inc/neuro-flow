@@ -286,7 +286,7 @@ async def clear_cache(
 )
 @option("--local-executor", is_flag=True, default=False, help="Run primary job locally")
 @option(
-    "--from-failed",
+    "--from-failed/--no-from-failed",
     is_flag=True,
     default=True,
     help="Restart from the point of failure",
