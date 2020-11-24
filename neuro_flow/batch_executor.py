@@ -8,7 +8,6 @@ import sys
 import uuid
 from neuromation.api import Client, Container, HTTPPort, Resources, Volume
 from neuromation.cli.job import STORAGE_MOUNTPOINT
-from neuromation.cli.utils import NEURO_STEAL_CONFIG
 from rich.console import Console
 from rich.panel import Panel
 from rich.progress import BarColumn, Progress, TaskID, TextColumn
@@ -61,6 +60,10 @@ if sys.version_info >= (3, 9):
     import graphlib
 else:
     from . import backport_graphlib as graphlib
+
+
+# For backward compatibility, will be removed in the upcoming releases
+NEURO_STEAL_CONFIG = "NEURO_STEAL_CONFIG"
 
 
 class NotFinished(ValueError):
@@ -656,6 +659,7 @@ class BatchExecutor:
         job = await self._client.jobs.run(
             container,
             is_preemptible=preset.is_preemptible,
+            pass_config=bool(task.pass_config),
             name=task.name,
             tags=list(task.tags),
             description=task.title,
