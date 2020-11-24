@@ -207,7 +207,7 @@ volumes:
 
 ## `tasks`
 
-List of tasks that this batch workflow contains. Unlike jobs in the live workflow, all tasks are executed with one command in the order that specified by [`tasks.needs`](batch-workflow-syntax.md#tasks-needs) . To start execution, run `neuro-flow bake <batch-id>`.
+List of tasks and actions calls that this batch workflow contains. Unlike jobs in the live workflow, all tasks are executed with one command in the order that specified by [`tasks.needs`](batch-workflow-syntax.md#tasks-needs) . To start execution, run `neuro-flow bake <batch-id>`.
 
 **Example:**
 
@@ -218,14 +218,16 @@ tasks:
   - id: task_3
 ```
 
+## Attributes for both tasks and action calls
+
+The attributes in this section can be applied both to plain tasks and action calls. To simplify reading, this section uses the term "task" instead of  "task or action call".
+
 ### `tasks.id`
 
- A unique identifier for the task. It is used to reference the task in [`tasks.needs`](batch-workflow-syntax.md#tasks-needs). The value must start with a letter and contain only alphanumeric characters or underscore \(`_`\). Dash \(`-`\) is not allowed.   
-  
-
+ A unique identifier for the task. It is used to reference the task in [`tasks.needs`](batch-workflow-syntax.md#tasks-needs). The value must start with a letter and contain only alphanumeric characters or underscore \(`_`\). Dash \(`-`\) is not allowed. 
 
 {% hint style="info" %}
-It is impossible to refer to tasks without an id inside the workflow file, but you can refer to them as `task-<num>`in command line output. The `<num>` here is an index in the [`tasks`](batch-workflow-syntax.md#tasks) list.
+It is impossible to refer to tasks without an id inside the workflow file, but you can refer to them as `task-<num>`in the command line output. The `<num>` here is an index in the [`tasks`](batch-workflow-syntax.md#tasks) list.
 {% endhint %}
 
 ### `tasks.needs`
@@ -406,7 +408,11 @@ cache:
   life_span: 31d # Cache is valid for one month
 ```
 
-###  `tasks.image`
+## Attributes for tasks
+
+The attributes in this section are only applicable to the plain tasks, that are executed by running docker images on the Neu.ro platform. 
+
+### `tasks.image`
 
 **Required** Each task is executed remotely on the Neu.ro cluster using a _Docker image_. The image can be hosted on [_Docker Hub_](https://hub.docker.com/search?q=&type=image) \(`python:3.9` or `ubuntu:20.04`\) or on the Neu.ro Registry \(`image:my_image:v2.3`\).
 
@@ -542,13 +548,13 @@ tasks:
 
 ### `task.life_span`
 
-The time period at the end of that the task will be automatically killed.
+The time period at the end of the task will be automatically killed.
 
 By default, the task lives 1 day.
 
 You may want to increase this period by customizing the attribute.
 
-The value is a float number of seconds \(`3600` for an hour\) or expression in the following format: `1d6h15m` \(1 day 6 hours, 15 minutes\). Use an arbitrary huge value \(e.g. `365d`\) for the life-span disabling emulation \(it can be dangerous, a forgotten tasks consumes the cluster resources\).
+The value is a float number of seconds \(`3600` for an hour\) or expression in the following format: `1d6h15m` \(1 day 6 hours, 15 minutes\). Use an arbitrary huge value \(e.g. `365d`\) for the life-span disabling emulation \(it can be dangerous, a forgotten task consumes the cluster resources\).
 
 **Example:**
 
@@ -559,7 +565,7 @@ tasks:
 
 ### `task.name`
 
-You can specify the task's name if needed.  The name becomes a part of task's internal hostname and exposed HTTP URL, the task can be controlled by it's name when low-level `neuro` tool is used.
+You can specify the task's name if needed.  The name becomes a part of the task's internal hostname and exposed HTTP URL, the task can be controlled by its name when low-level `neuro` tool is used.
 
 The name is _optional_, `neuro-flow` tool doesn't need it.
 
@@ -589,9 +595,9 @@ The preset name to execute the task with.
 
 ### `tasks.schedule_timeout`
 
-Use this attribute is you want to increase the _schedule timeout_ to prevent the task from fail if the Neu.ro cluster is under high load and requested resources a not available at the moment highly likely.  
+Use this attribute if you want to increase the _schedule timeout_ to prevent the task from failing if the Neu.ro cluster is under high load and requested resources a not available at the moment highly likely.  
 
-If the Neu.ro cluster has no resources to launch a task immediatelly the task in pushed into the wait queue. If the task is not started yet at the moment of _schedule timeout_ expiration the task is failed.
+If the Neu.ro cluster has no resources to launch a task immediately the task is pushed into the wait queue. If the task is not started yet at the moment of _schedule timeout_ expiration the task is failed.
 
 The default system-wide _schedule timeout_ is controlled by the cluster administrator and usually is about 5-10 minutes.  If you want to **&lt;MISSING PART&gt;**
 
@@ -640,5 +646,47 @@ tasks:
 
 The current working dir to use inside the task.
 
-This attribute takes a precedence if set. Otherwise a [`WORKDIR`](https://docs.docker.com/engine/reference/builder/#workdir) definition from the image is used.
+This attribute takes precedence if set. Otherwise a [`WORKDIR`](https://docs.docker.com/engine/reference/builder/#workdir) definition from the image is used.
+
+## Attributes for actions calls
+
+The attributes in this section are only applicable to the action calls. An action is a reusable part that can be integrated into the workflow. Refer to [actions reference](actions-syntax.md) to learn more about actions.
+
+### `action`
+
+The URL that selects the action to run. It supports two schemes: `workspace:` for actions files that are stored locally and `github:` for actions that are bound to the Github repository. Same support short forms: `ws:` and `gh:` , respectively.
+
+The `ws:` scheme expects a valid filesystem path to the action file.
+
+The `gh:` scheme expects the next format `{owner}/{repo}@{tag}`. Here `{owner}` is the owner of the Github repository, `{repo}` is the repository name and `{tag}` is the commit tag. Commit tags are used to allow a versioning of the actions.
+
+**Example of `ws:` scheme**
+
+```yaml
+tasks:
+  - action: ws:path/to/file/some-action.yml
+```
+
+**Example of `gh:` scheme**
+
+```yaml
+tasks:
+  - action: gh:username/repository@v1
+```
+
+### `args`
+
+Mapping of values that will be passed to the actions as arguments. This should correspond to [`inputs`](actions-syntax.md#inputs) defined in the action file.
+
+**Example:**
+
+```yaml
+tasks:
+  - action: ws:some-action.yml
+    args:
+      param1: value1          # You can pass constant
+      param2: ${{ flow.id }}  # Or some expresion value 
+```
+
+\*\*\*\*
 
