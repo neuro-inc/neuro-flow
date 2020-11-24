@@ -282,7 +282,67 @@ A _live_ workflow can run jobs by their identifiers using `neuro-flow run <job-i
 
 ### `jobs.<job-id>` <a id="jobs-job-id-env"></a>
 
-Each job must have an id to associate with the job. The key `job-id` is a string and its value is a map of the job's configuration data. You must replace `<job-id>` with a string that is unique to the `jobs` object. The `<job-id>` must start with a letter and contain only alphanumeric characters or `_`. Dash `-` is not allowed.
+Each job must have an id to associate with the job. The key `job-id` is a string and its value is a map of the job's configuration data or action call. You must replace `<job-id>` with a string that is unique to the `jobs` object. The `<job-id>` must start with a letter and contain only alphanumeric characters or `_`. Dash `-` is not allowed.
+
+## Attributes for both jobs and action calls
+
+The attributes in this section can be applied both to plain jobs and action calls. To simplify reading, this section uses the term "job" instead of  "job or action call".
+
+### `jobs.<job-id>.params`
+
+Params is a mapping of key-value pairs that have default value and could be overridden from a command line by using `neuro-flow run <job-id> --param name1 val1 --param name2 val2`
+
+This attribute describes a set of param names accepted by a job and their default values. 
+
+The parameter can be specified in a _short_ and _long_ form.    
+  
+The short form is compact but allows to specify the parameter name and default value only:
+
+```yaml
+jobs:
+  my_job:
+    params:
+      name1: default1
+      name2: ~   # None by default
+      name3: ""  # Empty string by default
+```
+
+The long form allows to point the parameter description also \(can be useful for `neuro-flow run` command introspection, the shell autocompletion, and generation a more verbose error message if needed:
+
+```yaml
+jobs:
+  my_job:
+    params:
+      name1:
+        default: default1
+        descr: The name1 description
+      name2:
+        default: ~
+        descr: The name2 description
+      name3:
+        default: ""
+        descr: The name3 description
+```
+
+Both examples above are equal but the last has parameter descriptions.  
+  
+The params can be used in expressions for calculating other job attributes, e.g. [`jobs.<job-id>.cmd`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-cmd) .
+
+**Example:**
+
+```yaml
+jobs:
+  my_job:
+    params:
+      folder: "."  # search in current folder by default
+      pattern: "*"  # all files by default
+    cmd:
+      find ${{ params.folder }} -name ${{ params.pattern }}
+```
+
+## Attributes for jobs
+
+The attributes in this section are only applicable to the plain jobs, that are executed by running docker images on the Neu.ro platform.
 
 ### `jobs.<job-id>.image`
 
@@ -503,58 +563,6 @@ jobs:
     multi: true
 ```
 
-### `jobs.<job-id>.params`
-
-Params is a mapping of key-value pairs that have default value and could be overridden from a command line by using `neuro-flow run <job-id> --param name1 val1 --param name2 val2`
-
-This attribute describes a set of param names accepted by a job and their default values. 
-
-The parameter can be specified in a _short_ and _long_ form.    
-  
-The short form is compact but allows to specify the parameter name and default value only:
-
-```yaml
-jobs:
-  my_job:
-    params:
-      name1: default1
-      name2: ~   # None by default
-      name3: ""  # Empty string by default
-```
-
-The long form allows to point the parameter description also \(can be useful for `neuro-flow run` command introspection, the shell autocompletion, and generation a more verbose error message if needed:
-
-```yaml
-jobs:
-  my_job:
-    params:
-      name1:
-        default: default1
-        descr: The name1 description
-      name2:
-        default: ~
-        descr: The name2 description
-      name3:
-        default: ""
-        descr: The name3 description
-```
-
-Both examples above are equal but the last has parameter descriptions.  
-  
-The params can be used in expressions for calculating other job attributes, e.g. [`jobs.<job-id>.cmd`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-cmd) .
-
-**Example:**
-
-```yaml
-jobs:
-  my_job:
-    params:
-      folder: "."  # search in current folder by default
-      pattern: "*"  # all files by default
-    cmd:
-      find ${{ params.folder }} -name ${{ params.pattern }}
-```
-
 ### `jobs.<job-id>.pass_config`
 
 Set the attribute to `true` if you want to pass the Neuro current config used to execute `neuro-flow run ...` command into the spawn job. It can be useful if you uses a job image with Neuro CLI installed and want to execute `neuro ...` commands _inside_ the running job.
@@ -652,4 +660,44 @@ jobs:
 The current working dir to use inside the job.
 
 This attribute takes a precedence if set. Otherwise [`defaults.workdir`](live-workflow-syntax.md#defaults-workdir) is used if present. Otherwise a [`WORKDIR`](https://docs.docker.com/engine/reference/builder/#workdir) definition from the image is used.
+
+## Attributes for actions calls
+
+The attributes in this section are only applicable to the action calls. An action is a reusable part that can be integrated into the workflow. Refer to [actions reference](actions-syntax.md) to learn more about actions.
+
+### `action`
+
+The URL that selects the action to run. It supports two schemes: `workspace:` for actions files that are stored locally and `github:` for actions that are bound to the Github repository. Same support short forms: `ws:` and `gh:` , respectively.
+
+The `ws:` scheme expects a valid filesystem path to the action file.
+
+The `gh:` scheme expects the next format `{owner}/{repo}@{tag}`. Here `{owner}` is the owner of the Github repository, `{repo}` is the repository name and `{tag}` is the commit tag. Commit tags are used to allow a versioning of the actions.
+
+**Example of `ws:` scheme**
+
+```yaml
+tasks:
+  - action: ws:path/to/file/some-action.yml
+```
+
+**Example of `gh:` scheme**
+
+```yaml
+tasks:
+  - action: gh:username/repository@v1
+```
+
+### `args`
+
+Mapping of values that will be passed to the actions as arguments. This should correspond to [`inputs`](actions-syntax.md#inputs) defined in the action file.
+
+**Example:**
+
+```yaml
+tasks:
+  - action: ws:some-action.yml
+    args:
+      param1: value1          # You can pass constant
+      param2: ${{ flow.id }}  # Or some expresion value 
+```
 
