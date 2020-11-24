@@ -22,7 +22,6 @@ The `env` context syntax allows you to use the value of an environment variable 
 
 | Property name | Type | Description |
 | :--- | :--- | :--- |
-| `env` | `dict[str, str]` | This context changes for each job. You can access this context from any job. |
 | `env.<env-name>` | `str` | The value of a specific environment variable. |
 
 ### `flow` context
@@ -31,10 +30,10 @@ The `flow`context contains information about the workflow: it's id, title, etc.
 
 | Property name | Type | Description |
 | :--- | :--- | :--- |
-| `flow_id` | `str` | The workflow id. It is auto-calculated from the workflow's YAML filename with a dropped suffix. You can override the property by setting [`flow.id`](live-workflow-syntax.md#id)attribute. |
-| `project_id` | `str` | The project id. See also [the project configuration](project-configuration-syntax.md#id). |
-| `workspace` | `LocalPath` | A path to the workspace \(the root folder of the project\). |
-| `title` | `str` | The workflow title. Set [`flow.title`](live-workflow-syntax.md#title) attribute to override auto-calculated value. |
+| `flow.flow_id` | `str` | The workflow id. It is auto-calculated from the workflow's YAML filename with a dropped suffix. You can override the property by setting [`flow.id`](live-workflow-syntax.md#id)attribute. |
+| `flow.project_id` | `str` | The project id. See also [the project configuration](project-configuration-syntax.md#id). |
+| `flow.workspace` | `LocalPath` | A path to the workspace \(the root folder of the project\). |
+| `flow.title` | `str` | The workflow title. Set [`flow.title`](live-workflow-syntax.md#title) attribute to override auto-calculated value. |
 
 ### `images` context
 
@@ -50,21 +49,21 @@ Contains information about images defined in [`images` section](live-workflow-sy
   </thead>
   <tbody>
     <tr>
-      <td style="text-align:left"><code>id</code>
+      <td style="text-align:left"><code>images.&lt;image-id&gt;.id</code>
       </td>
       <td style="text-align:left"><code>str</code>
       </td>
       <td style="text-align:left">The image definition identifier. For more information, see <a href="live-workflow-syntax.md#images-less-than-image-id-greater-than"><code>images.&lt;image-id&gt;</code></a> section.</td>
     </tr>
     <tr>
-      <td style="text-align:left"><code>ref</code>
+      <td style="text-align:left"><code>images.&lt;image-id&gt;.ref</code>
       </td>
       <td style="text-align:left"><code>str</code>
       </td>
       <td style="text-align:left">The image reference. For more information, see <a href="live-workflow-syntax.md#images-less-than-image-id-greater-than-ref"><code>images.&lt;image-id&gt;.ref</code></a> attribute.</td>
     </tr>
     <tr>
-      <td style="text-align:left"><code>context</code>
+      <td style="text-align:left"><code>images.&lt;image-id&gt;.context</code>
       </td>
       <td style="text-align:left"><code>LocalPath</code> or <code>None</code>
       </td>
@@ -75,14 +74,14 @@ Contains information about images defined in [`images` section](live-workflow-sy
       </td>
     </tr>
     <tr>
-      <td style="text-align:left"><code>full_context_path</code>
+      <td style="text-align:left"><code>images.&lt;image-id&gt;.full_context_path</code>
       </td>
       <td style="text-align:left"><code>LocalPath</code> or <code>None</code>
       </td>
       <td style="text-align:left">The absolute path, pointing on <code>context</code> folder if set.</td>
     </tr>
     <tr>
-      <td style="text-align:left"><code>dockerfile</code>
+      <td style="text-align:left"><code>images.&lt;image-id&gt;.dockerfile</code>
       </td>
       <td style="text-align:left"><code>LocalPath</code>or <code>None</code>
       </td>
@@ -92,14 +91,14 @@ Contains information about images defined in [`images` section](live-workflow-sy
       </td>
     </tr>
     <tr>
-      <td style="text-align:left"><code>full_dockerfile_path</code>
+      <td style="text-align:left"><code>images.&lt;image-id&gt;.full_dockerfile_path</code>
       </td>
       <td style="text-align:left"><code>LocalPath</code> or <code>None</code>
       </td>
       <td style="text-align:left">Full version of <code>dockerfile</code> attribute.</td>
     </tr>
     <tr>
-      <td style="text-align:left"><code>build_args</code>
+      <td style="text-align:left"><code>images.&lt;image-id&gt;.build_args</code>
       </td>
       <td style="text-align:left"><code>list[str]</code>
       </td>
@@ -109,7 +108,7 @@ Contains information about images defined in [`images` section](live-workflow-sy
       </td>
     </tr>
     <tr>
-      <td style="text-align:left"><code>env</code>
+      <td style="text-align:left"><code>images.&lt;image-id&gt;.env</code>
       </td>
       <td style="text-align:left"><code>dict[str, str]</code>
       </td>
@@ -119,7 +118,7 @@ Contains information about images defined in [`images` section](live-workflow-sy
       </td>
     </tr>
     <tr>
-      <td style="text-align:left"><code>volumes</code>
+      <td style="text-align:left"><code>images.&lt;image-id&gt;.volumes</code>
       </td>
       <td style="text-align:left"><code>list[str]</code>
       </td>
@@ -146,7 +145,7 @@ The additional arguments passed to _multi-job_.
   </thead>
   <tbody>
     <tr>
-      <td style="text-align:left"><code>args</code>
+      <td style="text-align:left"><code>multi.args</code>
       </td>
       <td style="text-align:left"><code>str</code>
       </td>
@@ -159,7 +158,7 @@ The additional arguments passed to _multi-job_.
       </td>
     </tr>
     <tr>
-      <td style="text-align:left"><code>suffix</code>
+      <td style="text-align:left"><code>multi.suffix</code>
       </td>
       <td style="text-align:left"><code>str</code>
       </td>
@@ -174,7 +173,6 @@ Parameter described in [`jobs.<job-id>.params` attribute](live-workflow-syntax.m
 
 | Property name | Type | Description |
 | :--- | :--- | :--- |
-| `params` | `dict[str, str]` | This context changes for each job. You can access this context from any job. |
 | `params.<param-name>` | `str` | The value of a specific parameter. |
 
 ### `tags` context
@@ -201,14 +199,14 @@ Contains information about volumes defined in [`volumes` section ](live-workflow
   </thead>
   <tbody>
     <tr>
-      <td style="text-align:left"><code>id</code>
+      <td style="text-align:left"><code>volumes.&lt;volume-id&gt;.id</code>
       </td>
       <td style="text-align:left"><code>str</code>
       </td>
       <td style="text-align:left">The volume definition identifier. For more information, see <a href="live-workflow-syntax.md#volumes-less-than-volume-id-greater-than"><code>volumes.&lt;volume-id&gt;</code> section</a>.</td>
     </tr>
     <tr>
-      <td style="text-align:left"><code>remote</code>
+      <td style="text-align:left"><code>volumes.&lt;volume-id&gt;.remote</code>
       </td>
       <td style="text-align:left"><code>URL</code>
       </td>
@@ -216,7 +214,7 @@ Contains information about volumes defined in [`volumes` section ](live-workflow
         <br />For more information, see <a href="live-workflow-syntax.md#volumes-less-than-volume-id-greater-than-remote"><code>volumes.&lt;volume-id&gt;.remote</code> attribute</a>.</td>
     </tr>
     <tr>
-      <td style="text-align:left"><code>mount</code>
+      <td style="text-align:left"><code>volumes.&lt;volume-id&gt;.mount</code>
       </td>
       <td style="text-align:left"><code>RemotePath</code>
       </td>
@@ -226,7 +224,7 @@ Contains information about volumes defined in [`volumes` section ](live-workflow
       </td>
     </tr>
     <tr>
-      <td style="text-align:left"><code>read_only</code>
+      <td style="text-align:left"><code>volumes.&lt;volume-id&gt;.read_only</code>
       </td>
       <td style="text-align:left"><code>bool</code>
       </td>
@@ -236,7 +234,7 @@ Contains information about volumes defined in [`volumes` section ](live-workflow
       </td>
     </tr>
     <tr>
-      <td style="text-align:left"><code>local</code>
+      <td style="text-align:left"><code>volumes.&lt;volume-id&gt;.local</code>
       </td>
       <td style="text-align:left"><code>LocalPath</code>or <code>None</code>
       </td>
@@ -247,14 +245,14 @@ Contains information about volumes defined in [`volumes` section ](live-workflow
       </td>
     </tr>
     <tr>
-      <td style="text-align:left"><code>full_local_path</code>
+      <td style="text-align:left"><code>volumes.&lt;volume-id&gt;.full_local_path</code>
       </td>
       <td style="text-align:left"><code>LocalPath</code> or <code>None</code>
       </td>
       <td style="text-align:left">Full version of <code>local</code> property.</td>
     </tr>
     <tr>
-      <td style="text-align:left"><code>ref</code>
+      <td style="text-align:left"><code>volumes.&lt;volume-id&gt;.ref</code>
       </td>
       <td style="text-align:left"><code>str</code>
       </td>
@@ -265,14 +263,14 @@ Contains information about volumes defined in [`volumes` section ](live-workflow
       </td>
     </tr>
     <tr>
-      <td style="text-align:left"><code>ref_ro</code>
+      <td style="text-align:left"><code>volumes.&lt;volume-id&gt;.ref_ro</code>
       </td>
       <td style="text-align:left"><code>str</code>
       </td>
       <td style="text-align:left">Like <code>ref</code> but <em>read-only</em> mode is enforced.</td>
     </tr>
     <tr>
-      <td style="text-align:left"><code>ref_rw</code>
+      <td style="text-align:left"><code>volumes.&lt;volume-id&gt;.ref_rw</code>
       </td>
       <td style="text-align:left"><code>str</code>
       </td>

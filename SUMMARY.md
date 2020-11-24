@@ -11,6 +11,7 @@
 * [Expression syntax](reference/expression-syntax.md)
 * [Expression functions](reference/expression-functions.md)
 * [Live contexts](reference/live-contexts.md)
+* [Batch contexts](reference/batch-contexts.md)
 * [Actions syntax](reference/actions-syntax.md)
 * [CLI reference](reference/cli.md)
 

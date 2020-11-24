@@ -22,9 +22,9 @@ A map of default settings that will apply to all jobs in the workflow. You can o
 
 ### `defaults.env`
 
-A mapping of environment variables that are available to all jobs in the workflow. You can also set environment variables that are only available to a job or step. For more information, see [`jobs.<job-id>.env`](live-workflow-syntax.md#jobs-job-id-env-1).
+A mapping of environment variables that are available to all jobs in the workflow. You can also set environment variables that are only available to a job. For more information, see [`jobs.<job-id>.env`](live-workflow-syntax.md#jobs-job-id-env-1).
 
-When more than one environment variable is defined with the same name, `neuro-flow` uses the most specific environment variable. For example, an environment variable defined in a step will override job and workflow variables with the same name, while the step executes. A variable defined for a job will override a workflow variable with the same name, while the job executes.
+When more than one environment variable is defined with the same name, `neuro-flow` uses the most specific environment variable. For example, an environment variable defined in a job will override the workflow default.
 
 **Example**:
 
@@ -473,7 +473,7 @@ jobs:
 
 Sets environment variables for `<job-id>` to use in the executed job. You can also set environment variables for the entire workflow. For more information, see [`defaults.env`](live-workflow-syntax.md#defaults-env).
 
-When more than one environment variable is defined with the same name, `neuro-flow` uses the most specific environment variable. An environment variable defined in a job will override workflow variables with the same name, while the job executes.
+When more than one environment variable is defined with the same name, `neuro-flow` uses the most specific environment variable. For example, an environment variable defined in a task will override the [workflow default](live-workflow-syntax.md#defaults-env).
 
 **Example:**
 
@@ -676,15 +676,17 @@ The `gh:` scheme expects the next format `{owner}/{repo}@{tag}`. Here `{owner}` 
 **Example of `ws:` scheme**
 
 ```yaml
-tasks:
-  - action: ws:path/to/file/some-action.yml
+jobs:
+  my_job:
+    action: ws:path/to/file/some-action.yml
 ```
 
 **Example of `gh:` scheme**
 
 ```yaml
-tasks:
-  - action: gh:username/repository@v1
+jobs:
+  my_job:
+    action: gh:username/repository@v1
 ```
 
 ### `args`
@@ -694,8 +696,8 @@ Mapping of values that will be passed to the actions as arguments. This should c
 **Example:**
 
 ```yaml
-tasks:
-  - action: ws:some-action.yml
+jobs:
+  my_job:
     args:
       param1: value1          # You can pass constant
       param2: ${{ flow.id }}  # Or some expresion value 

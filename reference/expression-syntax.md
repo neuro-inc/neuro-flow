@@ -6,7 +6,7 @@
 
 You can use expressions to programmatically set variables in workflow files and access contexts. An expression can be any combination of literal values, references to a context, or functions. You can combine literals, context references, and functions using operators.
 
-You need to use specific syntax to tell GitHub to evaluate an expression rather than treat it as a string.
+You need to use specific syntax to tell Neuro Flow to evaluate an expression rather than treat it as a string.
 
 ```text
 ${{ <expression> }}

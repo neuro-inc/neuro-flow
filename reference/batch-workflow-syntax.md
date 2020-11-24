@@ -20,6 +20,75 @@ Workflow title.
 
 A map of default settings that will be applied to all tasks in the workflow. You can override these global default settings for a particular task.
 
+### `defaults.env`
+
+A mapping of environment variables that are available to all tasks in the workflow. You can also set environment variables that are only available to a task. For more information, see [`tasks.env`](batch-workflow-syntax.md#jobs-job-id-env).
+
+When more than one environment variable is defined with the same name, `neuro-flow` uses the most specific environment variable. For example, an environment variable defined in a task will override the workflow default.
+
+**Example**:
+
+```yaml
+env:
+  SERVER: production
+```
+
+### `defaults.life_span`
+
+The default life span for jobs run by the workflow. It can be overridden by [`tasks.life_span`](batch-workflow-syntax.md#tasks-life_span). In not set, the default task's life span is 1 day. The value is a float number of seconds \(`3600` for an hour\) or expression in the following format: `1d6h15m` \(1 day 6 hours, 15 minutes\). Use an arbitrary huge value \(e.g. `365d`\) for the life-span disabling emulation \(it can be dangerous, a forgotten task consumes the cluster resources\).
+
+{% hint style="warning" %}
+life span shorter than _1 minute_ is forbidden.
+{% endhint %}
+
+**Example:**
+
+```yaml
+defaults:
+  life_span: 14d
+```
+
+### `defaults.preset`
+
+The default preset name used by all tasks if not overridden by [`tasks.preset`](batch-workflow-syntax.md#tasks-preset).  The system-wide default preset is used if both `defaults.preset` and `tasks.preset` are omitted.
+
+**Example:**
+
+```yaml
+defaults:
+  preset: gpu-small
+```
+
+### `defaults.schedule_timeout`
+
+The default timeout for a task scheduling. See [`tasks.schedule_timeout`](batch-workflow-syntax.md#tasks-schedule_timeout) for more information.  
+
+The attribute accepts either a `float` number of seconds or a string in`1d6h15m45s` \(1 day 6 hours, 15 minutes, 45 seconds\).    
+  
+The cluster-wide timeout is used if both `default.schedule_timeout` and `tasks.schedule_timeout` are omitted.
+
+**Example:**
+
+```yaml
+defaults:
+  schedule_timeout: 1d  # don't fail until tomorrow
+```
+
+### `defaults.tags`
+
+A list of tags that are added to every task created by the workflow. A particular task definition can extend this global list by [`tasks.tags`](batch-workflow-syntax.md#tasks-tags).
+
+**Example:**
+
+```yaml
+defaults:
+  tags: [tag-a, tag-b]
+```
+
+### `defaults.workdir`
+
+The default working directory for tasks spawn by this workflow.  See [`tasks.workdir`](batch-workflow-syntax.md#tasks-workdir) for more information.
+
 ### `defaults.fail_fast`
 
 When set to `true`, the system cancels all in-progress tasks if some task fails. It can be overridden by [`tasks.strategy.fail_fast`](batch-workflow-syntax.md#tasks-strategy-fail_fast). Default: `true`
@@ -507,6 +576,8 @@ tasks:
 
 Sets environment variables to use in the executed task. 
 
+When more than one environment variable is defined with the same name, `neuro-flow` uses the most specific environment variable. For example, an environment variable defined in a task will override the [workflow default](batch-workflow-syntax.md#defaults-env).
+
 **Example:**
 
 ```yaml
@@ -546,7 +617,7 @@ tasks:
   - http_port: 8080
 ```
 
-### `task.life_span`
+### `tasks.life_span`
 
 The time period at the end of the task will be automatically killed.
 
@@ -563,7 +634,7 @@ tasks:
   - life_span: 14d12h
 ```
 
-### `task.name`
+### `tasks.name`
 
 You can specify the task's name if needed.  The name becomes a part of the task's internal hostname and exposed HTTP URL, the task can be controlled by its name when low-level `neuro` tool is used.
 
@@ -625,11 +696,11 @@ task:
     - tag-b
 ```
 
-### `task.title`
+### `tasks.title`
 
 The task title. The title is equal to `<task-id>` if not overridden.
 
-### `task.volumes`
+### `tasks.volumes`
 
 A list of task volumes. You can specify a bare string for the volume reference or use `${{ volumes.<volume-id>.ref }}` expression.
 
@@ -642,7 +713,7 @@ tasks:
     - ${{ volumes.my_volume.ref }}
 ```
 
-### `task.workdir`
+### `tasks.workdir`
 
 The current working dir to use inside the task.
 
@@ -652,7 +723,7 @@ This attribute takes precedence if set. Otherwise a [`WORKDIR`](https://docs.doc
 
 The attributes in this section are only applicable to the action calls. An action is a reusable part that can be integrated into the workflow. Refer to [actions reference](actions-syntax.md) to learn more about actions.
 
-### `action`
+### `tasks.action`
 
 The URL that selects the action to run. It supports two schemes: `workspace:` for actions files that are stored locally and `github:` for actions that are bound to the Github repository. Same support short forms: `ws:` and `gh:` , respectively.
 
@@ -674,7 +745,7 @@ tasks:
   - action: gh:username/repository@v1
 ```
 
-### `args`
+### `tasks.args`
 
 Mapping of values that will be passed to the actions as arguments. This should correspond to [`inputs`](actions-syntax.md#inputs) defined in the action file.
 
@@ -682,8 +753,7 @@ Mapping of values that will be passed to the actions as arguments. This should c
 
 ```yaml
 tasks:
-  - action: ws:some-action.yml
-    args:
+  - args:
       param1: value1          # You can pass constant
       param2: ${{ flow.id }}  # Or some expresion value 
 ```
