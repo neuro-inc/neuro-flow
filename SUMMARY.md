@@ -12,4 +12,5 @@
 * [Expression functions](reference/expression-functions.md)
 * [Live contexts](reference/live-contexts.md)
 * [Actions syntax](reference/actions-syntax.md)
+* [CLI reference](CLI.md)
 
