@@ -61,6 +61,7 @@ def make_descr(
     life_span: float = 3600,
     name: Optional[str] = None,
     container: Optional[Container] = None,
+    pass_config: bool = False,
 ) -> JobDescription:
     if container is None:
         container = Container(RemoteImage("ubuntu"), Resources(100, 0.1))
@@ -90,6 +91,7 @@ def make_descr(
         description=description,
         restart_policy=restart_policy,
         life_span=life_span,
+        pass_config=pass_config,
     )
 
 
@@ -182,6 +184,7 @@ class JobsMock:
         schedule_timeout: Optional[float] = None,
         restart_policy: JobRestartPolicy = JobRestartPolicy.NEVER,
         life_span: Optional[float] = None,
+        pass_config: bool = False,
     ) -> JobDescription:
         job_id = f"job-{self._make_next_id()}"
         self._data[job_id] = JobDescription(
@@ -204,6 +207,7 @@ class JobsMock:
             description=description,
             restart_policy=restart_policy,
             life_span=life_span,
+            pass_config=pass_config,
         )
         return self._data[job_id]
 
