@@ -136,12 +136,12 @@ def generate_markdown(info: CommandInfo, header_prefix: str = "#") -> str:
 
     if info.options:
         md += "**Options:**\n\n"
-        md += "Name | Description|\n"
-        md += "|----|------------|\n"
+        md += "| Name | Description |\n"
+        md += "|------|-------------|\n"
         for option in info.options:
             md += (
-                f"|_{escape_cell(option.pattern.replace('|', ' | '))}_"
-                f"|{escape_cell(option.description)}|"
+                f"| _{escape_cell(option.pattern.replace('|', ' | '))}_ "
+                f"| {escape_cell(option.description)} |"
                 f"\n"
             )
 
@@ -150,13 +150,13 @@ def generate_markdown(info: CommandInfo, header_prefix: str = "#") -> str:
     groups = [child for child in info.children if child.is_group]
     if groups:
         md += "**Command Groups:**\n\n"
-        md += "|Usage|Description|\n"
-        md += "|---|---|\n"
+        md += "| Usage | Description |\n"
+        md += "|-------|-------------|\n"
         for group in groups:
             anchor = group.name
             anchor = "#" + anchor.replace(" ", "-")
             md += (
-                f"| _[{escape_cell(group.name)}]({anchor})_"
+                f"| _[{escape_cell(group.name)}]({anchor})_ "
                 f"| {escape_cell(group.short)} |\n"
             )
         md += "\n\n"
@@ -164,13 +164,13 @@ def generate_markdown(info: CommandInfo, header_prefix: str = "#") -> str:
     commands = [child for child in info.children if not child.is_group]
     if commands:
         md += "**Commands:**\n\n"
-        md += "|Usage|Description|\n"
-        md += "|---|---|\n"
+        md += "| Usage | Description |\n"
+        md += "|-------|-------------|\n"
         for command in commands:
             anchor = command.name
             anchor = "#" + anchor.replace(" ", "-")
             md += (
-                f"| _[{escape_cell(command.name)}]({anchor})_"
+                f"| _[{escape_cell(command.name)}]({anchor})_ "
                 f"| {escape_cell(command.short)} |\n"
             )
         md += "\n\n"
