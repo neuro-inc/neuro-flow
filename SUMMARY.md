@@ -14,4 +14,3 @@
 * [Batch contexts](reference/batch-contexts.md)
 * [Actions syntax](reference/actions-syntax.md)
 * [CLI reference](reference/cli.md)
-

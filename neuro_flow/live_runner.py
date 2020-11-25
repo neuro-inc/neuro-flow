@@ -508,7 +508,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
             sys.exit(3)
         return image_ctx
 
-    async def build(self, image: str) -> None:
+    async def build(self, image: str, force_overwrite: bool) -> None:
         image_ctx = await self.find_image(image)
         cmd = []
         assert image_ctx.full_dockerfile_path is not None
@@ -523,13 +523,15 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
             cmd.append(f"--volume={vol}")
         for k, v in image_ctx.env.items():
             cmd.append(f"--env={k}={v}")
+        if force_overwrite:
+            cmd.append("--force-overwrite")
         if image_ctx.build_preset is not None:
             cmd.append(f"--preset={image_ctx.build_preset}")
         cmd.append(str(image_ctx.full_context_path))
         cmd.append(str(image_ctx.ref))
         await run_subproc("neuro-extras", "image", "build", *cmd)
 
-    async def build_all(self) -> None:
+    async def build_all(self, force_overwrite: bool) -> None:
         for image, image_ctx in self.flow.images.items():
             if image_ctx.context is not None:
-                await self.build(image)
+                await self.build(image, force_overwrite=force_overwrite)
