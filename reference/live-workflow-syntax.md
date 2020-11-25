@@ -682,15 +682,15 @@ The preset name to execute the job with. [`defaults.preset`](live-workflow-synta
 
 ### `jobs.<job-id>.schedule_timeout`
 
-Use this attribute is you want to increase the _schedule timeout_ to prevent the job from fail if the Neu.ro cluster is under high load and requested resources a not available at the moment highly likely.
+Use this attribute if you want to increase the _schedule timeout_ to prevent the job from fail if the Neu.ro cluster is under high load and requested resources a not available at the moment highly likely.
 
-If the Neu.ro cluster has no resources to launch a job immediatelly the job in pushed into the wait queue. If the job is not started yet at the moment of _schedule timeout_ expiration the job is failed.
+If the Neu.ro cluster has no resources to launch a job immediately the job is pushed into the wait queue. If the job is not started yet at the moment of _schedule timeout_ expiration the job is failed.
 
-The default system-wide _schedule timeout_ is controlled by the cluster administrator and usually is about 5-10 minutes. If you want to
+The default system-wide _schedule timeout_ is controlled by the cluster administrator and usually is about 5-10 minutes. 
 
 The attribute accepts either a `float` number of seconds or a string in`1d6h15m45s` \(1 day 6 hours, 15 minutes, 45 seconds\).
 
-See also [`defaults.schedule_timeout`](live-workflow-syntax.md#defaults-schedule_timeout) if you want set the workflow-wide schedule timeout for all jobs.
+See also [`defaults.schedule_timeout`](live-workflow-syntax.md#defaults-schedule_timeout) if you want to set the workflow-wide schedule timeout for all jobs.
 
 **Example:**
 

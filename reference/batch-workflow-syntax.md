@@ -746,7 +746,7 @@ Use this attribute if you want to increase the _schedule timeout_ to prevent the
 
 If the Neu.ro cluster has no resources to launch a task immediately the task is pushed into the wait queue. If the task is not started yet at the moment of _schedule timeout_ expiration the task is failed.
 
-The default system-wide _schedule timeout_ is controlled by the cluster administrator and usually is about 5-10 minutes. If you want to **&lt;MISSING PART&gt;**
+The default system-wide _schedule timeout_ is controlled by the cluster administrator and usually is about 5-10 minutes.
 
 The attribute accepts either a `float` number of seconds or a string in`1d6h15m45s` \(1 day 6 hours, 15 minutes, 45 seconds\).
 
