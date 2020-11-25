@@ -10,11 +10,15 @@ The batch workflow is located at `.neuro/<batch-name>.yml` file under the projec
 
 ## `id`
 
+**Expression contexts:** This attribute cannot contain expressions.
+
 Identifier of the workflow. By default, the `id` is the filename of the workflow config without extension with hyphens \(`-`\) replaced with underscores \(`_`\).
 
 ## `title`
 
 Workflow title.
+
+**Expression contexts:** This attribute only allows expressions that do not access contexts. 
 
 ## `defaults`
 
@@ -33,6 +37,8 @@ env:
   SERVER: production
 ```
 
+**Expression contexts:** [`flow` context](batch-contexts.md#flow-context), [`params` context](batch-contexts.md#params-context).
+
 ### `defaults.life_span`
 
 The default life span for jobs run by the workflow. It can be overridden by [`tasks.life_span`](batch-workflow-syntax.md#tasks-life_span). In not set, the default task's life span is 1 day. The value is a float number of seconds \(`3600` for an hour\) or expression in the following format: `1d6h15m` \(1 day 6 hours, 15 minutes\). Use an arbitrary huge value \(e.g. `365d`\) for the life-span disabling emulation \(it can be dangerous, a forgotten task consumes the cluster resources\).
@@ -48,9 +54,11 @@ defaults:
   life_span: 14d
 ```
 
+**Expression contexts:** [`flow` context](batch-contexts.md#flow-context), [`params` context](batch-contexts.md#params-context).
+
 ### `defaults.preset`
 
-The default preset name used by all tasks if not overridden by [`tasks.preset`](batch-workflow-syntax.md#tasks-preset).  The system-wide default preset is used if both `defaults.preset` and `tasks.preset` are omitted.
+The default preset name used by all tasks if not overridden by [`tasks.preset`](batch-workflow-syntax.md#tasks-preset). The system-wide default preset is used if both `defaults.preset` and `tasks.preset` are omitted.
 
 **Example:**
 
@@ -59,12 +67,14 @@ defaults:
   preset: gpu-small
 ```
 
+**Expression contexts:** [`flow` context](batch-contexts.md#flow-context), [`params` context](batch-contexts.md#params-context).
+
 ### `defaults.schedule_timeout`
 
-The default timeout for a task scheduling. See [`tasks.schedule_timeout`](batch-workflow-syntax.md#tasks-schedule_timeout) for more information.  
+The default timeout for a task scheduling. See [`tasks.schedule_timeout`](batch-workflow-syntax.md#tasks-schedule_timeout) for more information.
 
-The attribute accepts either a `float` number of seconds or a string in`1d6h15m45s` \(1 day 6 hours, 15 minutes, 45 seconds\).    
-  
+The attribute accepts either a `float` number of seconds or a string in`1d6h15m45s` \(1 day 6 hours, 15 minutes, 45 seconds\).
+
 The cluster-wide timeout is used if both `default.schedule_timeout` and `tasks.schedule_timeout` are omitted.
 
 **Example:**
@@ -73,6 +83,8 @@ The cluster-wide timeout is used if both `default.schedule_timeout` and `tasks.s
 defaults:
   schedule_timeout: 1d  # don't fail until tomorrow
 ```
+
+**Expression contexts:** [`flow` context](batch-contexts.md#flow-context), [`params` context](batch-contexts.md#params-context).
 
 ### `defaults.tags`
 
@@ -87,7 +99,9 @@ defaults:
 
 ### `defaults.workdir`
 
-The default working directory for tasks spawn by this workflow.  See [`tasks.workdir`](batch-workflow-syntax.md#tasks-workdir) for more information.
+The default working directory for tasks spawn by this workflow. See [`tasks.workdir`](batch-workflow-syntax.md#tasks-workdir) for more information.
+
+**Expression contexts:** [`flow` context](batch-contexts.md#flow-context), [`params` context](batch-contexts.md#params-context).
 
 ### `defaults.fail_fast`
 
@@ -100,6 +114,8 @@ defaults:
   fail_fast: false
 ```
 
+**Expression contexts:** [`flow` context](batch-contexts.md#flow-context), [`params` context](batch-contexts.md#params-context), [`env` context](batch-contexts.md#env-context), [`tags` context](batch-contexts.md#tags-context), [`volumes` context](batch-contexts.md#volumes-context), [`images` context](batch-contexts.md#images-context).
+
 ### `defaults.max_parallel`
 
 The maximum number of tasks that can run simultaneously during flow execution. By default, there is no limit.
@@ -110,6 +126,8 @@ The maximum number of tasks that can run simultaneously during flow execution. B
 defaults:
   max_parallel: 4
 ```
+
+**Expression contexts:** [`flow` context](batch-contexts.md#flow-context), [`params` context](batch-contexts.md#params-context), [`env` context](batch-contexts.md#env-context), [`tags` context](batch-contexts.md#tags-context), [`volumes` context](batch-contexts.md#volumes-context), [`images` context](batch-contexts.md#images-context).
 
 ### `defaults.cache`
 
@@ -131,29 +149,33 @@ cache:
     strategy: "default"
 ```
 
+**Expression contexts:** [`flow` context](batch-contexts.md#flow-context), [`params` context](batch-contexts.md#params-context), [`env` context](batch-contexts.md#env-context), [`tags` context](batch-contexts.md#tags-context), [`volumes` context](batch-contexts.md#volumes-context), [`images` context](batch-contexts.md#images-context).
+
 ### `defaults.cache.life_span`
 
 The default cache invalidation duration. The attribute accepts either a `float` number of seconds or a string in`1d6h15m45s` \(1 day 6 hours, 15 minutes, 45 seconds\). Default: `14d` \(two weeks\)
 
 {% hint style="info" %}
-If you decrease this value and re-run flow, `neuro-flow` will ignore cache entries that were added more than the new value of`cache.life_span` seconds ago.  
+If you decrease this value and re-run flow, `neuro-flow` will ignore cache entries that were added more than the new value of`cache.life_span` seconds ago.
 {% endhint %}
 
 **Example:**
 
 ```yaml
 cache:
-  life_span: 31d # Cache is valid for one month 
+  life_span: 31d # Cache is valid for one month
 ```
+
+**Expression contexts:** [`flow` context](batch-contexts.md#flow-context), [`params` context](batch-contexts.md#params-context), [`env` context](batch-contexts.md#env-context), [`tags` context](batch-contexts.md#tags-context), [`volumes` context](batch-contexts.md#volumes-context), [`images` context](batch-contexts.md#images-context).
 
 ## `params`
 
-Params is a mapping of key-value pairs that have default value and could be overridden from a command line by using `neuro-flow bake <batch-id> --param name1 val1 --param name2 val2`
+Mapping of key-value pairs that have default value and could be overridden from a command line by using `neuro-flow bake <batch-id> --param name1 val1 --param name2 val2`
 
-This attribute describes a set of param names accepted by a flow and their default values. 
+This attribute describes a set of param names accepted by a flow and their default values.
 
-The parameter can be specified in a _short_ and _long_ form.    
-  
+The parameter can be specified in a _short_ and _long_ form.
+
 The short form is compact but allows to specify the parameter name and default value only:
 
 ```yaml
@@ -180,11 +202,13 @@ params:
 
 Both examples above are equal but the last has parameter descriptions.
 
+**Expression contexts:** This attribute only allows expressions that do not access contexts. 
+
 ## `images`
 
 A mapping of image definitions used by this workflow.
 
-Unlike _live_ flow images, _batch_ flow images cannot be build using `neuro-flow build <image-id>`. 
+Unlike _live_ flow images, _batch_ flow images cannot be build using `neuro-flow build <image-id>`.
 
 {% hint style="info" %}
 The `images` section is not required, a task can specify the image name as a plain string without referring to `${{ images.my_image.ref }}` context.
@@ -210,7 +234,7 @@ The key `image-id` is a string and its value is a map of the tasks configuration
 
 **Required** Image _reference_ that can be used in `tasks.image` expression.
 
-You can use the image definition to _address_ images hosted ether on Neu.ro registry or [_Docker Hub_](https://hub.docker.com/search?q=&type=image). 
+You can use the image definition to _address_ images hosted ether on Neu.ro registry or [_Docker Hub_](https://hub.docker.com/search?q=&type=image).
 
 **Example:**
 
@@ -219,14 +243,16 @@ images:
   my_image:
     ref: image:my_image:latest # Neu.ro registry hosted iamge 
   python:
-    ref: python:3.9.0 # Docker Hub hosted image 
+    ref: python:3.9.0 # Docker Hub hosted image
 ```
+
+**Expression contexts:** [`flow` context](batch-contexts.md#flow-context), [`params` context](batch-contexts.md#params-context).
 
 ## `volumes`
 
 A mapping of volume definitions available in this workflow. A volume defines a link between the Neu.ro storage folder and a remote folder that can be mounted to a task.
 
-Unlike _live_ flow volumes,  _batch_ flow volumes **cannot** be synchronized by `neuro-flow upload` and `neuro-flow download` commands.  They can only be mounted to a task by using `task.volumes` attribute.
+Unlike _live_ flow volumes, _batch_ flow volumes **cannot** be synchronized by `neuro-flow upload` and `neuro-flow download` commands. They can only be mounted to a task by using `task.volumes` attribute.
 
 {% hint style="danger" %}
 The following fields are disabled in _batch_ flow and will cause an error:
@@ -250,6 +276,8 @@ volumes:
     remote: storage:path/to/folder
 ```
 
+**Expression contexts:** [`flow` context](batch-contexts.md#flow-context), [`params` context](batch-contexts.md#params-context).
+
 ### `volumes.<volume-id>.mount`
 
 **Required** The mount path inside a task.
@@ -262,6 +290,8 @@ volumes:
     mount: /mnt/folder
 ```
 
+**Expression contexts:** [`flow` context](batch-contexts.md#flow-context), [`params` context](batch-contexts.md#params-context).
+
 ### `volumes.<volume-id>.read_only`
 
 The volume is mounted as _read-only_ by default if the attribute is set, _read-write_ mode is used otherwise.
@@ -273,6 +303,8 @@ volumes:
   folder:
     read_only: true
 ```
+
+**Expression contexts:** [`flow` context](batch-contexts.md#flow-context), [`params` context](batch-contexts.md#params-context).
 
 ## `tasks`
 
@@ -289,15 +321,17 @@ tasks:
 
 ## Attributes for both tasks and action calls
 
-The attributes in this section can be applied both to plain tasks and action calls. To simplify reading, this section uses the term "task" instead of  "task or action call".
+The attributes in this section can be applied both to plain tasks and action calls. To simplify reading, this section uses the term "task" instead of "task or action call".
 
 ### `tasks.id`
 
- A unique identifier for the task. It is used to reference the task in [`tasks.needs`](batch-workflow-syntax.md#tasks-needs). The value must start with a letter and contain only alphanumeric characters or underscore \(`_`\). Dash \(`-`\) is not allowed. 
+A unique identifier for the task. It is used to reference the task in [`tasks.needs`](batch-workflow-syntax.md#tasks-needs). The value must start with a letter and contain only alphanumeric characters or underscore \(`_`\). Dash \(`-`\) is not allowed.
 
 {% hint style="info" %}
 It is impossible to refer to tasks without an id inside the workflow file, but you can refer to them as `task-<num>`in the command line output. The `<num>` here is an index in the [`tasks`](batch-workflow-syntax.md#tasks) list.
 {% endhint %}
+
+**Expression contexts:**  [`matrix` context](batch-contexts.md#matrix-context).
 
 ### `tasks.needs`
 
@@ -322,8 +356,8 @@ In this case, tasks will be executed in the following order:
 2. task\_2
 3. task\_3
 
-The order is the same as with the default behavior \(without `needs`\).  
-  
+The order is the same as with the default behavior \(without `needs`\).
+
 **Example 2:**
 
 ```yaml
@@ -344,6 +378,8 @@ In this case, tasks will be executed in the following order:
 You can use `neuro-flow inspect --view BAKE_ID` to view the graph of running batch tasks rendered to pdf.
 {% endhint %}
 
+**Expression contexts:**  [`matrix` context](batch-contexts.md#matrix-context).
+
 ### `tasks.enable`
 
 The flag to conditionally prevent a task from running unless a condition is met. To learn how to write conditions refer to [expression syntax](expression-syntax.md). Default: `${{ success() }}`
@@ -356,9 +392,11 @@ tasks:
   - enable: ${{ flow.id == "some-value" }} # Simple condition
 ```
 
+**Expression contexts:** [`flow` context](batch-contexts.md#flow-context), [`params` context](batch-contexts.md#params-context), [`env` context](batch-contexts.md#env-context), [`tags` context](batch-contexts.md#tags-context), [`volumes` context](batch-contexts.md#volumes-context), [`images` context](batch-contexts.md#images-context), [`matrix` context](batch-contexts.md#matrix-context), [`strategy` context](batch-contexts.md#strategy-context), [`needs` context](batch-contexts.md#needs-context).
+
 ### `tasks.strategy`
 
-A mapping that defines a matrix and some auxiliary attributes to run multiple instances of the same task. 
+A mapping that defines a matrix and some auxiliary attributes to run multiple instances of the same task.
 
 ### `tasks.strategy.matrix`
 
@@ -391,6 +429,8 @@ In this example task with ids `a_x`, `a_y`,`b_x`, `b_y` will be generated.
 Auto-generated id with for matrix tasks will suffix in form of `-<param-1>-<param-2>`
 {% endhint %}
 
+**Expression contexts:** Matrix values only allows expressions that do not access contexts. 
+
 ### `tasks.strategy.matrix.exclude`
 
 Exclude is a list of combinations to remove from the matrix. These entries can be partial, in this case all matching combinations are excluded.
@@ -414,6 +454,8 @@ strategy:
 
 In this example task with ids `a_x_2`, `a_y_1`,`a_y_2`, `b_x_1` , `b_x_2` will be generated.
 
+**Expression contexts:** Matrix values only allows expressions that do not access contexts. 
+
 ### `tasks.strategy.matrix.include`
 
 Include is a list of combinations to add to the matrix. These entries cannot be partial. In case [`exclude`](batch-workflow-syntax.md#tasks-strategy-matrix-exclude) is also present, `include` will be applied after it.
@@ -433,17 +475,23 @@ strategy:
 
 In this example task with ids `a_x`, `a_y`,`b_x`, `b_y` , `a_z` will be generated.
 
+**Expression contexts:** Matrix values only allows expressions that do not access contexts. 
+
 ### `tasks.strategy.fail_fast`
 
 When set to `true`, the system cancels all in-progress tasks if this task or any of its matrix tasks fails. Default: `true`
+
+**Expression contexts:** [`flow` context](batch-contexts.md#flow-context), [`params` context](batch-contexts.md#params-context), [`env` context](batch-contexts.md#env-context), [`tags` context](batch-contexts.md#tags-context), [`volumes` context](batch-contexts.md#volumes-context), [`images` context](batch-contexts.md#images-context), [`strategy` context](batch-contexts.md#strategy-context) \(contains flow global values\).
 
 ### `tasks.strategy.max_parallel`
 
 The maximum number of matrix tasks that can run simultaneously. By default, there is no limit.
 
+**Expression contexts:** [`flow` context](batch-contexts.md#flow-context), [`params` context](batch-contexts.md#params-context), [`env` context](batch-contexts.md#env-context), [`tags` context](batch-contexts.md#tags-context), [`volumes` context](batch-contexts.md#volumes-context), [`images` context](batch-contexts.md#images-context), [`strategy` context](batch-contexts.md#strategy-context) \(contains flow global values\).
+
 ### `tasks.cache`
 
-A mapping that defines how caching of this task outputs works. 
+A mapping that defines how caching of this task outputs works.
 
 ### `tasks.cache.strategy`
 
@@ -462,12 +510,14 @@ cache:
     strategy: "none"
 ```
 
+**Expression contexts:** [`flow` context](batch-contexts.md#flow-context), [`params` context](batch-contexts.md#params-context), [`env` context](batch-contexts.md#env-context), [`tags` context](batch-contexts.md#tags-context), [`volumes` context](batch-contexts.md#volumes-context), [`images` context](batch-contexts.md#images-context), [`matrix` context](batch-contexts.md#matrix-context), [`strategy` context](batch-contexts.md#strategy-context).
+
 ### `tasks.cache.life_span`
 
 The cache invalidation duration. The attribute accepts either a `float` number of seconds or a string in`1d6h15m45s` \(1 day 6 hours, 15 minutes, 45 seconds\). Defaults to [`defaults.cache.life_span`](batch-workflow-syntax.md#defaults-cache-life_span) if not specified.
 
 {% hint style="info" %}
-If you decrease this value and re-run flow, `neuro-flow` will ignore cache entries that were added more than the new value of`cache.life_span` seconds ago.  
+If you decrease this value and re-run flow, `neuro-flow` will ignore cache entries that were added more than the new value of`cache.life_span` seconds ago.
 {% endhint %}
 
 **Example:**
@@ -477,9 +527,11 @@ cache:
   life_span: 31d # Cache is valid for one month
 ```
 
+**Expression contexts:** [`flow` context](batch-contexts.md#flow-context), [`params` context](batch-contexts.md#params-context), [`env` context](batch-contexts.md#env-context), [`tags` context](batch-contexts.md#tags-context), [`volumes` context](batch-contexts.md#volumes-context), [`images` context](batch-contexts.md#images-context), [`matrix` context](batch-contexts.md#matrix-context), [`strategy` context](batch-contexts.md#strategy-context).
+
 ## Attributes for tasks
 
-The attributes in this section are only applicable to the plain tasks, that are executed by running docker images on the Neu.ro platform. 
+The attributes in this section are only applicable to the plain tasks, that are executed by running docker images on the Neu.ro platform.
 
 ### `tasks.image`
 
@@ -501,6 +553,8 @@ tasks:
   - image: ${{ images.my_image.ref }}
 ```
 
+**Expression contexts:** [`flow` context](batch-contexts.md#flow-context), [`params` context](batch-contexts.md#params-context), [`env` context](batch-contexts.md#env-context), [`tags` context](batch-contexts.md#tags-context), [`volumes` context](batch-contexts.md#volumes-context), [`images` context](batch-contexts.md#images-context), [`matrix` context](batch-contexts.md#matrix-context), [`strategy` context](batch-contexts.md#strategy-context), [`needs` context](batch-contexts.md#needs-context).
+
 ### `tasks.cmd`
 
 A tasks executes either a _command_, or _bash_ script, or _python_ script. The `cmd`, `bash,` and `python` are **mutually exclusive**: only one of three is allowed. If none of these three attributes are specified the [`CMD`](https://docs.docker.com/engine/reference/builder/#cmd) from the [`tasks.image`](batch-workflow-syntax.md#tasks-image) is used.
@@ -514,9 +568,11 @@ tasks:
   - cmd: tensorboard --host=0.0.0.0
 ```
 
+**Expression contexts:** [`flow` context](batch-contexts.md#flow-context), [`params` context](batch-contexts.md#params-context), [`env` context](batch-contexts.md#env-context), [`tags` context](batch-contexts.md#tags-context), [`volumes` context](batch-contexts.md#volumes-context), [`images` context](batch-contexts.md#images-context), [`matrix` context](batch-contexts.md#matrix-context), [`strategy` context](batch-contexts.md#strategy-context), [`needs` context](batch-contexts.md#needs-context).
+
 ### `tasks.bash`
 
-The attribute contains a `bash` script to run. 
+The attribute contains a `bash` script to run.
 
 Using `cmd` to run bash script is tedious: you need to apply quotas to the executed script and setup the proper bash flags to fail on error.
 
@@ -540,11 +596,13 @@ tasks:
       done
 ```
 
+**Expression contexts:** [`flow` context](batch-contexts.md#flow-context), [`params` context](batch-contexts.md#params-context), [`env` context](batch-contexts.md#env-context), [`tags` context](batch-contexts.md#tags-context), [`volumes` context](batch-contexts.md#volumes-context), [`images` context](batch-contexts.md#images-context), [`matrix` context](batch-contexts.md#matrix-context), [`strategy` context](batch-contexts.md#strategy-context), [`needs` context](batch-contexts.md#needs-context).
+
 ### `tasks.python`
 
 The attribute contains a `python` script to run.
 
-Python is the language number one for modern scientific calculations.  If you prefer writing simple inlined commands in `python` instead  of `bash` this notation is developed for you.
+Python is the language number one for modern scientific calculations. If you prefer writing simple inlined commands in `python` instead of `bash` this notation is developed for you.
 
 The `python` attribute is essentially a shortcut for `cmd: python3 -uc <shell_quoted_attr>` .
 
@@ -561,9 +619,11 @@ tasks:
       print("The Python version is", sys.version)
 ```
 
+**Expression contexts:** [`flow` context](batch-contexts.md#flow-context), [`params` context](batch-contexts.md#params-context), [`env` context](batch-contexts.md#env-context), [`tags` context](batch-contexts.md#tags-context), [`volumes` context](batch-contexts.md#volumes-context), [`images` context](batch-contexts.md#images-context), [`matrix` context](batch-contexts.md#matrix-context), [`strategy` context](batch-contexts.md#strategy-context), [`needs` context](batch-contexts.md#needs-context).
+
 ### `tasks.entrypoint`
 
-You can override the Docker image [`ENTRYPOINT`](https://docs.docker.com/engine/reference/builder/#entrypoint) if needed  or sets it if one wasn't already specified. Unlike the Docker `ENTRYPOINT` instruction which has a shell and exec form, `entrypoint` attribute accepts only a single string defining the executable to be run.
+You can override the Docker image [`ENTRYPOINT`](https://docs.docker.com/engine/reference/builder/#entrypoint) if needed or sets it if one wasn't already specified. Unlike the Docker `ENTRYPOINT` instruction which has a shell and exec form, `entrypoint` attribute accepts only a single string defining the executable to be run.
 
 **Example:**
 
@@ -572,9 +632,11 @@ tasks:
   - entrypoint: sh -c "Echo $HOME"
 ```
 
+**Expression contexts:** [`flow` context](batch-contexts.md#flow-context), [`params` context](batch-contexts.md#params-context), [`env` context](batch-contexts.md#env-context), [`tags` context](batch-contexts.md#tags-context), [`volumes` context](batch-contexts.md#volumes-context), [`images` context](batch-contexts.md#images-context), [`matrix` context](batch-contexts.md#matrix-context), [`strategy` context](batch-contexts.md#strategy-context), [`needs` context](batch-contexts.md#needs-context).
+
 ### `tasks.env` <a id="jobs-job-id-env"></a>
 
-Sets environment variables to use in the executed task. 
+Sets environment variables to use in the executed task.
 
 When more than one environment variable is defined with the same name, `neuro-flow` uses the most specific environment variable. For example, an environment variable defined in a task will override the [workflow default](batch-workflow-syntax.md#defaults-env).
 
@@ -586,6 +648,8 @@ tasks:
       ENV1: val1
       ENV2: val2
 ```
+
+**Expression contexts:** [`flow` context](batch-contexts.md#flow-context), [`params` context](batch-contexts.md#params-context), [`env` context](batch-contexts.md#env-context), [`tags` context](batch-contexts.md#tags-context), [`volumes` context](batch-contexts.md#volumes-context), [`images` context](batch-contexts.md#images-context), [`matrix` context](batch-contexts.md#matrix-context), [`strategy` context](batch-contexts.md#strategy-context), [`needs` context](batch-contexts.md#needs-context).
 
 ### `tasks.http_auth`
 
@@ -602,6 +666,8 @@ tasks:
   - http_auth: false
 ```
 
+**Expression contexts:** [`flow` context](batch-contexts.md#flow-context), [`params` context](batch-contexts.md#params-context), [`env` context](batch-contexts.md#env-context), [`tags` context](batch-contexts.md#tags-context), [`volumes` context](batch-contexts.md#volumes-context), [`images` context](batch-contexts.md#images-context), [`matrix` context](batch-contexts.md#matrix-context), [`strategy` context](batch-contexts.md#strategy-context), [`needs` context](batch-contexts.md#needs-context).
+
 ### `tasks.http_port`
 
 The task HTTP port number to expose globally.
@@ -616,6 +682,8 @@ You may want to expose a different local port. Use `0` to disable the feature en
 tasks:
   - http_port: 8080
 ```
+
+**Expression contexts:** [`flow` context](batch-contexts.md#flow-context), [`params` context](batch-contexts.md#params-context), [`env` context](batch-contexts.md#env-context), [`tags` context](batch-contexts.md#tags-context), [`volumes` context](batch-contexts.md#volumes-context), [`images` context](batch-contexts.md#images-context), [`matrix` context](batch-contexts.md#matrix-context), [`strategy` context](batch-contexts.md#strategy-context), [`needs` context](batch-contexts.md#needs-context).
 
 ### `tasks.life_span`
 
@@ -634,9 +702,11 @@ tasks:
   - life_span: 14d12h
 ```
 
+**Expression contexts:** [`flow` context](batch-contexts.md#flow-context), [`params` context](batch-contexts.md#params-context), [`env` context](batch-contexts.md#env-context), [`tags` context](batch-contexts.md#tags-context), [`volumes` context](batch-contexts.md#volumes-context), [`images` context](batch-contexts.md#images-context), [`matrix` context](batch-contexts.md#matrix-context), [`strategy` context](batch-contexts.md#strategy-context), [`needs` context](batch-contexts.md#needs-context).
+
 ### `tasks.name`
 
-You can specify the task's name if needed.  The name becomes a part of the task's internal hostname and exposed HTTP URL, the task can be controlled by its name when low-level `neuro` tool is used.
+You can specify the task's name if needed. The name becomes a part of the task's internal hostname and exposed HTTP URL, the task can be controlled by its name when low-level `neuro` tool is used.
 
 The name is _optional_, `neuro-flow` tool doesn't need it.
 
@@ -646,6 +716,8 @@ The name is _optional_, `neuro-flow` tool doesn't need it.
 task:
   - name: my-name
 ```
+
+**Expression contexts:** [`flow` context](batch-contexts.md#flow-context), [`params` context](batch-contexts.md#params-context), [`env` context](batch-contexts.md#env-context), [`tags` context](batch-contexts.md#tags-context), [`volumes` context](batch-contexts.md#volumes-context), [`images` context](batch-contexts.md#images-context), [`matrix` context](batch-contexts.md#matrix-context), [`strategy` context](batch-contexts.md#strategy-context), [`needs` context](batch-contexts.md#needs-context).
 
 ### `tasks.pass_config`
 
@@ -660,17 +732,21 @@ tasks:
   - pass_config: true
 ```
 
+**Expression contexts:** [`flow` context](batch-contexts.md#flow-context), [`params` context](batch-contexts.md#params-context), [`env` context](batch-contexts.md#env-context), [`tags` context](batch-contexts.md#tags-context), [`volumes` context](batch-contexts.md#volumes-context), [`images` context](batch-contexts.md#images-context), [`matrix` context](batch-contexts.md#matrix-context), [`strategy` context](batch-contexts.md#strategy-context), [`needs` context](batch-contexts.md#needs-context).
+
 ### `tasks.preset`
 
-The preset name to execute the task with. 
+The preset name to execute the task with.
+
+**Expression contexts:** [`flow` context](batch-contexts.md#flow-context), [`params` context](batch-contexts.md#params-context), [`env` context](batch-contexts.md#env-context), [`tags` context](batch-contexts.md#tags-context), [`volumes` context](batch-contexts.md#volumes-context), [`images` context](batch-contexts.md#images-context), [`matrix` context](batch-contexts.md#matrix-context), [`strategy` context](batch-contexts.md#strategy-context), [`needs` context](batch-contexts.md#needs-context).
 
 ### `tasks.schedule_timeout`
 
-Use this attribute if you want to increase the _schedule timeout_ to prevent the task from failing if the Neu.ro cluster is under high load and requested resources a not available at the moment highly likely.  
+Use this attribute if you want to increase the _schedule timeout_ to prevent the task from failing if the Neu.ro cluster is under high load and requested resources a not available at the moment highly likely.
 
 If the Neu.ro cluster has no resources to launch a task immediately the task is pushed into the wait queue. If the task is not started yet at the moment of _schedule timeout_ expiration the task is failed.
 
-The default system-wide _schedule timeout_ is controlled by the cluster administrator and usually is about 5-10 minutes.  If you want to **&lt;MISSING PART&gt;**
+The default system-wide _schedule timeout_ is controlled by the cluster administrator and usually is about 5-10 minutes. If you want to **&lt;MISSING PART&gt;**
 
 The attribute accepts either a `float` number of seconds or a string in`1d6h15m45s` \(1 day 6 hours, 15 minutes, 45 seconds\).
 
@@ -681,11 +757,13 @@ tasks:
   - schedule_timeout: 1d  # don't fail until tomorrow
 ```
 
+**Expression contexts:** [`flow` context](batch-contexts.md#flow-context), [`params` context](batch-contexts.md#params-context), [`env` context](batch-contexts.md#env-context), [`tags` context](batch-contexts.md#tags-context), [`volumes` context](batch-contexts.md#volumes-context), [`images` context](batch-contexts.md#images-context), [`matrix` context](batch-contexts.md#matrix-context), [`strategy` context](batch-contexts.md#strategy-context), [`needs` context](batch-contexts.md#needs-context).
+
 ### `tasks.tags`
 
-A list of additional task tags. 
+A list of additional task tags.
 
-Each task is tagged. The tasks tags are from tags enumerated by this attribute and system tags \(`project:<project-id>`, `flow:<flow-id>` and `task:<task-id>`\). 
+Each task is tagged. The tasks tags are from tags enumerated by this attribute and system tags \(`project:<project-id>`, `flow:<flow-id>` and `task:<task-id>`\).
 
 **Example:**
 
@@ -696,9 +774,13 @@ task:
     - tag-b
 ```
 
+**Expression contexts:** [`flow` context](batch-contexts.md#flow-context), [`params` context](batch-contexts.md#params-context), [`env` context](batch-contexts.md#env-context), [`tags` context](batch-contexts.md#tags-context), [`volumes` context](batch-contexts.md#volumes-context), [`images` context](batch-contexts.md#images-context), [`matrix` context](batch-contexts.md#matrix-context), [`strategy` context](batch-contexts.md#strategy-context), [`needs` context](batch-contexts.md#needs-context).
+
 ### `tasks.title`
 
 The task title. The title is equal to `<task-id>` if not overridden.
+
+**Expression contexts:** [`flow` context](batch-contexts.md#flow-context), [`params` context](batch-contexts.md#params-context), [`env` context](batch-contexts.md#env-context), [`tags` context](batch-contexts.md#tags-context), [`volumes` context](batch-contexts.md#volumes-context), [`images` context](batch-contexts.md#images-context), [`matrix` context](batch-contexts.md#matrix-context), [`strategy` context](batch-contexts.md#strategy-context), [`needs` context](batch-contexts.md#needs-context).
 
 ### `tasks.volumes`
 
@@ -713,11 +795,15 @@ tasks:
     - ${{ volumes.my_volume.ref }}
 ```
 
+**Expression contexts:** [`flow` context](batch-contexts.md#flow-context), [`params` context](batch-contexts.md#params-context), [`env` context](batch-contexts.md#env-context), [`tags` context](batch-contexts.md#tags-context), [`volumes` context](batch-contexts.md#volumes-context), [`images` context](batch-contexts.md#images-context), [`matrix` context](batch-contexts.md#matrix-context), [`strategy` context](batch-contexts.md#strategy-context), [`needs` context](batch-contexts.md#needs-context).
+
 ### `tasks.workdir`
 
 The current working dir to use inside the task.
 
 This attribute takes precedence if set. Otherwise a [`WORKDIR`](https://docs.docker.com/engine/reference/builder/#workdir) definition from the image is used.
+
+**Expression contexts:** [`flow` context](batch-contexts.md#flow-context), [`params` context](batch-contexts.md#params-context), [`env` context](batch-contexts.md#env-context), [`tags` context](batch-contexts.md#tags-context), [`volumes` context](batch-contexts.md#volumes-context), [`images` context](batch-contexts.md#images-context), [`matrix` context](batch-contexts.md#matrix-context), [`strategy` context](batch-contexts.md#strategy-context), [`needs` context](batch-contexts.md#needs-context).
 
 ## Attributes for actions calls
 
@@ -745,6 +831,8 @@ tasks:
   - action: gh:username/repository@v1
 ```
 
+**Expression contexts:** This attribute only allows expressions that do not access contexts. 
+
 ### `tasks.args`
 
 Mapping of values that will be passed to the actions as arguments. This should correspond to [`inputs`](actions-syntax.md#inputs) defined in the action file.
@@ -755,7 +843,8 @@ Mapping of values that will be passed to the actions as arguments. This should c
 tasks:
   - args:
       param1: value1          # You can pass constant
-      param2: ${{ flow.id }}  # Or some expresion value 
+      param2: ${{ flow.id }}  # Or some expresion value
 ```
 
-\*\*\*\*
+**Expression contexts:** [`flow` context](batch-contexts.md#flow-context), [`params` context](batch-contexts.md#params-context), [`env` context](batch-contexts.md#env-context), [`tags` context](batch-contexts.md#tags-context), [`volumes` context](batch-contexts.md#volumes-context), [`images` context](batch-contexts.md#images-context), [`matrix` context](batch-contexts.md#matrix-context), [`strategy` context](batch-contexts.md#strategy-context), [`needs` context](batch-contexts.md#needs-context).
+

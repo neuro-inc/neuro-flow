@@ -11,3 +11,4 @@ The [_live_](live-workflow-syntax.md#live-workflow) workflow is executed locally
 The typical job is executing a Jupyter Notebook server in the cloud on a powerful node with a lot of memory and high-performant GPU and opening a browser with a Jupyter web-client connected to this server.
 
 The [_batch_](batch-workflow-syntax.md) workflow is for the orchestration of a set of remote tasks that depend on each other. The _batch_ workflow is executed by the main job that manages the workflow's graph by spawning required jobs, waiting for their results, and starting dependent tasks when all pre-requirements are satisfied.
+
