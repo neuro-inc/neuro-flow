@@ -1,1 +1,0 @@
-Fix ``hash_files()`` function: it is faster, hashes the whole file instead of the first 256 KiB, and includes processed filenames into the hash.
