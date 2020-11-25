@@ -402,13 +402,23 @@ def parse_project_stream(stream: TextIO) -> ast.Project:
 
 
 def make_default_project(workspace_stem: str) -> ast.Project:
+    project_id = workspace_stem.replace("-", "_")
+    if not project_id.isidentifier():
+        raise ValueError(
+            f'Workspace directory name "{workspace_stem}" is invalid identifier'
+        )
+    if project_id == project_id.upper():
+        raise ValueError(
+            f'Workspace directory name "{workspace_stem}" is invalid '
+            "identifier, uppercase names are reserved for internal usage"
+        )
     return ast.Project(
         _start=Pos(0, 0, LocalPath("<default>")),
         _end=Pos(0, 0, LocalPath("<default>")),
         id=SimpleIdExpr(
             Pos(0, 0, LocalPath("<default>")),
             Pos(0, 0, LocalPath("<default>")),
-            workspace_stem.replace("-", "_"),
+            project_id,
         ),
     )
 

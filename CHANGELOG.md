@@ -5,6 +5,16 @@
 
 [comment]: # (towncrier release notes start)
 
+Neuro_Flow 20.11.24 (2020-11-24)
+================================
+
+Bugfixes
+--------
+
+
+- Fix ``hash_files()`` function: it is faster, hashes the whole file instead of the first 256 KiB, and includes processed filenames into the hash. ([#190](https://github.com/neuro-inc/neuro-flow/issues/190))
+
+
 Neuro_Flow 20.11.10 (2020-11-10)
 ================================
 
