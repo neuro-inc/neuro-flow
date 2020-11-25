@@ -21,4 +21,3 @@ $ pip install --upgrade neuro-flow
 ```
 
 ## Run the tool
-
