@@ -1852,7 +1852,11 @@ def _hash(val: Any) -> str:
 
 def _ctx_default(val: Any) -> Any:
     if dataclasses.is_dataclass(val):
-        return dataclasses.asdict(val)
+        if hasattr(val, "_client"):
+            val = dataclasses.replace(val, _client=None)
+        ret = dataclasses.asdict(val)
+        ret.pop("_client")
+        return ret
     elif isinstance(val, enum.Enum):
         return val.value
     elif isinstance(val, RemotePath):
