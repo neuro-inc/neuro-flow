@@ -1,6 +1,6 @@
 # Batch contexts
 
-This page describes contexts the [Batch workflow](batch-workflow-syntax.md) can use expressions for calculating YAML attribute values.
+This page describes contexts the [Batch workflow](batch-workflow-syntax.md) can use in expressions for calculating YAML attribute values.
 
 ## Batch Contexts
 

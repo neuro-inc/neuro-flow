@@ -194,6 +194,7 @@ neuro-flow build [OPTIONS] IMAGE
 
 | Name | Description |
 |------|-------------|
+| _\-F, --force-overwrite_ | Build even if the destination image already exists. |
 | _--help_ | Show this message and exit. |
 
 

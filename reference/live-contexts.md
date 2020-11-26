@@ -1,6 +1,6 @@
 # Live contexts
 
-YAML file that describes the [Live workflow](live-workflow-syntax.md#live-workflow) can use expressions for calculating YAML attribute values.
+This page describes contexts the [Live workflow](live-workflow-syntax.md#live-workflow) can use in expressions for calculating YAML attribute values.
 
 ## Live Contexts
 
