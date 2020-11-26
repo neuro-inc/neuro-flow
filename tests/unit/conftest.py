@@ -29,6 +29,8 @@ async def api_config(tmp_path_factory: Any) -> AsyncIterator[pathlib.Path]:
 
 
 @pytest.fixture
-async def client(loop: asyncio.AbstractEventLoop) -> AsyncIterator[Client]:
-    async with api_get() as client:
+async def client(
+    loop: asyncio.AbstractEventLoop, api_config: pathlib.Path
+) -> AsyncIterator[Client]:
+    async with api_get(path=api_config) as client:
         yield client
