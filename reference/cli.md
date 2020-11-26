@@ -67,7 +67,7 @@ neuro-flow completion [OPTIONS] COMMAND [ARGS]...
 
 | Usage | Description |
 | :--- | :--- |
-| [_neuro-flow completion generate_](cli.md#neuro-flow-completion-generate) | Provide an instruction for shell completion generation. |
+| [_neuro-flow completion generate_](cli.md#neuro-flow-completion-generate) | Provide instruction for shell completion generation. |
 | [_neuro-flow completion patch_](cli.md#neuro-flow-completion-patch) | Automatically patch shell configuration profile to enable completion |
 
 #### neuro-flow completion generate
