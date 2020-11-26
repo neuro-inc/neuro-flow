@@ -88,7 +88,7 @@ neuro-flow completion generate [OPTIONS] [bash|zsh]
 
 #### neuro-flow completion patch
 
-Automatically patch shell configuration profile to enable completion
+Automatically patches shell configuration profile to enable completion
 
 **Usage:**
 
