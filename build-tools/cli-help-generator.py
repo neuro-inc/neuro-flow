@@ -122,8 +122,8 @@ def generate_markdown(
     md += "\n\n"
 
     if info.description:
-        md += escape(info.description)
-        md += "\n\n"
+        md += info.description
+        md += "\n"
 
     if info.usage:
         md += f"**Usage:**\n\n"

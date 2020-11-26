@@ -205,7 +205,7 @@ async def show(
 ) -> None:
     """Show output of baked task.
 
-    Display a logged output of TASK_ID from BAKE_ID.
+    Display a logged output of TASK\\_ID from BAKE\\_ID.
     """
     async with AsyncExitStack() as stack:
         client = await stack.enter_async_context(api_get())
