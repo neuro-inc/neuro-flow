@@ -297,6 +297,7 @@ class BatchExecutor:
         config_loader = BatchRemoteCL(
             meta,
             load_from_storage=lambda name: storage.fetch_config(bake, name),
+            client=client,
         )
         flow = await RunningBatchFlow.create(config_loader, bake.batch, bake.params)
 

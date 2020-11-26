@@ -25,8 +25,10 @@ from funcparserlib.parser import (
     skip,
     some,
 )
+from neuromation.api import Client
 from typing import (
     Any,
+    AsyncContextManager,
     Awaitable,
     Callable,
     Dict,
@@ -85,6 +87,10 @@ class SequenceT(Protocol):
 class RootABC(abc.ABC):
     @abc.abstractmethod
     def lookup(self, name: str) -> TypeT:
+        pass
+
+    @abc.abstractclassmethod
+    def client(self) -> AsyncContextManager[Client]:
         pass
 
 
@@ -236,6 +242,23 @@ async def aupper(ctx: CallCtx, arg: TypeT) -> str:
     return arg.upper()
 
 
+async def parse_volume(ctx: CallCtx, arg: TypeT) -> ContainerT:
+    from .context import VolumeCtx
+
+    if not isinstance(arg, str):
+        raise TypeError(f"parse_volume() requires a str, got {arg!r}")
+    async with ctx.root.client() as client:
+        volume = client.parse.volume(arg)
+    return VolumeCtx(  # type: ignore[return-value]
+        id="<volume>",
+        remote=volume.storage_uri,
+        mount=RemotePath(volume.container_path),
+        read_only=volume.read_only,
+        local=None,
+        full_local_path=None,
+    )
+
+
 def _check_has_needs(ctx: CallCtx, *, func_name: str) -> None:
     try:
         ctx.root.lookup("needs")
@@ -314,6 +337,7 @@ FUNCTIONS = _build_signatures(
     upload=upload,
     lower=alower,
     upper=aupper,
+    parse_volume=parse_volume,
 )
 
 

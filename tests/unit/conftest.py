@@ -1,7 +1,8 @@
+import asyncio
 import os
 import pathlib
 import pytest
-from neuromation.api import login_with_token
+from neuromation.api import Client, get as api_get, login_with_token
 from typing import Any, AsyncIterator
 from yarl import URL
 
@@ -25,3 +26,11 @@ async def api_config(tmp_path_factory: Any) -> AsyncIterator[pathlib.Path]:
     else:
         config_path = None
     yield config_path
+
+
+@pytest.fixture
+async def client(
+    loop: asyncio.AbstractEventLoop, api_config: pathlib.Path
+) -> AsyncIterator[Client]:
+    async with api_get(path=api_config) as client:
+        yield client

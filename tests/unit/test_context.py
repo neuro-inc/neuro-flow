@@ -1,5 +1,6 @@
 import pathlib
 import pytest
+from neuromation.api import Client
 from textwrap import dedent
 from typing import Mapping, Optional
 from typing_extensions import AsyncIterator
@@ -30,26 +31,30 @@ def test_inavailable_context_ctor() -> None:
 
 @pytest.fixture
 async def live_config_loader(
-    loop: None, assets: pathlib.Path
+    loop: None,
+    assets: pathlib.Path,
+    client: Client,
 ) -> AsyncIterator[ConfigLoader]:
     config_dir = ConfigDir(
         workspace=assets,
         config_dir=assets,
     )
-    cl = LiveLocalCL(config_dir)
+    cl = LiveLocalCL(config_dir, client)
     yield cl
     await cl.close()
 
 
 @pytest.fixture
 async def batch_config_loader(
-    loop: None, assets: pathlib.Path
+    loop: None,
+    assets: pathlib.Path,
+    client: Client,
 ) -> AsyncIterator[ConfigLoader]:
     config_dir = ConfigDir(
         workspace=assets,
         config_dir=assets,
     )
-    cl = BatchLocalCL(config_dir)
+    cl = BatchLocalCL(config_dir, client)
     yield cl
     await cl.close()
 

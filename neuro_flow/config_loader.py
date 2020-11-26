@@ -7,6 +7,7 @@ import sys
 import tarfile
 from async_lru import alru_cache
 from io import StringIO, TextIOWrapper
+from neuromation.api import Client
 from tempfile import TemporaryFile
 from typing import (
     IO,
@@ -59,6 +60,11 @@ class ConfigLoader(abc.ABC):
 
     @abc.abstractmethod
     async def fetch_action(self, action_name: str) -> ast.BaseAction:
+        pass
+
+    @property
+    @abc.abstractmethod
+    def client(self) -> Client:
         pass
 
 
@@ -114,13 +120,18 @@ class BatchStreamCL(StreamCL, abc.ABC):
 
 
 class LocalCL(StreamCL, abc.ABC):
-    def __init__(self, config_dir: ConfigDir):
+    def __init__(self, config_dir: ConfigDir, client: Client):
         self._workspace = config_dir.workspace.resolve()
         self._config_dir = config_dir.config_dir.resolve()
         self._github_session = aiohttp.ClientSession()
+        self._client = client
 
     async def close(self) -> None:
         await self._github_session.close()
+
+    @property
+    def client(self) -> Client:
+        return self._client
 
     @property
     def workspace(self) -> LocalPath:
@@ -357,9 +368,15 @@ class BatchRemoteCL(BatchStreamCL):
         self,
         meta: Mapping[str, Any],
         load_from_storage: Callable[[str], Awaitable[str]],
+        client: Client,
     ):
         self._meta = ConfigsMeta.from_json(meta)
         self._load_from_storage = load_from_storage
+        self._client = client
+
+    @property
+    def client(self) -> Client:
+        return self._client
 
     @property
     def workspace(self) -> LocalPath:
