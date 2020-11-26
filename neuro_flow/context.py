@@ -945,7 +945,7 @@ class RunningLiveFlow:
                 tags=self._ctx.tags,
                 env={},  # TODO: Is it correct?
                 inputs=await setup_inputs_ctx(ctx, job, action_ast.inputs),
-                _client=self._client,
+                _client=self._ctx._client,
             )
             defaults = DefaultsConf()
             job = action_ast.job
@@ -1017,7 +1017,7 @@ class RunningLiveFlow:
             EMPTY_ROOT, ast_flow, config_name, config_loader
         )
 
-        step_1_ctx = LiveContextStep1(flow=flow_ctx)
+        step_1_ctx = LiveContextStep1(flow=flow_ctx, _client=config_loader.client)
 
         defaults, env, tags = await setup_defaults_env_tags_ctx(
             step_1_ctx, ast_flow.defaults
@@ -1175,6 +1175,7 @@ class RunningBatchBase(Generic[_T], EarlyBatch):
                 inputs=await setup_inputs_ctx(
                     ctx, prep_task.call, prep_task.action.inputs
                 ),
+                _client=self._ctx._client,
             )
             defaults = DefaultsConf()  # TODO: Is it correct?
 
@@ -1293,6 +1294,7 @@ class RunningBatchFlow(RunningBatchBase[BatchContext]):
             tags=self._ctx.tags,  # TODO: do we need tags for local actions?
             env={},  # TODO: Is it correct?
             inputs=await setup_inputs_ctx(ctx, prep_task.call, prep_task.action.inputs),
+            _client=self._ctx._client,
         )
 
         return LocalTask(
@@ -1317,6 +1319,7 @@ class RunningBatchFlow(RunningBatchBase[BatchContext]):
         step_1_ctx = BatchContextStep1(
             flow=flow_ctx,
             params=params_ctx,
+            _client=config_loader.client,
         )
 
         defaults, env, tags = await setup_defaults_env_tags_ctx(
@@ -1407,6 +1410,7 @@ class RunningBatchActionFlow(RunningBatchBase[BatchActionContext]):
             env={},
             inputs=inputs,
             strategy=base_strategy,
+            _client=config_loader.client,
         )
 
         cache = await setup_cache(
@@ -1694,7 +1698,10 @@ class EarlyTaskGraphBuilder:
             post_tasks_group = []
             for matrix in matrices:
                 # make prep patch(es)
-                matrix_ctx = MatrixOnlyContext(matrix=matrix)
+                matrix_ctx = MatrixOnlyContext(
+                    matrix=matrix,
+                    _client=self._cl.client,
+                )
 
                 task_id, real_id = await self._setup_ids(matrix_ctx, num, ast_task)
                 needs = await self._setup_needs(matrix_ctx, last_needs, ast_task)
