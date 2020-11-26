@@ -117,6 +117,7 @@ class ImageCtx:
     build_args: Sequence[str]
     env: Mapping[str, str]
     volumes: Sequence[str]
+    build_preset: Optional[str]
 
 
 @dataclass(frozen=True)
@@ -626,6 +627,7 @@ async def setup_images_ctx(
                 build_args=build_args,
                 env=image_env,
                 volumes=image_volumes,
+                build_preset=await i.build_preset.eval(ctx),
             )
     return images
 

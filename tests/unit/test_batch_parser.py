@@ -63,6 +63,9 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
                 ],
                 env=None,
                 volumes=None,
+                build_preset=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
             )
         },
         volumes={
