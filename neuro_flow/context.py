@@ -1858,7 +1858,7 @@ def _ctx_default(val: Any) -> Any:
         if hasattr(val, "_client"):
             val = dataclasses.replace(val, _client=None)
         ret = dataclasses.asdict(val)
-        ret.pop("_client")
+        ret.pop("_client", None)
         return ret
     elif isinstance(val, enum.Enum):
         return val.value
