@@ -53,3 +53,33 @@ async def test_upper() -> None:
     expr = StrExpr(POS, POS, "${{ upper('aBcDeF') }}")
     ret = await expr.eval(Root({}))
     assert ret == "ABCDEF"
+
+
+async def test_parse_volume_id() -> None:
+    expr = StrExpr(POS, POS, "${{ parse_volume('storage:path/to:/mnt/path:rw').id }}")
+    ret = await expr.eval(Root({}))
+    assert ret == "ABCDEF"
+
+
+async def test_parse_volume_remote() -> None:
+    expr = StrExpr(
+        POS, POS, "${{ parse_volume('storage:path/to:/mnt/path:rw').remote }}"
+    )
+    ret = await expr.eval(Root({}))
+    assert ret == "ABCDEF"
+
+
+async def test_parse_volume_mount() -> None:
+    expr = StrExpr(
+        POS, POS, "${{ parse_volume('storage:path/to:/mnt/path:rw').mount }}"
+    )
+    ret = await expr.eval(Root({}))
+    assert ret == "ABCDEF"
+
+
+async def test_parse_volume_read_only() -> None:
+    expr = StrExpr(
+        POS, POS, "${{ parse_volume('storage:path/to:/mnt/path:rw').read_only }}"
+    )
+    ret = await expr.eval(Root({}))
+    assert ret == "ABCDEF"

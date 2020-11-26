@@ -7,6 +7,7 @@ import sys
 import tarfile
 from async_lru import alru_cache
 from io import StringIO, TextIOWrapper
+from neuromation.api import Client
 from tempfile import TemporaryFile
 from typing import (
     IO,
@@ -59,6 +60,11 @@ class ConfigLoader(abc.ABC):
 
     @abc.abstractmethod
     async def fetch_action(self, action_name: str) -> ast.BaseAction:
+        pass
+
+    @property
+    @abc.abstractmethod
+    def client(self) -> Client:
         pass
 
 

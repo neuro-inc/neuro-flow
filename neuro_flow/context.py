@@ -7,11 +7,14 @@ import hashlib
 import itertools
 import json
 import shlex
+import sys
 from abc import abstractmethod
 from functools import lru_cache
+from neuromation.api import Client
 from typing import (
     AbstractSet,
     Any,
+    AsyncIterator,
     Dict,
     Generic,
     Iterable,
@@ -32,6 +35,11 @@ from neuro_flow.config_loader import ConfigLoader
 from neuro_flow.expr import EnableExpr, EvalError, LiteralT, RootABC, TypeT
 from neuro_flow.types import AlwaysT, FullID, LocalPath, RemotePath, TaskStatus
 
+
+if sys.version_info >= (3, 7):  # pragma: no cover
+    from contextlib import asynccontextmanager
+else:
+    from async_generator import asynccontextmanager
 
 # Exceptions
 
@@ -233,12 +241,18 @@ class EmptyRoot(RootABC):
     def lookup(self, name: str) -> TypeT:
         raise NotAvailable(name)
 
+    @asynccontextmanager  # type: ignore[arg-type]
+    async def client(self) -> AsyncIterator[Client]:
+        raise RuntimeError("neuro API is not available in <empty> context")
+
 
 EMPTY_ROOT = EmptyRoot()
 
 
 @dataclass(frozen=True)
 class Context(RootABC):
+    _client: Client
+
     def lookup(self, name: str) -> TypeT:
         for f in fields(self):
             if f.name != name:
@@ -249,6 +263,10 @@ class Context(RootABC):
         ret = getattr(self, name)
         # assert isinstance(ret, (ContainerT, SequenceT, MappingT)), ret
         return cast(TypeT, ret)
+
+    @asynccontextmanager
+    async def client(self) -> AsyncIterator[Client]:
+        yield self._client
 
 
 @dataclass(frozen=True)
@@ -272,6 +290,7 @@ class LiveContextStep1(WithFlowContext, Context):
             tags=tags,
             volumes=volumes,
             images=images,
+            _client=self._client,
         )
 
 
@@ -289,6 +308,7 @@ class LiveContext(WithEnvContext, LiveContextStep1):
             volumes=self.volumes,
             images=self.images,
             params=params,
+            _client=self._client,
         )
 
     def to_multi_job_ctx(
@@ -302,6 +322,7 @@ class LiveContext(WithEnvContext, LiveContextStep1):
             images=self.images,
             multi=multi,
             params=params,
+            _client=self._client,
         )
 
 
@@ -336,6 +357,7 @@ class BatchContextStep1(WithFlowContext, Context):
             tags=tags,
             volumes=volumes,
             images=images,
+            _client=self._client,
         )
 
 
@@ -357,6 +379,7 @@ class BatchContextStep2(WithEnvContext, BatchContextStep1):
             volumes=self.volumes,
             images=self.images,
             strategy=strategy,
+            _client=self._client,
         )
 
 
@@ -406,6 +429,7 @@ class BatchContext(BaseBatchContext, BatchContextStep2):
             images=self.images,
             strategy=strategy,
             matrix=matrix,
+            _client=self._client,
         )
 
 
@@ -425,6 +449,7 @@ class BatchMatrixContext(BaseMatrixContext, BatchContext):
             matrix=self.matrix,
             needs=needs,
             state=state,
+            _client=self._client,
         )
 
 
@@ -450,6 +475,7 @@ class BatchActionContext(BaseBatchContext):
             inputs=self.inputs,
             matrix=matrix,
             strategy=strategy,
+            _client=self._client,
         )
 
     def to_outputs_ctx(self, needs: NeedsCtx) -> "BatchActionOutputsContext":
@@ -459,6 +485,7 @@ class BatchActionContext(BaseBatchContext):
             strategy=self.strategy,
             inputs=self.inputs,
             needs=needs,
+            _client=self._client,
         )
 
 
@@ -481,6 +508,7 @@ class BatchActionMatrixContext(BaseMatrixContext, BatchActionContext):
             strategy=self.strategy,
             needs=needs,
             state=state,
+            _client=self._client,
         )
 
 
@@ -917,6 +945,7 @@ class RunningLiveFlow:
                 tags=self._ctx.tags,
                 env={},  # TODO: Is it correct?
                 inputs=await setup_inputs_ctx(ctx, job, action_ast.inputs),
+                _client=self._client,
             )
             defaults = DefaultsConf()
             job = action_ast.job
