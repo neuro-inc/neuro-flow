@@ -77,7 +77,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             await self._config_loader.close()
 
     async def __aenter__(self) -> "BatchRunner":
-        self._config_loader = BatchLocalCL(self._config_dir)
+        self._config_loader = BatchLocalCL(self._config_dir, self._client)
         project_ast = await self._config_loader.fetch_project()
         self._project = await project_ast.id.eval(EMPTY_ROOT)
         return self

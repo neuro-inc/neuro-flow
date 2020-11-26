@@ -1,5 +1,6 @@
 import pathlib
 import pytest
+from neuromation.api import get as api_get
 from textwrap import dedent
 from typing import Mapping, Optional
 from typing_extensions import AsyncIterator
@@ -36,9 +37,10 @@ async def live_config_loader(
         workspace=assets,
         config_dir=assets,
     )
-    cl = LiveLocalCL(config_dir)
-    yield cl
-    await cl.close()
+    async with api_get() as client:
+        cl = LiveLocalCL(config_dir, client)
+        yield cl
+        await cl.close()
 
 
 @pytest.fixture
@@ -49,9 +51,10 @@ async def batch_config_loader(
         workspace=assets,
         config_dir=assets,
     )
-    cl = BatchLocalCL(config_dir)
-    yield cl
-    await cl.close()
+    async with api_get() as client:
+        cl = BatchLocalCL(config_dir, client)
+        yield cl
+        await cl.close()
 
 
 async def test_ctx_flow(live_config_loader: ConfigLoader) -> None:

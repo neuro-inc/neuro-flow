@@ -64,7 +64,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
     async def post_init(self) -> None:
         if self._flow is not None:
             return
-        self._config_loader = LiveLocalCL(self._config_dir)
+        self._config_loader = LiveLocalCL(self._config_dir, self._client)
         self._flow = await RunningLiveFlow.create(self._config_loader)
 
     async def close(self) -> None:

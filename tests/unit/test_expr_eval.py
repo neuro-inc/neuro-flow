@@ -1,5 +1,7 @@
 import pytest
-from typing import Dict, List
+import sys
+from neuromation.api import Client
+from typing import AsyncIterator, Dict, List
 from typing_extensions import Final
 
 from neuro_flow.context import DepCtx
@@ -8,16 +10,27 @@ from neuro_flow.tokenizer import Pos, tokenize
 from neuro_flow.types import LocalPath, TaskStatus
 
 
+if sys.version_info >= (3, 7):  # pragma: no cover
+    from contextlib import asynccontextmanager
+else:
+    from async_generator import asynccontextmanager
+
+
 FNAME = LocalPath("<test>")
 START: Final = Pos(0, 0, FNAME)
 
 
 class DictContext(RootABC):
+    def __init__(self, dct: Dict[str, TypeT], client: Client) -> None:
+        self._dct = dct
+        self._client = client
+
     def lookup(self, name: str) -> TypeT:
         return self._dct[name]
 
-    def __init__(self, dct: Dict[str, TypeT]) -> None:
-        self._dct = dct
+    @asynccontextmanager
+    def client(self) -> AsyncIterator[Client]:
+        yield self._client
 
 
 @pytest.mark.parametrize(
@@ -36,10 +49,12 @@ class DictContext(RootABC):
         ("not (42 == 42) or not True", {}, False),
     ],
 )
-async def test_bool_evals(expr: str, context: Dict[str, TypeT], result: bool) -> None:
+async def test_bool_evals(
+    expr: str, context: Dict[str, TypeT], result: bool, client: Client
+) -> None:
     parsed = PARSER.parse(list(tokenize("${{" + expr + "}}", START)))
     assert len(parsed) == 1
-    assert result == await parsed[0].eval(DictContext(context))
+    assert result == await parsed[0].eval(DictContext(context, client))
 
 
 @pytest.mark.parametrize(
@@ -62,7 +77,7 @@ async def test_bool_evals(expr: str, context: Dict[str, TypeT], result: bool) ->
     ],
 )
 async def test_success_func(
-    expr: str, statuses: List[TaskStatus], result: bool
+    expr: str, statuses: List[TaskStatus], result: bool, client: Client
 ) -> None:
     context = {
         "needs": {
@@ -71,7 +86,7 @@ async def test_success_func(
     }
     parsed = PARSER.parse(list(tokenize("${{" + expr + "}}", START)))
     assert len(parsed) == 1
-    assert result == await parsed[0].eval(DictContext(context))  # type: ignore
+    assert result == await parsed[0].eval(DictContext(context, client))  # type: ignore
 
 
 @pytest.mark.parametrize(
@@ -100,7 +115,7 @@ async def test_success_func(
     ],
 )
 async def test_failure_func(
-    expr: str, statuses: List[TaskStatus], result: bool
+    expr: str, statuses: List[TaskStatus], result: bool, client: Client
 ) -> None:
     context = {
         "needs": {
@@ -109,4 +124,4 @@ async def test_failure_func(
     }
     parsed = PARSER.parse(list(tokenize("${{" + expr + "}}", START)))
     assert len(parsed) == 1
-    assert result == await parsed[0].eval(DictContext(context))  # type: ignore
+    assert result == await parsed[0].eval(DictContext(context, client))  # type: ignore
