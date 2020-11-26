@@ -29,7 +29,7 @@ class DictContext(RootABC):
         return self._dct[name]
 
     @asynccontextmanager
-    def client(self) -> AsyncIterator[Client]:
+    async def client(self) -> AsyncIterator[Client]:
         yield self._client
 
 
