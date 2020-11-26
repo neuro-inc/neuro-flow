@@ -26,7 +26,7 @@ def completion() -> None:
 @wrap_async()
 async def generate(root: Root, shell: str) -> None:
     """
-    Provide an instruction for shell completion generation.
+    Provide instruction for shell completion generation.
     """
     root.console.print(f"Push the following line into your {CFG_FILE[shell]}")
     root.console.print(

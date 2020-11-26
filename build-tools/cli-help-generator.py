@@ -91,9 +91,9 @@ def generate_markdown(
     info: CommandInfo, header_prefix: str = "#", filename: str = ""
 ) -> str:
     def simple_escape_line(text: str) -> str:
-        escaped = re.sub(r"\*(\S[^*]*)\*", r"\\*\1\\*", text)
+        escaped = re.sub(r"\*", r"\\*", text)
         escaped = re.sub(r"<(\S[^*]*)>", r"&lt;\1&gt;", escaped)
-        escaped = re.sub(r"\_(\S[^*]*)\_", r"\\_\1\\_", escaped)
+        escaped = re.sub(r"_", r"\\_", escaped)
         escaped = re.sub(r"\[(\S[^\]]*)\]", r"\\[\1\\]", escaped)
         escaped = re.sub(r"\((\S[^)]*)\)", r"\\(\1\\)", escaped)
 
@@ -122,8 +122,10 @@ def generate_markdown(
     md += "\n\n"
 
     if info.description:
-        md += info.description
-        md += "\n"
+        descr = info.description.strip()
+        descr = re.sub(r"(?<!\n)\n(?!\n)", r" ", descr)
+        md += descr
+        md += "\n\n"
 
     if info.usage:
         md += f"**Usage:**\n\n"

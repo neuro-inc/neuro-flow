@@ -152,7 +152,7 @@ async def inspect(
 ) -> None:
     """Inspect a bake.
 
-    Display a list of started/finished tasks of BAKE_ID.
+    Display a list of started/finished tasks of BAKE\\_ID.
     """
     async with AsyncExitStack() as stack:
         client = await stack.enter_async_context(api_get())
