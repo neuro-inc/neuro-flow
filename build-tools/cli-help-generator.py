@@ -92,7 +92,7 @@ def generate_markdown(
 ) -> str:
     def simple_escape_line(text: str) -> str:
         escaped = re.sub(r"\*(\S[^*]*)\*", r"\\*\1\\*", text)
-        escaped = re.sub(r"<(\S[^*]*)>", r"\\<\1\\>", escaped)
+        escaped = re.sub(r"<(\S[^*]*)>", r"&lt;\1&gt;", escaped)
         escaped = re.sub(r"\_(\S[^*]*)\_", r"\\_\1\\_", escaped)
         escaped = re.sub(r"\[(\S[^\]]*)\]", r"\\[\1\\]", escaped)
         escaped = re.sub(r"\((\S[^)]*)\)", r"\\(\1\\)", escaped)
