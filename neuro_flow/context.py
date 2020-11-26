@@ -241,9 +241,10 @@ class EmptyRoot(RootABC):
     def lookup(self, name: str) -> TypeT:
         raise NotAvailable(name)
 
-    @asynccontextmanager  # type: ignore[arg-type]
+    @asynccontextmanager
     async def client(self) -> AsyncIterator[Client]:
         raise RuntimeError("neuro API is not available in <empty> context")
+        yield Client()  # fake lint to make the code a real async iterator
 
 
 EMPTY_ROOT = EmptyRoot()
