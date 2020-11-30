@@ -208,6 +208,7 @@ async def test_pipeline_minimal_ctx(batch_config_loader: ConfigLoader) -> None:
         "tag-2",
         "tag-a",
         "tag-b",
+        "task:test-a",
         "project:unit",
         "flow:batch-minimal",
     }
