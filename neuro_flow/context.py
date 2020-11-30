@@ -782,6 +782,22 @@ async def setup_matrix(ast_matrix: Optional[ast.Matrix]) -> Sequence[MatrixCtx]:
     matrices = filtered
     # Include
     for inc_spec in ast_matrix.include:
+        if inc_spec.keys() != ast_matrix.products.keys():
+            additional = inc_spec.keys() - ast_matrix.products.keys()
+            missing = ast_matrix.products.keys() - inc_spec.keys()
+            raise EvalError(
+                "Keys of entry in include list of matrix are not the "
+                "same as matrix keys: "
+                + (
+                    f"additional keys: {','.join(sorted(additional))}"
+                    if additional
+                    else ""
+                )
+                + (f" , " if additional and missing else "")
+                + (f"missing keys: {','.join(sorted(missing))}" if missing else ""),
+                ast_matrix._start,
+                ast_matrix._end,
+            )
         matrices.append({k: await v.eval(EMPTY_ROOT) for k, v in inc_spec.items()})
     return matrices
 

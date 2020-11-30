@@ -408,6 +408,19 @@ async def test_pipeline_matrix_2(batch_config_loader: ConfigLoader) -> None:
     )
 
 
+async def test_pipeline_matrix_incomplete_include(
+    batch_config_loader: ConfigLoader,
+) -> None:
+    with pytest.raises(
+        EvalError,
+        match=r"Keys of entry in include list of matrix "
+        r"are not the same as matrix keys: missing keys: param2",
+    ):
+        await RunningBatchFlow.create(
+            batch_config_loader, "batch-matrix-incomplete-include"
+        )
+
+
 async def test_pipeline_args_defautls_only(batch_config_loader: ConfigLoader) -> None:
     flow = await RunningBatchFlow.create(batch_config_loader, "batch-params")
     ctx = flow._ctx
