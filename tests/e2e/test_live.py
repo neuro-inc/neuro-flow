@@ -57,6 +57,7 @@ def test_live_context(ws: pathlib.Path, run_cli: RunCLI, project_id: str):
                 "full_context_path": str(ws),
                 "dockerfile": str(ws / "Dockerfile"),
                 "full_dockerfile_path": str(ws / "Dockerfile"),
+                "build_preset": None,
                 "build_args": [],
                 "env": {},
                 "volumes": [],
