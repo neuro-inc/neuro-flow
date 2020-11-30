@@ -27,7 +27,6 @@ setup(
         "neuromation>=20.11.18",
         "pyyaml>=5.3",
         "funcparserlib>=0.3",
-        "async_lru>=1.0.2",
         'dataclasses>=0.5; python_version<"3.7"',
         "humanize>=0.5.1",
         'backports-datetime-fromisoformat>=1.0.0; python_version<"3.7"',

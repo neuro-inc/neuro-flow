@@ -5,7 +5,6 @@ import aiohttp
 import secrets
 import sys
 import tarfile
-from async_lru import alru_cache
 from io import StringIO, TextIOWrapper
 from neuromation.api import Client
 from tempfile import TemporaryFile
@@ -69,6 +68,13 @@ class ConfigLoader(abc.ABC):
 
 
 class StreamCL(ConfigLoader, abc.ABC):
+    __project_cache: Optional[ast.Project]
+    __action_cache: Dict[str, ast.BaseAction]
+
+    def __init__(self) -> None:
+        self.__project_cache = None
+        self.__action_cache = dict()
+
     @asynccontextmanager
     @abc.abstractmethod
     async def project_stream(self) -> AsyncIterator[Optional[TextIO]]:
@@ -80,47 +86,76 @@ class StreamCL(ConfigLoader, abc.ABC):
         # Yield for type check only in asynccontextmanager
         yield None  # type: ignore
 
-    @alru_cache()  # type: ignore
-    async def fetch_project(self) -> ast.Project:
+    async def _fetch_project(self) -> ast.Project:
         async with self.project_stream() as stream:
             if stream is not None:
                 return parse_project_stream(stream)
             return make_default_project(self.workspace.stem)
 
-    @alru_cache()  # type: ignore
-    async def fetch_action(self, action_name: str) -> ast.BaseAction:
+    async def fetch_project(self) -> ast.Project:
+        if not self.__project_cache:
+            self.__project_cache = await self._fetch_project()
+        return self.__project_cache
+
+    async def _fetch_action(self, action_name: str) -> ast.BaseAction:
         async with self.action_stream(action_name) as stream:
             return parse_action_stream(stream)
 
+    async def fetch_action(self, action_name: str) -> ast.BaseAction:
+        if action_name not in self.__action_cache:
+            self.__action_cache[action_name] = await self._fetch_action(action_name)
+        return self.__action_cache[action_name]
+
 
 class LiveStreamCL(StreamCL, abc.ABC):
+    __flow_cache: Dict[str, ast.LiveFlow]
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.__flow_cache = dict()
+
     @asynccontextmanager
     @abc.abstractmethod
     async def flow_stream(self, name: str) -> AsyncIterator[TextIO]:
         # Yield for type check only in asynccontextmanager
         yield None  # type: ignore
 
-    @alru_cache()  # type: ignore
-    async def fetch_flow(self, name: str) -> ast.LiveFlow:
+    async def _fetch_flow(self, name: str) -> ast.LiveFlow:
         async with self.flow_stream(name) as stream:
             return parse_live_stream(stream)
 
+    async def fetch_flow(self, name: str) -> ast.LiveFlow:
+        if name not in self.__flow_cache:
+            self.__flow_cache[name] = await self._fetch_flow(name)
+        return self.__flow_cache[name]
+
 
 class BatchStreamCL(StreamCL, abc.ABC):
+    __flow_cache: Dict[str, ast.BatchFlow]
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.__flow_cache = dict()
+
     @asynccontextmanager
     @abc.abstractmethod
     async def flow_stream(self, name: str) -> AsyncIterator[TextIO]:
         # Yield for type check only in asynccontextmanager
         yield None  # type: ignore
 
-    @alru_cache()  # type: ignore
-    async def fetch_flow(self, name: str) -> ast.BatchFlow:
+    async def _fetch_flow(self, name: str) -> ast.BatchFlow:
         async with self.flow_stream(name) as stream:
             return parse_batch_stream(stream)
+
+    async def fetch_flow(self, name: str) -> ast.BatchFlow:
+        if name not in self.__flow_cache:
+            self.__flow_cache[name] = await self._fetch_flow(name)
+        return self.__flow_cache[name]
 
 
 class LocalCL(StreamCL, abc.ABC):
     def __init__(self, config_dir: ConfigDir, client: Client):
+        super().__init__()
         self._workspace = config_dir.workspace.resolve()
         self._config_dir = config_dir.config_dir.resolve()
         self._github_session = aiohttp.ClientSession()
@@ -370,6 +405,7 @@ class BatchRemoteCL(BatchStreamCL):
         load_from_storage: Callable[[str], Awaitable[str]],
         client: Client,
     ):
+        super().__init__()
         self._meta = ConfigsMeta.from_json(meta)
         self._load_from_storage = load_from_storage
         self._client = client
