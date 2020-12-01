@@ -290,7 +290,6 @@ class BatchAction(BaseAction):
 @dataclass(frozen=True)
 class StatefulAction(BaseAction):
     outputs: Optional[Mapping[str, Output]] = field(metadata={"allow_none": True})
-    cache: Optional[Cache] = field(metadata={"allow_none": True})
     main: ExecUnit
     post: Optional[ExecUnit] = field(metadata={"allow_none": True})
     post_if: EnableExpr = field(metadata={"default_expr": "${{ always() }}"})
