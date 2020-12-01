@@ -57,7 +57,14 @@ _T = TypeVar("_T")
 
 LiteralT = Union[None, bool, int, float, str]
 
-TypeT = Union[LiteralT, "ContainerT", "MappingT", "SequenceT", LocalPath, AlwaysT]
+TypeT = Union[
+    LiteralT,
+    "ContainerT",
+    "MappingT",
+    "SequenceT",
+    LocalPath,
+    AlwaysT,
+]
 
 
 @runtime_checkable
@@ -558,6 +565,39 @@ def make_unary_op_expr(args: Tuple[Token, Item]) -> UnaryOp:
     )
 
 
+@dataclasses.dataclass(frozen=True)
+class ListMaker(Item):
+    items: Sequence[Item]
+
+    async def eval(self, root: RootABC) -> SequenceT:
+        return [await item.eval(root) for item in self.items]  # type: ignore
+
+
+def make_list(args: Tuple[Item, List[Item]]) -> ListMaker:
+    lst = [args[0]] + args[1]
+    return ListMaker(lst[0].start, lst[-1].end, lst)
+
+
+@dataclasses.dataclass(frozen=True)
+class DictMaker(Item):
+    items: Sequence[Tuple[Item, Item]]
+
+    async def eval(self, root: RootABC) -> MappingT:
+        ret = {}
+        for key, value in self.items:
+            k = await key.eval(root)
+            v = await value.eval(root)
+            ret[k] = v
+        return ret  # type: ignore
+
+
+def make_dict(args: Tuple[Item, Item, List[Tuple[Item, Item]]]) -> DictMaker:
+    lst = [(args[0], args[1])]
+    if len(args) > 2:
+        lst += args[2]
+    return DictMaker(lst[0][0].start, lst[-1][1].end, lst)
+
+
 def a(value: str) -> Parser:
     """Eq(a) -> Parser(a, a)
 
@@ -568,6 +608,7 @@ def a(value: str) -> Parser:
 
 DOT: Final = skip(a("."))
 COMMA: Final = skip(a(","))
+COLON: Final = skip(a(":"))
 
 OPEN_TMPL: Final = skip(a("${{"))
 CLOSE_TMPL: Final = skip(a("}}"))
@@ -579,6 +620,9 @@ RPAR = skip(a(")"))
 
 LSQB: Final = skip(a("["))
 RSQB = skip(a("]"))
+
+LBRACE: Final = skip(a("{"))
+RBRACE = skip(a("}"))
 
 BIN_OP = a("==") | a("!=") | a("or") | a("and") | a("<") | a("<=") | a(">") | a(">=")
 UNARY_OP = a("not")
@@ -597,7 +641,11 @@ LITERAL: Final = NONE | BOOL | REAL | INT | STR
 
 NAME: Final = some(lambda tok: tok.type == "NAME")
 
-ATOM: Final = LITERAL  # | list-make | dict-maker
+LIST_MAKER: Final = forward_decl()
+
+DICT_MAKER: Final = forward_decl()
+
+ATOM: Final = LITERAL | LIST_MAKER | DICT_MAKER
 
 EXPR: Final = forward_decl()
 
@@ -624,6 +672,12 @@ UNARY_OP_EXPR: Final = UNARY_OP + EXPR >> make_unary_op_expr
 
 EXPR.define(BIN_OP_EXPR | UNARY_OP_EXPR | ATOM_EXPR)
 
+LIST_MAKER.define((LSQB + EXPR + many(COMMA + EXPR) + RSQB) >> make_list)
+
+DICT_MAKER.define(
+    (LBRACE + EXPR + COLON + EXPR + many(COMMA + EXPR + COLON + EXPR) + RBRACE)
+    >> make_dict
+)
 
 TMPL: Final = (OPEN_TMPL + EXPR + CLOSE_TMPL) | (OPEN_TMPL2 + EXPR + CLOSE_TMPL2)
 

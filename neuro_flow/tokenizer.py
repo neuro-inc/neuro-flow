@@ -73,10 +73,13 @@ class Tokenizer:
         ("NAME", r"[A-Za-z][A-Za-z_0-9]*"),
         ("DOT", r"\."),
         ("COMMA", r","),
+        ("COLON", r":"),
         ("LPAR", r"\("),
         ("RPAR", r"\)"),
         ("LSQB", r"\["),
         ("RSQB", r"\]"),
+        ("LBRACE", r"\{"),
+        ("RBRACE", r"\}"),
     ]
     TOKENS_RE = re.compile("|".join(f"(?P<{typ}>{regexp})" for typ, regexp in TOKENS))
 

@@ -11,7 +11,9 @@ from neuro_flow.expr import (
     AttrGetter,
     BinOp,
     Call,
+    DictMaker,
     ItemGetter,
+    ListMaker,
     Literal,
     Lookup,
     Text,
@@ -522,3 +524,87 @@ def test_corner_case2() -> None:
         ),
         Text(Pos(2, 36, FNAME), Pos(3, 0, FNAME), "'\n"),
     ] == PARSER.parse(list(tokenize(s, START)))
+
+
+def test_list() -> None:
+    assert [
+        ListMaker(
+            start=Pos(0, 4, FNAME),
+            end=Pos(0, 25, FNAME),
+            items=[
+                Literal(
+                    start=Pos(0, 4, FNAME),
+                    end=Pos(0, 5, FNAME),
+                    val=1,
+                ),
+                Literal(
+                    start=Pos(0, 7, FNAME),
+                    end=Pos(0, 10, FNAME),
+                    val="2",
+                ),
+                Literal(
+                    start=Pos(0, 12, FNAME),
+                    end=Pos(0, 16, FNAME),
+                    val=True,
+                ),
+                Call(
+                    start=Pos(0, 18, FNAME),
+                    end=Pos(0, 25, FNAME),
+                    func=FUNCTIONS["len"],
+                    args=[
+                        Lookup(
+                            start=Pos(0, 22, FNAME),
+                            end=Pos(0, 25, FNAME),
+                            root="ctx",
+                            trailer=[],
+                        )
+                    ],
+                    trailer=[],
+                ),
+            ],
+        )
+    ] == PARSER.parse(list(tokenize("${{[1, '2', True, len(ctx)]}}", START)))
+
+
+def test_dict() -> None:
+    assert [
+        DictMaker(
+            start=Pos(0, 5, FNAME),
+            end=Pos(0, 26, FNAME),
+            items=[
+                (
+                    Literal(
+                        start=Pos(0, 5, FNAME),
+                        end=Pos(0, 6, FNAME),
+                        val=1,
+                    ),
+                    Literal(
+                        start=Pos(0, 8, FNAME),
+                        end=Pos(0, 11, FNAME),
+                        val="2",
+                    ),
+                ),
+                (
+                    Literal(
+                        start=Pos(0, 13, FNAME),
+                        end=Pos(0, 17, FNAME),
+                        val=True,
+                    ),
+                    Call(
+                        start=Pos(0, 19, FNAME),
+                        end=Pos(0, 26, FNAME),
+                        func=FUNCTIONS["len"],
+                        args=[
+                            Lookup(
+                                start=Pos(0, 23, FNAME),
+                                end=Pos(0, 26, FNAME),
+                                root="ctx",
+                                trailer=[],
+                            )
+                        ],
+                        trailer=[],
+                    ),
+                ),
+            ],
+        )
+    ] == PARSER.parse(list(tokenize("${{ {1: '2', True: len(ctx)} }}", START)))
