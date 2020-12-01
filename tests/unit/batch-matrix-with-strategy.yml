@@ -16,7 +16,6 @@ tasks:
         include:
           - one: o3
             two: t3
-            extra: e3
       fail_fast: false
       max_parallel: 5
     cache:

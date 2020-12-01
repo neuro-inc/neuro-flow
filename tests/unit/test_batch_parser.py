@@ -469,7 +469,7 @@ def test_parse_matrix(assets: pathlib.Path) -> None:
     flow = parse_batch(workspace, config_file)
     assert flow == ast.BatchFlow(
         Pos(0, 0, config_file),
-        Pos(15, 0, config_file),
+        Pos(14, 0, config_file),
         id=SimpleOptIdExpr(
             Pos(0, 0, config_file),
             Pos(0, 0, config_file),
@@ -488,7 +488,7 @@ def test_parse_matrix(assets: pathlib.Path) -> None:
         tasks=[
             ast.Task(
                 _start=Pos(2, 4, config_file),
-                _end=Pos(15, 0, config_file),
+                _end=Pos(14, 0, config_file),
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
@@ -524,10 +524,10 @@ def test_parse_matrix(assets: pathlib.Path) -> None:
                 needs=None,
                 strategy=ast.Strategy(
                     _start=Pos(3, 6, config_file),
-                    _end=Pos(13, 4, config_file),
+                    _end=Pos(12, 4, config_file),
                     matrix=ast.Matrix(
                         _start=Pos(4, 8, config_file),
-                        _end=Pos(13, 4, config_file),
+                        _end=Pos(12, 4, config_file),
                         products={
                             "one": [
                                 StrExpr(
@@ -564,9 +564,6 @@ def test_parse_matrix(assets: pathlib.Path) -> None:
                                 "two": StrExpr(
                                     Pos(0, 0, config_file), Pos(0, 0, config_file), "t3"
                                 ),
-                                "extra": StrExpr(
-                                    Pos(0, 0, config_file), Pos(0, 0, config_file), "e3"
-                                ),
                             }
                         ],
                     ),
@@ -594,7 +591,7 @@ def test_parse_matrix_with_strategy(assets: pathlib.Path) -> None:
     flow = parse_batch(workspace, config_file)
     assert flow == ast.BatchFlow(
         Pos(0, 0, config_file),
-        Pos(29, 0, config_file),
+        Pos(28, 0, config_file),
         id=SimpleOptIdExpr(
             Pos(0, 0, config_file),
             Pos(0, 0, config_file),
@@ -638,7 +635,7 @@ def test_parse_matrix_with_strategy(assets: pathlib.Path) -> None:
         tasks=[
             ast.Task(
                 _start=Pos(8, 4, config_file),
-                _end=Pos(26, 2, config_file),
+                _end=Pos(25, 2, config_file),
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
@@ -674,10 +671,10 @@ def test_parse_matrix_with_strategy(assets: pathlib.Path) -> None:
                 needs=None,
                 strategy=ast.Strategy(
                     Pos(9, 6, config_file),
-                    Pos(21, 4, config_file),
+                    Pos(20, 4, config_file),
                     matrix=ast.Matrix(
                         Pos(10, 8, config_file),
-                        Pos(19, 6, config_file),
+                        Pos(18, 6, config_file),
                         products={
                             "one": [
                                 StrExpr(
@@ -714,9 +711,6 @@ def test_parse_matrix_with_strategy(assets: pathlib.Path) -> None:
                                 "two": StrExpr(
                                     Pos(0, 0, config_file), Pos(0, 0, config_file), "t3"
                                 ),
-                                "extra": StrExpr(
-                                    Pos(0, 0, config_file), Pos(0, 0, config_file), "e3"
-                                ),
                             }
                         ],
                     ),
@@ -728,8 +722,8 @@ def test_parse_matrix_with_strategy(assets: pathlib.Path) -> None:
                     ),
                 ),
                 cache=ast.Cache(
-                    Pos(22, 6, config_file),
-                    Pos(24, 4, config_file),
+                    Pos(21, 6, config_file),
+                    Pos(23, 4, config_file),
                     strategy=ast.CacheStrategy.DEFAULT,
                     life_span=OptTimeDeltaExpr(
                         Pos(0, 0, config_file), Pos(0, 0, config_file), "1h30m"
@@ -742,10 +736,10 @@ def test_parse_matrix_with_strategy(assets: pathlib.Path) -> None:
                 ),
             ),
             ast.Task(
-                Pos(26, 4, config_file),
-                Pos(29, 0, config_file),
+                Pos(25, 4, config_file),
+                Pos(28, 0, config_file),
                 id=OptIdExpr(
-                    Pos(26, 8, config_file), Pos(26, 14, config_file), "simple"
+                    Pos(25, 8, config_file), Pos(25, 14, config_file), "simple"
                 ),
                 needs=None,
                 strategy=None,
@@ -756,7 +750,7 @@ def test_parse_matrix_with_strategy(assets: pathlib.Path) -> None:
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 image=StrExpr(
-                    Pos(27, 11, config_file), Pos(27, 17, config_file), "ubuntu"
+                    Pos(26, 11, config_file), Pos(26, 17, config_file), "ubuntu"
                 ),
                 preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 schedule_timeout=OptTimeDeltaExpr(
@@ -766,7 +760,7 @@ def test_parse_matrix_with_strategy(assets: pathlib.Path) -> None:
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
                 cmd=OptStrExpr(
-                    Pos(28, 9, config_file), Pos(28, 17, config_file), "echo abc"
+                    Pos(27, 9, config_file), Pos(27, 17, config_file), "echo abc"
                 ),
                 workdir=OptRemotePathExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
