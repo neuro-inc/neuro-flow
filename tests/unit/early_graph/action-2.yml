@@ -13,7 +13,6 @@ tasks:
         include:
           - one: o3
             two: t3
-            extra: e3
     image: ubuntu
     bash: echo ${{ matrix.one }} ${{ matrix.two }}
   - id: task_2

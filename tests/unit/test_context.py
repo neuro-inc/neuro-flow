@@ -273,7 +273,7 @@ async def test_pipeline_matrix(batch_config_loader: ConfigLoader) -> None:
     flow = await RunningBatchFlow.create(batch_config_loader, "batch-matrix")
 
     assert flow.graph == {
-        "task-1-e3-o3-t3": set(),
+        "task-1-o3-t3": set(),
         "task-1-o1-t1": set(),
         "task-1-o2-t1": set(),
         "task-1-o2-t2": set(),
@@ -310,11 +310,11 @@ async def test_pipeline_matrix_with_strategy(batch_config_loader: ConfigLoader) 
     )
 
     assert flow.graph == {
-        "task-1-e3-o3-t3": set(),
+        "task-1-o3-t3": set(),
         "task-1-o1-t1": set(),
         "task-1-o2-t1": set(),
         "task-1-o2-t2": set(),
-        "simple": {"task-1-e3-o3-t3", "task-1-o1-t1", "task-1-o2-t1", "task-1-o2-t2"},
+        "simple": {"task-1-o3-t3", "task-1-o1-t1", "task-1-o2-t1", "task-1-o2-t2"},
     }
 
     task = await flow.get_task(
@@ -333,7 +333,7 @@ async def test_pipeline_matrix_with_strategy(batch_config_loader: ConfigLoader) 
         life_span=9000,
     )
 
-    task = await flow.get_task((), "task-1-e3-o3-t3", needs={}, state={})
+    task = await flow.get_task((), "task-1-o3-t3", needs={}, state={})
     assert task.id is None
     assert task.title is None
     assert task.name is None
@@ -348,7 +348,7 @@ async def test_pipeline_matrix_with_strategy(batch_config_loader: ConfigLoader) 
     assert task.tags == {
         "project:unit",
         "flow:batch-matrix-with-strategy",
-        "task:task-1-e3-o3-t3",
+        "task:task-1-o3-t3",
     }
     assert task.life_span is None
 
@@ -407,6 +407,19 @@ async def test_pipeline_matrix_2(batch_config_loader: ConfigLoader) -> None:
         strategy=ast.CacheStrategy.DEFAULT,
         life_span=1209600,
     )
+
+
+async def test_pipeline_matrix_incomplete_include(
+    batch_config_loader: ConfigLoader,
+) -> None:
+    with pytest.raises(
+        EvalError,
+        match=r"Keys of entry in include list of matrix "
+        r"are not the same as matrix keys: missing keys: param2",
+    ):
+        await RunningBatchFlow.create(
+            batch_config_loader, "batch-matrix-incomplete-include"
+        )
 
 
 async def test_pipeline_args_defautls_only(batch_config_loader: ConfigLoader) -> None:
