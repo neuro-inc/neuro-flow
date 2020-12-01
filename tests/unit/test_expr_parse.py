@@ -608,3 +608,26 @@ def test_dict() -> None:
             ],
         )
     ] == PARSER.parse(list(tokenize("${{ {1: '2', True: len(ctx)} }}", START)))
+
+
+def test_dict_short() -> None:
+    assert [
+        DictMaker(
+            start=Pos(0, 5, FNAME),
+            end=Pos(0, 11, FNAME),
+            items=[
+                (
+                    Literal(
+                        start=Pos(0, 5, FNAME),
+                        end=Pos(0, 6, FNAME),
+                        val=1,
+                    ),
+                    Literal(
+                        start=Pos(0, 8, FNAME),
+                        end=Pos(0, 11, FNAME),
+                        val="2",
+                    ),
+                ),
+            ],
+        )
+    ] == PARSER.parse(list(tokenize("${{ {1: '2'} }}", START)))
