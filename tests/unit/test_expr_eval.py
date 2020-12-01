@@ -5,7 +5,16 @@ from typing import AsyncIterator, Dict, List
 from typing_extensions import Final
 
 from neuro_flow.context import DepCtx
-from neuro_flow.expr import PARSER, RootABC, TypeT
+from neuro_flow.expr import (
+    PARSER,
+    EvalError,
+    FloatExpr,
+    MappingExpr,
+    RootABC,
+    SequenceExpr,
+    StrExpr,
+    TypeT,
+)
 from neuro_flow.tokenizer import Pos, tokenize
 from neuro_flow.types import LocalPath, TaskStatus
 
@@ -125,3 +134,56 @@ async def test_failure_func(
     parsed = PARSER.parse(list(tokenize("${{" + expr + "}}", START)))
     assert len(parsed) == 1
     assert result == await parsed[0].eval(DictContext(context, client))  # type: ignore
+
+
+def test_parse_empty_float() -> None:
+    with pytest.raises(EvalError):
+        FloatExpr(START, START, "")
+
+
+def test_parse_implicit_concatenation_of_float() -> None:
+    with pytest.raises(EvalError):
+        pat = "${{ 1 }}_${{ 2 }}"
+        FloatExpr(START, Pos(0, len(pat), FNAME), pat)
+
+
+async def test_concat_str(client: Client) -> None:
+    pat = "${{ 'a' + 'b' }}"
+    expr = StrExpr(START, Pos(0, len(pat), FNAME), pat)
+    assert "ab" == await expr.eval(DictContext({}, client))
+
+
+async def test_add_float(client: Client) -> None:
+    pat = "${{ 1 + 2 }}"
+    expr = FloatExpr(START, Pos(0, len(pat), FNAME), pat)
+    assert 3 == await expr.eval(DictContext({}, client))
+
+
+async def test_sub_float(client: Client) -> None:
+    pat = "${{ 3 - 2 }}"
+    expr = FloatExpr(START, Pos(0, len(pat), FNAME), pat)
+    assert 1 == await expr.eval(DictContext({}, client))
+
+
+async def test_mul_float(client: Client) -> None:
+    pat = "${{ 2 * 3 }}"
+    expr = FloatExpr(START, Pos(0, len(pat), FNAME), pat)
+    assert 6 == await expr.eval(DictContext({}, client))
+
+
+async def test_div_float(client: Client) -> None:
+    pat = "${{ 1 / 2 }}"
+    expr = FloatExpr(START, Pos(0, len(pat), FNAME), pat)
+    assert 0.5 == await expr.eval(DictContext({}, client))
+
+
+async def test_concat_list(client: Client) -> None:
+    pat = "${{ [1] + [2] }}"
+    expr = SequenceExpr(START, Pos(0, len(pat), FNAME), pat)
+    assert [1, 2] == await expr.eval(DictContext({}, client))
+
+
+async def test_concat_dict(client: Client) -> None:
+    pat = "${{ {'a': 1} | {'b': 2} }}"
+    expr = MappingExpr(START, Pos(0, len(pat), FNAME), pat)
+    assert {"a": 1, "b": 2} == await expr.eval(DictContext({}, client))

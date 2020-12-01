@@ -522,6 +522,21 @@ class BinOp(Item):
         return self.op(left_val, right_val)  # type: ignore
 
 
+def or_(arg1: TypeT, arg2: TypeT) -> TypeT:
+    # Emulate dicts concatination from Python 3.9
+    d: Mapping[TypeT, TypeT]
+    if isinstance(arg1, MappingT):
+        d = dict(arg1)
+        d.update(arg2)
+        return d
+    elif isinstance(arg1, MappingT):
+        d
+        d.update(arg1)
+        return d
+    else:
+        return operator.or_(arg1, arg2)
+
+
 def make_bin_op_expr(args: Tuple[Item, Token, Item]) -> BinOp:
     op_map = {
         "==": operator.eq,
@@ -532,6 +547,11 @@ def make_bin_op_expr(args: Tuple[Item, Token, Item]) -> BinOp:
         "<=": operator.le,
         ">": operator.gt,
         ">=": operator.ge,
+        "|": or_,
+        "+": operator.add,
+        "-": operator.sub,
+        "*": operator.mul,
+        "/": operator.truediv,
     }
     op_token = args[1]
     return BinOp(
@@ -625,7 +645,21 @@ RSQB = skip(a("]"))
 LBRACE: Final = skip(a("{"))
 RBRACE = skip(a("}"))
 
-BIN_OP = a("==") | a("!=") | a("or") | a("and") | a("<") | a("<=") | a(">") | a(">=")
+BIN_OP = (
+    a("==")
+    | a("!=")
+    | a("or")
+    | a("and")
+    | a("<")
+    | a("<=")
+    | a(">")
+    | a(">=")
+    | a("|")
+    | a("+")
+    | a("-")
+    | a("*")
+    | a("/")
+)
 UNARY_OP = a("not")
 
 REAL: Final = literal("REAL") | literal("EXP")
@@ -723,7 +757,20 @@ class Expr(Generic[_T]):
             tokens = list(tokenize(pattern, start=start))
             if tokens:
                 self._parsed = PARSER.parse(tokens)
+                if self.type is not str and len(self._parsed) > 1:
+                    raise EvalError(
+                        "Implicit concatenation is not allowed for "
+                        f"{self.type.__name__}",
+                        start,
+                        end,
+                    )
             else:
+                if self.type is not str:
+                    raise EvalError(
+                        f"Empty value is not allowed for {self.type.__name__}",
+                        start,
+                        end,
+                    )
                 self._parsed = [Text(start, end, "")]
             assert self._parsed
             if len(self._parsed) == 1 and type(self._parsed[0]) == Text:
@@ -758,9 +805,13 @@ class Expr(Generic[_T]):
                 # TODO: add str() function, raise an explicit error if
                 # an expresion evaluates non-str type
                 # assert isinstance(val, str), repr(val)
-                ret.append(str(val))
+                ret.append(val)
             try:
-                return self.convert("".join(ret))
+                if self.type is str:
+                    return self.convert("".join(str(item) for item in ret))
+                else:
+                    assert len(ret) == 1
+                    return self.convert(ret[0])
             except asyncio.CancelledError:
                 raise
             except EvalError:
@@ -1020,3 +1071,19 @@ class PortPairExpr(StrExpr):
         if match is None:
             raise ValueError(f"{arg!r} is not a LOCAL:REMOTE ports pair")
         return arg
+
+
+class SequenceExpr(StrictExpr[list]):
+    type = list
+
+    @classmethod
+    def convert(cls, arg: list) -> list:
+        return arg  # TODO: add elements check
+
+
+class MappingExpr(StrictExpr[dict]):
+    type = dict
+
+    @classmethod
+    def convert(cls, arg: dict) -> dict:
+        return arg  # TODO: add keys and values check
