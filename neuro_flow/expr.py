@@ -31,6 +31,7 @@ from typing import (
     AsyncContextManager,
     Awaitable,
     Callable,
+    ClassVar,
     Dict,
     Generic,
     Iterator,
@@ -687,9 +688,9 @@ PARSER: Final = oneplus(TMPL | TEXT) + skip(finished)
 
 
 class Expr(Generic[_T]):
-    allow_none = True
-    allow_expr = True
-    type: Type[_T]
+    allow_none: ClassVar[bool] = True
+    allow_expr: ClassVar[bool] = True
+    type: ClassVar[Type[_T]]
     _ret: Union[None, _T]
     _pattern: Union[None, str, _T]
     _parsed: Optional[Sequence[Item]]
