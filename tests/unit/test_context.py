@@ -184,7 +184,7 @@ async def test_bad_expr_type_after_eval(live_config_loader: ConfigLoader) -> Non
         await flow.get_job("test", {})
     assert str(cm.value) == dedent(
         """\
-        'abc def' is not an integer
+        invalid literal for int() with base 10: 'abc def'
           in line 5, column 19"""
     )
 

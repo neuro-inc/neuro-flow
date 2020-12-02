@@ -55,13 +55,14 @@ from .expr import (
     SimpleOptStrExpr,
     SimpleStrExpr,
     StrExpr,
+    TypeT,
     URIExpr,
 )
 from .tokenizer import Pos
 from .types import LocalPath
 
 
-_T = TypeVar("_T")
+_T = TypeVar("_T", bound=TypeT)
 _Cont = TypeVar("_Cont")
 
 

@@ -40,8 +40,6 @@ from typing import (
     Mapping,
     Optional,
     Sequence,
-    SupportsFloat,
-    SupportsInt,
     Tuple,
     Type,
     TypeVar,
@@ -56,9 +54,6 @@ from .types import AlwaysT, LocalPath, RemotePath, TaskStatus
 from .utils import run_subproc
 
 
-_T = TypeVar("_T")
-
-
 LiteralT = Union[None, bool, int, float, str]
 
 TypeT = Union[
@@ -67,8 +62,12 @@ TypeT = Union[
     "MappingT",
     "SequenceT",
     LocalPath,
+    RemotePath,
+    URL,
     AlwaysT,
 ]
+
+_T = TypeVar("_T", bound=TypeT)
 
 
 @runtime_checkable
@@ -734,10 +733,10 @@ class Expr(Generic[_T]):
 
     @classmethod
     @abc.abstractmethod
-    def convert(cls, arg: Union[str, _T]) -> _T:
+    def convert(cls, arg: TypeT) -> _T:
         pass
 
-    def _try_convert(self, arg: Union[str, _T], start: Pos, end: Pos) -> None:
+    def _try_convert(self, arg: TypeT, start: Pos, end: Pos) -> None:
         try:
             self._ret = self.convert(arg)
         except (TypeError, ValueError) as exc:
@@ -814,7 +813,7 @@ class Expr(Generic[_T]):
                     return self.convert("".join(str(item) for item in ret))
                 else:
                     assert len(ret) == 1
-                    return self.convert(ret[0])  # type: ignore
+                    return self.convert(ret[0])
             except asyncio.CancelledError:
                 raise
             except EvalError:
@@ -855,8 +854,8 @@ class StrictExpr(Expr[_T]):
 
 class StrExprMixin:
     @classmethod
-    def convert(cls, arg: str) -> str:
-        return arg
+    def convert(cls, arg: TypeT) -> str:
+        return str(arg)
 
 
 class StrExpr(StrExprMixin, StrictExpr[str]):
@@ -879,7 +878,8 @@ class SimpleOptStrExpr(StrExprMixin, Expr[str]):
 
 class IdExprMixin:
     @classmethod
-    def convert(cls, arg: str) -> str:
+    def convert(cls, arg: TypeT) -> str:
+        assert isinstance(arg, str)
         if not arg.isidentifier():
             raise ValueError(f"{arg!r} is not identifier")
         if arg == arg.upper():
@@ -910,8 +910,8 @@ class SimpleOptIdExpr(IdExprMixin, Expr[str]):
 
 class URIExprMixin:
     @classmethod
-    def convert(cls, arg: Union[str, URL]) -> URL:
-        return URL(arg)
+    def convert(cls, arg: TypeT) -> URL:
+        return URL(arg)  # type: ignore[arg-type]
 
 
 class URIExpr(URIExprMixin, StrictExpr[URL]):
@@ -924,11 +924,8 @@ class OptURIExpr(URIExprMixin, Expr[URL]):
 
 class BoolExprMixin:
     @classmethod
-    def convert(cls, arg: Union[str, bool]) -> bool:
-        if isinstance(arg, bool):
-            return arg
-        tmp = parse_literal(arg, "a boolean")
-        return bool(tmp)
+    def convert(cls, arg: TypeT) -> bool:
+        return bool(arg)
 
 
 class BoolExpr(BoolExprMixin, StrictExpr[bool]):
@@ -951,13 +948,12 @@ class SimpleOptBoolExpr(BoolExprMixin, Expr[bool]):
 
 class EnableExprMixin:
     @classmethod
-    def convert(cls, arg: Union[AlwaysT, str, bool]) -> Union[bool, AlwaysT]:
-        if isinstance(arg, AlwaysT) or isinstance(arg, bool):
+    def convert(cls, arg: TypeT) -> Union[bool, AlwaysT]:
+        if isinstance(arg, AlwaysT):
             return arg
         if arg == "always()":
             return AlwaysT()
-        tmp = parse_literal(arg, "a boolean")
-        return bool(tmp)
+        return bool(arg)
 
 
 class EnableExpr(EnableExprMixin, StrictExpr[Union[bool, AlwaysT]]):
@@ -970,11 +966,8 @@ class OptEnableExpr(EnableExprMixin, Expr[Union[bool, AlwaysT]]):
 
 class IntExprMixin:
     @classmethod
-    def convert(cls, arg: Union[str, SupportsInt]) -> int:
-        if hasattr(arg, "__int__"):
-            return int(arg)
-        tmp = parse_literal(arg, "an integer")  # type: ignore
-        return int(tmp)  # type: ignore[arg-type]
+    def convert(cls, arg: TypeT) -> int:
+        return int(arg)  # type: ignore[arg-type]
 
 
 class IntExpr(IntExprMixin, StrictExpr[int]):
@@ -987,11 +980,8 @@ class OptIntExpr(IntExprMixin, Expr[int]):
 
 class FloatExprMixin:
     @classmethod
-    def convert(cls, arg: Union[str, SupportsFloat]) -> float:
-        if hasattr(arg, "__float__"):
-            return float(arg)
-        tmp = parse_literal(arg, "a float")  # type: ignore
-        return float(tmp)  # type: ignore[arg-type]
+    def convert(cls, arg: TypeT) -> float:
+        return float(arg)  # type: ignore[arg-type]
 
 
 class FloatExpr(FloatExprMixin, StrictExpr[float]):
@@ -1006,7 +996,7 @@ class OptTimeDeltaExpr(OptFloatExpr):
     RE = re.compile(r"^((?P<d>\d+)d)?((?P<h>\d+)h)?((?P<m>\d+)m)?((?P<s>\d+)s)?$")
 
     @classmethod
-    def convert(cls, arg: Union[str, SupportsFloat]) -> float:
+    def convert(cls, arg: TypeT) -> float:
         try:
             return super(cls, OptTimeDeltaExpr).convert(arg)
         except (ValueError, SyntaxError):
@@ -1025,8 +1015,8 @@ class OptTimeDeltaExpr(OptFloatExpr):
 
 class LocalPathMixin:
     @classmethod
-    def convert(cls, arg: Union[str, LocalPath]) -> LocalPath:
-        return LocalPath(arg)
+    def convert(cls, arg: TypeT) -> LocalPath:
+        return LocalPath(arg)  # type: ignore[arg-type]
 
 
 class LocalPathExpr(LocalPathMixin, StrictExpr[LocalPath]):
@@ -1039,8 +1029,8 @@ class OptLocalPathExpr(LocalPathMixin, Expr[LocalPath]):
 
 class RemotePathMixin:
     @classmethod
-    def convert(cls, arg: Union[str, RemotePath]) -> RemotePath:
-        return RemotePath(arg)
+    def convert(cls, arg: TypeT) -> RemotePath:
+        return RemotePath(arg)  # type: ignore[arg-type]
 
 
 class RemotePathExpr(RemotePathMixin, StrictExpr[RemotePath]):
@@ -1053,15 +1043,15 @@ class OptRemotePathExpr(RemotePathMixin, Expr[RemotePath]):
 
 class OptBashExpr(OptStrExpr):
     @classmethod
-    def convert(cls, arg: str) -> str:
-        ret = " ".join(["bash", "-euo", "pipefail", "-c", shlex.quote(arg)])
+    def convert(cls, arg: TypeT) -> str:
+        ret = " ".join(["bash", "-euo", "pipefail", "-c", shlex.quote(str(arg))])
         return ret
 
 
 class OptPythonExpr(OptStrExpr):
     @classmethod
-    def convert(cls, arg: str) -> str:
-        ret = " ".join(["python3", "-uc", shlex.quote(arg)])
+    def convert(cls, arg: TypeT) -> str:
+        ret = " ".join(["python3", "-uc", shlex.quote(str(arg))])
         return ret
 
 
@@ -1069,24 +1059,29 @@ class PortPairExpr(StrExpr):
     RE = re.compile(r"^\d+:\d+$")
 
     @classmethod
-    def convert(cls, arg: str) -> str:
-        match = cls.RE.match(arg)
+    def convert(cls, arg: TypeT) -> str:
+        sarg = str(arg)
+        match = cls.RE.match(sarg)
         if match is None:
             raise ValueError(f"{arg!r} is not a LOCAL:REMOTE ports pair")
-        return arg
+        return sarg
 
 
-class SequenceExpr(StrictExpr[Sequence[TypeT]]):
-    type = list
+class SequenceExpr(StrictExpr[SequenceT]):
+    type = SequenceT
 
     @classmethod
-    def convert(cls, arg: Union[str, Sequence[TypeT]]) -> Sequence[TypeT]:
+    def convert(cls, arg: TypeT) -> SequenceT:
+        if not isinstance(arg, SequenceT):
+            raise TypeError(f"{arg!r} is not a sequence")
         return arg  # TODO: add elements check
 
 
-class MappingExpr(StrictExpr[Mapping[TypeT, TypeT]]):
-    type = dict
+class MappingExpr(StrictExpr[MappingT]):
+    type = MappingT
 
     @classmethod
-    def convert(cls, arg: Union[str, Mapping[TypeT, TypeT]]) -> Mapping[TypeT, TypeT]:
+    def convert(cls, arg: TypeT) -> MappingT:
+        if not isinstance(arg, MappingT):
+            raise TypeError(f"{arg!r} is not a sequence")
         return arg  # TODO: add keys and values check

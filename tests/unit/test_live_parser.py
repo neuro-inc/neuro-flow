@@ -597,7 +597,7 @@ def test_bad_expr_type_before_eval(assets: pathlib.Path) -> None:
         parse_live(workspace, config_file)
     assert str(ctx.value) == dedent(
         """\
-        'abc def' is not an integer
+        invalid literal for int() with base 10: 'abc def'
           in line 5, column 15"""
     )
 
