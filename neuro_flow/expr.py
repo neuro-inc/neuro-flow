@@ -5,6 +5,7 @@ import dataclasses
 import abc
 import asyncio
 import collections
+import collections.abc
 import datetime
 import enum
 import hashlib
@@ -39,6 +40,8 @@ from typing import (
     Mapping,
     Optional,
     Sequence,
+    SupportsFloat,
+    SupportsInt,
     Tuple,
     Type,
     TypeVar,
@@ -522,15 +525,15 @@ class BinOp(Item):
         return self.op(left_val, right_val)  # type: ignore
 
 
-def or_(arg1: TypeT, arg2: TypeT) -> TypeT:
+def or_(arg1: Any, arg2: Any) -> Any:
     # Emulate dicts concatination from Python 3.9
-    d: Mapping[TypeT, TypeT]
-    if isinstance(arg1, MappingT):
+    d: Mapping[Any, Any]
+    if isinstance(arg1, collections.abc.Mapping):
         d = dict(arg1)
         d.update(arg2)
         return d
-    elif isinstance(arg1, MappingT):
-        d
+    elif isinstance(arg2, collections.abc.Mapping):
+        d = dict(arg2)
         d.update(arg1)
         return d
     else:
@@ -757,7 +760,7 @@ class Expr(Generic[_T]):
             tokens = list(tokenize(pattern, start=start))
             if tokens:
                 self._parsed = PARSER.parse(tokens)
-                if self.type is not str and len(self._parsed) > 1:
+                if self.type is not str and self._parsed and len(self._parsed) > 1:
                     raise EvalError(
                         "Implicit concatenation is not allowed for "
                         f"{self.type.__name__}",
@@ -792,7 +795,7 @@ class Expr(Generic[_T]):
         if self._ret is not None:
             return self._ret
         if self._parsed is not None:
-            ret: List[str] = []
+            ret: List[TypeT] = []
             for part in self._parsed:
                 try:
                     val = await part.eval(root)
@@ -811,7 +814,7 @@ class Expr(Generic[_T]):
                     return self.convert("".join(str(item) for item in ret))
                 else:
                     assert len(ret) == 1
-                    return self.convert(ret[0])
+                    return self.convert(ret[0])  # type: ignore
             except asyncio.CancelledError:
                 raise
             except EvalError:
@@ -967,10 +970,10 @@ class OptEnableExpr(EnableExprMixin, Expr[Union[bool, AlwaysT]]):
 
 class IntExprMixin:
     @classmethod
-    def convert(cls, arg: Union[str, int]) -> int:
-        if isinstance(arg, int):
-            return arg
-        tmp = parse_literal(arg, "an integer")
+    def convert(cls, arg: Union[str, SupportsInt]) -> int:
+        if hasattr(arg, "__int__"):
+            return int(arg)
+        tmp = parse_literal(arg, "an integer")  # type: ignore
         return int(tmp)  # type: ignore[arg-type]
 
 
@@ -984,10 +987,10 @@ class OptIntExpr(IntExprMixin, Expr[int]):
 
 class FloatExprMixin:
     @classmethod
-    def convert(cls, arg: Union[str, float]) -> float:
-        if isinstance(arg, float):
-            return arg
-        tmp = parse_literal(arg, "a float")
+    def convert(cls, arg: Union[str, SupportsFloat]) -> float:
+        if hasattr(arg, "__float__"):
+            return float(arg)
+        tmp = parse_literal(arg, "a float")  # type: ignore
         return float(tmp)  # type: ignore[arg-type]
 
 
@@ -1003,7 +1006,7 @@ class OptTimeDeltaExpr(OptFloatExpr):
     RE = re.compile(r"^((?P<d>\d+)d)?((?P<h>\d+)h)?((?P<m>\d+)m)?((?P<s>\d+)s)?$")
 
     @classmethod
-    def convert(cls, arg: Union[str, float]) -> float:
+    def convert(cls, arg: Union[str, SupportsFloat]) -> float:
         try:
             return super(cls, OptTimeDeltaExpr).convert(arg)
         except (ValueError, SyntaxError):
@@ -1073,17 +1076,17 @@ class PortPairExpr(StrExpr):
         return arg
 
 
-class SequenceExpr(StrictExpr[list]):
+class SequenceExpr(StrictExpr[Sequence[TypeT]]):
     type = list
 
     @classmethod
-    def convert(cls, arg: list) -> list:
+    def convert(cls, arg: Union[str, Sequence[TypeT]]) -> Sequence[TypeT]:
         return arg  # TODO: add elements check
 
 
-class MappingExpr(StrictExpr[dict]):
+class MappingExpr(StrictExpr[Mapping[TypeT, TypeT]]):
     type = dict
 
     @classmethod
-    def convert(cls, arg: dict) -> dict:
+    def convert(cls, arg: Union[str, Mapping[TypeT, TypeT]]) -> Mapping[TypeT, TypeT]:
         return arg  # TODO: add keys and values check
