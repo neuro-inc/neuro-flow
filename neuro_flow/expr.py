@@ -731,9 +731,8 @@ class Expr(Generic[_T]):
     _pattern: Union[None, str, _T]
     _parsed: Optional[Sequence[Item]]
 
-    @classmethod
     @abc.abstractmethod
-    def convert(cls, arg: TypeT) -> _T:
+    def convert(self, arg: TypeT) -> _T:
         pass
 
     def _try_convert(self, arg: TypeT, start: Pos, end: Pos) -> None:
@@ -853,8 +852,7 @@ class StrictExpr(Expr[_T]):
 
 
 class StrExprMixin:
-    @classmethod
-    def convert(cls, arg: TypeT) -> str:
+    def convert(self, arg: TypeT) -> str:
         return str(arg)
 
 
@@ -877,8 +875,7 @@ class SimpleOptStrExpr(StrExprMixin, Expr[str]):
 
 
 class IdExprMixin:
-    @classmethod
-    def convert(cls, arg: TypeT) -> str:
+    def convert(self, arg: TypeT) -> str:
         assert isinstance(arg, str)
         if not arg.isidentifier():
             raise ValueError(f"{arg!r} is not identifier")
@@ -909,8 +906,7 @@ class SimpleOptIdExpr(IdExprMixin, Expr[str]):
 
 
 class URIExprMixin:
-    @classmethod
-    def convert(cls, arg: TypeT) -> URL:
+    def convert(self, arg: TypeT) -> URL:
         return URL(arg)  # type: ignore[arg-type]
 
 
@@ -923,8 +919,7 @@ class OptURIExpr(URIExprMixin, Expr[URL]):
 
 
 class BoolExprMixin:
-    @classmethod
-    def convert(cls, arg: TypeT) -> bool:
+    def convert(self, arg: TypeT) -> bool:
         return bool(arg)
 
 
@@ -947,8 +942,7 @@ class SimpleOptBoolExpr(BoolExprMixin, Expr[bool]):
 
 
 class EnableExprMixin:
-    @classmethod
-    def convert(cls, arg: TypeT) -> Union[bool, AlwaysT]:
+    def convert(self, arg: TypeT) -> Union[bool, AlwaysT]:
         if isinstance(arg, AlwaysT):
             return arg
         if arg == "always()":
@@ -965,8 +959,7 @@ class OptEnableExpr(EnableExprMixin, Expr[Union[bool, AlwaysT]]):
 
 
 class IntExprMixin:
-    @classmethod
-    def convert(cls, arg: TypeT) -> int:
+    def convert(self, arg: TypeT) -> int:
         return int(arg)  # type: ignore[arg-type]
 
 
@@ -979,8 +972,7 @@ class OptIntExpr(IntExprMixin, Expr[int]):
 
 
 class FloatExprMixin:
-    @classmethod
-    def convert(cls, arg: TypeT) -> float:
+    def convert(self, arg: TypeT) -> float:
         return float(arg)  # type: ignore[arg-type]
 
 
@@ -995,13 +987,12 @@ class OptFloatExpr(FloatExprMixin, Expr[float]):
 class OptTimeDeltaExpr(OptFloatExpr):
     RE = re.compile(r"^((?P<d>\d+)d)?((?P<h>\d+)h)?((?P<m>\d+)m)?((?P<s>\d+)s)?$")
 
-    @classmethod
-    def convert(cls, arg: TypeT) -> float:
+    def convert(self, arg: TypeT) -> float:
         try:
-            return super(cls, OptTimeDeltaExpr).convert(arg)
+            return super().convert(arg)
         except (ValueError, SyntaxError):
             assert isinstance(arg, str)
-            match = cls.RE.match(arg)
+            match = self.RE.match(arg)
             if match is None:
                 raise ValueError(f"{arg!r} is not a time delta unit")
             td = datetime.timedelta(
@@ -1014,8 +1005,7 @@ class OptTimeDeltaExpr(OptFloatExpr):
 
 
 class LocalPathMixin:
-    @classmethod
-    def convert(cls, arg: TypeT) -> LocalPath:
+    def convert(self, arg: TypeT) -> LocalPath:
         return LocalPath(arg)  # type: ignore[arg-type]
 
 
@@ -1028,8 +1018,7 @@ class OptLocalPathExpr(LocalPathMixin, Expr[LocalPath]):
 
 
 class RemotePathMixin:
-    @classmethod
-    def convert(cls, arg: TypeT) -> RemotePath:
+    def convert(self, arg: TypeT) -> RemotePath:
         return RemotePath(arg)  # type: ignore[arg-type]
 
 
@@ -1042,15 +1031,13 @@ class OptRemotePathExpr(RemotePathMixin, Expr[RemotePath]):
 
 
 class OptBashExpr(OptStrExpr):
-    @classmethod
-    def convert(cls, arg: TypeT) -> str:
+    def convert(self, arg: TypeT) -> str:
         ret = " ".join(["bash", "-euo", "pipefail", "-c", shlex.quote(str(arg))])
         return ret
 
 
 class OptPythonExpr(OptStrExpr):
-    @classmethod
-    def convert(cls, arg: TypeT) -> str:
+    def convert(self, arg: TypeT) -> str:
         ret = " ".join(["python3", "-uc", shlex.quote(str(arg))])
         return ret
 
@@ -1058,10 +1045,9 @@ class OptPythonExpr(OptStrExpr):
 class PortPairExpr(StrExpr):
     RE = re.compile(r"^\d+:\d+$")
 
-    @classmethod
-    def convert(cls, arg: TypeT) -> str:
+    def convert(self, arg: TypeT) -> str:
         sarg = str(arg)
-        match = cls.RE.match(sarg)
+        match = self.RE.match(sarg)
         if match is None:
             raise ValueError(f"{arg!r} is not a LOCAL:REMOTE ports pair")
         return sarg
@@ -1070,18 +1056,18 @@ class PortPairExpr(StrExpr):
 class SequenceExpr(StrictExpr[SequenceT]):
     type = SequenceT
 
-    @classmethod
-    def convert(cls, arg: TypeT) -> SequenceT:
+    def convert(self, arg: TypeT) -> SequenceT:
         if not isinstance(arg, SequenceT):
             raise TypeError(f"{arg!r} is not a sequence")
+        # for item in arg:
+        #     self.validate_item(item)
         return arg  # TODO: add elements check
 
 
 class MappingExpr(StrictExpr[MappingT]):
     type = MappingT
 
-    @classmethod
-    def convert(cls, arg: TypeT) -> MappingT:
+    def convert(self, arg: TypeT) -> MappingT:
         if not isinstance(arg, MappingT):
             raise TypeError(f"{arg!r} is not a sequence")
         return arg  # TODO: add keys and values check
