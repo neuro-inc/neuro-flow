@@ -723,7 +723,13 @@ TEXT: Final = some(lambda tok: tok.type == "TEXT") >> make_text
 PARSER: Final = oneplus(TMPL | TEXT) + skip(finished)
 
 
-class Expr(Generic[_T]):
+class BaseExpr(Generic[_T], abc.ABC):
+    @abc.abstractmethod
+    async def eval(self, root: RootABC) -> Optional[_T]:
+        pass
+
+
+class Expr(BaseExpr[_T]):
     allow_none: ClassVar[bool] = True
     allow_expr: ClassVar[bool] = True
     type: ClassVar[Type[_T]]
