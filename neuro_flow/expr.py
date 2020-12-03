@@ -68,6 +68,7 @@ TypeT = Union[
 ]
 
 _T = TypeVar("_T", bound=TypeT)
+_IT = TypeVar("_IT", bound=TypeT)
 
 
 @runtime_checkable
@@ -1070,6 +1071,17 @@ class SequenceExpr(StrictExpr[SequenceT]):
         return arg  # TODO: add elements check
 
 
+class SequenceItemsExpr(BaseExpr[SequenceT], Generic[_IT]):
+    def __init__(self, items: Sequence[StrictExpr[_IT]]) -> None:
+        self._items = items
+
+    async def eval(self, root: RootABC) -> SequenceT:
+        ret = []
+        for item in self._items:
+            ret.append(await item.eval(root))
+        return cast(SequenceT, ret)
+
+
 class MappingExpr(StrictExpr[MappingT]):
     type = MappingT
 
@@ -1077,3 +1089,14 @@ class MappingExpr(StrictExpr[MappingT]):
         if not isinstance(arg, MappingT):
             raise TypeError(f"{arg!r} is not a sequence")
         return arg  # TODO: add keys and values check
+
+
+class MappingItemsExpr(BaseExpr[MappingT], Generic[_IT]):
+    def __init__(self, items: Mapping[str, StrictExpr[_IT]]) -> None:
+        self._items = items
+
+    async def eval(self, root: RootABC) -> MappingT:
+        ret = {}
+        for key, value in self._items.items():
+            ret[key] = await value.eval(root)
+        return cast(MappingT, ret)
