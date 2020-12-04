@@ -1063,12 +1063,23 @@ class PortPairExpr(StrExpr):
 class SequenceExpr(StrictExpr[SequenceT]):
     type = SequenceT
 
+    def __init__(
+        self,
+        start: Pos,
+        end: Pos,
+        pattern: Union[None, str, _T],
+        item_factory: Callable[[TypeT], TypeT],
+    ) -> None:
+        super().__init__(start, end, pattern)
+        self._item_factory = item_factory
+
     def convert(self, arg: TypeT) -> SequenceT:
         if not isinstance(arg, SequenceT):
             raise TypeError(f"{arg!r} is not a sequence")
-        # for item in arg:
-        #     self.validate_item(item)
-        return arg  # TODO: add elements check
+        ret = {}
+        for item in arg:
+            ret.append(self._item_factory(item))
+        return cast(SequenceT, ret)
 
 
 class SequenceItemsExpr(BaseExpr[SequenceT], Generic[_IT]):
@@ -1085,10 +1096,25 @@ class SequenceItemsExpr(BaseExpr[SequenceT], Generic[_IT]):
 class MappingExpr(StrictExpr[MappingT]):
     type = MappingT
 
+    def __init__(
+        self,
+        start: Pos,
+        end: Pos,
+        pattern: Union[None, str, _T],
+        value_factory: Callable[[TypeT], TypeT],
+    ) -> None:
+        super().__init__(start, end, pattern)
+        self._value_factory = value_factory
+
     def convert(self, arg: TypeT) -> MappingT:
         if not isinstance(arg, MappingT):
             raise TypeError(f"{arg!r} is not a sequence")
-        return arg  # TODO: add keys and values check
+        ret = {}
+        for key, value in arg.items():
+            if not isinstance(key, str):
+                raise TypeError(f"{key:r} is not a string")
+            ret[key] = self._value_factory(value)
+        return cast(MappingT, ret)
 
 
 class MappingItemsExpr(BaseExpr[MappingT], Generic[_IT]):
