@@ -1604,7 +1604,7 @@ class BasePrepTask(BaseEarlyTask):
             needs=self.needs,
             matrix=self.matrix,
             strategy=self.strategy,
-            cache=self.cache,
+            cache=CacheConf(strategy=ast.CacheStrategy.NONE),
             enable=self.enable,
             action=action,
             call=call,
@@ -1621,7 +1621,7 @@ class BasePrepTask(BaseEarlyTask):
             needs=self.needs,
             matrix=self.matrix,
             strategy=self.strategy,
-            cache=self.cache,
+            cache=CacheConf(strategy=ast.CacheStrategy.NONE),
             enable=self.enable,
             ast_task=action.main,
             action=action,
@@ -1635,7 +1635,7 @@ class BasePrepTask(BaseEarlyTask):
             needs=self.needs,
             matrix=self.matrix,
             strategy=self.strategy,
-            cache=self.cache,
+            cache=CacheConf(strategy=ast.CacheStrategy.NONE),
             enable=self.enable,
             ast_task=ast_task,
             state_from=state_from,
@@ -1728,6 +1728,14 @@ class EarlyTaskGraphBuilder:
                     assert isinstance(ast_task, ast.TaskActionCall)
                     action_name = await ast_task.action.eval(EMPTY_ROOT)
                     action = await self._cl.fetch_action(action_name)
+                    if ast_task.cache and not isinstance(action, ast.BatchAction):
+                        raise EvalError(
+                            f"Specifying cache in action call to the action "
+                            f"{action_name} of kind {action.kind.value} is "
+                            f"not supported.",
+                            ast_task._start,
+                            ast_task._end,
+                        )
                     if isinstance(action, ast.BatchAction):
                         prep_tasks[real_id] = base.to_batch_call(action, ast_task)
                     elif isinstance(action, ast.LocalAction):
@@ -1747,7 +1755,7 @@ class EarlyTaskGraphBuilder:
 
                     else:
                         raise ValueError(
-                            f"Action {action_name} has kind {action.kind}, "
+                            f"Action {action_name} has kind {action.kind.value}, "
                             "that is not supported in batch mode."
                         )
                 real_ids.add(real_id)

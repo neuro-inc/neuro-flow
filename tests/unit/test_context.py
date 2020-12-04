@@ -563,6 +563,42 @@ async def test_batch_action_with_inputs_default_ok(
     assert inputs == {"arg1": "v1", "arg2": "default"}
 
 
+async def test_local_call_with_cache_invalid(
+    assets: pathlib.Path,
+    client: Client,
+) -> None:
+    config_dir = ConfigDir(
+        workspace=assets / "local_actions",
+        config_dir=assets / "local_actions",
+    )
+    cl = BatchLocalCL(config_dir, client)
+
+    with pytest.raises(
+        EvalError,
+        match=r"Specifying cache in action call to the action "
+        r"ws:cp of kind local is not supported.",
+    ):
+        await RunningBatchFlow.create(cl, "bad-call-with-cache", {})
+
+
+async def test_stateful_call_with_cache_invalid(
+    assets: pathlib.Path,
+    client: Client,
+) -> None:
+    config_dir = ConfigDir(
+        workspace=assets / "stateful_actions",
+        config_dir=assets / "stateful_actions",
+    )
+    cl = BatchLocalCL(config_dir, client)
+
+    with pytest.raises(
+        EvalError,
+        match=r"Specifying cache in action call to the action "
+        r"ws:with-state of kind stateful is not supported.",
+    ):
+        await RunningBatchFlow.create(cl, "bad-call-with-cache", {})
+
+
 async def test_job_with_live_action(live_config_loader: ConfigLoader) -> None:
     flow = await RunningLiveFlow.create(live_config_loader, "live-action-call")
     job = await flow.get_job("test", {})
