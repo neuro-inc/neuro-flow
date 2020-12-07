@@ -765,7 +765,11 @@ class Expr(BaseExpr[_T]):
             tokens = list(tokenize(pattern, start=start))
             if tokens:
                 self._parsed = PARSER.parse(tokens)
-                if self.type is not str and self._parsed and len(self._parsed) > 1:
+                if (
+                    not issubclass(self.type, (str, RemotePath, LocalPath))
+                    and self._parsed
+                    and len(self._parsed) > 1
+                ):
                     raise EvalError(
                         "Implicit concatenation is not allowed for "
                         f"{self.type.__name__}",
@@ -773,7 +777,7 @@ class Expr(BaseExpr[_T]):
                         end,
                     )
             else:
-                if self.type is not str:
+                if not issubclass(self.type, (str, RemotePath, LocalPath)):
                     raise EvalError(
                         f"Empty value is not allowed for {self.type.__name__}",
                         start,
