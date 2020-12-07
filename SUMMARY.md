@@ -14,5 +14,6 @@
 * [Live contexts](reference/live-contexts.md)
 * [Batch contexts](reference/batch-contexts.md)
 * [Actions contexts](reference/live-actions-contexts.md)
+* [Batch workflow commands](reference/batch-workflow-commands.md)
 * [CLI reference](reference/cli.md)
 

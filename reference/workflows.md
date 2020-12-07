@@ -1,6 +1,6 @@
 # Workflows
 
-A workflow is a configurable automated process made up of one or more jobs, task, or action call. You must create a YAML file to define your workflow configuration.
+A workflow is a configurable automated process made up of one or more job, task, or action call. You must create a YAML file to define your workflow configuration.
 
 ## Workflow _kinds_
 

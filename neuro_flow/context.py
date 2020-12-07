@@ -340,8 +340,7 @@ class LiveMultiJobContext(LiveContext):
 
 
 @dataclass(frozen=True)
-class LiveActionContext(WithEnvContext, Context):
-    tags: TagsCtx
+class LiveActionContext(Context):
     inputs: InputsCtx
 
 
@@ -385,8 +384,7 @@ class BatchContextStep2(WithEnvContext, BatchContextStep1):
         )
 
 
-class BaseBatchContext(WithEnvContext, Context):
-    tags: TagsCtx
+class BaseBatchContext(Context):
     strategy: StrategyCtx
 
     @abstractmethod
@@ -463,17 +461,13 @@ class BatchTaskContext(BaseTaskContext, BatchMatrixContext):
 
 @dataclass(frozen=True)
 class BatchActionContext(BaseBatchContext):
-    env: EnvCtx
     inputs: InputsCtx
-    tags: TagsCtx
     strategy: StrategyCtx
 
     def to_matrix_ctx(
         self, strategy: StrategyCtx, matrix: MatrixCtx
     ) -> "BatchActionMatrixContext":
         return BatchActionMatrixContext(
-            env=self.env,
-            tags=self.tags,
             inputs=self.inputs,
             matrix=matrix,
             strategy=strategy,
@@ -482,8 +476,6 @@ class BatchActionContext(BaseBatchContext):
 
     def to_outputs_ctx(self, needs: NeedsCtx) -> "BatchActionOutputsContext":
         return BatchActionOutputsContext(
-            env=self.env,
-            tags=self.tags,
             strategy=self.strategy,
             inputs=self.inputs,
             needs=needs,
@@ -503,8 +495,6 @@ class BatchActionMatrixContext(BaseMatrixContext, BatchActionContext):
 
     def to_task_ctx(self, needs: NeedsCtx, state: StateCtx) -> "BatchActionTaskContext":
         return BatchActionTaskContext(
-            env=self.env,
-            tags=self.tags,
             inputs=self.inputs,
             matrix=self.matrix,
             strategy=self.strategy,
@@ -521,14 +511,12 @@ class BatchActionTaskContext(BaseTaskContext, BatchActionMatrixContext):
 
 
 @dataclass(frozen=True)
-class StatefulActionContext(WithEnvContext, Context):
-    tags: TagsCtx
+class StatefulActionContext(Context):
     inputs: InputsCtx
 
 
 @dataclass(frozen=True)
-class LocalActionContext(WithEnvContext, Context):
-    tags: TagsCtx
+class LocalActionContext(Context):
     inputs: InputsCtx
 
 
@@ -782,6 +770,22 @@ async def setup_matrix(ast_matrix: Optional[ast.Matrix]) -> Sequence[MatrixCtx]:
     matrices = filtered
     # Include
     for inc_spec in ast_matrix.include:
+        if inc_spec.keys() != ast_matrix.products.keys():
+            additional = inc_spec.keys() - ast_matrix.products.keys()
+            missing = ast_matrix.products.keys() - inc_spec.keys()
+            raise EvalError(
+                "Keys of entry in include list of matrix are not the "
+                "same as matrix keys: "
+                + (
+                    f"additional keys: {','.join(sorted(additional))}"
+                    if additional
+                    else ""
+                )
+                + (f" , " if additional and missing else "")
+                + (f"missing keys: {','.join(sorted(missing))}" if missing else ""),
+                ast_matrix._start,
+                ast_matrix._end,
+            )
         matrices.append({k: await v.eval(EMPTY_ROOT) for k, v in inc_spec.items()})
     return matrices
 
@@ -909,7 +913,7 @@ class RunningLiveFlow:
         ctx = self._ctx.to_job_ctx(
             params=await setup_params_ctx(EMPTY_ROOT, params, job_ast.params)
         )
-        return await self._get_job(ctx, self._defaults, job_id, params)
+        return await self._get_job(ctx, ctx.env, self._defaults, job_id)
 
     async def get_multi_job(
         self,
@@ -931,25 +935,24 @@ class RunningLiveFlow:
             multi=MultiCtx(suffix=suffix, args=args_str),
             params=await setup_params_ctx(EMPTY_ROOT, params, job_ast.params),
         )
-        job = await self._get_job(ctx, self._defaults, job_id, params)
+        job = await self._get_job(ctx, ctx.env, self._defaults, job_id)
         return replace(job, tags=job.tags | {f"multi:{suffix}"})
 
     async def _get_job(
         self,
-        ctx: WithEnvContext,
+        ctx: RootABC,
+        env_ctx: EnvCtx,
         defaults: DefaultsConf,
         job_id: str,
-        params: Mapping[str, str],
     ) -> Job:
         job = self._get_job_ast(job_id)
         if isinstance(job, ast.JobActionCall):
             action_ast = await self._get_action_ast(job)
             ctx = LiveActionContext(
-                tags=self._ctx.tags,
-                env={},  # TODO: Is it correct?
                 inputs=await setup_inputs_ctx(ctx, job, action_ast.inputs),
                 _client=self._ctx._client,
             )
+            env_ctx = {}
             defaults = DefaultsConf()
             job = action_ast.job
         assert isinstance(job, ast.Job)
@@ -958,7 +961,7 @@ class RunningLiveFlow:
         if job.tags is not None:
             tags |= {await v.eval(ctx) for v in job.tags}
 
-        env = dict(ctx.env)
+        env = dict(env_ctx)
         if job.env is not None:
             env.update({k: await v.eval(ctx) for k, v in job.env.items()})
 
@@ -1113,12 +1116,14 @@ class RunningBatchBase(Generic[_T], EarlyBatch):
     def __init__(
         self,
         ctx: _T,
+        default_tags: TagsCtx,
         tasks: Mapping[str, "BasePrepTask"],
         config_loader: ConfigLoader,
         defaults: DefaultsConf,
     ):
         super().__init__(tasks, config_loader)
         self._ctx = ctx
+        self._default_tags = default_tags
         self._defaults = defaults
 
     def _get_prep(self, real_id: str) -> "BasePrepTask":
@@ -1168,13 +1173,11 @@ class RunningBatchBase(Generic[_T], EarlyBatch):
         assert isinstance(prep_task, (PrepTask, PrepStatefulCall))  # Already checked
 
         task_ctx = self._task_context(real_id, needs, state)
-        ctx: WithEnvContext = task_ctx
+        ctx: RootABC = task_ctx
         defaults = self._defaults
 
         if isinstance(prep_task, PrepStatefulCall):
             ctx = StatefulActionContext(
-                tags=self._ctx.tags,
-                env={},  # TODO: Is it correct?
                 inputs=await setup_inputs_ctx(
                     ctx, prep_task.call, prep_task.action.inputs
                 ),
@@ -1184,7 +1187,11 @@ class RunningBatchBase(Generic[_T], EarlyBatch):
 
         full_id = prefix + (real_id,)
 
-        env = dict(ctx.env)
+        if isinstance(ctx, BatchTaskContext):
+            env = dict(ctx.env)
+        else:
+            env = {}
+
         if prep_task.ast_task.env is not None:
             env.update(
                 {k: await v.eval(ctx) for k, v in prep_task.ast_task.env.items()}
@@ -1195,9 +1202,8 @@ class RunningBatchBase(Generic[_T], EarlyBatch):
         tags = set()
         if prep_task.ast_task.tags is not None:
             tags = {await v.eval(ctx) for v in prep_task.ast_task.tags}
-        if not tags:
-            tags = {"task:" + _id2tag(".".join(full_id))}
-        tags |= set(self._ctx.tags)
+        tags |= {"task:" + _id2tag(".".join(full_id))}
+        tags |= set(self._default_tags)
 
         workdir = (await prep_task.ast_task.workdir.eval(ctx)) or defaults.workdir
 
@@ -1257,7 +1263,7 @@ class RunningBatchBase(Generic[_T], EarlyBatch):
             base_cache=prep_task.cache,
             base_strategy=prep_task.strategy,
             inputs=await setup_inputs_ctx(ctx, prep_task.call, prep_task.action.inputs),
-            tags=ctx.tags,
+            default_tags=self._default_tags,
             config_loader=self._cl,
         )
 
@@ -1270,7 +1276,7 @@ class RunningBatchFlow(RunningBatchBase[BatchContext]):
         config_loader: ConfigLoader,
         defaults: DefaultsConf,
     ):
-        super().__init__(ctx, tasks, config_loader, defaults)
+        super().__init__(ctx, ctx.tags, tasks, config_loader, defaults)
 
     @property
     def project_id(self) -> str:
@@ -1294,8 +1300,6 @@ class RunningBatchFlow(RunningBatchBase[BatchContext]):
         ctx = self._task_context(real_id, needs, {})
 
         action_ctx = LocalActionContext(
-            tags=self._ctx.tags,  # TODO: do we need tags for local actions?
-            env={},  # TODO: Is it correct?
             inputs=await setup_inputs_ctx(ctx, prep_task.call, prep_task.action.inputs),
             _client=self._ctx._client,
         )
@@ -1359,13 +1363,14 @@ class RunningBatchActionFlow(RunningBatchBase[BatchActionContext]):
     def __init__(
         self,
         ctx: BatchActionContext,
+        default_tags: TagsCtx,
         tasks: Mapping[str, "BasePrepTask"],
         config_loader: ConfigLoader,
         defaults: DefaultsConf,
         action: ast.BatchAction,
         output_needs: AbstractSet[str],
     ):
-        super().__init__(ctx, tasks, config_loader, defaults)
+        super().__init__(ctx, default_tags, tasks, config_loader, defaults)
         self._action = action
         self._output_needs = output_needs
 
@@ -1405,12 +1410,10 @@ class RunningBatchActionFlow(RunningBatchBase[BatchActionContext]):
         base_cache: CacheConf,
         base_strategy: StrategyCtx,
         inputs: InputsCtx,
-        tags: TagsCtx,
+        default_tags: TagsCtx,
         config_loader: ConfigLoader,
     ) -> "RunningBatchActionFlow":
         action_context = BatchActionContext(
-            tags=tags,
-            env={},
             inputs=inputs,
             strategy=base_strategy,
             _client=config_loader.client,
@@ -1428,6 +1431,7 @@ class RunningBatchActionFlow(RunningBatchBase[BatchActionContext]):
 
         return RunningBatchActionFlow(
             action_context,
+            default_tags,
             tasks,
             config_loader,
             DefaultsConf(),
@@ -1600,7 +1604,7 @@ class BasePrepTask(BaseEarlyTask):
             needs=self.needs,
             matrix=self.matrix,
             strategy=self.strategy,
-            cache=self.cache,
+            cache=CacheConf(strategy=ast.CacheStrategy.NONE),
             enable=self.enable,
             action=action,
             call=call,
@@ -1617,7 +1621,7 @@ class BasePrepTask(BaseEarlyTask):
             needs=self.needs,
             matrix=self.matrix,
             strategy=self.strategy,
-            cache=self.cache,
+            cache=CacheConf(strategy=ast.CacheStrategy.NONE),
             enable=self.enable,
             ast_task=action.main,
             action=action,
@@ -1631,7 +1635,7 @@ class BasePrepTask(BaseEarlyTask):
             needs=self.needs,
             matrix=self.matrix,
             strategy=self.strategy,
-            cache=self.cache,
+            cache=CacheConf(strategy=ast.CacheStrategy.NONE),
             enable=self.enable,
             ast_task=ast_task,
             state_from=state_from,
@@ -1724,6 +1728,14 @@ class EarlyTaskGraphBuilder:
                     assert isinstance(ast_task, ast.TaskActionCall)
                     action_name = await ast_task.action.eval(EMPTY_ROOT)
                     action = await self._cl.fetch_action(action_name)
+                    if ast_task.cache and not isinstance(action, ast.BatchAction):
+                        raise EvalError(
+                            f"Specifying cache in action call to the action "
+                            f"{action_name} of kind {action.kind.value} is "
+                            f"not supported.",
+                            ast_task._start,
+                            ast_task._end,
+                        )
                     if isinstance(action, ast.BatchAction):
                         prep_tasks[real_id] = base.to_batch_call(action, ast_task)
                     elif isinstance(action, ast.LocalAction):
@@ -1743,7 +1755,7 @@ class EarlyTaskGraphBuilder:
 
                     else:
                         raise ValueError(
-                            f"Action {action_name} has kind {action.kind}, "
+                            f"Action {action_name} has kind {action.kind.value}, "
                             "that is not supported in batch mode."
                         )
                 real_ids.add(real_id)

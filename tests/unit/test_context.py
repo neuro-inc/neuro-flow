@@ -208,6 +208,7 @@ async def test_pipeline_minimal_ctx(batch_config_loader: ConfigLoader) -> None:
         "tag-2",
         "tag-a",
         "tag-b",
+        "task:test-a",
         "project:unit",
         "flow:batch-minimal",
     }
@@ -272,7 +273,7 @@ async def test_pipeline_matrix(batch_config_loader: ConfigLoader) -> None:
     flow = await RunningBatchFlow.create(batch_config_loader, "batch-matrix")
 
     assert flow.graph == {
-        "task-1-e3-o3-t3": set(),
+        "task-1-o3-t3": set(),
         "task-1-o1-t1": set(),
         "task-1-o2-t1": set(),
         "task-1-o2-t2": set(),
@@ -309,11 +310,11 @@ async def test_pipeline_matrix_with_strategy(batch_config_loader: ConfigLoader) 
     )
 
     assert flow.graph == {
-        "task-1-e3-o3-t3": set(),
+        "task-1-o3-t3": set(),
         "task-1-o1-t1": set(),
         "task-1-o2-t1": set(),
         "task-1-o2-t2": set(),
-        "simple": {"task-1-e3-o3-t3", "task-1-o1-t1", "task-1-o2-t1", "task-1-o2-t2"},
+        "simple": {"task-1-o3-t3", "task-1-o1-t1", "task-1-o2-t1", "task-1-o2-t2"},
     }
 
     task = await flow.get_task(
@@ -332,7 +333,7 @@ async def test_pipeline_matrix_with_strategy(batch_config_loader: ConfigLoader) 
         life_span=9000,
     )
 
-    task = await flow.get_task((), "task-1-e3-o3-t3", needs={}, state={})
+    task = await flow.get_task((), "task-1-o3-t3", needs={}, state={})
     assert task.id is None
     assert task.title is None
     assert task.name is None
@@ -347,7 +348,7 @@ async def test_pipeline_matrix_with_strategy(batch_config_loader: ConfigLoader) 
     assert task.tags == {
         "project:unit",
         "flow:batch-matrix-with-strategy",
-        "task:task-1-e3-o3-t3",
+        "task:task-1-o3-t3",
     }
     assert task.life_span is None
 
@@ -406,6 +407,19 @@ async def test_pipeline_matrix_2(batch_config_loader: ConfigLoader) -> None:
         strategy=ast.CacheStrategy.DEFAULT,
         life_span=1209600,
     )
+
+
+async def test_pipeline_matrix_incomplete_include(
+    batch_config_loader: ConfigLoader,
+) -> None:
+    with pytest.raises(
+        EvalError,
+        match=r"Keys of entry in include list of matrix "
+        r"are not the same as matrix keys: missing keys: param2",
+    ):
+        await RunningBatchFlow.create(
+            batch_config_loader, "batch-matrix-incomplete-include"
+        )
 
 
 async def test_pipeline_args_defautls_only(batch_config_loader: ConfigLoader) -> None:
@@ -547,6 +561,42 @@ async def test_batch_action_with_inputs_default_ok(
     )
 
     assert inputs == {"arg1": "v1", "arg2": "default"}
+
+
+async def test_local_call_with_cache_invalid(
+    assets: pathlib.Path,
+    client: Client,
+) -> None:
+    config_dir = ConfigDir(
+        workspace=assets / "local_actions",
+        config_dir=assets / "local_actions",
+    )
+    cl = BatchLocalCL(config_dir, client)
+
+    with pytest.raises(
+        EvalError,
+        match=r"Specifying cache in action call to the action "
+        r"ws:cp of kind local is not supported.",
+    ):
+        await RunningBatchFlow.create(cl, "bad-call-with-cache", {})
+
+
+async def test_stateful_call_with_cache_invalid(
+    assets: pathlib.Path,
+    client: Client,
+) -> None:
+    config_dir = ConfigDir(
+        workspace=assets / "stateful_actions",
+        config_dir=assets / "stateful_actions",
+    )
+    cl = BatchLocalCL(config_dir, client)
+
+    with pytest.raises(
+        EvalError,
+        match=r"Specifying cache in action call to the action "
+        r"ws:with-state of kind stateful is not supported.",
+    ):
+        await RunningBatchFlow.create(cl, "bad-call-with-cache", {})
 
 
 async def test_job_with_live_action(live_config_loader: ConfigLoader) -> None:

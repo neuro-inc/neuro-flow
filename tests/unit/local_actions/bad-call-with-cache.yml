@@ -1,0 +1,17 @@
+kind: batch
+tasks:
+- id: make_file
+  action: ws:shell
+  args:
+    shell: echo "test" > file
+- id: copy_file
+  action: ws:cp
+  cache:
+    strategy: default
+  args:
+    from: file
+    to: file_copy
+- id: remote_task
+  needs: [copy_file]
+  image: ubuntu
+  bash: echo ${{ needs.copy_file.outputs.status_code }}

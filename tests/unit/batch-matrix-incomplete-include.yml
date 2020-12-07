@@ -1,0 +1,11 @@
+kind: batch
+tasks:
+  - id: ${{ matrix.param1 }}_${{ matrix.param2 }}
+    strategy:
+      matrix:
+        param1: [a, b]
+        param2: [x, y]
+        include:
+          - param1: a # No value for param2
+    image: ubuntu
+    cmd: echo abc

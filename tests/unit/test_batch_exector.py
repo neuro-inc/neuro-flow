@@ -556,24 +556,24 @@ async def test_early_graph(
         },
         ("first_ac",): {("first_ac", "task_2"): set()},
         ("second",): {
-            ("second", "task-1-e3-o3-t3"): set(),
+            ("second", "task-1-o3-t3"): set(),
             ("second", "task-1-o1-t1"): set(),
             ("second", "task-1-o2-t1"): set(),
             ("second", "task-1-o2-t2"): set(),
             ("second", "task_2"): {
-                ("second", "task-1-e3-o3-t3"),
+                ("second", "task-1-o3-t3"),
                 ("second", "task-1-o1-t1"),
                 ("second", "task-1-o2-t1"),
                 ("second", "task-1-o2-t2"),
             },
         },
         ("third",): {
-            ("third", "task-1-e3-o3-t3"): set(),
+            ("third", "task-1-o3-t3"): set(),
             ("third", "task-1-o1-t1"): set(),
             ("third", "task-1-o2-t1"): set(),
             ("third", "task-1-o2-t2"): set(),
             ("third", "task_2"): {
-                ("third", "task-1-e3-o3-t3"),
+                ("third", "task-1-o3-t3"),
                 ("third", "task-1-o1-t1"),
                 ("third", "task-1-o2-t1"),
                 ("third", "task-1-o2-t2"),

@@ -360,7 +360,6 @@ def test_parse_stateful_action(assets: LocalPath) -> None:
                 value=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
             )
         },
-        cache=None,
         main=ast.ExecUnit(
             Pos(14, 2, config_file),
             Pos(16, 0, config_file),

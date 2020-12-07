@@ -20,5 +20,3 @@ Use `--upgrade` option for upgrading to the latest version:
 $ pip install --upgrade neuro-flow
 ```
 
-## Run the tool
-
