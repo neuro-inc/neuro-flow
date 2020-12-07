@@ -738,6 +738,9 @@ class BaseExpr(Generic[_T], abc.ABC):
         pass
 
 
+IMPLICIT_STR_CONCAT: Final[Tuple[type, ...]] = (str, RemotePath, LocalPath, URL)
+
+
 class Expr(BaseExpr[_T]):
     allow_none: ClassVar[bool] = True
     allow_expr: ClassVar[bool] = True
@@ -774,7 +777,7 @@ class Expr(BaseExpr[_T]):
             if tokens:
                 self._parsed = PARSER.parse(tokens)
                 if (
-                    not issubclass(self.type, (str, RemotePath, LocalPath, URL))
+                    not issubclass(self.type, IMPLICIT_STR_CONCAT)
                     and self._parsed
                     and len(self._parsed) > 1
                 ):
@@ -785,7 +788,7 @@ class Expr(BaseExpr[_T]):
                         end,
                     )
             else:
-                if not issubclass(self.type, (str, RemotePath, LocalPath, URL)):
+                if not issubclass(self.type, IMPLICIT_STR_CONCAT):
                     raise EvalError(
                         f"Empty value is not allowed for {self.type.__name__}",
                         start,
@@ -827,7 +830,7 @@ class Expr(BaseExpr[_T]):
                 # assert isinstance(val, str), repr(val)
                 ret.append(val)
             try:
-                if self.type is str:
+                if issubclass(self.type, IMPLICIT_STR_CONCAT):
                     return self.convert("".join(str(item) for item in ret))
                 else:
                     assert len(ret) == 1
@@ -895,7 +898,8 @@ class SimpleOptStrExpr(StrExprMixin, Expr[str]):
 
 class IdExprMixin:
     def convert(self, arg: TypeT) -> str:
-        assert isinstance(arg, str)
+        if not isinstance(arg, str):
+            raise TypeError(f"{arg!r} is not a string")
         if not arg.isidentifier():
             raise ValueError(f"{arg!r} is not identifier")
         if arg == arg.upper():
