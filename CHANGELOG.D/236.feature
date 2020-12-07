@@ -3,5 +3,5 @@ Support compound expressions for `volumes`, `tags`, `env`, `port_forward` attrib
 ```
 jobs:
   job_a:
-    volumes: "${{ 'ubuntu', volumes.volume_a.ref }}"
+    volumes: "${{ ['ubuntu', volumes.volume_a.ref] }}"
 ```
