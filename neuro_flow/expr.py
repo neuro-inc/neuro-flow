@@ -1060,14 +1060,14 @@ class PortPairExpr(StrExpr):
         return sarg
 
 
-class SequenceExpr(StrictExpr[SequenceT]):
+class SequenceExpr(Expr[SequenceT]):
     type = SequenceT
 
     def __init__(
         self,
         start: Pos,
         end: Pos,
-        pattern: Union[None, str, _T],
+        pattern: Union[None, str, SequenceT],
         item_factory: Callable[[TypeT], TypeT],
     ) -> None:
         super().__init__(start, end, pattern)
@@ -1076,14 +1076,14 @@ class SequenceExpr(StrictExpr[SequenceT]):
     def convert(self, arg: TypeT) -> SequenceT:
         if not isinstance(arg, SequenceT):
             raise TypeError(f"{arg!r} is not a sequence")
-        ret = {}
+        ret: List[TypeT] = []
         for item in arg:
             ret.append(self._item_factory(item))
         return cast(SequenceT, ret)
 
 
 class SequenceItemsExpr(BaseExpr[SequenceT], Generic[_IT]):
-    def __init__(self, items: Sequence[StrictExpr[_IT]]) -> None:
+    def __init__(self, items: Sequence[Expr[_IT]]) -> None:
         self._items = items
 
     async def eval(self, root: RootABC) -> SequenceT:
@@ -1100,7 +1100,7 @@ class MappingExpr(StrictExpr[MappingT]):
         self,
         start: Pos,
         end: Pos,
-        pattern: Union[None, str, _T],
+        pattern: Union[None, str, MappingT],
         value_factory: Callable[[TypeT], TypeT],
     ) -> None:
         super().__init__(start, end, pattern)
@@ -1110,7 +1110,7 @@ class MappingExpr(StrictExpr[MappingT]):
         if not isinstance(arg, MappingT):
             raise TypeError(f"{arg!r} is not a sequence")
         ret = {}
-        for key, value in arg.items():
+        for key, value in arg.items():  # type: ignore[attr-defined]
             if not isinstance(key, str):
                 raise TypeError(f"{key:r} is not a string")
             ret[key] = self._value_factory(value)
@@ -1118,7 +1118,7 @@ class MappingExpr(StrictExpr[MappingT]):
 
 
 class MappingItemsExpr(BaseExpr[MappingT], Generic[_IT]):
-    def __init__(self, items: Mapping[str, StrictExpr[_IT]]) -> None:
+    def __init__(self, items: Mapping[str, Expr[_IT]]) -> None:
         self._items = items
 
     async def eval(self, root: RootABC) -> MappingT:

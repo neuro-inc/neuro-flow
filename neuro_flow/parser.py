@@ -35,9 +35,13 @@ from yaml.scanner import Scanner
 from . import ast
 from .ast import BatchActionOutputs
 from .expr import (
+    BaseExpr,
     EnableExpr,
     Expr,
     IdExpr,
+    MappingExpr,
+    MappingItemsExpr,
+    MappingT,
     OptBashExpr,
     OptBoolExpr,
     OptIdExpr,
@@ -49,6 +53,9 @@ from .expr import (
     OptTimeDeltaExpr,
     PortPairExpr,
     RemotePathExpr,
+    SequenceExpr,
+    SequenceItemsExpr,
+    SequenceT,
     SimpleIdExpr,
     SimpleOptBoolExpr,
     SimpleOptIdExpr,
@@ -63,7 +70,7 @@ from .types import LocalPath
 
 
 _T = TypeVar("_T", bound=TypeT)
-_Cont = TypeVar("_Cont")
+_Container = TypeVar("_Container")
 
 
 @dataclasses.dataclass
@@ -104,12 +111,12 @@ def mark2pos(mark: yaml.Mark) -> Pos:
     return Pos(mark.line, mark.column, LocalPath(mark.name))
 
 
-class SimpleCompound(Generic[_T, _Cont], abc.ABC):
+class SimpleCompound(Generic[_T, _Container], abc.ABC):
     def __init__(self, factory: Type[Expr[_T]]) -> None:
         self._factory = factory
 
     @abc.abstractmethod
-    def construct(self, ctor: BaseConstructor, node: yaml.Node) -> _Cont:
+    def construct(self, ctor: BaseConstructor, node: yaml.Node) -> _Container:
         pass
 
     def check_scalar(self, ctor: BaseConstructor, node: yaml.Node) -> None:
@@ -193,6 +200,52 @@ class IdMapping(SimpleCompound[_T, Mapping[str, Expr[_T]]]):
             value = self._factory(mark2pos(v.start_mark), mark2pos(v.end_mark), tmp)
             ret[key] = value
         return ret
+
+
+class ExprOrSeq(SimpleCompound[_T, BaseExpr[SequenceT]]):
+    def __init__(
+        self,
+        item_expr_factory: Type[Expr[_T]],
+        item_value_factory: Callable[[TypeT], TypeT],
+    ) -> None:
+        super().__init__(item_expr_factory)
+        self._item_factory = item_value_factory
+
+    def construct(self, ctor: BaseConstructor, node: yaml.Node) -> BaseExpr[SequenceT]:
+        if isinstance(node, yaml.ScalarNode):
+            val = ctor.construct_object(node)  # type: ignore[no-untyped-call]
+            return SequenceExpr(
+                mark2pos(node.start_mark),
+                mark2pos(node.end_mark),
+                val,
+                self._item_factory,
+            )
+        else:
+            seq = SimpleSeq(self._factory).construct(ctor, node)
+            return SequenceItemsExpr(seq)
+
+
+class ExprOrMapping(SimpleCompound[_T, BaseExpr[MappingT]]):
+    def __init__(
+        self,
+        item_expr_factory: Type[Expr[_T]],
+        item_value_factory: Callable[[TypeT], TypeT],
+    ) -> None:
+        super().__init__(item_expr_factory)
+        self._item_factory = item_value_factory
+
+    def construct(self, ctor: BaseConstructor, node: yaml.Node) -> BaseExpr[MappingT]:
+        if isinstance(node, yaml.ScalarNode):
+            val = ctor.construct_object(node)  # type: ignore[no-untyped-call]
+            return MappingExpr(
+                mark2pos(node.start_mark),
+                mark2pos(node.end_mark),
+                val,
+                self._item_factory,
+            )
+        else:
+            seq = SimpleMapping(self._factory).construct(ctor, node)
+            return MappingItemsExpr(seq)
 
 
 _AstType = TypeVar("_AstType", bound=ast.Base)
