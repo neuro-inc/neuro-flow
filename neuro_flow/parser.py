@@ -64,6 +64,7 @@ from .expr import (
     StrExpr,
     TypeT,
     URIExpr,
+    port_pair_item,
 )
 from .tokenizer import Pos
 from .types import LocalPath
@@ -246,6 +247,12 @@ class ExprOrMapping(SimpleCompound[_T, BaseExpr[MappingT]]):
         else:
             seq = SimpleMapping(self._factory).construct(ctor, node)
             return MappingItemsExpr(seq)
+
+
+def type2str(arg: TypeT) -> TypeT:
+    if arg is None:
+        return arg
+    return str(arg)
 
 
 _AstType = TypeVar("_AstType", bound=ast.Base)
@@ -529,8 +536,8 @@ def parse_image(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Image:
             "context": OptLocalPathExpr,
             "dockerfile": OptLocalPathExpr,
             "build_args": SimpleSeq(StrExpr),
-            "env": SimpleMapping(StrExpr),
-            "volumes": SimpleSeq(OptStrExpr),
+            "env": ExprOrMapping(StrExpr, type2str),
+            "volumes": ExprOrSeq(OptStrExpr, type2str),
             "build_preset": OptStrExpr,
         },
         ast.Image,
@@ -642,9 +649,9 @@ EXEC_UNIT = {
     "bash": OptBashExpr,
     "python": OptPythonExpr,
     "workdir": OptRemotePathExpr,
-    "env": SimpleMapping(StrExpr),
-    "volumes": SimpleSeq(OptStrExpr),
-    "tags": SimpleSeq(StrExpr),
+    "env": ExprOrMapping(StrExpr, type2str),
+    "volumes": ExprOrSeq(OptStrExpr, type2str),
+    "tags": ExprOrSeq(StrExpr, type2str),
     "life_span": OptTimeDeltaExpr,
     "http_port": OptIntExpr,
     "http_auth": OptBoolExpr,
@@ -655,7 +662,7 @@ EXEC_UNIT = {
 JOB = {
     "detach": OptBoolExpr,
     "browse": OptBoolExpr,
-    "port_forward": SimpleSeq(PortPairExpr),
+    "port_forward": ExprOrSeq(PortPairExpr, port_pair_item),
     "multi": SimpleOptBoolExpr,
     "params": None,
     **EXEC_UNIT,
@@ -819,8 +826,8 @@ def parse_flow_defaults(ctor: FlowLoader, node: yaml.MappingNode) -> ast.FlowDef
             ctor,
             node,
             {
-                "tags": SimpleSeq(StrExpr),
-                "env": SimpleMapping(StrExpr),
+                "tags": ExprOrSeq(StrExpr, type2str),
+                "env": ExprOrMapping(StrExpr, type2str),
                 "workdir": OptRemotePathExpr,
                 "life_span": OptTimeDeltaExpr,
                 "preset": OptStrExpr,
@@ -833,8 +840,8 @@ def parse_flow_defaults(ctor: FlowLoader, node: yaml.MappingNode) -> ast.FlowDef
             ctor,
             node,
             {
-                "tags": SimpleSeq(StrExpr),
-                "env": SimpleMapping(StrExpr),
+                "tags": ExprOrSeq(StrExpr, type2str),
+                "env": ExprOrMapping(StrExpr, type2str),
                 "workdir": OptRemotePathExpr,
                 "life_span": OptTimeDeltaExpr,
                 "preset": OptStrExpr,

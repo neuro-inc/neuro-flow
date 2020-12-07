@@ -546,14 +546,20 @@ async def setup_defaults_env_tags_ctx(
     ctx: WithFlowContext,
     ast_defaults: Optional[ast.FlowDefaults],
 ) -> Tuple[DefaultsConf, EnvCtx, TagsCtx]:
+    env: EnvCtx
+    tags: TagsCtx
     if ast_defaults is not None:
         if ast_defaults.env is not None:
-            env = {k: await v.eval(ctx) for k, v in ast_defaults.env.items()}
+            tmp_env = await ast_defaults.env.eval(ctx)
+            assert isinstance(tmp_env, dict)
+            env = tmp_env
         else:
             env = {}
 
         if ast_defaults.tags is not None:
-            tags = {await t.eval(ctx) for t in ast_defaults.tags}
+            tmp_tags = await ast_defaults.tags.eval(ctx)
+            assert isinstance(tmp_tags, list)
+            tags = set(tmp_tags)
         else:
             tags = set()
         workdir = await ast_defaults.workdir.eval(ctx)
@@ -623,16 +629,17 @@ async def setup_images_ctx(
             else:
                 build_args = []
 
-            image_env = {}
+            image_env: Dict[str, str] = {}
             if i.env is not None:
-                image_env.update({k: await v.eval(ctx) for k, v in i.env.items()})
+                tmp_env = await i.env.eval(ctx)
+                assert isinstance(tmp_env, dict)
+                image_env.update(tmp_env)
 
-            image_volumes = []
+            image_volumes: List[str] = []
             if i.volumes is not None:
-                for vol in i.volumes:
-                    value = await vol.eval(ctx)
-                    if value:
-                        image_volumes.append(value)
+                tmp_volumes = await i.volumes.eval(ctx)
+                assert isinstance(tmp_volumes, list)
+                image_volumes.extend(tmp_volumes)
 
             images[k] = ImageCtx(
                 id=k,
@@ -959,11 +966,15 @@ class RunningLiveFlow:
 
         tags = (await self.get_meta(job_id)).tags
         if job.tags is not None:
-            tags |= {await v.eval(ctx) for v in job.tags}
+            tmp_tags = await job.tags.eval(ctx)
+            assert isinstance(tmp_tags, list)
+            tags |= set(tmp_tags)
 
         env = dict(env_ctx)
         if job.env is not None:
-            env.update({k: await v.eval(ctx) for k, v in job.env.items()})
+            tmp_env = await job.env.eval(ctx)
+            assert isinstance(tmp_env, dict)
+            env.update(tmp_env)
 
         title = await job.title.eval(ctx)
         if title is None:
@@ -971,12 +982,11 @@ class RunningLiveFlow:
 
         workdir = (await job.workdir.eval(ctx)) or defaults.workdir
 
-        volumes = []
+        volumes: List[str] = []
         if job.volumes is not None:
-            for v in job.volumes:
-                val = await v.eval(ctx)
-                if val:
-                    volumes.append(val)
+            tmp_volumes = await job.volumes.eval(ctx)
+            assert isinstance(tmp_volumes, list)
+            volumes.extend(tmp_volumes)
 
         life_span = (await job.life_span.eval(ctx)) or defaults.life_span
 
@@ -984,9 +994,11 @@ class RunningLiveFlow:
         schedule_timeout = (
             await job.schedule_timeout.eval(ctx)
         ) or defaults.schedule_timeout
-        port_forward = []
+        port_forward: List[str] = []
         if job.port_forward is not None:
-            port_forward = [await val.eval(ctx) for val in job.port_forward]
+            tmp_port_forward = await job.port_forward.eval(ctx)
+            assert isinstance(tmp_port_forward, list)
+            port_forward = tmp_port_forward
 
         return Job(
             id=job_id,
@@ -1193,24 +1205,28 @@ class RunningBatchBase(Generic[_T], EarlyBatch):
             env = {}
 
         if prep_task.ast_task.env is not None:
-            env.update(
-                {k: await v.eval(ctx) for k, v in prep_task.ast_task.env.items()}
-            )
+            tmp_env = await prep_task.ast_task.env.eval(ctx)
+            assert isinstance(tmp_env, dict)
+            env.update(tmp_env)
 
         title = await prep_task.ast_task.title.eval(ctx)
 
         tags = set()
         if prep_task.ast_task.tags is not None:
-            tags = {await v.eval(ctx) for v in prep_task.ast_task.tags}
+            tmp_tags = await prep_task.ast_task.tags.eval(ctx)
+            assert isinstance(tmp_tags, list)
+            tags |= set(tmp_tags)
+
         tags |= {"task:" + _id2tag(".".join(full_id))}
         tags |= set(self._default_tags)
 
         workdir = (await prep_task.ast_task.workdir.eval(ctx)) or defaults.workdir
 
-        volumes = []
+        volumes: List[str] = []
         if prep_task.ast_task.volumes is not None:
-            for v in prep_task.ast_task.volumes:
-                val = await v.eval(ctx)
+            tmp_volumes = await prep_task.ast_task.volumes.eval(ctx)
+            assert isinstance(tmp_volumes, list)
+            for val in tmp_volumes:
                 if val:
                     volumes.append(val)
 

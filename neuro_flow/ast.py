@@ -5,8 +5,10 @@ import enum
 from typing import Mapping, Optional, Sequence, Union
 
 from .expr import (
+    BaseExpr,
     EnableExpr,
     IdExpr,
+    MappingT,
     OptBoolExpr,
     OptIdExpr,
     OptIntExpr,
@@ -14,8 +16,8 @@ from .expr import (
     OptRemotePathExpr,
     OptStrExpr,
     OptTimeDeltaExpr,
-    PortPairExpr,
     RemotePathExpr,
+    SequenceT,
     SimpleIdExpr,
     SimpleOptBoolExpr,
     SimpleOptIdExpr,
@@ -76,8 +78,8 @@ class Image(Base):
     context: OptLocalPathExpr
     dockerfile: OptLocalPathExpr
     build_args: Optional[Sequence[StrExpr]] = field(metadata={"allow_none": True})
-    env: Optional[Mapping[str, StrExpr]] = field(metadata={"allow_none": True})
-    volumes: Optional[Sequence[OptStrExpr]] = field(metadata={"allow_none": True})
+    env: Optional[BaseExpr[MappingT]] = field(metadata={"allow_none": True})
+    volumes: Optional[BaseExpr[SequenceT]] = field(metadata={"allow_none": True})
     build_preset: OptStrExpr
 
 
@@ -91,9 +93,9 @@ class ExecUnit(Base):
     entrypoint: OptStrExpr
     cmd: OptStrExpr
     workdir: OptRemotePathExpr
-    env: Optional[Mapping[str, StrExpr]] = field(metadata={"allow_none": True})
-    volumes: Optional[Sequence[OptStrExpr]] = field(metadata={"allow_none": True})
-    tags: Optional[Sequence[StrExpr]] = field(metadata={"allow_none": True})
+    env: Optional[BaseExpr[MappingT]] = field(metadata={"allow_none": True})
+    volumes: Optional[BaseExpr[SequenceT]] = field(metadata={"allow_none": True})
+    tags: Optional[BaseExpr[SequenceT]] = field(metadata={"allow_none": True})
     life_span: OptTimeDeltaExpr
     http_port: OptIntExpr
     http_auth: OptBoolExpr
@@ -140,9 +142,7 @@ class Job(ExecUnit, JobBase):
 
     detach: OptBoolExpr
     browse: OptBoolExpr
-    port_forward: Optional[Sequence[PortPairExpr]] = field(
-        metadata={"allow_none": True}
-    )
+    port_forward: Optional[BaseExpr[SequenceT]] = field(metadata={"allow_none": True})
     multi: SimpleOptBoolExpr
 
 
@@ -188,9 +188,9 @@ class TaskActionCall(BaseActionCall, TaskBase):
 
 @dataclass(frozen=True)
 class FlowDefaults(Base):
-    tags: Optional[Sequence[StrExpr]] = field(metadata={"allow_none": True})
+    tags: Optional[BaseExpr[SequenceT]] = field(metadata={"allow_none": True})
 
-    env: Optional[Mapping[str, StrExpr]] = field(metadata={"allow_none": True})
+    env: Optional[BaseExpr[MappingT]] = field(metadata={"allow_none": True})
     workdir: OptRemotePathExpr
 
     life_span: OptTimeDeltaExpr

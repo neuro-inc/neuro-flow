@@ -1049,15 +1049,20 @@ class OptPythonExpr(OptStrExpr):
         return ret
 
 
-class PortPairExpr(StrExpr):
-    RE = re.compile(r"^\d+:\d+$")
+PORT_PAIR_RE = re.compile(r"^\d+:\d+$")
 
+
+def port_pair_item(arg: TypeT) -> str:
+    sarg = str(arg)
+    match = PORT_PAIR_RE.match(sarg)
+    if match is None:
+        raise ValueError(f"{arg!r} is not a LOCAL:REMOTE ports pair")
+    return sarg
+
+
+class PortPairExpr(StrExpr):
     def convert(self, arg: TypeT) -> str:
-        sarg = str(arg)
-        match = self.RE.match(sarg)
-        if match is None:
-            raise ValueError(f"{arg!r} is not a LOCAL:REMOTE ports pair")
-        return sarg
+        return port_pair_item(arg)
 
 
 class SequenceExpr(Expr[SequenceT]):
