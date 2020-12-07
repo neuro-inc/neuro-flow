@@ -6,6 +6,7 @@ from textwrap import dedent
 from neuro_flow import ast
 from neuro_flow.expr import (
     EvalError,
+    MappingItemsExpr,
     OptBashExpr,
     OptBoolExpr,
     OptIntExpr,
@@ -16,6 +17,7 @@ from neuro_flow.expr import (
     OptTimeDeltaExpr,
     PortPairExpr,
     RemotePathExpr,
+    SequenceItemsExpr,
     SimpleOptBoolExpr,
     SimpleOptIdExpr,
     SimpleOptStrExpr,
@@ -224,25 +226,35 @@ def test_parse_full(assets: pathlib.Path) -> None:
                 dockerfile=OptLocalPathExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "dir/Dockerfile"
                 ),
-                build_args=[
-                    StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "--arg1"),
-                    StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "val1"),
-                    StrExpr(
-                        Pos(0, 0, config_file), Pos(0, 0, config_file), "--arg2=val2"
-                    ),
-                ],
-                env={
-                    "SECRET_ENV": StrExpr(
-                        Pos(0, 0, config_file), Pos(0, 0, config_file), "secret:key"
-                    ),
-                },
-                volumes=[
-                    OptStrExpr(
-                        Pos(0, 0, config_file),
-                        Pos(0, 0, config_file),
-                        "secret:key:/var/secret/key.txt",
-                    ),
-                ],
+                build_args=SequenceItemsExpr(
+                    [
+                        StrExpr(
+                            Pos(0, 0, config_file), Pos(0, 0, config_file), "--arg1"
+                        ),
+                        StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "val1"),
+                        StrExpr(
+                            Pos(0, 0, config_file),
+                            Pos(0, 0, config_file),
+                            "--arg2=val2",
+                        ),
+                    ]
+                ),
+                env=MappingItemsExpr(
+                    {
+                        "SECRET_ENV": StrExpr(
+                            Pos(0, 0, config_file), Pos(0, 0, config_file), "secret:key"
+                        ),
+                    }
+                ),
+                volumes=SequenceItemsExpr(
+                    [
+                        OptStrExpr(
+                            Pos(0, 0, config_file),
+                            Pos(0, 0, config_file),
+                            "secret:key:/var/secret/key.txt",
+                        ),
+                    ]
+                ),
                 build_preset=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "gpu-small"
                 ),
@@ -285,18 +297,22 @@ def test_parse_full(assets: pathlib.Path) -> None:
         defaults=ast.FlowDefaults(
             Pos(26, 2, config_file),
             Pos(34, 0, config_file),
-            tags=[
-                StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "tag-a"),
-                StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "tag-b"),
-            ],
-            env={
-                "global_a": StrExpr(
-                    Pos(0, 0, config_file), Pos(0, 0, config_file), "val-a"
-                ),
-                "global_b": StrExpr(
-                    Pos(0, 0, config_file), Pos(0, 0, config_file), "val-b"
-                ),
-            },
+            tags=SequenceItemsExpr(
+                [
+                    StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "tag-a"),
+                    StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "tag-b"),
+                ]
+            ),
+            env=MappingItemsExpr(
+                {
+                    "global_a": StrExpr(
+                        Pos(0, 0, config_file), Pos(0, 0, config_file), "val-a"
+                    ),
+                    "global_b": StrExpr(
+                        Pos(0, 0, config_file), Pos(0, 0, config_file), "val-b"
+                    ),
+                }
+            ),
             workdir=OptRemotePathExpr(
                 Pos(0, 0, config_file), Pos(0, 0, config_file), "/global/dir"
             ),
@@ -337,40 +353,50 @@ def test_parse_full(assets: pathlib.Path) -> None:
                 workdir=OptRemotePathExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "/local/dir"
                 ),
-                env={
-                    "local_a": StrExpr(
-                        Pos(0, 0, config_file), Pos(0, 0, config_file), "val-1"
-                    ),
-                    "local_b": StrExpr(
-                        Pos(0, 0, config_file), Pos(0, 0, config_file), "val-2"
-                    ),
-                },
-                volumes=[
-                    OptStrExpr(
-                        Pos(0, 0, config_file),
-                        Pos(0, 0, config_file),
-                        "${{ volumes.volume_a.ref }}",
-                    ),
-                    OptStrExpr(
-                        Pos(0, 0, config_file),
-                        Pos(0, 0, config_file),
-                        "storage:dir:/var/dir:ro",
-                    ),
-                    OptStrExpr(
-                        Pos(0, 0, config_file),
-                        Pos(0, 0, config_file),
-                        "",
-                    ),
-                    OptStrExpr(
-                        Pos(0, 0, config_file),
-                        Pos(0, 0, config_file),
-                        None,
-                    ),
-                ],
-                tags=[
-                    StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "tag-1"),
-                    StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "tag-2"),
-                ],
+                env=MappingItemsExpr(
+                    {
+                        "local_a": StrExpr(
+                            Pos(0, 0, config_file), Pos(0, 0, config_file), "val-1"
+                        ),
+                        "local_b": StrExpr(
+                            Pos(0, 0, config_file), Pos(0, 0, config_file), "val-2"
+                        ),
+                    }
+                ),
+                volumes=SequenceItemsExpr(
+                    [
+                        OptStrExpr(
+                            Pos(0, 0, config_file),
+                            Pos(0, 0, config_file),
+                            "${{ volumes.volume_a.ref }}",
+                        ),
+                        OptStrExpr(
+                            Pos(0, 0, config_file),
+                            Pos(0, 0, config_file),
+                            "storage:dir:/var/dir:ro",
+                        ),
+                        OptStrExpr(
+                            Pos(0, 0, config_file),
+                            Pos(0, 0, config_file),
+                            "",
+                        ),
+                        OptStrExpr(
+                            Pos(0, 0, config_file),
+                            Pos(0, 0, config_file),
+                            None,
+                        ),
+                    ]
+                ),
+                tags=SequenceItemsExpr(
+                    [
+                        StrExpr(
+                            Pos(0, 0, config_file), Pos(0, 0, config_file), "tag-1"
+                        ),
+                        StrExpr(
+                            Pos(0, 0, config_file), Pos(0, 0, config_file), "tag-2"
+                        ),
+                    ]
+                ),
                 life_span=OptTimeDeltaExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "2h55m"
                 ),
@@ -392,11 +418,13 @@ def test_parse_full(assets: pathlib.Path) -> None:
                 pass_config=OptBoolExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), True
                 ),
-                port_forward=[
-                    PortPairExpr(
-                        Pos(0, 0, config_file), Pos(0, 0, config_file), "2211:22"
-                    )
-                ],
+                port_forward=SequenceItemsExpr(
+                    [
+                        PortPairExpr(
+                            Pos(0, 0, config_file), Pos(0, 0, config_file), "2211:22"
+                        )
+                    ]
+                ),
                 multi=SimpleOptBoolExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),

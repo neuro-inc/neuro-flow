@@ -179,11 +179,11 @@ async def test_div_float(client: Client) -> None:
 
 async def test_concat_list(client: Client) -> None:
     pat = "${{ [1] + [2] }}"
-    expr = SequenceExpr(START, Pos(0, len(pat), FNAME), pat)
+    expr = SequenceExpr(START, Pos(0, len(pat), FNAME), pat, int)
     assert [1, 2] == await expr.eval(DictContext({}, client))
 
 
 async def test_concat_dict(client: Client) -> None:
     pat = "${{ {'a': 1} | {'b': 2} }}"
-    expr = MappingExpr(START, Pos(0, len(pat), FNAME), pat)
+    expr = MappingExpr(START, Pos(0, len(pat), FNAME), pat, int)
     assert {"a": 1, "b": 2} == await expr.eval(DictContext({}, client))

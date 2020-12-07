@@ -624,10 +624,11 @@ async def setup_images_ctx(
         for k, i in ast_images.items():
             context_path = await i.context.eval(ctx)
             dockerfile_path = await i.dockerfile.eval(ctx)
+            build_args: List[str] = []
             if i.build_args is not None:
-                build_args = [await v.eval(ctx) for v in i.build_args]
-            else:
-                build_args = []
+                tmp_build_args = await i.build_args.eval(ctx)
+                assert isinstance(tmp_build_args, list)
+                build_args = tmp_build_args
 
             image_env: Dict[str, str] = {}
             if i.env is not None:
@@ -639,7 +640,9 @@ async def setup_images_ctx(
             if i.volumes is not None:
                 tmp_volumes = await i.volumes.eval(ctx)
                 assert isinstance(tmp_volumes, list)
-                image_volumes.extend(tmp_volumes)
+                for volume in tmp_volumes:
+                    if volume:
+                        image_volumes.append(volume)
 
             images[k] = ImageCtx(
                 id=k,
@@ -986,7 +989,9 @@ class RunningLiveFlow:
         if job.volumes is not None:
             tmp_volumes = await job.volumes.eval(ctx)
             assert isinstance(tmp_volumes, list)
-            volumes.extend(tmp_volumes)
+            for volume in tmp_volumes:
+                if volume:
+                    volumes.append(volume)
 
         life_span = (await job.life_span.eval(ctx)) or defaults.life_span
 

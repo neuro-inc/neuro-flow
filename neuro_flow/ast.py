@@ -77,7 +77,7 @@ class Image(Base):
     ref: StrExpr  # Image reference, e.g. image:my-proj or neuromation/base@v1.6
     context: OptLocalPathExpr
     dockerfile: OptLocalPathExpr
-    build_args: Optional[Sequence[StrExpr]] = field(metadata={"allow_none": True})
+    build_args: Optional[BaseExpr[SequenceT]] = field(metadata={"allow_none": True})
     env: Optional[BaseExpr[MappingT]] = field(metadata={"allow_none": True})
     volumes: Optional[BaseExpr[SequenceT]] = field(metadata={"allow_none": True})
     build_preset: OptStrExpr

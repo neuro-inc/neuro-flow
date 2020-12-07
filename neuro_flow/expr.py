@@ -1097,6 +1097,18 @@ class SequenceItemsExpr(BaseExpr[SequenceT], Generic[_IT]):
             ret.append(await item.eval(root))
         return cast(SequenceT, ret)
 
+    def __repr__(self) -> str:
+        return f"{self.__class__.__qualname__}({self._items!r})"
+
+    def __eq__(self, other: Any) -> bool:
+        if type(self) != type(other):
+            return False
+        assert isinstance(other, self.__class__)
+        return self._items == other._items
+
+    def __hash__(self) -> int:
+        return hash((self.__class__.__name__, self._items))
+
 
 class MappingExpr(StrictExpr[MappingT]):
     type = MappingT
@@ -1131,3 +1143,15 @@ class MappingItemsExpr(BaseExpr[MappingT], Generic[_IT]):
         for key, value in self._items.items():
             ret[key] = await value.eval(root)
         return cast(MappingT, ret)
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__qualname__}({self._items!r})"
+
+    def __eq__(self, other: Any) -> bool:
+        if type(self) != type(other):
+            return False
+        assert isinstance(other, self.__class__)
+        return self._items == other._items
+
+    def __hash__(self) -> int:
+        return hash((self.__class__.__name__, self._items))

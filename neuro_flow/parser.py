@@ -535,7 +535,7 @@ def parse_image(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Image:
             "ref": StrExpr,
             "context": OptLocalPathExpr,
             "dockerfile": OptLocalPathExpr,
-            "build_args": SimpleSeq(StrExpr),
+            "build_args": ExprOrSeq(StrExpr, type2str),
             "env": ExprOrMapping(StrExpr, type2str),
             "volumes": ExprOrSeq(OptStrExpr, type2str),
             "build_preset": OptStrExpr,
