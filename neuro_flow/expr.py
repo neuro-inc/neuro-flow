@@ -710,10 +710,18 @@ UNARY_OP_EXPR: Final = UNARY_OP + EXPR >> make_unary_op_expr
 
 EXPR.define(BIN_OP_EXPR | UNARY_OP_EXPR | ATOM_EXPR)
 
-LIST_MAKER.define((LSQB + EXPR + many(COMMA + EXPR) + RSQB) >> make_list)
+LIST_MAKER.define((LSQB + EXPR + many(COMMA + EXPR) + maybe(COMMA) + RSQB) >> make_list)
 
 DICT_MAKER.define(
-    (LBRACE + EXPR + COLON + EXPR + many(COMMA + EXPR + COLON + EXPR) + RBRACE)
+    (
+        LBRACE
+        + EXPR
+        + COLON
+        + EXPR
+        + many(COMMA + EXPR + COLON + EXPR)
+        + maybe(COMMA)
+        + RBRACE
+    )
     >> make_dict
 )
 

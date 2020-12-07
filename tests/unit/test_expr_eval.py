@@ -187,3 +187,15 @@ async def test_concat_dict(client: Client) -> None:
     pat = "${{ {'a': 1} | {'b': 2} }}"
     expr = MappingExpr(START, Pos(0, len(pat), FNAME), pat, int)
     assert {"a": 1, "b": 2} == await expr.eval(DictContext({}, client))
+
+
+async def test_list_trailing_comm(client: Client) -> None:
+    pat = "${{ [1,2,] }}"
+    expr = SequenceExpr(START, Pos(0, len(pat), FNAME), pat, int)
+    assert [1, 2] == await expr.eval(DictContext({}, client))
+
+
+async def test_dict_trailing_comma(client: Client) -> None:
+    pat = "${{ {'a': 1, 'b': 2,} }}"
+    expr = MappingExpr(START, Pos(0, len(pat), FNAME), pat, int)
+    assert {"a": 1, "b": 2} == await expr.eval(DictContext({}, client))
