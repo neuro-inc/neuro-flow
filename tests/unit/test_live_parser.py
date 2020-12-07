@@ -6,6 +6,7 @@ from textwrap import dedent
 from neuro_flow import ast
 from neuro_flow.expr import (
     EvalError,
+    MappingExpr,
     MappingItemsExpr,
     OptBashExpr,
     OptBoolExpr,
@@ -17,14 +18,16 @@ from neuro_flow.expr import (
     OptTimeDeltaExpr,
     PortPairExpr,
     RemotePathExpr,
+    SequenceExpr,
     SequenceItemsExpr,
     SimpleOptBoolExpr,
     SimpleOptIdExpr,
     SimpleOptStrExpr,
     StrExpr,
     URIExpr,
+    port_pair_item,
 )
-from neuro_flow.parser import parse_live
+from neuro_flow.parser import parse_live, type2str
 from neuro_flow.tokenizer import Pos
 
 
@@ -424,6 +427,203 @@ def test_parse_full(assets: pathlib.Path) -> None:
                             Pos(0, 0, config_file), Pos(0, 0, config_file), "2211:22"
                         )
                     ]
+                ),
+                multi=SimpleOptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                params=None,
+            )
+        },
+    )
+
+
+def test_parse_full_exprs(assets: pathlib.Path) -> None:
+    workspace = assets
+    config_file = workspace / "live-full-exprs.yml"
+    flow = parse_live(workspace, config_file)
+    assert flow == ast.LiveFlow(
+        Pos(0, 0, config_file),
+        Pos(47, 0, config_file),
+        id=SimpleOptIdExpr(
+            Pos(0, 0, config_file),
+            Pos(0, 0, config_file),
+            None,
+        ),
+        kind=ast.FlowKind.LIVE,
+        title=SimpleOptStrExpr(
+            Pos(0, 0, config_file),
+            Pos(0, 0, config_file),
+            "Global title",
+        ),
+        images={
+            "image_a": ast.Image(
+                Pos(4, 4, config_file),
+                Pos(11, 0, config_file),
+                ref=StrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "image:banana"
+                ),
+                context=OptLocalPathExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "dir"
+                ),
+                dockerfile=OptLocalPathExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "dir/Dockerfile"
+                ),
+                build_args=SequenceExpr(
+                    Pos(0, 0, config_file),
+                    Pos(0, 0, config_file),
+                    "${{ ['--arg1', 'val1', '--arg2=val2'] }}",
+                    type2str,
+                ),
+                env=MappingExpr(
+                    Pos(0, 0, config_file),
+                    Pos(0, 0, config_file),
+                    "${{ {'SECRET_ENV': 'secret:key' } }}",
+                    type2str,
+                ),
+                volumes=SequenceExpr(
+                    Pos(0, 0, config_file),
+                    Pos(0, 0, config_file),
+                    "${{ ['secret:key:/var/secret/key.txt'] }}",
+                    type2str,
+                ),
+                build_preset=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "gpu-small"
+                ),
+            )
+        },
+        volumes={
+            "volume_a": ast.Volume(
+                Pos(13, 4, config_file),
+                Pos(17, 2, config_file),
+                remote=URIExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "storage:dir"
+                ),
+                mount=RemotePathExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "/var/dir"
+                ),
+                read_only=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), True
+                ),
+                local=OptLocalPathExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "dir"
+                ),
+            ),
+            "volume_b": ast.Volume(
+                Pos(18, 4, config_file),
+                Pos(20, 0, config_file),
+                remote=URIExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "storage:other"
+                ),
+                mount=RemotePathExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "/var/other"
+                ),
+                read_only=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                local=OptLocalPathExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+            ),
+        },
+        defaults=ast.FlowDefaults(
+            Pos(21, 2, config_file),
+            Pos(27, 0, config_file),
+            tags=SequenceExpr(
+                Pos(0, 0, config_file),
+                Pos(0, 0, config_file),
+                "${{ ['tag-a', 'tag-b'] }}",
+                type2str,
+            ),
+            env=MappingExpr(
+                Pos(0, 0, config_file),
+                Pos(0, 0, config_file),
+                "${{ {'global_a': 'val-a', 'global_b': 'val-b'} }}",
+                type2str,
+            ),
+            workdir=OptRemotePathExpr(
+                Pos(0, 0, config_file), Pos(0, 0, config_file), "/global/dir"
+            ),
+            life_span=OptTimeDeltaExpr(
+                Pos(0, 0, config_file), Pos(0, 0, config_file), "1d4h"
+            ),
+            preset=OptStrExpr(
+                Pos(0, 0, config_file), Pos(0, 0, config_file), "cpu-large"
+            ),
+            schedule_timeout=OptTimeDeltaExpr(
+                Pos(0, 0, config_file), Pos(0, 0, config_file), "24d23h22m21s"
+            ),
+        ),
+        jobs={
+            "test_a": ast.Job(
+                Pos(29, 4, config_file),
+                Pos(47, 0, config_file),
+                name=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "job-name"
+                ),
+                image=StrExpr(
+                    Pos(0, 0, config_file),
+                    Pos(0, 0, config_file),
+                    "${{ images.image_a.ref }}",
+                ),
+                preset=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "cpu-micro"
+                ),
+                schedule_timeout=OptTimeDeltaExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "1d2h3m4s"
+                ),
+                entrypoint=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "bash"
+                ),
+                cmd=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "echo abc"
+                ),
+                workdir=OptRemotePathExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "/local/dir"
+                ),
+                env=MappingExpr(
+                    Pos(0, 0, config_file),
+                    Pos(0, 0, config_file),
+                    "${{ {'local_a': 'val-1', 'local_b': 'val-2'} }}",
+                    type2str,
+                ),
+                volumes=SequenceExpr(
+                    Pos(0, 0, config_file),
+                    Pos(0, 0, config_file),
+                    "${{ [volumes.volume_a.ref, 'storage:dir:/var/dir:ro'] }}",
+                    type2str,
+                ),
+                tags=SequenceExpr(
+                    Pos(0, 0, config_file),
+                    Pos(0, 0, config_file),
+                    "${{ ['tag-1', 'tag-2'] }}",
+                    type2str,
+                ),
+                life_span=OptTimeDeltaExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "2h55m"
+                ),
+                title=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "Job title"
+                ),
+                detach=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), True
+                ),
+                browse=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), True
+                ),
+                http_port=OptIntExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), 8080
+                ),
+                http_auth=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), False
+                ),
+                pass_config=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), True
+                ),
+                port_forward=SequenceExpr(
+                    Pos(0, 0, config_file),
+                    Pos(0, 0, config_file),
+                    '${{ ["2211:22"] }}',
+                    port_pair_item,
                 ),
                 multi=SimpleOptBoolExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
