@@ -766,7 +766,7 @@ class Expr(BaseExpr[_T]):
             if tokens:
                 self._parsed = PARSER.parse(tokens)
                 if (
-                    not issubclass(self.type, (str, RemotePath, LocalPath))
+                    not issubclass(self.type, (str, RemotePath, LocalPath, URL))
                     and self._parsed
                     and len(self._parsed) > 1
                 ):
@@ -777,7 +777,7 @@ class Expr(BaseExpr[_T]):
                         end,
                     )
             else:
-                if not issubclass(self.type, (str, RemotePath, LocalPath)):
+                if not issubclass(self.type, (str, RemotePath, LocalPath, URL)):
                     raise EvalError(
                         f"Empty value is not allowed for {self.type.__name__}",
                         start,
