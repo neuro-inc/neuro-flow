@@ -597,9 +597,19 @@ class UnaryOp(Item):
         return self.op(operand_val)  # type: ignore
 
 
+def _unary_plus(arg: Any) -> Any:
+    return +arg
+
+
+def _unary_minus(arg: Any) -> Any:
+    return -arg
+
+
 def make_unary_op_expr(args: Tuple[Token, Item]) -> UnaryOp:
     op_map = {
         "not": operator.not_,
+        "+": _unary_plus,
+        "-": _unary_minus,
     }
     op_token = args[0]
     return UnaryOp(
