@@ -5,6 +5,30 @@
 
 [comment]: # (towncrier release notes start)
 
+Neuro_Flow 20.12.8 (2020-12-08)
+===============================
+
+Features
+--------
+
+
+- Allow schedule timeout parameterization in the flow description; useful in cases, when the job should be launched on scarce resources. ([#202](https://github.com/neuro-inc/neuro-flow/issues/202))
+
+- Allow image overwrite by forwarding the `--force-overwrite` flag to the underlying `neuro-extras image build` command. ([#203](https://github.com/neuro-inc/neuro-flow/issues/203))
+
+- Support of preset parameterization for image build job; now user could change the hardware environment for image build. ([#204](https://github.com/neuro-inc/neuro-flow/issues/204))
+
+- Implement `parse_volume()` expression function. ([#217](https://github.com/neuro-inc/neuro-flow/issues/217))
+
+- Support compound expressions for `volumes`, `tags`, `env`, `port_forward` attributes:
+
+  ```
+  jobs:
+    job_a:
+      volumes: "${{ ['ubuntu', volumes.volume_a.ref] }}"
+  ``` ([#236](https://github.com/neuro-inc/neuro-flow/issues/236))
+
+
 Neuro_Flow 20.11.24 (2020-11-24)
 ================================
 
