@@ -18,6 +18,8 @@ from neuro_flow.expr import (
     Lookup,
     Text,
     UnaryOp,
+    logical_and,
+    logical_or,
 )
 from neuro_flow.tokenizer import LexerError, Pos, tokenize
 from neuro_flow.types import LocalPath
@@ -365,8 +367,8 @@ def test_func_call_with_trailer_item() -> None:
     [
         ("==", operator.eq),
         ("!=", operator.ne),
-        ("or", operator.or_),
-        ("and", operator.and_),
+        ("or", logical_or),
+        ("and", logical_and),
         ("<", operator.lt),
         ("<=", operator.le),
         (">", operator.gt),
@@ -415,7 +417,7 @@ def test_operator_parse_brackets() -> None:
         BinOp(
             start=Pos(line=0, col=4, filename=FNAME),
             end=Pos(line=0, col=24, filename=FNAME),
-            op=operator.or_,
+            op=logical_or,
             left=Lookup(
                 start=Pos(line=0, col=4, filename=FNAME),
                 end=Pos(line=0, col=7, filename=FNAME),
