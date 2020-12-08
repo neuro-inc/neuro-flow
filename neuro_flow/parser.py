@@ -35,9 +35,13 @@ from yaml.scanner import Scanner
 from . import ast
 from .ast import BatchActionOutputs
 from .expr import (
+    BaseExpr,
     EnableExpr,
     Expr,
     IdExpr,
+    MappingExpr,
+    MappingItemsExpr,
+    MappingT,
     OptBashExpr,
     OptBoolExpr,
     OptIdExpr,
@@ -49,20 +53,25 @@ from .expr import (
     OptTimeDeltaExpr,
     PortPairExpr,
     RemotePathExpr,
+    SequenceExpr,
+    SequenceItemsExpr,
+    SequenceT,
     SimpleIdExpr,
     SimpleOptBoolExpr,
     SimpleOptIdExpr,
     SimpleOptStrExpr,
     SimpleStrExpr,
     StrExpr,
+    TypeT,
     URIExpr,
+    port_pair_item,
 )
 from .tokenizer import Pos
 from .types import LocalPath
 
 
-_T = TypeVar("_T")
-_Cont = TypeVar("_Cont")
+_T = TypeVar("_T", bound=TypeT)
+_Container = TypeVar("_Container")
 
 
 @dataclasses.dataclass
@@ -103,12 +112,12 @@ def mark2pos(mark: yaml.Mark) -> Pos:
     return Pos(mark.line, mark.column, LocalPath(mark.name))
 
 
-class SimpleCompound(Generic[_T, _Cont], abc.ABC):
+class SimpleCompound(Generic[_T, _Container], abc.ABC):
     def __init__(self, factory: Type[Expr[_T]]) -> None:
         self._factory = factory
 
     @abc.abstractmethod
-    def construct(self, ctor: BaseConstructor, node: yaml.Node) -> _Cont:
+    def construct(self, ctor: BaseConstructor, node: yaml.Node) -> _Container:
         pass
 
     def check_scalar(self, ctor: BaseConstructor, node: yaml.Node) -> None:
@@ -192,6 +201,58 @@ class IdMapping(SimpleCompound[_T, Mapping[str, Expr[_T]]]):
             value = self._factory(mark2pos(v.start_mark), mark2pos(v.end_mark), tmp)
             ret[key] = value
         return ret
+
+
+class ExprOrSeq(SimpleCompound[_T, BaseExpr[SequenceT]]):
+    def __init__(
+        self,
+        item_expr_factory: Type[Expr[_T]],
+        item_value_factory: Callable[[TypeT], TypeT],
+    ) -> None:
+        super().__init__(item_expr_factory)
+        self._item_factory = item_value_factory
+
+    def construct(self, ctor: BaseConstructor, node: yaml.Node) -> BaseExpr[SequenceT]:
+        if isinstance(node, yaml.ScalarNode):
+            val = ctor.construct_object(node)  # type: ignore[no-untyped-call]
+            return SequenceExpr(
+                mark2pos(node.start_mark),
+                mark2pos(node.end_mark),
+                val,
+                self._item_factory,
+            )
+        else:
+            seq = SimpleSeq(self._factory).construct(ctor, node)
+            return SequenceItemsExpr(seq)
+
+
+class ExprOrMapping(SimpleCompound[_T, BaseExpr[MappingT]]):
+    def __init__(
+        self,
+        item_expr_factory: Type[Expr[_T]],
+        item_value_factory: Callable[[TypeT], TypeT],
+    ) -> None:
+        super().__init__(item_expr_factory)
+        self._item_factory = item_value_factory
+
+    def construct(self, ctor: BaseConstructor, node: yaml.Node) -> BaseExpr[MappingT]:
+        if isinstance(node, yaml.ScalarNode):
+            val = ctor.construct_object(node)  # type: ignore[no-untyped-call]
+            return MappingExpr(
+                mark2pos(node.start_mark),
+                mark2pos(node.end_mark),
+                val,
+                self._item_factory,
+            )
+        else:
+            seq = SimpleMapping(self._factory).construct(ctor, node)
+            return MappingItemsExpr(seq)
+
+
+def type2str(arg: TypeT) -> TypeT:
+    if arg is None:
+        return arg
+    return str(arg)
 
 
 _AstType = TypeVar("_AstType", bound=ast.Base)
@@ -474,9 +535,9 @@ def parse_image(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Image:
             "ref": StrExpr,
             "context": OptLocalPathExpr,
             "dockerfile": OptLocalPathExpr,
-            "build_args": SimpleSeq(StrExpr),
-            "env": SimpleMapping(StrExpr),
-            "volumes": SimpleSeq(OptStrExpr),
+            "build_args": ExprOrSeq(StrExpr, type2str),
+            "env": ExprOrMapping(StrExpr, type2str),
+            "volumes": ExprOrSeq(OptStrExpr, type2str),
             "build_preset": OptStrExpr,
         },
         ast.Image,
@@ -588,9 +649,9 @@ EXEC_UNIT = {
     "bash": OptBashExpr,
     "python": OptPythonExpr,
     "workdir": OptRemotePathExpr,
-    "env": SimpleMapping(StrExpr),
-    "volumes": SimpleSeq(OptStrExpr),
-    "tags": SimpleSeq(StrExpr),
+    "env": ExprOrMapping(StrExpr, type2str),
+    "volumes": ExprOrSeq(OptStrExpr, type2str),
+    "tags": ExprOrSeq(StrExpr, type2str),
     "life_span": OptTimeDeltaExpr,
     "http_port": OptIntExpr,
     "http_auth": OptBoolExpr,
@@ -601,7 +662,7 @@ EXEC_UNIT = {
 JOB = {
     "detach": OptBoolExpr,
     "browse": OptBoolExpr,
-    "port_forward": SimpleSeq(PortPairExpr),
+    "port_forward": ExprOrSeq(PortPairExpr, port_pair_item),
     "multi": SimpleOptBoolExpr,
     "params": None,
     **EXEC_UNIT,
@@ -765,8 +826,8 @@ def parse_flow_defaults(ctor: FlowLoader, node: yaml.MappingNode) -> ast.FlowDef
             ctor,
             node,
             {
-                "tags": SimpleSeq(StrExpr),
-                "env": SimpleMapping(StrExpr),
+                "tags": ExprOrSeq(StrExpr, type2str),
+                "env": ExprOrMapping(StrExpr, type2str),
                 "workdir": OptRemotePathExpr,
                 "life_span": OptTimeDeltaExpr,
                 "preset": OptStrExpr,
@@ -779,8 +840,8 @@ def parse_flow_defaults(ctor: FlowLoader, node: yaml.MappingNode) -> ast.FlowDef
             ctor,
             node,
             {
-                "tags": SimpleSeq(StrExpr),
-                "env": SimpleMapping(StrExpr),
+                "tags": ExprOrSeq(StrExpr, type2str),
+                "env": ExprOrMapping(StrExpr, type2str),
                 "workdir": OptRemotePathExpr,
                 "life_span": OptTimeDeltaExpr,
                 "preset": OptStrExpr,

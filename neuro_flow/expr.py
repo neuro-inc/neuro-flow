@@ -5,6 +5,7 @@ import dataclasses
 import abc
 import asyncio
 import collections
+import collections.abc
 import datetime
 import enum
 import hashlib
@@ -31,6 +32,7 @@ from typing import (
     AsyncContextManager,
     Awaitable,
     Callable,
+    ClassVar,
     Dict,
     Generic,
     Iterator,
@@ -52,12 +54,21 @@ from .types import AlwaysT, LocalPath, RemotePath, TaskStatus
 from .utils import run_subproc
 
 
-_T = TypeVar("_T")
-
-
 LiteralT = Union[None, bool, int, float, str]
 
-TypeT = Union[LiteralT, "ContainerT", "MappingT", "SequenceT", LocalPath, AlwaysT]
+TypeT = Union[
+    LiteralT,
+    "ContainerT",
+    "MappingT",
+    "SequenceT",
+    LocalPath,
+    RemotePath,
+    URL,
+    AlwaysT,
+]
+
+_T = TypeVar("_T", bound=TypeT)
+_IT = TypeVar("_IT", bound=TypeT)
 
 
 @runtime_checkable
@@ -514,6 +525,21 @@ class BinOp(Item):
         return self.op(left_val, right_val)  # type: ignore
 
 
+def or_(arg1: Any, arg2: Any) -> Any:
+    # Emulate dicts concatination from Python 3.9
+    d: Mapping[Any, Any]
+    if isinstance(arg1, collections.abc.Mapping):
+        d = dict(arg1)
+        d.update(arg2)
+        return d
+    elif isinstance(arg2, collections.abc.Mapping):
+        d = dict(arg2)
+        d.update(arg1)
+        return d
+    else:
+        return operator.or_(arg1, arg2)
+
+
 def make_bin_op_expr(args: Tuple[Item, Token, Item]) -> BinOp:
     op_map = {
         "==": operator.eq,
@@ -524,6 +550,11 @@ def make_bin_op_expr(args: Tuple[Item, Token, Item]) -> BinOp:
         "<=": operator.le,
         ">": operator.gt,
         ">=": operator.ge,
+        "|": or_,
+        "+": operator.add,
+        "-": operator.sub,
+        "*": operator.mul,
+        "/": operator.truediv,
     }
     op_token = args[1]
     return BinOp(
@@ -558,6 +589,39 @@ def make_unary_op_expr(args: Tuple[Token, Item]) -> UnaryOp:
     )
 
 
+@dataclasses.dataclass(frozen=True)
+class ListMaker(Item):
+    items: Sequence[Item]
+
+    async def eval(self, root: RootABC) -> SequenceT:
+        return [await item.eval(root) for item in self.items]  # type: ignore
+
+
+def make_list(args: Tuple[Item, List[Item]]) -> ListMaker:
+    lst = [args[0]] + args[1]
+    return ListMaker(lst[0].start, lst[-1].end, lst)
+
+
+@dataclasses.dataclass(frozen=True)
+class DictMaker(Item):
+    items: Sequence[Tuple[Item, Item]]
+
+    async def eval(self, root: RootABC) -> MappingT:
+        ret = {}
+        for key, value in self.items:
+            k = await key.eval(root)
+            v = await value.eval(root)
+            ret[k] = v
+        return ret  # type: ignore
+
+
+def make_dict(args: Tuple[Item, Item, List[Tuple[Item, Item]]]) -> DictMaker:
+    lst = [(args[0], args[1])]
+    if len(args) > 2:
+        lst += args[2]
+    return DictMaker(lst[0][0].start, lst[-1][1].end, lst)
+
+
 def a(value: str) -> Parser:
     """Eq(a) -> Parser(a, a)
 
@@ -568,6 +632,7 @@ def a(value: str) -> Parser:
 
 DOT: Final = skip(a("."))
 COMMA: Final = skip(a(","))
+COLON: Final = skip(a(":"))
 
 OPEN_TMPL: Final = skip(a("${{"))
 CLOSE_TMPL: Final = skip(a("}}"))
@@ -580,7 +645,24 @@ RPAR = skip(a(")"))
 LSQB: Final = skip(a("["))
 RSQB = skip(a("]"))
 
-BIN_OP = a("==") | a("!=") | a("or") | a("and") | a("<") | a("<=") | a(">") | a(">=")
+LBRACE: Final = skip(a("{"))
+RBRACE = skip(a("}"))
+
+BIN_OP = (
+    a("==")
+    | a("!=")
+    | a("or")
+    | a("and")
+    | a("<")
+    | a("<=")
+    | a(">")
+    | a(">=")
+    | a("|")
+    | a("+")
+    | a("-")
+    | a("*")
+    | a("/")
+)
 UNARY_OP = a("not")
 
 REAL: Final = literal("REAL") | literal("EXP")
@@ -597,7 +679,11 @@ LITERAL: Final = NONE | BOOL | REAL | INT | STR
 
 NAME: Final = some(lambda tok: tok.type == "NAME")
 
-ATOM: Final = LITERAL  # | list-make | dict-maker
+LIST_MAKER: Final = forward_decl()
+
+DICT_MAKER: Final = forward_decl()
+
+ATOM: Final = LITERAL | LIST_MAKER | DICT_MAKER
 
 EXPR: Final = forward_decl()
 
@@ -624,6 +710,20 @@ UNARY_OP_EXPR: Final = UNARY_OP + EXPR >> make_unary_op_expr
 
 EXPR.define(BIN_OP_EXPR | UNARY_OP_EXPR | ATOM_EXPR)
 
+LIST_MAKER.define((LSQB + EXPR + many(COMMA + EXPR) + maybe(COMMA) + RSQB) >> make_list)
+
+DICT_MAKER.define(
+    (
+        LBRACE
+        + EXPR
+        + COLON
+        + EXPR
+        + many(COMMA + EXPR + COLON + EXPR)
+        + maybe(COMMA)
+        + RBRACE
+    )
+    >> make_dict
+)
 
 TMPL: Final = (OPEN_TMPL + EXPR + CLOSE_TMPL) | (OPEN_TMPL2 + EXPR + CLOSE_TMPL2)
 
@@ -632,20 +732,28 @@ TEXT: Final = some(lambda tok: tok.type == "TEXT") >> make_text
 PARSER: Final = oneplus(TMPL | TEXT) + skip(finished)
 
 
-class Expr(Generic[_T]):
-    allow_none = True
-    allow_expr = True
-    type: Type[_T]
+class BaseExpr(Generic[_T], abc.ABC):
+    @abc.abstractmethod
+    async def eval(self, root: RootABC) -> Optional[_T]:
+        pass
+
+
+IMPLICIT_STR_CONCAT: Final[Tuple[type, ...]] = (str, RemotePath, LocalPath, URL)
+
+
+class Expr(BaseExpr[_T]):
+    allow_none: ClassVar[bool] = True
+    allow_expr: ClassVar[bool] = True
+    type: ClassVar[Type[_T]]
     _ret: Union[None, _T]
     _pattern: Union[None, str, _T]
     _parsed: Optional[Sequence[Item]]
 
-    @classmethod
     @abc.abstractmethod
-    def convert(cls, arg: Union[str, _T]) -> _T:
+    def convert(self, arg: TypeT) -> _T:
         pass
 
-    def _try_convert(self, arg: Union[str, _T], start: Pos, end: Pos) -> None:
+    def _try_convert(self, arg: TypeT, start: Pos, end: Pos) -> None:
         try:
             self._ret = self.convert(arg)
         except (TypeError, ValueError) as exc:
@@ -668,7 +776,24 @@ class Expr(Generic[_T]):
             tokens = list(tokenize(pattern, start=start))
             if tokens:
                 self._parsed = PARSER.parse(tokens)
+                if (
+                    not issubclass(self.type, IMPLICIT_STR_CONCAT)
+                    and self._parsed
+                    and len(self._parsed) > 1
+                ):
+                    raise EvalError(
+                        "Implicit concatenation is not allowed for "
+                        f"{self.type.__name__}",
+                        start,
+                        end,
+                    )
             else:
+                if not issubclass(self.type, IMPLICIT_STR_CONCAT):
+                    raise EvalError(
+                        f"Empty value is not allowed for {self.type.__name__}",
+                        start,
+                        end,
+                    )
                 self._parsed = [Text(start, end, "")]
             assert self._parsed
             if len(self._parsed) == 1 and type(self._parsed[0]) == Text:
@@ -690,7 +815,7 @@ class Expr(Generic[_T]):
         if self._ret is not None:
             return self._ret
         if self._parsed is not None:
-            ret: List[str] = []
+            ret: List[TypeT] = []
             for part in self._parsed:
                 try:
                     val = await part.eval(root)
@@ -703,9 +828,13 @@ class Expr(Generic[_T]):
                 # TODO: add str() function, raise an explicit error if
                 # an expresion evaluates non-str type
                 # assert isinstance(val, str), repr(val)
-                ret.append(str(val))
+                ret.append(val)
             try:
-                return self.convert("".join(ret))
+                if issubclass(self.type, IMPLICIT_STR_CONCAT):
+                    return self.convert("".join(str(item) for item in ret))
+                else:
+                    assert len(ret) == 1
+                    return self.convert(ret[0])
             except asyncio.CancelledError:
                 raise
             except EvalError:
@@ -745,9 +874,8 @@ class StrictExpr(Expr[_T]):
 
 
 class StrExprMixin:
-    @classmethod
-    def convert(cls, arg: str) -> str:
-        return arg
+    def convert(self, arg: TypeT) -> str:
+        return str(arg)
 
 
 class StrExpr(StrExprMixin, StrictExpr[str]):
@@ -769,8 +897,9 @@ class SimpleOptStrExpr(StrExprMixin, Expr[str]):
 
 
 class IdExprMixin:
-    @classmethod
-    def convert(cls, arg: str) -> str:
+    def convert(self, arg: TypeT) -> str:
+        if not isinstance(arg, str):
+            raise TypeError(f"{arg!r} is not a string")
         if not arg.isidentifier():
             raise ValueError(f"{arg!r} is not identifier")
         if arg == arg.upper():
@@ -800,9 +929,8 @@ class SimpleOptIdExpr(IdExprMixin, Expr[str]):
 
 
 class URIExprMixin:
-    @classmethod
-    def convert(cls, arg: Union[str, URL]) -> URL:
-        return URL(arg)
+    def convert(self, arg: TypeT) -> URL:
+        return URL(arg)  # type: ignore[arg-type]
 
 
 class URIExpr(URIExprMixin, StrictExpr[URL]):
@@ -814,12 +942,8 @@ class OptURIExpr(URIExprMixin, Expr[URL]):
 
 
 class BoolExprMixin:
-    @classmethod
-    def convert(cls, arg: Union[str, bool]) -> bool:
-        if isinstance(arg, bool):
-            return arg
-        tmp = parse_literal(arg, "a boolean")
-        return bool(tmp)
+    def convert(self, arg: TypeT) -> bool:
+        return bool(arg)
 
 
 class BoolExpr(BoolExprMixin, StrictExpr[bool]):
@@ -841,14 +965,12 @@ class SimpleOptBoolExpr(BoolExprMixin, Expr[bool]):
 
 
 class EnableExprMixin:
-    @classmethod
-    def convert(cls, arg: Union[AlwaysT, str, bool]) -> Union[bool, AlwaysT]:
-        if isinstance(arg, AlwaysT) or isinstance(arg, bool):
+    def convert(self, arg: TypeT) -> Union[bool, AlwaysT]:
+        if isinstance(arg, AlwaysT):
             return arg
         if arg == "always()":
             return AlwaysT()
-        tmp = parse_literal(arg, "a boolean")
-        return bool(tmp)
+        return bool(arg)
 
 
 class EnableExpr(EnableExprMixin, StrictExpr[Union[bool, AlwaysT]]):
@@ -860,12 +982,8 @@ class OptEnableExpr(EnableExprMixin, Expr[Union[bool, AlwaysT]]):
 
 
 class IntExprMixin:
-    @classmethod
-    def convert(cls, arg: Union[str, int]) -> int:
-        if isinstance(arg, int):
-            return arg
-        tmp = parse_literal(arg, "an integer")
-        return int(tmp)  # type: ignore[arg-type]
+    def convert(self, arg: TypeT) -> int:
+        return int(arg)  # type: ignore[arg-type]
 
 
 class IntExpr(IntExprMixin, StrictExpr[int]):
@@ -877,12 +995,8 @@ class OptIntExpr(IntExprMixin, Expr[int]):
 
 
 class FloatExprMixin:
-    @classmethod
-    def convert(cls, arg: Union[str, float]) -> float:
-        if isinstance(arg, float):
-            return arg
-        tmp = parse_literal(arg, "a float")
-        return float(tmp)  # type: ignore[arg-type]
+    def convert(self, arg: TypeT) -> float:
+        return float(arg)  # type: ignore[arg-type]
 
 
 class FloatExpr(FloatExprMixin, StrictExpr[float]):
@@ -896,13 +1010,12 @@ class OptFloatExpr(FloatExprMixin, Expr[float]):
 class OptTimeDeltaExpr(OptFloatExpr):
     RE = re.compile(r"^((?P<d>\d+)d)?((?P<h>\d+)h)?((?P<m>\d+)m)?((?P<s>\d+)s)?$")
 
-    @classmethod
-    def convert(cls, arg: Union[str, float]) -> float:
+    def convert(self, arg: TypeT) -> float:
         try:
-            return super(cls, OptTimeDeltaExpr).convert(arg)
+            return super().convert(arg)
         except (ValueError, SyntaxError):
             assert isinstance(arg, str)
-            match = cls.RE.match(arg)
+            match = self.RE.match(arg)
             if match is None:
                 raise ValueError(f"{arg!r} is not a time delta unit")
             td = datetime.timedelta(
@@ -915,9 +1028,8 @@ class OptTimeDeltaExpr(OptFloatExpr):
 
 
 class LocalPathMixin:
-    @classmethod
-    def convert(cls, arg: Union[str, LocalPath]) -> LocalPath:
-        return LocalPath(arg)
+    def convert(self, arg: TypeT) -> LocalPath:
+        return LocalPath(arg)  # type: ignore[arg-type]
 
 
 class LocalPathExpr(LocalPathMixin, StrictExpr[LocalPath]):
@@ -929,9 +1041,8 @@ class OptLocalPathExpr(LocalPathMixin, Expr[LocalPath]):
 
 
 class RemotePathMixin:
-    @classmethod
-    def convert(cls, arg: Union[str, RemotePath]) -> RemotePath:
-        return RemotePath(arg)
+    def convert(self, arg: TypeT) -> RemotePath:
+        return RemotePath(arg)  # type: ignore[arg-type]
 
 
 class RemotePathExpr(RemotePathMixin, StrictExpr[RemotePath]):
@@ -943,25 +1054,120 @@ class OptRemotePathExpr(RemotePathMixin, Expr[RemotePath]):
 
 
 class OptBashExpr(OptStrExpr):
-    @classmethod
-    def convert(cls, arg: str) -> str:
-        ret = " ".join(["bash", "-euo", "pipefail", "-c", shlex.quote(arg)])
+    def convert(self, arg: TypeT) -> str:
+        ret = " ".join(["bash", "-euo", "pipefail", "-c", shlex.quote(str(arg))])
         return ret
 
 
 class OptPythonExpr(OptStrExpr):
-    @classmethod
-    def convert(cls, arg: str) -> str:
-        ret = " ".join(["python3", "-uc", shlex.quote(arg)])
+    def convert(self, arg: TypeT) -> str:
+        ret = " ".join(["python3", "-uc", shlex.quote(str(arg))])
         return ret
 
 
-class PortPairExpr(StrExpr):
-    RE = re.compile(r"^\d+:\d+$")
+PORT_PAIR_RE = re.compile(r"^\d+:\d+$")
 
-    @classmethod
-    def convert(cls, arg: str) -> str:
-        match = cls.RE.match(arg)
-        if match is None:
-            raise ValueError(f"{arg!r} is not a LOCAL:REMOTE ports pair")
-        return arg
+
+def port_pair_item(arg: TypeT) -> str:
+    sarg = str(arg)
+    match = PORT_PAIR_RE.match(sarg)
+    if match is None:
+        raise ValueError(f"{arg!r} is not a LOCAL:REMOTE ports pair")
+    return sarg
+
+
+class PortPairExpr(StrExpr):
+    def convert(self, arg: TypeT) -> str:
+        return port_pair_item(arg)
+
+
+class SequenceExpr(Expr[SequenceT]):
+    type = SequenceT
+
+    def __init__(
+        self,
+        start: Pos,
+        end: Pos,
+        pattern: Union[None, str, SequenceT],
+        item_factory: Callable[[TypeT], TypeT],
+    ) -> None:
+        super().__init__(start, end, pattern)
+        self._item_factory = item_factory
+
+    def convert(self, arg: TypeT) -> SequenceT:
+        if not isinstance(arg, SequenceT):
+            raise TypeError(f"{arg!r} is not a sequence")
+        ret: List[TypeT] = []
+        for item in arg:
+            ret.append(self._item_factory(item))
+        return cast(SequenceT, ret)
+
+
+class SequenceItemsExpr(BaseExpr[SequenceT], Generic[_IT]):
+    def __init__(self, items: Sequence[Expr[_IT]]) -> None:
+        self._items = items
+
+    async def eval(self, root: RootABC) -> SequenceT:
+        ret = []
+        for item in self._items:
+            ret.append(await item.eval(root))
+        return cast(SequenceT, ret)
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__qualname__}({self._items!r})"
+
+    def __eq__(self, other: Any) -> bool:
+        if type(self) != type(other):
+            return False
+        assert isinstance(other, self.__class__)
+        return self._items == other._items
+
+    def __hash__(self) -> int:
+        return hash((self.__class__.__name__, self._items))
+
+
+class MappingExpr(StrictExpr[MappingT]):
+    type = MappingT
+
+    def __init__(
+        self,
+        start: Pos,
+        end: Pos,
+        pattern: Union[None, str, MappingT],
+        value_factory: Callable[[TypeT], TypeT],
+    ) -> None:
+        super().__init__(start, end, pattern)
+        self._value_factory = value_factory
+
+    def convert(self, arg: TypeT) -> MappingT:
+        if not isinstance(arg, MappingT):
+            raise TypeError(f"{arg!r} is not a sequence")
+        ret = {}
+        for key, value in arg.items():  # type: ignore[attr-defined]
+            if not isinstance(key, str):
+                raise TypeError(f"{key:r} is not a string")
+            ret[key] = self._value_factory(value)
+        return cast(MappingT, ret)
+
+
+class MappingItemsExpr(BaseExpr[MappingT], Generic[_IT]):
+    def __init__(self, items: Mapping[str, Expr[_IT]]) -> None:
+        self._items = items
+
+    async def eval(self, root: RootABC) -> MappingT:
+        ret = {}
+        for key, value in self._items.items():
+            ret[key] = await value.eval(root)
+        return cast(MappingT, ret)
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__qualname__}({self._items!r})"
+
+    def __eq__(self, other: Any) -> bool:
+        if type(self) != type(other):
+            return False
+        assert isinstance(other, self.__class__)
+        return self._items == other._items
+
+    def __hash__(self) -> int:
+        return hash((self.__class__.__name__, self._items))

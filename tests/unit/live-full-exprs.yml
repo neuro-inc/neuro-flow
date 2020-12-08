@@ -1,0 +1,47 @@
+kind: live
+title: Global title
+images:
+  image_a:
+    ref: image:banana
+    context: dir
+    dockerfile: dir/Dockerfile
+    build_args: "${{ ['--arg1', 'val1', '--arg2=val2'] }}"
+    env: "${{ {'SECRET_ENV': 'secret:key' } }}"
+    volumes: "${{ ['secret:key:/var/secret/key.txt'] }}"
+    build_preset: gpu-small
+volumes:
+  volume_a:
+    remote: storage:dir
+    mount: /var/dir
+    read_only: true
+    local: dir
+  volume_b:
+    remote: storage:other
+    mount: /var/other
+defaults:
+  tags: "${{ ['tag-a', 'tag-b'] }}"
+  env: "${{ {'global_a': 'val-a', 'global_b': 'val-b'} }}"
+  workdir: /global/dir
+  life_span: 1d4h
+  preset: cpu-large
+  schedule_timeout: 24d23h22m21s
+jobs:
+  test_a:
+    name: job-name
+    image: ${{ images.image_a.ref }}
+    preset: cpu-micro
+    schedule_timeout: 1d2h3m4s
+    entrypoint: bash
+    cmd: echo abc
+    workdir: /local/dir
+    env: "${{ {'local_a': 'val-1', 'local_b': 'val-2'} }}"
+    volumes: "${{ [volumes.volume_a.ref, 'storage:dir:/var/dir:ro'] }}"
+    tags: "${{ ['tag-1', 'tag-2'] }}"
+    life_span: 2h55m
+    http_port: 8080
+    http_auth: false
+    title: Job title
+    detach: true
+    browse: true
+    port_forward: '${{ ["2211:22"] }}'
+    pass_config: true

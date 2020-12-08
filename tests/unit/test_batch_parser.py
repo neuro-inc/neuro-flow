@@ -4,6 +4,7 @@ from neuro_flow import ast
 from neuro_flow.expr import (
     EnableExpr,
     IdExpr,
+    MappingItemsExpr,
     OptBashExpr,
     OptBoolExpr,
     OptIdExpr,
@@ -13,6 +14,7 @@ from neuro_flow.expr import (
     OptStrExpr,
     OptTimeDeltaExpr,
     RemotePathExpr,
+    SequenceItemsExpr,
     SimpleOptIdExpr,
     SimpleOptStrExpr,
     StrExpr,
@@ -54,13 +56,19 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
                 dockerfile=OptLocalPathExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "dir/Dockerfile"
                 ),
-                build_args=[
-                    StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "--arg1"),
-                    StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "val1"),
-                    StrExpr(
-                        Pos(0, 0, config_file), Pos(0, 0, config_file), "--arg2=val2"
-                    ),
-                ],
+                build_args=SequenceItemsExpr(
+                    [
+                        StrExpr(
+                            Pos(0, 0, config_file), Pos(0, 0, config_file), "--arg1"
+                        ),
+                        StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "val1"),
+                        StrExpr(
+                            Pos(0, 0, config_file),
+                            Pos(0, 0, config_file),
+                            "--arg2=val2",
+                        ),
+                    ]
+                ),
                 env=None,
                 volumes=None,
                 build_preset=OptStrExpr(
@@ -105,18 +113,22 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
         defaults=ast.BatchFlowDefaults(
             _start=Pos(21, 2, config_file),
             _end=Pos(31, 0, config_file),
-            tags=[
-                StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "tag-a"),
-                StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "tag-b"),
-            ],
-            env={
-                "global_a": StrExpr(
-                    Pos(0, 0, config_file), Pos(0, 0, config_file), "val-a"
-                ),
-                "global_b": StrExpr(
-                    Pos(0, 0, config_file), Pos(0, 0, config_file), "val-b"
-                ),
-            },
+            tags=SequenceItemsExpr(
+                [
+                    StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "tag-a"),
+                    StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "tag-b"),
+                ]
+            ),
+            env=MappingItemsExpr(
+                {
+                    "global_a": StrExpr(
+                        Pos(0, 0, config_file), Pos(0, 0, config_file), "val-a"
+                    ),
+                    "global_b": StrExpr(
+                        Pos(0, 0, config_file), Pos(0, 0, config_file), "val-b"
+                    ),
+                }
+            ),
             workdir=OptRemotePathExpr(
                 Pos(0, 0, config_file), Pos(0, 0, config_file), "/global/dir"
             ),
@@ -165,40 +177,50 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
                 workdir=OptRemotePathExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "/local/dir"
                 ),
-                env={
-                    "local_a": StrExpr(
-                        Pos(0, 0, config_file), Pos(0, 0, config_file), "val-1"
-                    ),
-                    "local_b": StrExpr(
-                        Pos(0, 0, config_file), Pos(0, 0, config_file), "val-2"
-                    ),
-                },
-                volumes=[
-                    OptStrExpr(
-                        Pos(0, 0, config_file),
-                        Pos(0, 0, config_file),
-                        "${{ volumes.volume_a.ref }}",
-                    ),
-                    OptStrExpr(
-                        Pos(0, 0, config_file),
-                        Pos(0, 0, config_file),
-                        "storage:dir:/var/dir:ro",
-                    ),
-                    OptStrExpr(
-                        Pos(0, 0, config_file),
-                        Pos(0, 0, config_file),
-                        "",
-                    ),
-                    OptStrExpr(
-                        Pos(0, 0, config_file),
-                        Pos(0, 0, config_file),
-                        None,
-                    ),
-                ],
-                tags=[
-                    StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "tag-1"),
-                    StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "tag-2"),
-                ],
+                env=MappingItemsExpr(
+                    {
+                        "local_a": StrExpr(
+                            Pos(0, 0, config_file), Pos(0, 0, config_file), "val-1"
+                        ),
+                        "local_b": StrExpr(
+                            Pos(0, 0, config_file), Pos(0, 0, config_file), "val-2"
+                        ),
+                    }
+                ),
+                volumes=SequenceItemsExpr(
+                    [
+                        OptStrExpr(
+                            Pos(0, 0, config_file),
+                            Pos(0, 0, config_file),
+                            "${{ volumes.volume_a.ref }}",
+                        ),
+                        OptStrExpr(
+                            Pos(0, 0, config_file),
+                            Pos(0, 0, config_file),
+                            "storage:dir:/var/dir:ro",
+                        ),
+                        OptStrExpr(
+                            Pos(0, 0, config_file),
+                            Pos(0, 0, config_file),
+                            "",
+                        ),
+                        OptStrExpr(
+                            Pos(0, 0, config_file),
+                            Pos(0, 0, config_file),
+                            None,
+                        ),
+                    ]
+                ),
+                tags=SequenceItemsExpr(
+                    [
+                        StrExpr(
+                            Pos(0, 0, config_file), Pos(0, 0, config_file), "tag-1"
+                        ),
+                        StrExpr(
+                            Pos(0, 0, config_file), Pos(0, 0, config_file), "tag-2"
+                        ),
+                    ]
+                ),
                 life_span=OptTimeDeltaExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "2h55m"
                 ),
@@ -850,14 +872,20 @@ def test_parse_args(assets: pathlib.Path) -> None:
         defaults=ast.BatchFlowDefaults(
             _start=Pos(7, 2, config_file),
             _end=Pos(10, 0, config_file),
-            tags=[
-                StrExpr(
-                    Pos(0, 0, config_file), Pos(0, 0, config_file), "${{ params.arg1 }}"
-                ),
-                StrExpr(
-                    Pos(0, 0, config_file), Pos(0, 0, config_file), "${{ params.arg2 }}"
-                ),
-            ],
+            tags=SequenceItemsExpr(
+                [
+                    StrExpr(
+                        Pos(0, 0, config_file),
+                        Pos(0, 0, config_file),
+                        "${{ params.arg1 }}",
+                    ),
+                    StrExpr(
+                        Pos(0, 0, config_file),
+                        Pos(0, 0, config_file),
+                        "${{ params.arg2 }}",
+                    ),
+                ]
+            ),
             env=None,
             workdir=OptRemotePathExpr(
                 Pos(0, 0, config_file), Pos(0, 0, config_file), None

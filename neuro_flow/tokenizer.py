@@ -68,15 +68,18 @@ class Tokenizer:
         ("BIN", r"0[bB][0-1_]+"),
         ("INT", r"-?[0-9][0-9_]*"),
         ("STR", r"'[^']*'|" r'"[^"]*"'),
-        ("OP", r"(==|!=|or|and|<=|<|>=|>)(?=[ \t])"),
+        ("OP", r"(==|!=|or|and|<=|<|>=|>|\||\+|-|\*|/)(?=[ \t])"),
         ("UNARY_OP", r"(not)(?=[ \t])"),
         ("NAME", r"[A-Za-z][A-Za-z_0-9]*"),
         ("DOT", r"\."),
         ("COMMA", r","),
+        ("COLON", r":"),
         ("LPAR", r"\("),
         ("RPAR", r"\)"),
         ("LSQB", r"\["),
         ("RSQB", r"\]"),
+        ("LBRACE", r"\{"),
+        ("RBRACE", r"\}"),
     ]
     TOKENS_RE = re.compile("|".join(f"(?P<{typ}>{regexp})" for typ, regexp in TOKENS))
 
