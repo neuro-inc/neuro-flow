@@ -540,12 +540,30 @@ def or_(arg1: Any, arg2: Any) -> Any:
         return operator.or_(arg1, arg2)
 
 
-def make_bin_op_expr(args: Tuple[Item, Token, Item]) -> BinOp:
+def logical_and(arg1: Any, arg2: Any) -> Any:
+    return arg1 and arg2
+
+
+def logical_or(arg1: Any, arg2: Any) -> Any:
+    return arg1 or arg2
+
+
+BinOpTrailer = List[Tuple[Token, Item]]
+
+
+def make_op_trailer(args: Optional[Tuple[Token, Item, BinOpTrailer]]) -> BinOpTrailer:
+    if args is None:
+        return []
+    op_token, item, trailer = args
+    return [(op_token, item), *trailer]
+
+
+def make_bin_op_expr(args: Tuple[Item, BinOpTrailer]) -> Item:
     op_map = {
         "==": operator.eq,
         "!=": operator.ne,
-        "or": operator.or_,
-        "and": operator.and_,
+        "or": logical_or,
+        "and": logical_and,
         "<": operator.lt,
         "<=": operator.le,
         ">": operator.gt,
@@ -556,14 +574,17 @@ def make_bin_op_expr(args: Tuple[Item, Token, Item]) -> BinOp:
         "*": operator.mul,
         "/": operator.truediv,
     }
-    op_token = args[1]
-    return BinOp(
-        args[0].start,
-        args[2].end,
-        op=op_map[op_token.value],
-        left=args[0],
-        right=args[2],
-    )
+
+    item, trailer = args
+    for op_token, right_item in trailer:
+        item = BinOp(
+            item.start,
+            right_item.end,
+            op=op_map[op_token.value],
+            left=item,
+            right=right_item,
+        )
+    return item
 
 
 @dataclasses.dataclass(frozen=True)
@@ -648,22 +669,15 @@ RSQB = skip(a("]"))
 LBRACE: Final = skip(a("{"))
 RBRACE = skip(a("}"))
 
-BIN_OP = (
-    a("==")
-    | a("!=")
-    | a("or")
-    | a("and")
-    | a("<")
-    | a("<=")
-    | a(">")
-    | a(">=")
-    | a("|")
-    | a("+")
-    | a("-")
-    | a("*")
-    | a("/")
-)
-UNARY_OP = a("not")
+OP_PLUS = a("+")
+OP_MINUS = a("-")
+OP_MUL = a("*")
+OP_DIV = a("/")
+OP_BITWISE_OR = a("|")
+OP_CMP = a("==") | a("!=") | a("<") | a("<=") | a(">") | a(">=")
+OP_NOT = a("not")
+OP_OR = a("or")
+OP_AND = a("and")
 
 REAL: Final = literal("REAL") | literal("EXP")
 
@@ -701,14 +715,66 @@ FUNC_ARGS: Final = maybe(EXPR + many(COMMA + EXPR)) >> make_args
 
 FUNC_CALL: Final = (NAME + LPAR + FUNC_ARGS + RPAR + TRAILER) >> make_call
 
+ATOM_EXPR.define(LPAR + EXPR + RPAR | ATOM | FUNC_CALL | LOOKUP)
 
-ATOM_EXPR.define(ATOM | FUNC_CALL | LOOKUP | LPAR + EXPR + RPAR)
+# Here we define operator precedence:
+# +, - (unary)
+# *, /
+# +, -
+# |
+# ==, !=, <, >, <=, =>
+# and
+# or
 
-BIN_OP_EXPR: Final = ATOM_EXPR + BIN_OP + EXPR >> make_bin_op_expr
+# For operators, LL1 grammar rules are used to speed-up parsing
 
-UNARY_OP_EXPR: Final = UNARY_OP + EXPR >> make_unary_op_expr
+DISJUNCTION: Final = forward_decl()
+DISJUNCTION_TRAILER: Final = forward_decl()
+CONJUNCTION: Final = forward_decl()
+CONJUNCTION_TRAILER: Final = forward_decl()
+INVERSION: Final = forward_decl()
+COMPARISON: Final = forward_decl()
+COMPARISON_TRAILER: Final = forward_decl()
+BITWISE_OR: Final = forward_decl()
+BITWISE_OR_TRAILER: Final = forward_decl()
+SUM: Final = forward_decl()
+SUM_TRAILER: Final = forward_decl()
+TERM: Final = forward_decl()
+TERM_TRAILER: Final = forward_decl()
+FACTOR: Final = forward_decl()
 
-EXPR.define(BIN_OP_EXPR | UNARY_OP_EXPR | ATOM_EXPR)
+
+DISJUNCTION_TRAILER.define(
+    maybe(OP_OR + CONJUNCTION + DISJUNCTION_TRAILER) >> make_op_trailer
+)
+DISJUNCTION.define(CONJUNCTION + DISJUNCTION_TRAILER >> make_bin_op_expr)
+
+CONJUNCTION_TRAILER.define(
+    maybe(OP_AND + INVERSION + CONJUNCTION_TRAILER) >> make_op_trailer
+)
+CONJUNCTION.define(INVERSION + CONJUNCTION_TRAILER >> make_bin_op_expr)
+
+INVERSION.define(OP_NOT + INVERSION >> make_unary_op_expr | COMPARISON)
+
+COMPARISON_TRAILER.define(
+    maybe(OP_CMP + BITWISE_OR + COMPARISON_TRAILER) >> make_op_trailer
+)
+COMPARISON.define(BITWISE_OR + COMPARISON_TRAILER >> make_bin_op_expr)
+
+BITWISE_OR_TRAILER.define(
+    maybe(OP_BITWISE_OR + SUM + BITWISE_OR_TRAILER) >> make_op_trailer
+)
+BITWISE_OR.define(SUM + BITWISE_OR_TRAILER >> make_bin_op_expr)
+
+SUM_TRAILER.define(maybe((OP_PLUS | OP_MINUS) + TERM + SUM_TRAILER) >> make_op_trailer)
+SUM.define(TERM + SUM_TRAILER >> make_bin_op_expr)
+
+TERM_TRAILER.define(maybe((OP_MUL | OP_DIV) + FACTOR + TERM_TRAILER) >> make_op_trailer)
+TERM.define(FACTOR + TERM_TRAILER >> make_bin_op_expr)
+
+FACTOR.define((OP_PLUS | OP_MINUS) + FACTOR >> make_unary_op_expr | ATOM_EXPR)
+
+EXPR.define(DISJUNCTION)  # Just synonym
 
 LIST_MAKER.define((LSQB + EXPR + many(COMMA + EXPR) + maybe(COMMA) + RSQB) >> make_list)
 
