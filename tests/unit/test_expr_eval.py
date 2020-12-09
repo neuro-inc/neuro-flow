@@ -45,6 +45,7 @@ class DictContext(RootABC):
 @pytest.mark.parametrize(
     "expr,context,result",
     [
+        ("((((True))))", {}, True),  # Can be very slow with poor parser
         ('"foo" == "foo"', {}, True),
         ('"foo" == "bar"', {}, False),
         ("4 < 5", {}, True),
@@ -56,10 +57,30 @@ class DictContext(RootABC):
         ("'sdfdsf' == True", {}, False),
         ("not True", {}, False),
         ("not (42 == 42) or not True", {}, False),
+        ("-2 < 4 and 7 < 6", {}, False),
+        ("-2 < -4 or 7 < 6 ", {}, False),
+        ("1 < -2 or 2 < 4 ", {}, True),
     ],
 )
 async def test_bool_evals(
     expr: str, context: Dict[str, TypeT], result: bool, client: Client
+) -> None:
+    parsed = PARSER.parse(list(tokenize("${{" + expr + "}}", START)))
+    assert len(parsed) == 1
+    assert result == await parsed[0].eval(DictContext(context, client))
+
+
+@pytest.mark.parametrize(
+    "expr,context,result",
+    [
+        ("4 * 5 + 2", {}, 22),
+        ("0 * 5 + 2 / 2", {}, 1),
+        ("0 * (2 / 2 + 1)", {}, 0),
+        ("2 * 6 / 12 + 5 - 2 ", {}, 4),
+    ],
+)
+async def test_arithmetic_evals(
+    expr: str, context: Dict[str, TypeT], result: int, client: Client
 ) -> None:
     parsed = PARSER.parse(list(tokenize("${{" + expr + "}}", START)))
     assert len(parsed) == 1
