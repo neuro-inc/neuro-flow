@@ -2,7 +2,7 @@ import click
 import logging
 import sys
 from click.exceptions import Abort as ClickAbort, Exit as ClickExit
-from neuromation.cli.log_formatter import ConsoleHandler
+from neuro_cli.log_formatter import ConsoleHandler
 from rich.console import Console
 from typing import Any, List, Optional
 

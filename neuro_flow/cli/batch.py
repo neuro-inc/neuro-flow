@@ -1,7 +1,7 @@
 import click
+import neuro_sdk
 import signal
 import sys
-from neuromation.api import get as api_get
 from typing import List, Optional, Tuple
 
 from neuro_flow.batch_executor import ExecutorData
@@ -43,7 +43,7 @@ async def bake(
     Run BATCH pipeline remotely on the cluster.
     """
     async with AsyncExitStack() as stack:
-        client = await stack.enter_async_context(api_get())
+        client = await stack.enter_async_context(neuro_sdk.get())
         storage: Storage = await stack.enter_async_context(
             FSStorage(NeuroStorageFS(client))
         )
@@ -80,7 +80,7 @@ async def execute(
         signal.signal(signame, signal.SIG_IGN)
     async with AsyncExitStack() as stack:
         data = ExecutorData.parse(executor_data)
-        client = await stack.enter_async_context(api_get())
+        client = await stack.enter_async_context(neuro_sdk.get())
         storage: Storage = await stack.enter_async_context(
             FSStorage(NeuroStorageFS(client))
         )
@@ -97,7 +97,7 @@ async def bakes(
 ) -> None:
     """List existing bakes."""
     async with AsyncExitStack() as stack:
-        client = await stack.enter_async_context(api_get())
+        client = await stack.enter_async_context(neuro_sdk.get())
         storage: Storage = await stack.enter_async_context(
             FSStorage(NeuroStorageFS(client))
         )
@@ -155,7 +155,7 @@ async def inspect(
     Display a list of started/finished tasks of BAKE\\_ID.
     """
     async with AsyncExitStack() as stack:
-        client = await stack.enter_async_context(api_get())
+        client = await stack.enter_async_context(neuro_sdk.get())
         storage: Storage = await stack.enter_async_context(
             FSStorage(NeuroStorageFS(client))
         )
@@ -208,7 +208,7 @@ async def show(
     Display a logged output of TASK\\_ID from BAKE\\_ID.
     """
     async with AsyncExitStack() as stack:
-        client = await stack.enter_async_context(api_get())
+        client = await stack.enter_async_context(neuro_sdk.get())
         storage: Storage = await stack.enter_async_context(
             FSStorage(NeuroStorageFS(client))
         )
@@ -238,7 +238,7 @@ async def cancel(
     Cancel a bake execution by stopping all started tasks.
     """
     async with AsyncExitStack() as stack:
-        client = await stack.enter_async_context(api_get())
+        client = await stack.enter_async_context(neuro_sdk.get())
         storage: Storage = await stack.enter_async_context(
             FSStorage(NeuroStorageFS(client))
         )
@@ -262,7 +262,7 @@ async def clear_cache(
     `neuro-flow clear-cache ALL` clears all caches.
     """
     async with AsyncExitStack() as stack:
-        client = await stack.enter_async_context(api_get())
+        client = await stack.enter_async_context(neuro_sdk.get())
         storage: Storage = await stack.enter_async_context(
             FSStorage(NeuroStorageFS(client))
         )
@@ -304,7 +304,7 @@ async def restart(
     Run BATCH pipeline remotely on the cluster.
     """
     async with AsyncExitStack() as stack:
-        client = await stack.enter_async_context(api_get())
+        client = await stack.enter_async_context(neuro_sdk.get())
         storage: Storage = await stack.enter_async_context(
             FSStorage(NeuroStorageFS(client))
         )

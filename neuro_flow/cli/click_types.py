@@ -1,9 +1,9 @@
 import abc
 import click
+import neuro_sdk
 import operator
 import sys
-from neuromation.api import get as api_get
-from neuromation.cli.asyncio_utils import Runner
+from neuro_cli.asyncio_utils import Runner
 from typing import Callable, Generic, List, Optional, Sequence, Tuple, TypeVar, cast
 
 from neuro_flow.batch_runner import BatchRunner
@@ -76,7 +76,7 @@ class LiveJobType(AsyncType[str]):
         incomplete: str,
     ) -> List[Tuple[str, Optional[str]]]:
         async with AsyncExitStack() as stack:
-            client = await stack.enter_async_context(api_get())
+            client = await stack.enter_async_context(neuro_sdk.get())
             storage: Storage = await stack.enter_async_context(
                 FSStorage(NeuroStorageFS(client))
             )
@@ -119,7 +119,7 @@ class LiveJobSuffixType(AsyncType[str]):
     ) -> List[Tuple[str, Optional[str]]]:
         job_id = self._args_to_job_id(args)
         async with AsyncExitStack() as stack:
-            client = await stack.enter_async_context(api_get())
+            client = await stack.enter_async_context(neuro_sdk.get())
             storage: Storage = await stack.enter_async_context(
                 FSStorage(NeuroStorageFS(client))
             )
@@ -159,7 +159,7 @@ class LiveImageType(AsyncType[str]):
         incomplete: str,
     ) -> List[Tuple[str, Optional[str]]]:
         async with AsyncExitStack() as stack:
-            client = await stack.enter_async_context(api_get())
+            client = await stack.enter_async_context(neuro_sdk.get())
             storage: Storage = await stack.enter_async_context(
                 FSStorage(NeuroStorageFS(client))
             )
@@ -202,7 +202,7 @@ class LiveVolumeType(AsyncType[str]):
         incomplete: str,
     ) -> List[Tuple[str, Optional[str]]]:
         async with AsyncExitStack() as stack:
-            client = await stack.enter_async_context(api_get())
+            client = await stack.enter_async_context(neuro_sdk.get())
             storage: Storage = await stack.enter_async_context(
                 FSStorage(NeuroStorageFS(client))
             )
@@ -280,7 +280,7 @@ class BakeType(AsyncType[str]):
     ) -> List[Tuple[str, Optional[str]]]:
         variants = []
         async with AsyncExitStack() as stack:
-            client = await stack.enter_async_context(api_get())
+            client = await stack.enter_async_context(neuro_sdk.get())
             storage: Storage = await stack.enter_async_context(
                 FSStorage(NeuroStorageFS(client))
             )
@@ -334,7 +334,7 @@ class BakeTaskType(AsyncType[str]):
         bake_id = self._args_to_bake_id(args)
         attempt_no = self._args_to_attempt(args)
         async with AsyncExitStack() as stack:
-            client = await stack.enter_async_context(api_get())
+            client = await stack.enter_async_context(neuro_sdk.get())
             storage: Storage = await stack.enter_async_context(
                 FSStorage(NeuroStorageFS(client))
             )

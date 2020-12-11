@@ -5,7 +5,7 @@ import base64
 import datetime
 import json
 import sys
-from neuromation.api import Client, Container, HTTPPort, Resources
+from neuro_sdk import Client, Container, HTTPPort, Resources
 from rich.console import Console
 from rich.panel import Panel
 from rich.progress import BarColumn, Progress, TaskID, TextColumn

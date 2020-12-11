@@ -17,14 +17,14 @@ setup(
     name="neuro-flow",
     version=version,
     description="Pipelines system for neu.ro",
-    author="Neuromation Team",
-    author_email="pypi@neuromation.io",  # TODO: change this email
+    author="Neu.ro Team",
+    author_email="team@neu.ro",
     license="Apache License, version 2.0",
     url="https://neu.ro/",
     python_requires=">=3.6.0",
     include_package_data=True,
     install_requires=[
-        "neuromation>=20.11.18",
+        "neuro-cli>=20.12.11b6",
         "pyyaml>=5.3",
         "funcparserlib>=0.3",
         'dataclasses>=0.5; python_version<"3.7"',

@@ -1,7 +1,7 @@
 import pytest
 import socket
 import sys
-from neuromation.api import Client
+from neuro_sdk import Client
 from pathlib import Path
 
 from neuro_flow.config_loader import LiveLocalCL

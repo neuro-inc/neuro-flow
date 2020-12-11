@@ -2,7 +2,7 @@ import click
 import functools
 from asyncio import iscoroutinefunction
 from click.types import convert_type
-from neuromation.cli.asyncio_utils import Runner
+from neuro_cli.asyncio_utils import Runner
 from typing import Any, Awaitable, Callable, TypeVar
 
 

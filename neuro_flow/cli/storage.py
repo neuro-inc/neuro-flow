@@ -1,6 +1,6 @@
 import click
+import neuro_sdk
 import sys
-from neuromation.api import get as api_get
 
 from neuro_flow.cli.click_types import LIVE_VOLUME_OR_ALL
 from neuro_flow.cli.root import Root
@@ -27,7 +27,7 @@ async def upload(
     Upload local files to remote for VOLUME,
     use `upload ALL` for uploading all volumes."""
     async with AsyncExitStack() as stack:
-        client = await stack.enter_async_context(api_get())
+        client = await stack.enter_async_context(neuro_sdk.get())
         storage: Storage = await stack.enter_async_context(
             FSStorage(NeuroStorageFS(client))
         )
@@ -52,7 +52,7 @@ async def download(
     Download remote files to local for VOLUME,
     use `download ALL` for downloading all volumes."""
     async with AsyncExitStack() as stack:
-        client = await stack.enter_async_context(api_get())
+        client = await stack.enter_async_context(neuro_sdk.get())
         storage: Storage = await stack.enter_async_context(
             FSStorage(NeuroStorageFS(client))
         )
@@ -77,7 +77,7 @@ async def clean(
     Clean remote files on VOLUME,
     use `clean ALL` for cleaning up all volumes."""
     async with AsyncExitStack() as stack:
-        client = await stack.enter_async_context(api_get())
+        client = await stack.enter_async_context(neuro_sdk.get())
         storage: Storage = await stack.enter_async_context(
             FSStorage(NeuroStorageFS(client))
         )
@@ -97,7 +97,7 @@ async def mkvolumes(
 ) -> None:
     """Create all remote folders for volumes."""
     async with AsyncExitStack() as stack:
-        client = await stack.enter_async_context(api_get())
+        client = await stack.enter_async_context(neuro_sdk.get())
         storage: Storage = await stack.enter_async_context(
             FSStorage(NeuroStorageFS(client))
         )

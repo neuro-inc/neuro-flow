@@ -26,7 +26,7 @@ from funcparserlib.parser import (
     skip,
     some,
 )
-from neuromation.api import Client
+from neuro_sdk import Client
 from typing import (
     Any,
     AsyncContextManager,

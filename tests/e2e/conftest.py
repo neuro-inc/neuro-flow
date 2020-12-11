@@ -7,7 +7,7 @@ import pytest
 import secrets
 import shutil
 import subprocess
-from neuromation.api import login_with_token
+from neuro_sdk import login_with_token
 from typing import Any, AsyncIterator, Callable, List, Optional
 from yarl import URL
 

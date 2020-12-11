@@ -5,7 +5,7 @@ import pytest
 import shutil
 import sys
 from datetime import datetime
-from neuromation.api import (
+from neuro_sdk import (
     Client,
     Container,
     JobDescription,

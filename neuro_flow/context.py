@@ -10,7 +10,7 @@ import shlex
 import sys
 from abc import abstractmethod
 from functools import lru_cache
-from neuromation.api import Client
+from neuro_sdk import Client
 from typing import (
     AbstractSet,
     Any,

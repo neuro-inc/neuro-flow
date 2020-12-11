@@ -1,6 +1,6 @@
 import click
+import neuro_sdk
 import sys
-from neuromation.api import get as api_get
 
 from neuro_flow.cli.click_types import LIVE_IMAGE_OR_ALL
 from neuro_flow.cli.root import Root
@@ -31,7 +31,7 @@ async def build(root: Root, force_overwrite: bool, image: str) -> None:
     Assemble the IMAGE remotely and publish it.
     """
     async with AsyncExitStack() as stack:
-        client = await stack.enter_async_context(api_get())
+        client = await stack.enter_async_context(neuro_sdk.get())
         storage: Storage = await stack.enter_async_context(
             FSStorage(NeuroStorageFS(client))
         )

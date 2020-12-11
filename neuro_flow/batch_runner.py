@@ -3,10 +3,10 @@ import dataclasses
 import click
 import datetime
 import neuro_extras
-import neuromation
 import sys
 from graphviz import Digraph
-from neuromation.api import Client, ResourceNotFound
+from neuro_cli import __version__ as cli_version
+from neuro_sdk import Client, ResourceNotFound, __version__ as sdk_version
 from operator import attrgetter, itemgetter
 from rich import box
 from rich.console import Console
@@ -96,7 +96,8 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
     ) -> ExecutorData:
         # batch_name is a name of yaml config inside self._workspace / .neuro
         # folder without the file extension
-        self._console.log(f"[bright_black]neuromation=={neuromation.__version__}")
+        self._console.log(f"[bright_black]neuro_sdk=={sdk_version}")
+        self._console.log(f"[bright_black]neuro_cli=={cli_version}")
         self._console.log(f"[bright_black]neuro-extras=={neuro_extras.__version__}")
         self._console.log(f"[bright_black]neuro-flow=={neuro_flow.__version__}")
         self._console.log(f"Use config file {self.config_loader.flow_path(batch_name)}")

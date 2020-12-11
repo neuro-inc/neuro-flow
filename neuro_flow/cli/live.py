@@ -1,6 +1,6 @@
 import click
+import neuro_sdk
 import sys
-from neuromation.api import get as api_get
 from typing import List, Optional, Tuple
 
 from neuro_flow.cli.click_types import LIVE_JOB, LIVE_JOB_OR_ALL, SUFFIX_AFTER_LIVE_JOB
@@ -24,7 +24,7 @@ async def ps(
 ) -> None:
     """List all jobs"""
     async with AsyncExitStack() as stack:
-        client = await stack.enter_async_context(api_get())
+        client = await stack.enter_async_context(neuro_sdk.get())
         storage: Storage = await stack.enter_async_context(
             FSStorage(NeuroStorageFS(client))
         )
@@ -60,7 +60,7 @@ async def run(
             "[yellow]args are deprecated, use --param instead",
         )
     async with AsyncExitStack() as stack:
-        client = await stack.enter_async_context(api_get())
+        client = await stack.enter_async_context(neuro_sdk.get())
         storage: Storage = await stack.enter_async_context(
             FSStorage(NeuroStorageFS(client))
         )
@@ -84,7 +84,7 @@ async def logs(
     Display logs for JOB-ID
     """
     async with AsyncExitStack() as stack:
-        client = await stack.enter_async_context(api_get())
+        client = await stack.enter_async_context(neuro_sdk.get())
         storage: Storage = await stack.enter_async_context(
             FSStorage(NeuroStorageFS(client))
         )
@@ -108,7 +108,7 @@ async def status(
     Print status for JOB-ID
     """
     async with AsyncExitStack() as stack:
-        client = await stack.enter_async_context(api_get())
+        client = await stack.enter_async_context(neuro_sdk.get())
         storage: Storage = await stack.enter_async_context(
             FSStorage(NeuroStorageFS(client))
         )
@@ -131,7 +131,7 @@ async def kill(
 
     Kill JOB-ID, use `kill ALL` for killing all jobs."""
     async with AsyncExitStack() as stack:
-        client = await stack.enter_async_context(api_get())
+        client = await stack.enter_async_context(neuro_sdk.get())
         storage: Storage = await stack.enter_async_context(
             FSStorage(NeuroStorageFS(client))
         )

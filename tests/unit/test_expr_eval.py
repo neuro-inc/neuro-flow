@@ -1,6 +1,6 @@
 import pytest
 import sys
-from neuromation.api import Client
+from neuro_sdk import Client
 from typing import AsyncIterator, Dict, List
 from typing_extensions import Final
 

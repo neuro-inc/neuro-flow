@@ -1,6 +1,6 @@
 import pathlib
 import pytest
-from neuromation.api import Client
+from neuro_sdk import Client
 from textwrap import dedent
 from typing import Mapping, Optional
 from typing_extensions import AsyncIterator
