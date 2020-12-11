@@ -6,7 +6,7 @@ import secrets
 import sys
 import tarfile
 from io import StringIO, TextIOWrapper
-from neuromation.api import Client
+from neuro_sdk import Client
 from tempfile import TemporaryFile
 from typing import (
     IO,

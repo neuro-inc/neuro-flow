@@ -1,6 +1,6 @@
 # test functions available in expressions
 import sys
-from neuromation.api import Client
+from neuro_sdk import Client
 from re_assert import Matches
 from typing import AsyncIterator, Mapping
 

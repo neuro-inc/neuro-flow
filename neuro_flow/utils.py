@@ -1,7 +1,7 @@
 import asyncio
 import datetime
 import humanize
-from neuromation.api import JobStatus
+from neuro_sdk import JobStatus
 from typing import Optional, Union, cast
 
 from .types import COLORS, FullID, TaskStatus

@@ -6,7 +6,7 @@ import datetime
 import secrets
 import shlex
 import sys
-from neuromation.api import Client, JobDescription, JobStatus, ResourceNotFound
+from neuro_sdk import Client, JobDescription, JobStatus, ResourceNotFound
 from rich import box
 from rich.console import Console
 from rich.table import Table

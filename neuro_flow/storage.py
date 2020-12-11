@@ -9,7 +9,7 @@ import secrets
 import shutil
 import sys
 from abc import abstractmethod
-from neuromation.api import (
+from neuro_sdk import (
     Action,
     Client,
     FileStatus,

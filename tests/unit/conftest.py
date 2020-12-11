@@ -2,7 +2,7 @@ import asyncio
 import os
 import pathlib
 import pytest
-from neuromation.api import Client, get as api_get, login_with_token
+from neuro_sdk import Client, get as api_get, login_with_token
 from typing import Any, AsyncIterator
 from yarl import URL
 
