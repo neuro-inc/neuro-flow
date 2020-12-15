@@ -1,0 +1,5 @@
+kind: live
+jobs:
+  test:
+    action: sleep 0
+    image: ubuntu

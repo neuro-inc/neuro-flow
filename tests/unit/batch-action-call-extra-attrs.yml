@@ -1,0 +1,5 @@
+kind: batch
+jobs:
+  test:
+    action: sleep 0
+    image: ubuntu

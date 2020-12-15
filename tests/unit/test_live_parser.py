@@ -2,6 +2,7 @@ import pathlib
 import pytest
 import yaml
 from textwrap import dedent
+from yaml.constructor import ConstructorError
 
 from neuro_flow import ast
 from neuro_flow.expr import (
@@ -974,3 +975,17 @@ def test_parse_explicit_flow_id(assets: pathlib.Path) -> None:
             )
         },
     )
+
+
+def test_live_job_extra_attrs(assets: pathlib.Path) -> None:
+    workspace = assets
+    config_file = workspace / "live-job-extra-attrs.yml"
+    with pytest.raises(ConstructorError):
+        parse_live(workspace, config_file)
+
+
+def test_live_action_call_extra_attrs(assets: pathlib.Path) -> None:
+    workspace = assets
+    config_file = workspace / "live-action-call-extra-attrs.yml"
+    with pytest.raises(ConstructorError):
+        parse_live(workspace, config_file)

@@ -1,4 +1,6 @@
 import pathlib
+import pytest
+from yaml.constructor import ConstructorError
 
 from neuro_flow import ast
 from neuro_flow.expr import (
@@ -1079,3 +1081,17 @@ def test_parse_enable(assets: pathlib.Path) -> None:
             ),
         ],
     )
+
+
+def test_batch_job_extra_attrs(assets: pathlib.Path) -> None:
+    workspace = assets
+    config_file = workspace / "batch-task-extra-attrs.yml"
+    with pytest.raises(ConstructorError):
+        parse_batch(workspace, config_file)
+
+
+def test_batch_action_call_extra_attrs(assets: pathlib.Path) -> None:
+    workspace = assets
+    config_file = workspace / "batch-action-call-extra-attrs.yml"
+    with pytest.raises(ConstructorError):
+        parse_batch(workspace, config_file)
