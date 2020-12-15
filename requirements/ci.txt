@@ -6,6 +6,6 @@ mypy==0.790
 pre-commit==2.9.3
 pytest==6.1.2
 pytest-aiohttp==0.3.0
-pytest-xdist==2.1.0
+pytest-xdist==2.2.0
 re-assert==1.1.0
 towncrier==19.2.0
