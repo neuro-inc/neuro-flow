@@ -675,6 +675,16 @@ JOB_ACTION_CALL = {
 }
 
 
+def check_extra(
+    node: yaml.Node, dct: Dict[str, Any], ret: Dict[str, Any], name: str
+) -> None:
+    diff = dct.keys() - ret.keys()
+    if diff:
+        raise ConstructorError(
+            f"{','.join(diff)} are not allowed in {name}", node.start_mark
+        )
+
+
 def select_shells(
     ctor: BaseConstructor, node: yaml.MappingNode, dct: Dict[str, Any]
 ) -> Dict[str, Any]:
@@ -699,10 +709,13 @@ def select_job_or_action(
     ctor: BaseConstructor, node: yaml.MappingNode, dct: Dict[str, Any]
 ) -> Dict[str, Any]:
     if "action" in dct:
-        return {k: v for k, v in dct.items() if k in JOB_ACTION_CALL}
+        ret = {k: v for k, v in dct.items() if k in JOB_ACTION_CALL}
+        check_extra(node, dct, ret, "action call")
     else:
-        dct2 = {k: v for k, v in dct.items() if k in JOB}
-        return select_shells(ctor, node, dct2)
+        tmp = {k: v for k, v in dct.items() if k in JOB}
+        check_extra(node, dct, tmp, "job")
+        ret = select_shells(ctor, node, tmp)
+    return ret
 
 
 JOB_OR_ACTION = {**JOB, **JOB_ACTION_CALL}
@@ -780,10 +793,13 @@ def select_task_or_action(
     ctor: BaseConstructor, node: yaml.MappingNode, dct: Dict[str, Any]
 ) -> Dict[str, Any]:
     if "action" in dct:
-        return {k: v for k, v in dct.items() if k in TASK_ACTION_CALL}
+        ret = {k: v for k, v in dct.items() if k in TASK_ACTION_CALL}
+        check_extra(node, dct, ret, "action call")
     else:
-        dct2 = {k: v for k, v in dct.items() if k in TASK}
-        return select_shells(ctor, node, dct2)
+        tmp = {k: v for k, v in dct.items() if k in TASK}
+        check_extra(node, dct, tmp, "task")
+        ret = select_shells(ctor, node, tmp)
+    return ret
 
 
 def find_task_type(
@@ -1193,7 +1209,7 @@ ACTION = {
 }
 
 
-def preprocess_action(
+def select_action(
     ctor: BaseConstructor, node: yaml.MappingNode, dct: Dict[str, Any]
 ) -> Dict[str, Any]:
     kind = dct.get("kind")
@@ -1212,6 +1228,7 @@ def preprocess_action(
             f"missing mandatory key 'kind'",
             node.start_mark,
         )
+    check_extra(node, dct, ret, f"{kind.value} action")
 
     if kind == ast.ActionKind.LIVE:
         if "job" in dct and dct["job"].params is not None:
@@ -1283,7 +1300,7 @@ def parse_action_main(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Base
         node,
         ACTION,
         ast.BaseAction,
-        preprocess=preprocess_action,
+        preprocess=select_action,
         find_res_type=find_action_type,
     )
     return ret

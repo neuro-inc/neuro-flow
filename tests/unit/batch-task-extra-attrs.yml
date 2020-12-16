@@ -1,0 +1,7 @@
+kind: live
+jobs:
+  test:
+    cmd: sleep 0
+    image: ubuntu
+    with:
+      arg: val
