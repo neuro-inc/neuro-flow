@@ -43,7 +43,7 @@ env:
 
 ### `defaults.life_span`
 
-The default life span for jo runs by the workflow. It can be overridden by [`jobs.<job-id>.life_span`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-life_span). If not set, the default job's life span is 1 day. The value is a float number of seconds \(`3600` for an hour\) or expression in the following format: `1d6h15m` \(1 day 6 hours, 15 minutes\). Use an arbitrary huge value \(e.g. `365d`\) for the life-span disabling emulation \(it can be dangerous, a forgotten job consumes the cluster resources\).
+The default life span for job runs by the workflow. It can be overridden by [`jobs.<job-id>.life_span`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-life_span). If not set, the default job's life span is 1 day. The value is a float number of seconds \(`3600` for an hour\) or expression in the following format: `1d6h15m` \(1 day 6 hours, 15 minutes\). Use an arbitrary huge value \(e.g. `365d`\) for the life-span disabling emulation \(it can be dangerous, a forgotten job consumes the cluster resources\).
 
 {% hint style="warning" %}
 life span shorter than _1 minute_ is forbidden.
@@ -104,8 +104,6 @@ defaults:
 ### `defaults.workdir`
 
 The default working directory for jobs spawned by this workflow.  See [`jobs.<job-id>.workdir`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-workdir) for more information.
-
-The default working directory for jobs spawn by this workflow. See [`jobs.<job-id>.workdir`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-workdir) for more information.
 
 **Example:**
 
@@ -181,7 +179,7 @@ images:
 ```
 
 {% hint style="info" %}
-`neuro-flow` cannot build images without the context set but can address _pre-built_ images using [`images.<image-id>.ref`](live-workflow-syntax.md#images-less-than-image-id-greater-than-ref)\`\`
+`neuro-flow` cannot build images without the context set but can address _pre-built_ images using [`images.<image-id>.ref`](live-workflow-syntax.md#images-less-than-image-id-greater-than-ref)
 {% endhint %}
 
 **Expression contexts:** [`flow` context](live-contexts.md#flow-context).
@@ -520,7 +518,7 @@ jobs:
 
 ### `jobs.<job-id>.entrypoint`
 
-You can override the Docker image [`ENTRYPOINT`](https://docs.docker.com/engine/reference/builder/#entrypoint) if needed or sets it if one wasn't already specified. Unlike the Docker `ENTRYPOINT` instruction which has a shell and exec form, `entrypoint` attribute accepts only a single string defining the executable to be run.
+You can override the Docker image [`ENTRYPOINT`](https://docs.docker.com/engine/reference/builder/#entrypoint) if needed or set it if one wasn't already specified. Unlike the Docker `ENTRYPOINT` instruction which has a shell and exec form, `entrypoint` attribute accepts only a single string defining the executable to be run.
 
 **Example:**
 
@@ -534,7 +532,7 @@ jobs:
 
 ### `jobs.<job-id>.env` <a id="jobs-job-id-env"></a>
 
-Sets environment variables for `<job-id>` to use in the executed job. You can also set environment variables for the entire workflow. For more information, see [`defaults.env`](live-workflow-syntax.md#defaults-env).
+Set environment variables for `<job-id>` to use in the executed job. You can also set environment variables for the entire workflow. For more information, see [`defaults.env`](live-workflow-syntax.md#defaults-env).
 
 When more than one environment variable is defined with the same name, `neuro-flow` uses the most specific environment variable. For example, an environment variable defined in a task will override the [workflow default](live-workflow-syntax.md#defaults-env).
 
