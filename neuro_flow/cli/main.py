@@ -20,9 +20,9 @@ log = logging.getLogger(__name__)
 LOG_ERROR = log.error
 
 
-def setup_logging(verbosity: int) -> None:
+def setup_logging(color: bool, verbosity: int) -> None:
     root_logger = logging.getLogger()
-    handler = ConsoleHandler()
+    handler = ConsoleHandler(color)
     root_logger.addHandler(handler)
     root_logger.setLevel(logging.DEBUG)
 
@@ -64,15 +64,15 @@ class MainGroup(click.Group):
         else:
             config_dir = find_workspace(config)
 
-        setup_logging(verbosity=verbose - quiet)
+        console = Console(highlight=False, log_path=False)
+
+        setup_logging(color=bool(console.color_system), verbosity=verbose - quiet)
 
         global LOG_ERROR
         if show_traceback:
             LOG_ERROR = log.exception
 
-        ctx.obj = Root(
-            config_dir=config_dir, console=Console(highlight=False, log_path=False)
-        )
+        ctx.obj = Root(config_dir=config_dir, console=console)
 
     def make_context(
         self,
