@@ -1,2 +1,0 @@
-Fixed operator precedence: previously all operators had same precedence. Made `or` and `and`
-operate as logical operators instead of bitwise.

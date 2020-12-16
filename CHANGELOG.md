@@ -5,6 +5,19 @@
 
 [comment]: # (towncrier release notes start)
 
+Neuro_Flow 20.12.16 (2020-12-16)
+================================
+
+Bugfixes
+--------
+
+
+- Fixed operator precedence: previously all operators had same precedence. Made `or` and `and`
+  operate as logical operators instead of bitwise. ([#239](https://github.com/neuro-inc/neuro-flow/issues/239))
+
+- Forbid passing args into a job, volumes into an action etc. ([#241](https://github.com/neuro-inc/neuro-flow/issues/241))
+
+
 Neuro_Flow 20.12.8 (2020-12-08)
 ===============================
 
