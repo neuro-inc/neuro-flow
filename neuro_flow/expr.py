@@ -26,7 +26,7 @@ from funcparserlib.parser import (
     skip,
     some,
 )
-from neuro_sdk import Client
+from neuro_sdk import Client, JobDescription, JobStatus
 from typing import (
     Any,
     AsyncContextManager,
@@ -184,6 +184,8 @@ class JSONEncoder(json.JSONEncoder):
             return str(obj)
         elif isinstance(obj, URL):
             return str(obj)
+        elif isinstance(obj, datetime.datetime):
+            return str(obj)
         # Let the base class default method raise the TypeError
         return super().default(obj)
 
@@ -334,6 +336,42 @@ async def failure(ctx: CallCtx, *args: str) -> bool:
             )
 
 
+async def inspect_job(
+    ctx: CallCtx, job_name: TypeT, suffix: Optional[TypeT] = None
+) -> ContainerT:
+    from .context import LiveContext, _id2tag
+
+    if not isinstance(ctx.root, LiveContext):
+        raise ValueError("inspect_job() is only available inside a job definition")
+    if not isinstance(job_name, str):
+        raise TypeError(
+            f"inspect_job() job_name argument should be a str, got {job_name!r}"
+        )
+    if suffix is not None and not isinstance(suffix, str):
+        raise TypeError(
+            f"inspect_job() suffix argument should be a str, got {suffix!r}"
+        )
+
+    tags = ctx.root.tags | {f"job:{_id2tag(job_name)}"}
+    if suffix is not None:
+        tags |= {f"multi:{suffix}"}
+    found_job: Optional[JobDescription] = None
+    async with ctx.root.client() as client:
+        async for job in client.jobs.list(
+            tags=tags,
+            reverse=True,
+            limit=1,
+            statuses=JobStatus.active_items(),
+        ):
+            found_job = job
+    if found_job is None:
+        raise ValueError(
+            f"inspect_job() did not found running job with name {job_name}"
+            + (f" and suffix {suffix}" if suffix else "")
+        )
+    return found_job  # type: ignore[return-value]
+
+
 FUNCTIONS = _build_signatures(
     len=alen,
     nothing=nothing,
@@ -349,6 +387,7 @@ FUNCTIONS = _build_signatures(
     lower=alower,
     upper=aupper,
     parse_volume=parse_volume,
+    inspect_job=inspect_job,
 )
 
 
