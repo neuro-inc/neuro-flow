@@ -3,7 +3,7 @@ async_exit_stack==1.0.1; python_version<"3.7"
 backports-datetime-fromisoformat==1.0.0; python_version<"3.7"
 dataclasses==0.7; python_version<"3.7"
 funcparserlib==0.3.6
-graphviz==0.15
+graphviz==0.16
 humanize==3.2.0
 neuro-cli==20.12.16
 neuro-extras==20.12.16
