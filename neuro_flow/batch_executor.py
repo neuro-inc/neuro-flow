@@ -636,6 +636,7 @@ class BatchExecutor:
             env=env_dict,
             secret_env=secret_env_dict,
             volumes=volumes,
+            working_dir=str(task.workdir) if task.workdir else None,
             secret_files=list(volumes_parsed.secret_files),
             disk_volumes=list(volumes_parsed.disk_volumes),
             tty=False,
