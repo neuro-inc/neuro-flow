@@ -148,6 +148,16 @@ The calculated hash contains hashed filenames to generate different results on t
 ${{ hash_files('Dockerfile', 'requiremtnts/*.txt', 'modules/**/*.py') }}
 ```
 
+### `inspect_job(job_name, [suffix])`
+
+Fetch info about the [job](live-workflow-syntax.md#jobs-job-id-env) in live mode. The `suffix` argument should be used with [multi jobs](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-multi). The returned object is [JobDescription](https://neuro-sdk.readthedocs.io/en/latest/jobs_reference.html#jobdescription).
+
+**Example:**
+
+```yaml
+${{ inspect_job('test_job').http_url }}
+```
+
 ## Task status check functions
 
 The following functions can be used in [`tasks.enable`](batch-workflow-syntax.md#tasks-enable) attribute to conditionally enable task execution.
