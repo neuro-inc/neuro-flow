@@ -370,6 +370,19 @@ async def test_simple_batch_ok(
     await executor_task
 
 
+async def test_workdir_passed(
+    jobs_mock: JobsMock,
+    assets: Path,
+    run_executor: Callable[[Path, str], Awaitable[None]],
+) -> None:
+    executor_task = asyncio.ensure_future(run_executor(assets, "batch-workdir"))
+    task_descr = await jobs_mock.get_task("task-1")
+    assert task_descr.container.working_dir == "/test/workdir"
+    await jobs_mock.mark_done("task-1")
+
+    await executor_task
+
+
 async def test_batch_with_action_ok(
     jobs_mock: JobsMock,
     assets: Path,

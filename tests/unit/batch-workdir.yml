@@ -1,0 +1,6 @@
+kind: batch
+tasks:
+  - image: ubuntu
+    preset: cpu-micro
+    bash: echo abc
+    workdir: /test/workdir
