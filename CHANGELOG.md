@@ -5,6 +5,23 @@
 
 [comment]: # (towncrier release notes start)
 
+Neuro_Flow 21.1.4 (2021-01-04)
+==============================
+
+Features
+--------
+
+
+- Implement `inspect_job()` expression function. ([#255](https://github.com/neuro-inc/neuro-flow/issues/255))
+
+
+Bugfixes
+--------
+
+
+- Fix ignoring of workdir in batch mode. ([#261](https://github.com/neuro-inc/neuro-flow/issues/261))
+
+
 Neuro_Flow 20.12.16 (2020-12-16)
 ================================
 
