@@ -6,7 +6,7 @@ import secrets
 from tests.e2e.conftest import RunCLI
 
 
-def test_live_context(ws: pathlib.Path, run_cli: RunCLI, project_id: str):
+def test_live_context(ws: pathlib.Path, run_cli: RunCLI, project_id: str) -> None:
     captured = run_cli(["run", "job_ctx_full", "--param", "arg1", "cli-value"])
 
     DUMP_START_MARK = "DUMP_START"
@@ -67,7 +67,7 @@ def test_live_context(ws: pathlib.Path, run_cli: RunCLI, project_id: str):
     }
 
 
-def test_volumes(ws: pathlib.Path, run_cli: RunCLI):
+def test_volumes(ws: pathlib.Path, run_cli: RunCLI) -> None:
     run_cli(["mkvolumes"])
     run_cli(["upload", "ALL"])
     random_text = secrets.token_hex(20)
@@ -78,7 +78,7 @@ def test_volumes(ws: pathlib.Path, run_cli: RunCLI):
 
 
 @pytest.mark.xfail()  # Currently image build always fails
-def test_image_build(run_cli: RunCLI):
+def test_image_build(run_cli: RunCLI) -> None:
     run_cli(["build", "img"])
     random_text = secrets.token_hex(20)
     captured = run_cli(

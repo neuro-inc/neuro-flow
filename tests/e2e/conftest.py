@@ -27,7 +27,7 @@ def project_id() -> str:
 
 @pytest.fixture
 def ws(assets: pathlib.Path, tmp_path_factory: Any, project_id: str) -> pathlib.Path:
-    tmp_dir = tmp_path_factory.mktemp("proj-dir-parent")
+    tmp_dir: pathlib.Path = tmp_path_factory.mktemp("proj-dir-parent")
     ws_dir = tmp_dir / project_id
     shutil.copytree(assets / "ws", ws_dir)
     (ws_dir / "project.yml").write_text(f"id: {project_id}")

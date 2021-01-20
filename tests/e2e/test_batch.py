@@ -6,7 +6,7 @@ from tests.e2e.conftest import RunCLI
 #  TODO: remove --local-executor when projoect.yml parsing is fixed
 
 
-def test_seq_batch(run_cli: RunCLI):
+def test_seq_batch(run_cli: RunCLI) -> None:
     random_text = secrets.token_hex(20)
     captured = run_cli(
         ["bake", "seq", "--local-executor", "--param", "token", random_text]
@@ -23,7 +23,7 @@ def test_seq_batch(run_cli: RunCLI):
     assert "cached" in captured.out
 
 
-def test_batch_with_local(run_cli: RunCLI):
+def test_batch_with_local(run_cli: RunCLI) -> None:
     captured = run_cli(
         [
             "bake",
@@ -38,7 +38,7 @@ def test_batch_with_local(run_cli: RunCLI):
     assert f"file_content: initial_file_content" in captured.out
 
 
-def test_batch_action(run_cli: RunCLI):
+def test_batch_action(run_cli: RunCLI) -> None:
     captured = run_cli(["bake", "prime-checks", "--local-executor"])
 
     assert f"5 is prime" in captured.out
