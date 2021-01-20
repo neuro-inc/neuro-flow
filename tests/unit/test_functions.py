@@ -122,7 +122,7 @@ LiveContextFactory = Callable[[Client, TagsCtx], LiveContext]
 
 @pytest.fixture
 async def live_context_factory(assets: pathlib.Path) -> LiveContextFactory:
-    def _factory(client: Client, tags: TagsCtx = frozenset()):
+    def _factory(client: Client, tags: TagsCtx = frozenset()) -> LiveContext:
         return LiveContext(
             _client=client,
             flow=FlowCtx(
@@ -183,7 +183,7 @@ async def test_inspect_job_correct_set_of_tags(
         assert tags == {"test_tag", "job:foo"}
         yield {"id": "test_id"}
 
-    client.jobs.list = fake_list
+    client.jobs.list = fake_list  # type: ignore
 
     expr = StrExpr(POS, POS, "${{ inspect_job('foo').id }}")
 
@@ -206,7 +206,7 @@ async def test_inspect_job_correct_set_of_tags_multi(
         assert tags == {"test_tag", "job:foo", "multi:bar"}
         yield {"id": "test_id"}
 
-    client.jobs.list = fake_list
+    client.jobs.list = fake_list  # type: ignore
 
     expr = StrExpr(POS, POS, "${{ inspect_job('foo', 'bar').id }}")
 
@@ -224,7 +224,7 @@ async def test_inspect_job_no_jobs_errors(
         for _ in range(0):
             yield None
 
-    client.jobs.list = fake_list
+    client.jobs.list = fake_list  # type: ignore
 
     expr = StrExpr(POS, POS, "${{ inspect_job('foo') }}")
     expr_with_suffix = StrExpr(POS, POS, "${{ inspect_job('foo', 'bar') }}")

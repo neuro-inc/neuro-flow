@@ -643,7 +643,7 @@ class BatchExecutor:
         )
         job = await self._client.jobs.run(
             container,
-            is_preemptible=preset.is_preemptible,
+            scheduler_enabled=preset.scheduler_enabled,
             name=task.name,
             tags=list(task.tags),
             description=task.title,
