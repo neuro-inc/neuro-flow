@@ -7,6 +7,6 @@ graphviz==0.16
 humanize==3.2.0
 neuro-cli==21.1.13
 neuro-extras==20.12.16
-pyyaml==5.3.1
+pyyaml==5.4
 rich==9.6.1
 trafaret==2.1.0
