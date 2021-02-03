@@ -92,9 +92,9 @@ class Graph(Generic[_T]):
     Instance of this graph is constructed by provided simple graph
     specification. After that, additional graphs can be embedded
     to nodes of this (or previously embedded) graph. Each node
-    has can address using FullID, where each component is names
+    has address of type FullID, where each component is names
     node in some graphs. For example, node id ('top', 'node')
-    Is a node of graph is embedded to node 'top' of the main top
+    is a node of graph embedded to node 'top' of the main top
     level graph.
 
     Node is considered ready when it is ready inside its graph
