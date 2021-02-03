@@ -3,6 +3,7 @@ import pytest
 from yaml.constructor import ConstructorError
 
 from neuro_flow import ast
+from neuro_flow.ast import NeedsLevel
 from neuro_flow.expr import (
     EnableExpr,
     IdExpr,
@@ -440,9 +441,136 @@ def test_parse_needs(assets: pathlib.Path) -> None:
                 _end=Pos(11, 0, config_file),
                 id=OptIdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
-                needs=[
-                    IdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "task_a")
-                ],
+                needs={
+                    IdExpr(
+                        Pos(0, 0, config_file), Pos(0, 0, config_file), "task_a"
+                    ): NeedsLevel.COMPLETED
+                },
+                name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
+                preset=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "cpu-micro"
+                ),
+                schedule_timeout=OptTimeDeltaExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                entrypoint=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                cmd=OptBashExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "echo def"
+                ),
+                workdir=OptRemotePathExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                env=None,
+                volumes=None,
+                tags=None,
+                life_span=OptTimeDeltaExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                http_port=OptIntExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                http_auth=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                pass_config=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                strategy=None,
+                cache=None,
+                enable=EnableExpr(
+                    Pos(0, 0, config_file),
+                    Pos(0, 0, config_file),
+                    "${{ success() }}",
+                ),
+            ),
+        ],
+    )
+
+
+def test_parse_needs_dict(assets: pathlib.Path) -> None:
+    workspace = assets
+    config_file = workspace / "batch-needs-dict.yml"
+    flow = parse_batch(workspace, config_file)
+    assert flow == ast.BatchFlow(
+        Pos(0, 0, config_file),
+        Pos(12, 0, config_file),
+        id=SimpleOptIdExpr(
+            Pos(0, 0, config_file),
+            Pos(0, 0, config_file),
+            None,
+        ),
+        kind=ast.FlowKind.BATCH,
+        title=SimpleOptStrExpr(
+            Pos(0, 0, config_file),
+            Pos(0, 0, config_file),
+            None,
+        ),
+        params=None,
+        images=None,
+        volumes=None,
+        defaults=None,
+        tasks=[
+            ast.Task(
+                _start=Pos(2, 4, config_file),
+                _end=Pos(7, 2, config_file),
+                id=OptIdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "task_a"),
+                title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                needs=None,
+                name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
+                preset=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "cpu-micro"
+                ),
+                schedule_timeout=OptTimeDeltaExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                entrypoint=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                cmd=OptBashExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "echo abc"
+                ),
+                workdir=OptRemotePathExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                env=None,
+                volumes=None,
+                tags=None,
+                life_span=OptTimeDeltaExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                http_port=OptIntExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                http_auth=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                pass_config=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                strategy=None,
+                cache=None,
+                enable=EnableExpr(
+                    Pos(0, 0, config_file),
+                    Pos(0, 0, config_file),
+                    "${{ success() }}",
+                ),
+            ),
+            ast.Task(
+                _start=Pos(7, 4, config_file),
+                _end=Pos(12, 0, config_file),
+                id=OptIdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                needs={
+                    IdExpr(
+                        Pos(0, 0, config_file),
+                        Pos(0, 0, config_file),
+                        "${{ 'task_a' }}",
+                    ): NeedsLevel.RUNNING
+                },
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
                 preset=OptStrExpr(
@@ -1036,9 +1164,11 @@ def test_parse_enable(assets: pathlib.Path) -> None:
                 _end=Pos(11, 0, config_file),
                 id=OptIdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
-                needs=[
-                    IdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "task_a")
-                ],
+                needs={
+                    IdExpr(
+                        Pos(0, 0, config_file), Pos(0, 0, config_file), "task_a"
+                    ): NeedsLevel.COMPLETED
+                },
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
                 preset=OptStrExpr(
