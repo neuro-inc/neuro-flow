@@ -329,34 +329,50 @@ class BatchExecutor:
             self._attempt.bake, self._attempt.number
         )
 
-    # Exact task/action contexts helpers
+    def _only_completed_needs(
+        self, needs: Mapping[str, ast.NeedsLevel]
+    ) -> AbstractSet[str]:
+        return {
+            task_id
+            for task_id, level in needs.items()
+            if level == ast.NeedsLevel.COMPLETED
+        }
 
+    # Exact task/action contexts helpers
     async def _get_meta(self, full_id: FullID) -> TaskMeta:
         prefix, tid = full_id[:-1], full_id[-1]
         flow = self._graphs.get_meta(full_id)
-        needs = self._tasks_mgr.build_needs(prefix, flow.graph[tid])
+        needs = self._tasks_mgr.build_needs(
+            prefix, self._only_completed_needs(flow.graph[tid])
+        )
         state = self._tasks_mgr.build_state(prefix, await flow.state_from(tid))
         return await flow.get_meta(tid, needs=needs, state=state)
 
     async def _get_task(self, full_id: FullID) -> Task:
         prefix, tid = full_id[:-1], full_id[-1]
         flow = self._graphs.get_meta(full_id)
-        needs = self._tasks_mgr.build_needs(prefix, flow.graph[tid])
+        needs = self._tasks_mgr.build_needs(
+            prefix, self._only_completed_needs(flow.graph[tid])
+        )
         state = self._tasks_mgr.build_state(prefix, await flow.state_from(tid))
         return await flow.get_task(prefix, tid, needs=needs, state=state)
 
     async def _get_local(self, full_id: FullID) -> LocalTask:
         prefix, tid = full_id[:-1], full_id[-1]
-        ctx = self._graphs.get_meta(full_id)
-        needs = self._tasks_mgr.build_needs(prefix, ctx.graph[tid])
-        assert isinstance(ctx, RunningBatchFlow)
-        return await ctx.get_local(tid, needs=needs)
+        flow = self._graphs.get_meta(full_id)
+        needs = self._tasks_mgr.build_needs(
+            prefix, self._only_completed_needs(flow.graph[tid])
+        )
+        assert isinstance(flow, RunningBatchFlow)
+        return await flow.get_local(tid, needs=needs)
 
     async def _get_action(self, full_id: FullID) -> RunningBatchActionFlow:
         prefix, tid = full_id[:-1], full_id[-1]
-        ctx = self._graphs.get_meta(full_id)
-        needs = self._tasks_mgr.build_needs(prefix, ctx.graph[tid])
-        return await ctx.get_action(tid, needs=needs)
+        flow = self._graphs.get_meta(full_id)
+        needs = self._tasks_mgr.build_needs(
+            prefix, self._only_completed_needs(flow.graph[tid])
+        )
+        return await flow.get_action(tid, needs=needs)
 
     # Graph helpers
 
