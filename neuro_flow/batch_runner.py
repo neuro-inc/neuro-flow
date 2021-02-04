@@ -3,7 +3,6 @@ import dataclasses
 import click
 import datetime
 import neuro_extras
-import sys
 from graphviz import Digraph
 from neuro_cli import __version__ as cli_version
 from neuro_sdk import Client, ResourceNotFound, __version__ as sdk_version
@@ -19,6 +18,7 @@ from typing_extensions import AsyncContextManager, AsyncIterator
 import neuro_flow
 
 from .batch_executor import BatchExecutor, ExecutorData, LocalsBatchExecutor
+from .colored_topo_sorter import ColoredTopoSorter
 from .commands import CmdProcessor
 from .config_loader import BatchLocalCL
 from .context import EMPTY_ROOT, EarlyBatch, RunningBatchFlow
@@ -27,11 +27,6 @@ from .storage import Attempt, Bake, FinishedTask, Storage
 from .types import FullID, LocalPath, TaskStatus
 from .utils import TERMINATED_TASK_STATUSES, fmt_datetime, run_subproc
 
-
-if sys.version_info >= (3, 9):
-    import graphlib
-else:
-    from . import backport_graphlib as graphlib
 
 EXECUTOR_IMAGE = f"neuromation/neuro-flow:{neuro_flow.__version__}"
 
@@ -151,8 +146,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             }
 
             # check fast for the graph cycle error
-            toposorter = graphlib.TopologicalSorter(graph)
-            toposorter.prepare()
+            ColoredTopoSorter(flow.graph)
 
             for tid in graph:
                 if await flow.is_action(tid):
@@ -282,7 +276,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
 
         self._console.print(f"[b]Attempt #{attempt.number}[/b]", attempt.result)
 
-        started, finished = await self._storage.fetch_attempt(attempt)
+        started, running, finished = await self._storage.fetch_attempt(attempt)
         statuses = {}
         for task in sorted(started.values(), key=attrgetter("when")):
             task_id = task.id
@@ -396,7 +390,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
     ) -> None:
         bake = await self._storage.fetch_bake_by_id(self.project, bake_id)
         attempt = await self._storage.find_attempt(bake, attempt_no)
-        started, finished = await self._storage.fetch_attempt(attempt)
+        started, running, finished = await self._storage.fetch_attempt(attempt)
         full_id = tuple(task_id.split("."))
         if full_id not in finished:
             if full_id not in started:
@@ -481,7 +475,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         if from_failed:
             graphs = bake.graphs
             handled = set()  # a set of succesfully finished and not cached tasks
-            started, finished = await self._storage.fetch_attempt(attempt)
+            started, running, finished = await self._storage.fetch_attempt(attempt)
             for task in sorted(finished.values(), key=attrgetter("when")):
                 if task.status == TaskStatus.SUCCEEDED:
                     # should check deps to don't process post-actions with
@@ -490,8 +484,19 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                     graph = graphs[prefix]
                     deps = graph[task.id]
                     if not deps or all(dep in handled for dep in deps):
+                        if (
+                            prefix in finished
+                            and finished[prefix].status != TaskStatus.SUCCEEDED
+                        ):
+                            # If action did not succeeded, we should write started
+                            await self._storage.write_start(
+                                dataclasses.replace(started[prefix], attempt=new_att)
+                            )
                         await self._storage.write_start(
                             dataclasses.replace(started[task.id], attempt=new_att)
+                        )
+                        await self._storage.write_running(
+                            dataclasses.replace(running[task.id], attempt=new_att)
                         )
                         await self._storage.write_finish(
                             dataclasses.replace(task, attempt=new_att)

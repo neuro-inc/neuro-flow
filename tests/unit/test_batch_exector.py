@@ -115,6 +115,7 @@ class JobsMock:
     async def _get_task(self, task_name: str) -> JobDescription:
         while True:
             for descr in self._data.values():
+                task_name = task_name.replace("_", "-")
                 if f"task:{task_name}" in descr.tags:
                     return descr
             await asyncio.sleep(0.01)
@@ -367,6 +368,143 @@ async def test_simple_batch_ok(
     assert task_descr.container.command
     assert "echo def" in task_descr.container.command
     await jobs_mock.mark_done("task-2")
+    await executor_task
+
+
+async def test_complex_seq(
+    jobs_mock: JobsMock,
+    assets: Path,
+    run_executor: Callable[[Path, str], Awaitable[None]],
+) -> None:
+    executor_task = asyncio.ensure_future(run_executor(assets, "batch-complex-seq"))
+    await jobs_mock.get_task("task_1_a")
+    await jobs_mock.get_task("task_1_b")
+
+    await jobs_mock.mark_started("task_1_a")
+    await jobs_mock.mark_started("task_1_b")
+
+    await jobs_mock.get_task("task_2_at_running.task_1")
+    await jobs_mock.mark_done(
+        "task_2_at_running.task_1", b"::set-output name=task1::Task 1 val 1"
+    )
+    await jobs_mock.get_task("task_2_at_running.task_2")
+
+    await jobs_mock.mark_done("task_1_a")
+    await jobs_mock.mark_done("task_1_b")
+
+    await jobs_mock.get_task("task_2_after")
+    await jobs_mock.mark_done("task_2_after")
+
+    with pytest.raises(AssertionError, match=r".* did not appeared in timeout of .*"):
+        await jobs_mock.get_task("task_3", timeout=0.5)
+
+    await jobs_mock.mark_started("task_2_at_running.task_2")
+
+    await jobs_mock.get_task("task_3")
+    await jobs_mock.mark_done("task_3")
+
+    await jobs_mock.mark_done(
+        "task_2_at_running.task_2", b"::set-output name=task2::Task 2 val 2"
+    )
+
+    await executor_task
+
+
+async def test_complex_seq_continue(
+    jobs_mock: JobsMock,
+    batch_storage: Storage,
+    start_executor: Callable[[ExecutorData], Awaitable[None]],
+    batch_runner: BatchRunner,
+) -> None:
+    data = await batch_runner._setup_exc_data("batch-complex-seq")
+    executor_task = asyncio.ensure_future(start_executor(data))
+
+    await jobs_mock.get_task("task_1_a")
+    await jobs_mock.get_task("task_1_b")
+
+    await jobs_mock.mark_started("task_1_a")
+    await jobs_mock.mark_started("task_1_b")
+
+    await jobs_mock.get_task("task_2_at_running.task_1")
+    await jobs_mock.mark_done(
+        "task_2_at_running.task_1", b"::set-output name=task1::Task 1 val 1"
+    )
+    await jobs_mock.get_task("task_2_at_running.task_2")
+
+    await jobs_mock.mark_done("task_1_a")
+    await jobs_mock.mark_done("task_1_b")
+
+    await jobs_mock.get_task("task_2_after")
+    await jobs_mock.mark_done("task_2_after")
+
+    executor_task.cancel()
+    try:
+        await executor_task
+    except asyncio.CancelledError:
+        pass
+
+    executor_task = asyncio.ensure_future(start_executor(data))
+
+    await jobs_mock.mark_started("task_2_at_running.task_2")
+
+    await jobs_mock.get_task("task_3")
+    await jobs_mock.mark_done("task_3")
+
+    await jobs_mock.mark_done(
+        "task_2_at_running.task_2", b"::set-output name=task2::Task 2 val 2"
+    )
+
+    await executor_task
+
+
+async def test_complex_seq_restart(
+    jobs_mock: JobsMock,
+    batch_storage: Storage,
+    start_executor: Callable[[ExecutorData], Awaitable[None]],
+    batch_runner: BatchRunner,
+) -> None:
+    data = await batch_runner._setup_exc_data("batch-complex-seq")
+    executor_task = asyncio.ensure_future(start_executor(data))
+
+    await jobs_mock.get_task("task_1_a")
+    await jobs_mock.get_task("task_1_b")
+
+    await jobs_mock.mark_started("task_1_a")
+    await jobs_mock.mark_started("task_1_b")
+
+    await jobs_mock.get_task("task_2_at_running.task_1")
+    await jobs_mock.mark_done(
+        "task_2_at_running.task_1", b"::set-output name=task1::Task 1 val 1"
+    )
+    await jobs_mock.get_task("task_2_at_running.task_2")
+
+    await jobs_mock.mark_done("task_1_a")
+    await jobs_mock.mark_done("task_1_b")
+
+    await jobs_mock.get_task("task_2_after")
+    await jobs_mock.mark_done("task_2_after")
+
+    await asyncio.sleep(0.1)  # Let loop proceed
+
+    await jobs_mock.mark_failed("task_2_at_running.task_2")
+
+    await executor_task
+
+    jobs_mock.clear()
+    data = await batch_runner._restart(_executor_data_to_bake_id(data))
+
+    executor_task = asyncio.ensure_future(start_executor(data))
+
+    await jobs_mock.get_task("task_2_at_running.task_2")
+    await jobs_mock.mark_started("task_2_at_running.task_2")
+
+    await jobs_mock.get_task("task_3")
+    await jobs_mock.mark_done("task_3")
+
+    await jobs_mock.mark_done(
+        "task_2_at_running.task_2", b"::set-output name=task2::Task 2 val 2"
+    )
+
     await executor_task
 
 
@@ -746,6 +884,14 @@ async def test_restart(batch_storage: Storage, batch_runner: BatchRunner) -> Non
     job_1 = ("task-1",)
     job_2 = ("task-2",)
     st1 = await batch_storage.start_task(attempt, job_1, make_descr("job:task-1"))
+    await batch_storage.mark_task_running(
+        attempt,
+        st1,
+        make_descr(
+            "job:task-1",
+            started_at=datetime.now(),
+        ),
+    )
     ft1 = await batch_storage.finish_task(
         attempt,
         st1,
@@ -760,6 +906,14 @@ async def test_restart(batch_storage: Storage, batch_runner: BatchRunner) -> Non
         {},
     )
     st2 = await batch_storage.start_task(attempt, job_2, make_descr("job:task-2"))
+    await batch_storage.mark_task_running(
+        attempt,
+        st2,
+        make_descr(
+            "job:task-2",
+            started_at=datetime.now(),
+        ),
+    )
     await batch_storage.finish_task(
         attempt,
         st2,
@@ -781,7 +935,7 @@ async def test_restart(batch_storage: Storage, batch_runner: BatchRunner) -> Non
 
     attempt2 = await batch_storage.find_attempt(bake)
     assert attempt2.number == 2
-    started, finished = await batch_storage.fetch_attempt(attempt2)
+    started, _, finished = await batch_storage.fetch_attempt(attempt2)
     assert list(started.keys()) == [job_1]
     assert list(finished.keys()) == [job_1]
     assert started[job_1] == replace(st1, attempt=attempt2)
@@ -799,6 +953,14 @@ async def test_restart_not_last_attempt(
     job_1 = ("task-1",)
     job_2 = ("task-2",)
     st1 = await batch_storage.start_task(attempt, job_1, make_descr("job:task-1"))
+    await batch_storage.mark_task_running(
+        attempt,
+        st1,
+        make_descr(
+            "job:task-1",
+            started_at=datetime.now(),
+        ),
+    )
     ft1 = await batch_storage.finish_task(
         attempt,
         st1,
@@ -813,6 +975,14 @@ async def test_restart_not_last_attempt(
         {},
     )
     st2 = await batch_storage.start_task(attempt, job_2, make_descr("job:task-2"))
+    await batch_storage.mark_task_running(
+        attempt,
+        st2,
+        make_descr(
+            "job:task-2",
+            started_at=datetime.now(),
+        ),
+    )
     await batch_storage.finish_task(
         attempt,
         st2,
@@ -836,7 +1006,7 @@ async def test_restart_not_last_attempt(
 
     attempt3 = await batch_storage.find_attempt(bake)
     assert attempt3.number == 3
-    started, finished = await batch_storage.fetch_attempt(attempt3)
+    started, _, finished = await batch_storage.fetch_attempt(attempt3)
     assert list(started.keys()) == [job_1]
     assert list(finished.keys()) == [job_1]
     assert started[job_1] == replace(st1, attempt=attempt3)

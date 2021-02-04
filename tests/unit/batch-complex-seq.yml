@@ -1,0 +1,26 @@
+kind: batch
+tasks:
+  - id: task_1_a
+    image: ubuntu
+
+  - id: task_1_b
+    image: ubuntu
+    needs: []
+
+  - id: task_2_after
+    image: ubuntu
+    needs: [task_1_a, task_1_b]
+
+  - id: task_2_at_running
+    action: ws:batch-action
+    args:
+      arg1: val 1
+    needs:
+      task_1_a: running
+      task_1_b: running
+
+  - id: task_3
+    image: ubuntu
+    needs:
+      task_2_at_running: running
+      task_2_after: completed

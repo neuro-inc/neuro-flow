@@ -342,7 +342,7 @@ class BakeTaskType(AsyncType[str]):
                 BatchRunner(root.config_dir, root.console, client, storage)
             )
             attempt = await runner.get_bake_attempt(bake_id, attempt_no=attempt_no)
-            started, finished = await storage.fetch_attempt(attempt)
+            started, _, finished = await storage.fetch_attempt(attempt)
             if self._include_finished:
                 variants.extend(".".join(parts) for parts in finished.keys())
             if self._include_started:
