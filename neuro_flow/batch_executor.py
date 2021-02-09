@@ -110,7 +110,7 @@ class Graph(Generic[_T]):
 
     def __init__(self, graph: Mapping[str, Mapping[str, ast.NeedsLevel]], meta: _T):
         topo = ColoredTopoSorter(graph)
-        self._topos: Dict[FullID, ColoredTopoSorter[ast.NeedsLevel]] = {(): topo}
+        self._topos: Dict[FullID, ColoredTopoSorter[str, ast.NeedsLevel]] = {(): topo}
         self._sizes: Dict[FullID, int] = {(): len(graph)}
         self._metas: Dict[FullID, _T] = {(): meta}
         self._ready: Set[FullID] = set()

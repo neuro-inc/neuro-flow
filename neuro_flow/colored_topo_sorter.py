@@ -2,6 +2,7 @@ from collections import defaultdict
 from typing import AbstractSet, Dict, Generic, Mapping, Set, TypeVar
 
 
+_K = TypeVar("_K")
 _T = TypeVar("_T")
 
 
@@ -9,14 +10,14 @@ class CycleError(ValueError):
     pass
 
 
-class ColoredTopoSorter(Generic[_T]):
-    def __init__(self, graph: Mapping[str, Mapping[str, _T]]):
+class ColoredTopoSorter(Generic[_K, _T]):
+    def __init__(self, graph: Mapping[_K, Mapping[_K, _T]]):
         self._graph = graph
-        self._node_rev_deps: Dict[str, Dict[_T, Set[str]]] = defaultdict(
+        self._node_rev_deps: Dict[_K, Dict[_T, Set[_K]]] = defaultdict(
             lambda: defaultdict(set)
         )
-        self._node_deps_cnt: Dict[str, int] = dict()
-        self._color2nodes: Dict[_T, Set[str]] = defaultdict(set)
+        self._node_deps_cnt: Dict[_K, int] = dict()
+        self._color2nodes: Dict[_T, Set[_K]] = defaultdict(set)
         self._ready = set()
         for node, deps in graph.items():
             if not deps:
@@ -44,7 +45,7 @@ class ColoredTopoSorter(Generic[_T]):
                 stack.extend(self._graph[node])
             seen.update(seen_step)
 
-    def mark(self, node: str, color: _T) -> None:
+    def mark(self, node: _K, color: _T) -> None:
         if node in self._color2nodes[color]:
             return  # Already marked with this color
         self._color2nodes[color].add(node)
@@ -56,7 +57,7 @@ class ColoredTopoSorter(Generic[_T]):
     def is_all_colored(self, color: _T) -> bool:
         return len(self._color2nodes[color]) == len(self._graph)
 
-    def get_ready(self) -> AbstractSet[str]:
+    def get_ready(self) -> AbstractSet[_K]:
         ret = self._ready
         self._ready = set()
         return ret
