@@ -276,7 +276,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
 
         self._console.print(f"[b]Attempt #{attempt.number}[/b]", attempt.result)
 
-        started, running, finished = await self._storage.fetch_attempt(attempt)
+        started, finished = await self._storage.fetch_attempt(attempt)
         statuses = {}
         for task in sorted(started.values(), key=attrgetter("when")):
             task_id = task.id
@@ -390,7 +390,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
     ) -> None:
         bake = await self._storage.fetch_bake_by_id(self.project, bake_id)
         attempt = await self._storage.find_attempt(bake, attempt_no)
-        started, running, finished = await self._storage.fetch_attempt(attempt)
+        started, finished = await self._storage.fetch_attempt(attempt)
         full_id = tuple(task_id.split("."))
         if full_id not in finished:
             if full_id not in started:
@@ -475,7 +475,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         if from_failed:
             graphs = bake.graphs
             handled = set()  # a set of succesfully finished and not cached tasks
-            started, running, finished = await self._storage.fetch_attempt(attempt)
+            started, finished = await self._storage.fetch_attempt(attempt)
             for task in sorted(finished.values(), key=attrgetter("when")):
                 if task.status == TaskStatus.SUCCEEDED:
                     # should check deps to don't process post-actions with
@@ -494,9 +494,6 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                             )
                         await self._storage.write_start(
                             dataclasses.replace(started[task.id], attempt=new_att)
-                        )
-                        await self._storage.write_running(
-                            dataclasses.replace(running[task.id], attempt=new_att)
                         )
                         await self._storage.write_finish(
                             dataclasses.replace(task, attempt=new_att)

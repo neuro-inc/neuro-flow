@@ -51,7 +51,6 @@ if sys.version_info < (3, 7):
 log = logging.getLogger(__name__)
 
 STARTED_RE: Final = re.compile(r"\A(?P<id>[a-zA-Z][a-zA-Z0-9_\-\.]*).started.json\Z")
-RUNNING_RE: Final = re.compile(r"\A(?P<id>[a-zA-Z][a-zA-Z0-9_\-\.]*).running.json\Z")
 FINISHED_RE: Final = re.compile(r"\A(?P<id>[a-zA-Z][a-zA-Z0-9_\-\.]*).finished.json\Z")
 DIGITS = 4
 
@@ -109,16 +108,6 @@ class StartedTask:
     id: FullID
     raw_id: str
     created_at: datetime.datetime
-    when: datetime.datetime
-
-
-@dataclasses.dataclass(frozen=True)
-class RunningTask:
-    attempt: Attempt
-    id: FullID
-    raw_id: str
-    created_at: datetime.datetime
-    started_at: datetime.datetime
     when: datetime.datetime
 
 
@@ -219,9 +208,7 @@ class Storage(abc.ABC):
     @abc.abstractmethod
     async def fetch_attempt(
         self, attempt: Attempt
-    ) -> Tuple[
-        Dict[FullID, StartedTask], Dict[FullID, RunningTask], Dict[FullID, FinishedTask]
-    ]:
+    ) -> Tuple[Dict[FullID, StartedTask], Dict[FullID, FinishedTask]]:
         pass
 
     @abc.abstractmethod
@@ -260,43 +247,6 @@ class Storage(abc.ABC):
             created_at=now,
         )
         await self.write_start(ret)
-        return ret
-
-    async def mark_task_running(
-        self,
-        attempt: Attempt,
-        task: StartedTask,
-        descr: JobDescription,
-    ) -> RunningTask:
-        assert task.raw_id == descr.id
-        assert task.created_at == descr.history.created_at
-        assert descr.history.started_at is not None
-        ret = RunningTask(
-            attempt=attempt,
-            id=task.id,
-            raw_id=descr.id,
-            when=datetime.datetime.now(datetime.timezone.utc),
-            created_at=descr.history.created_at,
-            started_at=descr.history.started_at,
-        )
-        await self.write_running(ret)
-        return ret
-
-    async def mark_action_running(
-        self,
-        attempt: Attempt,
-        task: StartedTask,
-    ) -> RunningTask:
-        now = datetime.datetime.now(datetime.timezone.utc)
-        ret = RunningTask(
-            attempt=attempt,
-            id=task.id,
-            raw_id="",
-            when=now,
-            created_at=task.created_at,
-            started_at=now,
-        )
-        await self.write_running(ret)
         return ret
 
     async def finish_task(
@@ -398,13 +348,6 @@ class Storage(abc.ABC):
     async def write_start(
         self,
         task: StartedTask,
-    ) -> None:
-        pass
-
-    @abc.abstractmethod
-    async def write_running(
-        self,
-        task: RunningTask,
     ) -> None:
         pass
 
@@ -742,9 +685,7 @@ class FSStorage(Storage):
 
     async def fetch_attempt(
         self, attempt: Attempt
-    ) -> Tuple[
-        Dict[FullID, StartedTask], Dict[FullID, RunningTask], Dict[FullID, FinishedTask]
-    ]:
+    ) -> Tuple[Dict[FullID, StartedTask], Dict[FullID, FinishedTask]]:
         bake_uri = _mk_bake_uri(self._fs, attempt.bake)
         attempt_url = bake_uri / f"{attempt.number:02d}.attempt"
         pre = "0".zfill(DIGITS)
@@ -753,7 +694,6 @@ class FSStorage(Storage):
         result_name = f"{pre}.result.json"
         data = await self._read_json(attempt_url / init_name)
         started = {}
-        running = {}
         finished = {}
         files = []
         async for fs in self._fs.ls(attempt_url):
@@ -780,20 +720,6 @@ class FSStorage(Storage):
                     when=datetime.datetime.fromisoformat(data["when"]),
                 )
                 continue
-            match = RUNNING_RE.match(fname)
-            if match:
-                data = await self._read_json(attempt_url / fname)
-                assert match.group("id") == data["id"]
-                full_id = _id_from_json(data["id"])
-                running[full_id] = RunningTask(
-                    attempt=attempt,
-                    id=full_id,
-                    raw_id=data["raw_id"],
-                    when=datetime.datetime.fromisoformat(data["when"]),
-                    created_at=datetime.datetime.fromisoformat(data["created_at"]),
-                    started_at=datetime.datetime.fromisoformat(data["started_at"]),
-                )
-                continue
             match = FINISHED_RE.match(fname)
             if match:
                 data = await self._read_json(attempt_url / fname)
@@ -817,7 +743,7 @@ class FSStorage(Storage):
                 continue
             raise ValueError(f"Unexpected name {attempt_url / fname}")
         assert finished.keys() <= started.keys()
-        return started, running, finished
+        return started, finished
 
     async def finish_attempt(self, attempt: Attempt, result: TaskStatus) -> None:
         bake_uri = _mk_bake_uri(self._fs, attempt.bake)
@@ -837,18 +763,6 @@ class FSStorage(Storage):
             "created_at": st.created_at.isoformat(),
         }
         await self._write_json(attempt_url / f"{data['id']}.started.json", data)
-
-    async def write_running(self, rt: RunningTask) -> None:
-        bake_uri = _mk_bake_uri(self._fs, rt.attempt.bake)
-        attempt_url = bake_uri / f"{rt.attempt.number:02d}.attempt"
-        data = {
-            "id": _id_to_json(rt.id),
-            "raw_id": rt.raw_id,
-            "when": rt.when.isoformat(),
-            "created_at": rt.created_at.isoformat(),
-            "started_at": rt.started_at.isoformat(),
-        }
-        await self._write_json(attempt_url / f"{data['id']}.running.json", data)
 
     async def write_finish(self, ft: FinishedTask) -> None:
         bake_uri = _mk_bake_uri(self._fs, ft.attempt.bake)

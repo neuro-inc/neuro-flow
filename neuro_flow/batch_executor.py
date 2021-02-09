@@ -6,7 +6,14 @@ import datetime
 import json
 import sys
 from collections import defaultdict
-from neuro_sdk import Client, Container, HTTPPort, JobStatus, Resources
+from neuro_sdk import (
+    Client,
+    Container,
+    HTTPPort,
+    JobStatus,
+    ResourceNotFound,
+    Resources,
+)
 from rich.console import Console
 from rich.panel import Panel
 from rich.progress import BarColumn, Progress, TaskID, TextColumn
@@ -39,7 +46,7 @@ from .context import (
     Task,
     TaskMeta,
 )
-from .storage import Attempt, FinishedTask, RunningTask, StartedTask, Storage
+from .storage import Attempt, FinishedTask, StartedTask, Storage
 from .types import AlwaysT, FullID, TaskStatus
 from .utils import (
     TERMINATED_JOB_STATUSES,
@@ -184,7 +191,7 @@ class Graph(Generic[_T]):
 class BakeTasksManager:
     def __init__(self) -> None:
         self._started: Dict[FullID, StartedTask] = {}
-        self._running: Dict[FullID, RunningTask] = {}
+        self._running: Dict[FullID, StartedTask] = {}
         self._finished: Dict[FullID, FinishedTask] = {}
 
     @property
@@ -192,7 +199,7 @@ class BakeTasksManager:
         return self._started
 
     @property
-    def running(self) -> Mapping[FullID, RunningTask]:
+    def running(self) -> Mapping[FullID, StartedTask]:
         return self._running
 
     @property
@@ -222,7 +229,7 @@ class BakeTasksManager:
     def add_started(self, task: StartedTask) -> None:
         self._started[task.id] = task
 
-    def add_running(self, task: RunningTask) -> None:
+    def add_running(self, task: StartedTask) -> None:
         self._running[task.id] = task
 
     def add_finished(self, task: FinishedTask) -> None:
@@ -406,10 +413,10 @@ class BatchExecutor:
         task_id = self._bars[st.id[:-1]]
         self._progress.update(task_id, advance=1, refresh=True)
 
-    def _mark_running(self, rt: RunningTask) -> None:
-        self._tasks_mgr.add_running(rt)
-        self._graphs.mark_running(rt.id)
-        task_id = self._bars[rt.id[:-1]]
+    def _mark_running(self, st: StartedTask) -> None:
+        self._tasks_mgr.add_running(st)
+        self._graphs.mark_running(st.id)
+        task_id = self._bars[st.id[:-1]]
         self._progress.update(task_id, advance=1, refresh=True)
 
     def _mark_finished(self, ft: FinishedTask, advance: int = 1) -> None:
@@ -483,11 +490,24 @@ class BatchExecutor:
         )
         self._bars[root_id] = task_id
 
-        started, running, finished = await self._storage.fetch_attempt(self._attempt)
-        while (
-            (started.keys() != self._tasks_mgr.started.keys())
-            or (running.keys() != self._tasks_mgr.running.keys())
-            or (finished.keys() != self._tasks_mgr.finished.keys())
+        started, finished = await self._storage.fetch_attempt(self._attempt)
+        # Fetch info about running from server
+        running: Dict[FullID, StartedTask] = {
+            ft.id: started[ft.id] for ft in finished.values()
+        }  # All finished are considered as running
+        for st in started.values():
+            if not st.raw_id:
+                continue
+            try:
+                job_descr = await self._client.jobs.status(st.raw_id)
+            except ResourceNotFound:
+                pass
+            else:
+                if job_descr.status in {JobStatus.RUNNING, JobStatus.SUCCEEDED}:
+                    running[st.id] = st
+        # Rebuild data in graph and task_mgr
+        while (started.keys() != self._tasks_mgr.started.keys()) or (
+            finished.keys() != self._tasks_mgr.finished.keys()
         ):
             for full_id, ctx in self._graphs.get_ready_with_meta():
                 if full_id in self._tasks_mgr.started or full_id not in started:
@@ -501,8 +521,7 @@ class BatchExecutor:
                     if full_id in finished:
                         self._mark_finished(finished[full_id])
             for full_id in self._graphs.get_ready_to_mark_running_embeds():
-                if full_id in running:
-                    self._mark_running(running[full_id])
+                self._mark_running(running[full_id])
             for full_id in self._graphs.get_ready_to_mark_done_embeds():
                 if full_id in finished:
                     self._mark_finished(finished[full_id])
@@ -582,12 +601,11 @@ class BatchExecutor:
                 job_descr.status in {JobStatus.RUNNING, JobStatus.SUCCEEDED}
                 and full_id not in self._tasks_mgr.running
             ):
-                rt = await self._storage.mark_task_running(self._attempt, st, job_descr)
-                self._mark_running(rt)
+                self._mark_running(st)
                 self._progress.log(
                     "Task",
-                    fmt_id(rt.id),
-                    fmt_raw_id(rt.raw_id),
+                    fmt_id(st.id),
+                    fmt_raw_id(st.raw_id),
                     "is",
                     TaskStatus.RUNNING,
                 )
@@ -621,14 +639,12 @@ class BatchExecutor:
                     return False
         # Process batch actions
         for full_id in self._graphs.get_ready_to_mark_running_embeds():
-            rt = await self._storage.mark_action_running(
-                self._attempt, self._tasks_mgr.started[full_id]
-            )
-            self._mark_running(rt)
+            st = self._tasks_mgr.started[full_id]
+            self._mark_running(st)
             self._progress.log(
                 "Task",
-                fmt_id(rt.id),
-                fmt_raw_id(rt.raw_id),
+                fmt_id(st.id),
+                fmt_raw_id(st.raw_id),
                 "is",
                 TaskStatus.RUNNING,
             )
