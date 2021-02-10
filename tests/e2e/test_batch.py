@@ -8,17 +8,13 @@ from tests.e2e.conftest import RunCLI
 
 def test_seq_batch(run_cli: RunCLI) -> None:
     random_text = secrets.token_hex(20)
-    captured = run_cli(
-        ["bake", "seq", "--local-executor", "--param", "token", random_text]
-    )
+    captured = run_cli(["bake", "seq", "--param", "token", random_text])
 
     assert f"task_b_out: {random_text}" in captured.out
 
     # Now test the cache:
 
-    captured = run_cli(
-        ["bake", "seq", "--local-executor", "--param", "token", random_text]
-    )
+    captured = run_cli(["bake", "seq", "--param", "token", random_text])
 
     assert "cached" in captured.out
 
@@ -28,7 +24,6 @@ def test_batch_with_local(run_cli: RunCLI) -> None:
         [
             "bake",
             "print-local",
-            "--local-executor",
             "--param",
             "file_path",
             "rw_dir/initial_file",

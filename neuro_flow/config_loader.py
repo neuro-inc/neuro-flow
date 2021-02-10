@@ -7,6 +7,7 @@ import sys
 import tarfile
 from io import StringIO, TextIOWrapper
 from neuro_sdk import Client
+from pathlib import PureWindowsPath
 from tempfile import TemporaryFile
 from typing import (
     IO,
@@ -90,7 +91,13 @@ class StreamCL(ConfigLoader, abc.ABC):
         async with self.project_stream() as stream:
             if stream is not None:
                 return parse_project_stream(stream)
-            return make_default_project(self.workspace.stem)
+            # Tmp hack to overcome windows path issue.
+            try:
+                workspace_as_windows = PureWindowsPath(str(self.workspace))
+            except ValueError:
+                return make_default_project(self.workspace.stem)
+            else:
+                return make_default_project(workspace_as_windows.stem)
 
     async def fetch_project(self) -> ast.Project:
         if not self.__project_cache:
