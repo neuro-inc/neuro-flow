@@ -33,7 +33,7 @@ from yaml.resolver import Resolver as BaseResolver
 from yaml.scanner import Scanner
 
 from . import ast
-from .ast import BatchActionOutputs
+from .ast import BatchActionOutputs, NeedsLevel
 from .expr import (
     BaseExpr,
     EnableExpr,
@@ -557,6 +557,38 @@ FlowLoader.add_path_resolver("flow:images", [(dict, "images")])  # type: ignore
 FlowLoader.add_constructor("flow:images", parse_images)  # type: ignore
 
 
+def parse_needs_key(ctor: BaseConstructor, node: yaml.Node) -> IdExpr:
+    tmp = ctor.construct_scalar(node)  # type: ignore[no-untyped-call]
+    return IdExpr(mark2pos(node.start_mark), mark2pos(node.end_mark), tmp)
+
+
+FlowLoader.add_path_resolver(  # type: ignore
+    "flow:task_needs_key",
+    [(dict, "tasks"), (list, None), (dict, "needs"), (dict, True)],
+)
+FlowLoader.add_constructor("flow:task_needs_key", parse_needs_key)  # type: ignore
+
+
+def parse_needs(
+    ctor: BaseConstructor, node: yaml.Node
+) -> Optional[Mapping[IdExpr, NeedsLevel]]:
+    if isinstance(node, yaml.MappingNode):
+
+        def _factory(_start: Pos, _end: Pos, value: Any) -> NeedsLevel:
+            return NeedsLevel(value)
+
+        return SimpleMapping(_factory).construct(ctor, node)  # type: ignore
+    needs = SimpleSeq(IdExpr).construct(ctor, node)
+    return {task_id: NeedsLevel.COMPLETED for task_id in needs}  # type: ignore
+
+
+FlowLoader.add_path_resolver(  # type: ignore
+    "flow:task_needs",
+    [(dict, "tasks"), (list, None), (dict, "needs")],
+)
+FlowLoader.add_constructor("flow:task_needs", parse_needs)  # type: ignore
+
+
 def parse_exc_inc(
     ctor: BaseConstructor, node: yaml.MappingNode
 ) -> Sequence[Mapping[str, StrExpr]]:
@@ -765,9 +797,9 @@ FlowLoader.add_path_resolver("flow:jobs", [(dict, "jobs")])  # type: ignore
 FlowLoader.add_constructor("flow:jobs", parse_jobs)  # type: ignore
 
 
-TASK = {
+TASK: Mapping[str, Any] = {
     "id": OptIdExpr,
-    "needs": SimpleSeq(IdExpr),
+    "needs": None,
     "strategy": None,
     "enable": EnableExpr,
     "cache": None,
@@ -777,7 +809,7 @@ TASK = {
 
 TASK_ACTION_CALL = {
     "id": OptIdExpr,
-    "needs": SimpleSeq(IdExpr),
+    "needs": None,
     "strategy": None,
     "enable": EnableExpr,
     "cache": None,

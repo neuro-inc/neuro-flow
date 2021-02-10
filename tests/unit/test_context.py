@@ -216,7 +216,7 @@ async def test_pipeline_minimal_ctx(batch_config_loader: ConfigLoader) -> None:
     assert task.strategy.max_parallel == 10
     assert task.strategy.fail_fast
 
-    assert flow.graph == {"test_a": set()}
+    assert flow.graph == {"test_a": {}}
 
 
 async def test_pipeline_seq(batch_config_loader: ConfigLoader) -> None:
@@ -241,7 +241,7 @@ async def test_pipeline_seq(batch_config_loader: ConfigLoader) -> None:
     assert task.strategy.max_parallel == 10
     assert task.strategy.fail_fast
 
-    assert flow.graph == {"task-2": {"task-1"}, "task-1": set()}
+    assert flow.graph == {"task-2": {"task-1": ast.NeedsLevel.COMPLETED}, "task-1": {}}
 
 
 async def test_pipeline_needs(batch_config_loader: ConfigLoader) -> None:
@@ -266,17 +266,17 @@ async def test_pipeline_needs(batch_config_loader: ConfigLoader) -> None:
     assert task.strategy.max_parallel == 10
     assert task.strategy.fail_fast
 
-    assert flow.graph == {"task-2": {"task_a"}, "task_a": set()}
+    assert flow.graph == {"task-2": {"task_a": ast.NeedsLevel.COMPLETED}, "task_a": {}}
 
 
 async def test_pipeline_matrix(batch_config_loader: ConfigLoader) -> None:
     flow = await RunningBatchFlow.create(batch_config_loader, "batch-matrix")
 
     assert flow.graph == {
-        "task-1-o3-t3": set(),
-        "task-1-o1-t1": set(),
-        "task-1-o2-t1": set(),
-        "task-1-o2-t2": set(),
+        "task-1-o3-t3": {},
+        "task-1-o1-t1": {},
+        "task-1-o2-t1": {},
+        "task-1-o2-t2": {},
     }
 
     for task_id in flow.graph:
@@ -310,11 +310,16 @@ async def test_pipeline_matrix_with_strategy(batch_config_loader: ConfigLoader) 
     )
 
     assert flow.graph == {
-        "task-1-o3-t3": set(),
-        "task-1-o1-t1": set(),
-        "task-1-o2-t1": set(),
-        "task-1-o2-t2": set(),
-        "simple": {"task-1-o3-t3", "task-1-o1-t1", "task-1-o2-t1", "task-1-o2-t2"},
+        "task-1-o3-t3": {},
+        "task-1-o1-t1": {},
+        "task-1-o2-t1": {},
+        "task-1-o2-t2": {},
+        "simple": {
+            "task-1-o3-t3": ast.NeedsLevel.COMPLETED,
+            "task-1-o1-t1": ast.NeedsLevel.COMPLETED,
+            "task-1-o2-t1": ast.NeedsLevel.COMPLETED,
+            "task-1-o2-t2": ast.NeedsLevel.COMPLETED,
+        },
     }
 
     task = await flow.get_task(
@@ -364,13 +369,13 @@ async def test_pipeline_matrix_2(batch_config_loader: ConfigLoader) -> None:
     flow = await RunningBatchFlow.create(batch_config_loader, "batch-matrix-with-deps")
 
     assert flow.graph == {
-        "task-2-a-1": {"task_a"},
-        "task-2-a-2": {"task_a"},
-        "task-2-b-1": {"task_a"},
-        "task-2-b-2": {"task_a"},
-        "task-2-c-1": {"task_a"},
-        "task-2-c-2": {"task_a"},
-        "task_a": set(),
+        "task-2-a-1": {"task_a": ast.NeedsLevel.COMPLETED},
+        "task-2-a-2": {"task_a": ast.NeedsLevel.COMPLETED},
+        "task-2-b-1": {"task_a": ast.NeedsLevel.COMPLETED},
+        "task-2-b-2": {"task_a": ast.NeedsLevel.COMPLETED},
+        "task-2-c-1": {"task_a": ast.NeedsLevel.COMPLETED},
+        "task-2-c-2": {"task_a": ast.NeedsLevel.COMPLETED},
+        "task_a": {},
     }
 
     task = await flow.get_task((), "task_a", needs={}, state={})
@@ -735,8 +740,8 @@ async def test_pipeline_with_batch_action(batch_config_loader: ConfigLoader) -> 
     assert task.strategy.fail_fast
 
     assert flow2.graph == {
-        "task_1": set(),
-        "task_2": {"task_1"},
+        "task_1": {},
+        "task_2": {"task_1": ast.NeedsLevel.COMPLETED},
     }
 
 

@@ -146,6 +146,11 @@ class Job(ExecUnit, JobBase):
     multi: SimpleOptBoolExpr
 
 
+class NeedsLevel(enum.Enum):
+    RUNNING = "running"
+    COMPLETED = "completed"  # pipelined mode
+
+
 @dataclass(frozen=True)
 class TaskBase(Base):
     id: OptIdExpr
@@ -153,7 +158,7 @@ class TaskBase(Base):
     # A set of steps, used in net mode
     # All steps share the same implicit persistent disk volume
 
-    needs: Optional[Sequence[IdExpr]] = field(metadata={"allow_none": True})
+    needs: Optional[Mapping[IdExpr, NeedsLevel]] = field(metadata={"allow_none": True})
 
     # matrix? Do we need a build matrix? Yes probably.
 

@@ -5,7 +5,15 @@ import base64
 import datetime
 import json
 import sys
-from neuro_sdk import Client, Container, HTTPPort, Resources
+from collections import defaultdict
+from neuro_sdk import (
+    Client,
+    Container,
+    HTTPPort,
+    JobStatus,
+    ResourceNotFound,
+    Resources,
+)
 from rich.console import Console
 from rich.panel import Panel
 from rich.progress import BarColumn, Progress, TaskID, TextColumn
@@ -23,6 +31,7 @@ from typing import (
 )
 
 from . import ast
+from .colored_topo_sorter import ColoredTopoSorter
 from .commands import CmdProcessor
 from .config_loader import BatchRemoteCL
 from .context import (
@@ -52,11 +61,6 @@ if sys.version_info >= (3, 7):  # pragma: no cover
     from contextlib import asynccontextmanager
 else:
     from async_generator import asynccontextmanager
-
-if sys.version_info >= (3, 9):
-    import graphlib
-else:
-    from . import backport_graphlib as graphlib
 
 
 class NotFinished(ValueError):
@@ -104,15 +108,14 @@ class Graph(Generic[_T]):
     Each graph can be annotated with some metadata.
     """
 
-    def __init__(self, graph: Mapping[str, Iterable[str]], meta: _T):
-        topo = graphlib.TopologicalSorter(graph)
-        self._topos: Dict[FullID, "graphlib.TopologicalSorter[str]"] = {(): topo}
+    def __init__(self, graph: Mapping[str, Mapping[str, ast.NeedsLevel]], meta: _T):
+        topo = ColoredTopoSorter(graph)
+        self._topos: Dict[FullID, ColoredTopoSorter[str, ast.NeedsLevel]] = {(): topo}
         self._sizes: Dict[FullID, int] = {(): len(graph)}
         self._metas: Dict[FullID, _T] = {(): meta}
-        topo.prepare()
         self._ready: Set[FullID] = set()
         self._done: Set[FullID] = set()
-        self._embeds_done: Set[FullID] = set()
+        self._ready_to_mark_embeds: Dict[ast.NeedsLevel, Set[FullID]] = defaultdict(set)
         self._process_ready(())
 
     @property
@@ -131,36 +134,47 @@ class Graph(Generic[_T]):
         assert prefix in self._topos, f"Parent graph for node {node} not found"
         return self._metas[prefix]
 
-    def get_ready_done_embeds(self) -> AbstractSet[FullID]:
-        return self._ready & self._embeds_done
+    def get_ready_to_mark_running_embeds(self) -> AbstractSet[FullID]:
+        return set(self._ready_to_mark_embeds[ast.NeedsLevel.RUNNING])
+
+    def get_ready_to_mark_done_embeds(self) -> AbstractSet[FullID]:
+        return set(self._ready_to_mark_embeds[ast.NeedsLevel.COMPLETED])
 
     def get_size(self, prefix: FullID) -> int:
         return self._sizes[prefix]
 
-    def mark_done(self, node: FullID) -> None:
+    def _mark_node(self, node: FullID, level: ast.NeedsLevel) -> None:
         if node in self._topos:
-            assert not self._topos[node].is_active(), (
-                f"Node '{node}' cannot be set ready when "
-                "embeded graph is still in progress"
+            assert node in self._ready_to_mark_embeds[level], (
+                f"Node '{node}' cannot be marked to {level} when "
+                f"embeded graph is not all marked with {level}"
             )
+            self._ready_to_mark_embeds[level].remove(node)
         prefix, item = node[:-1], node[-1]
         assert prefix in self._topos, f"Parent graph for node {node} not found"
         topo = self._topos[prefix]
-        topo.done(item)
-        if not topo.is_active() and prefix != ():
-            self._embeds_done.add(prefix)
+        topo.mark(item, level)
+        if topo.is_all_colored(level) and prefix != ():
+            self._ready_to_mark_embeds[level].add(prefix)
         else:
             self._process_ready(prefix)
+
+    def mark_running(self, node: FullID) -> None:
+        self._mark_node(node, ast.NeedsLevel.RUNNING)
+
+    def mark_done(self, node: FullID) -> None:
+        self._mark_node(node, ast.NeedsLevel.COMPLETED)
         self._ready.remove(node)
         self._done.add(node)
 
-    def embed(self, node: FullID, graph: Mapping[str, Iterable[str]], meta: _T) -> None:
+    def embed(
+        self, node: FullID, graph: Mapping[str, Mapping[str, ast.NeedsLevel]], meta: _T
+    ) -> None:
         prefix = node[:-1]
         assert node not in self._done, f"Cannot embed to already done node {node}"
         assert prefix in self._topos, f"Parent graph for node {node} not found"
-        self._topos[node] = graphlib.TopologicalSorter(graph)
+        self._topos[node] = ColoredTopoSorter(graph)
         self._sizes[node] = len(graph)
-        self._topos[node].prepare()
         self._metas[node] = meta
         if node in self._ready:
             self._process_ready(node)
@@ -177,6 +191,7 @@ class Graph(Generic[_T]):
 class BakeTasksManager:
     def __init__(self) -> None:
         self._started: Dict[FullID, StartedTask] = {}
+        self._running: Dict[FullID, StartedTask] = {}
         self._finished: Dict[FullID, FinishedTask] = {}
 
     @property
@@ -184,18 +199,22 @@ class BakeTasksManager:
         return self._started
 
     @property
+    def running(self) -> Mapping[FullID, StartedTask]:
+        return self._running
+
+    @property
     def finished(self) -> Mapping[FullID, FinishedTask]:
         return self._finished
 
     @property
-    def running_tasks(self) -> Mapping[FullID, StartedTask]:
+    def unfinished_tasks(self) -> Mapping[FullID, StartedTask]:
         return {
             key: value
             for key, value in self.started.items()
             if key not in self.finished and value.raw_id
         }
 
-    def count_running(self, prefix: FullID = ()) -> int:
+    def count_unfinished(self, prefix: FullID = ()) -> int:
         def _with_prefix(full_id: FullID) -> bool:
             return all(x == y for x, y in zip(prefix, full_id))
 
@@ -209,6 +228,9 @@ class BakeTasksManager:
 
     def add_started(self, task: StartedTask) -> None:
         self._started[task.id] = task
+
+    def add_running(self, task: StartedTask) -> None:
+        self._running[task.id] = task
 
     def add_finished(self, task: FinishedTask) -> None:
         self._finished[task.id] = task
@@ -329,34 +351,50 @@ class BatchExecutor:
             self._attempt.bake, self._attempt.number
         )
 
-    # Exact task/action contexts helpers
+    def _only_completed_needs(
+        self, needs: Mapping[str, ast.NeedsLevel]
+    ) -> AbstractSet[str]:
+        return {
+            task_id
+            for task_id, level in needs.items()
+            if level == ast.NeedsLevel.COMPLETED
+        }
 
+    # Exact task/action contexts helpers
     async def _get_meta(self, full_id: FullID) -> TaskMeta:
         prefix, tid = full_id[:-1], full_id[-1]
         flow = self._graphs.get_meta(full_id)
-        needs = self._tasks_mgr.build_needs(prefix, flow.graph[tid])
+        needs = self._tasks_mgr.build_needs(
+            prefix, self._only_completed_needs(flow.graph[tid])
+        )
         state = self._tasks_mgr.build_state(prefix, await flow.state_from(tid))
         return await flow.get_meta(tid, needs=needs, state=state)
 
     async def _get_task(self, full_id: FullID) -> Task:
         prefix, tid = full_id[:-1], full_id[-1]
         flow = self._graphs.get_meta(full_id)
-        needs = self._tasks_mgr.build_needs(prefix, flow.graph[tid])
+        needs = self._tasks_mgr.build_needs(
+            prefix, self._only_completed_needs(flow.graph[tid])
+        )
         state = self._tasks_mgr.build_state(prefix, await flow.state_from(tid))
         return await flow.get_task(prefix, tid, needs=needs, state=state)
 
     async def _get_local(self, full_id: FullID) -> LocalTask:
         prefix, tid = full_id[:-1], full_id[-1]
-        ctx = self._graphs.get_meta(full_id)
-        needs = self._tasks_mgr.build_needs(prefix, ctx.graph[tid])
-        assert isinstance(ctx, RunningBatchFlow)
-        return await ctx.get_local(tid, needs=needs)
+        flow = self._graphs.get_meta(full_id)
+        needs = self._tasks_mgr.build_needs(
+            prefix, self._only_completed_needs(flow.graph[tid])
+        )
+        assert isinstance(flow, RunningBatchFlow)
+        return await flow.get_local(tid, needs=needs)
 
     async def _get_action(self, full_id: FullID) -> RunningBatchActionFlow:
         prefix, tid = full_id[:-1], full_id[-1]
-        ctx = self._graphs.get_meta(full_id)
-        needs = self._tasks_mgr.build_needs(prefix, ctx.graph[tid])
-        return await ctx.get_action(tid, needs=needs)
+        flow = self._graphs.get_meta(full_id)
+        needs = self._tasks_mgr.build_needs(
+            prefix, self._only_completed_needs(flow.graph[tid])
+        )
+        return await flow.get_action(tid, needs=needs)
 
     # Graph helpers
 
@@ -366,12 +404,18 @@ class BatchExecutor:
         task_id = self._progress.add_task(
             ".".join(full_id),
             completed=0,
-            total=self._graphs.get_size(full_id) * 2,
+            total=self._graphs.get_size(full_id) * 3,
         )
         self._bars[full_id] = task_id
 
     def _mark_started(self, st: StartedTask) -> None:
         self._tasks_mgr.add_started(st)
+        task_id = self._bars[st.id[:-1]]
+        self._progress.update(task_id, advance=1, refresh=True)
+
+    def _mark_running(self, st: StartedTask) -> None:
+        self._tasks_mgr.add_running(st)
+        self._graphs.mark_running(st.id)
         task_id = self._bars[st.id[:-1]]
         self._progress.update(task_id, advance=1, refresh=True)
 
@@ -386,7 +430,7 @@ class BatchExecutor:
     async def _skip_task(self, full_id: FullID) -> None:
         st, ft = await self._storage.skip_task(self._attempt, full_id)
         self._mark_started(st)
-        self._mark_finished(ft)
+        self._mark_finished(ft, advance=2)
         self._progress.log("Task", fmt_id(full_id), "is", TaskStatus.SKIPPED)
 
     async def _process_local(self, full_id: FullID) -> None:
@@ -406,7 +450,7 @@ class BatchExecutor:
         for n in range(1, len(full_id) + 1):
             node = full_id[:n]
             prefix = node[:-1]
-            if self._tasks_mgr.count_running(prefix) >= task.strategy.max_parallel:
+            if self._tasks_mgr.count_unfinished(prefix) >= task.strategy.max_parallel:
                 return
 
         cache_strategy = task.cache.strategy
@@ -426,7 +470,7 @@ class BatchExecutor:
                 "Task", fmt_id(ft.id), fmt_raw_id(ft.raw_id), "is", TaskStatus.CACHED
             )
             assert ft.status == TaskStatus.SUCCEEDED
-            self._mark_finished(ft, advance=2)
+            self._mark_finished(ft, advance=3)
         else:
             st = await self._start_task(full_id, task)
             self._mark_started(st)
@@ -442,23 +486,43 @@ class BatchExecutor:
         task_id = self._progress.add_task(
             f"<{self._attempt.bake.batch}>",
             completed=0,
-            total=self._graphs.get_size(root_id) * 2,
+            total=self._graphs.get_size(root_id) * 3,
         )
         self._bars[root_id] = task_id
 
         started, finished = await self._storage.fetch_attempt(self._attempt)
+        # Fetch info about running from server
+        running: Dict[FullID, StartedTask] = {
+            ft.id: started[ft.id] for ft in finished.values()
+        }  # All finished are considered as running
+        for st in started.values():
+            if not st.raw_id:
+                continue
+            try:
+                job_descr = await self._client.jobs.status(st.raw_id)
+            except ResourceNotFound:
+                pass
+            else:
+                if job_descr.status in {JobStatus.RUNNING, JobStatus.SUCCEEDED}:
+                    running[st.id] = st
+        # Rebuild data in graph and task_mgr
         while (started.keys() != self._tasks_mgr.started.keys()) or (
             finished.keys() != self._tasks_mgr.finished.keys()
         ):
             for full_id, ctx in self._graphs.get_ready_with_meta():
-                if full_id not in started:
+                if full_id in self._tasks_mgr.started or full_id not in started:
                     continue
                 self._mark_started(started[full_id])
                 if await ctx.is_action(full_id[-1]):
                     await self._embed_action(full_id)
-                elif full_id in finished:
-                    self._mark_finished(finished[full_id])
-            for full_id in self._graphs.get_ready_done_embeds():
+                else:
+                    if full_id in running:
+                        self._mark_running(running[full_id])
+                    if full_id in finished:
+                        self._mark_finished(finished[full_id])
+            for full_id in self._graphs.get_ready_to_mark_running_embeds():
+                self._mark_running(running[full_id])
+            for full_id in self._graphs.get_ready_to_mark_done_embeds():
                 if full_id in finished:
                     self._mark_finished(finished[full_id])
 
@@ -495,7 +559,7 @@ class BatchExecutor:
 
                 if not ok or self._attempt.result == TaskStatus.CANCELLED:
                     self._is_cancelling = True
-                    await self._stop_running()
+                    await self._stop_unfinished()
 
             await asyncio.sleep(self._polling_timeout)
 
@@ -512,8 +576,8 @@ class BatchExecutor:
             justify="center",
         )
 
-    async def _stop_running(self) -> None:
-        for full_id, st in self._tasks_mgr.running_tasks.items():
+    async def _stop_unfinished(self) -> None:
+        for full_id, st in self._tasks_mgr.unfinished_tasks.items():
             task = await self._get_task(full_id)
             if task.enable is not AlwaysT():
                 self._progress.log(f"Task {fmt_id(st.id)} is being killed")
@@ -531,8 +595,20 @@ class BatchExecutor:
 
     async def _process_started(self) -> bool:
         # Process tasks
-        for full_id, st in self._tasks_mgr.running_tasks.items():
+        for full_id, st in self._tasks_mgr.unfinished_tasks.items():
             job_descr = await self._client.jobs.status(st.raw_id)
+            if (
+                job_descr.status in {JobStatus.RUNNING, JobStatus.SUCCEEDED}
+                and full_id not in self._tasks_mgr.running
+            ):
+                self._mark_running(st)
+                self._progress.log(
+                    "Task",
+                    fmt_id(st.id),
+                    fmt_raw_id(st.raw_id),
+                    "is",
+                    TaskStatus.RUNNING,
+                )
             if job_descr.status in TERMINATED_JOB_STATUSES:
                 async with CmdProcessor() as proc:
                     async for chunk in self._client.jobs.monitor(st.raw_id):
@@ -562,7 +638,18 @@ class BatchExecutor:
                 if ft.status != TaskStatus.SUCCEEDED and task_meta.strategy.fail_fast:
                     return False
         # Process batch actions
-        for full_id in self._graphs.get_ready_done_embeds():
+        for full_id in self._graphs.get_ready_to_mark_running_embeds():
+            st = self._tasks_mgr.started[full_id]
+            self._mark_running(st)
+            self._progress.log(
+                "Task",
+                fmt_id(st.id),
+                fmt_raw_id(st.raw_id),
+                "is",
+                TaskStatus.RUNNING,
+            )
+
+        for full_id in self._graphs.get_ready_to_mark_done_embeds():
             # done action, make it finished
             ctx = await self._get_action(full_id)
 

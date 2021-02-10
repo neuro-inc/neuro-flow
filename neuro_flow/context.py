@@ -1067,11 +1067,11 @@ class EarlyBatch:
         self._tasks = tasks
 
     @property
-    def graph(self) -> Mapping[str, AbstractSet[str]]:
+    def graph(self) -> Mapping[str, Mapping[str, ast.NeedsLevel]]:
         return self._graph()
 
     @lru_cache()
-    def _graph(self) -> Mapping[str, AbstractSet[str]]:
+    def _graph(self) -> Mapping[str, Mapping[str, ast.NeedsLevel]]:
         # This function is only needed for mypy
         return {key: early_task.needs for key, early_task in self._tasks.items()}
 
@@ -1152,9 +1152,14 @@ class RunningBatchBase(Generic[_T], EarlyBatch):
         self, real_id: str, needs: NeedsCtx, state: StateCtx
     ) -> BaseTaskContext:
         prep_task = self._get_prep(real_id)
-        if needs.keys() != prep_task.needs:
-            extra = ",".join(needs.keys() - prep_task.needs)
-            missing = ",".join(prep_task.needs - needs.keys())
+        needs_completed = {
+            task_id
+            for task_id, level in prep_task.needs.items()
+            if level == ast.NeedsLevel.COMPLETED
+        }
+        if needs.keys() != needs_completed:
+            extra = ",".join(needs.keys() - needs_completed)
+            missing = ",".join(needs_completed - needs.keys())
             err = ["Error in 'needs':"]
             if extra:
                 err.append(f"unexpected keys {extra}")
@@ -1468,7 +1473,7 @@ class RunningBatchActionFlow(RunningBatchBase[BatchActionContext]):
 class BaseEarlyTask:
     id: Optional[str]
     real_id: str
-    needs: AbstractSet[str]  # A set of batch.id
+    needs: Mapping[str, ast.NeedsLevel]  # Keys are batch.id
 
     matrix: MatrixCtx
     enable: EnableExpr
@@ -1768,7 +1773,7 @@ class EarlyTaskGraphBuilder:
                                     base,
                                     id=None,
                                     real_id=f"post-{base.real_id}",
-                                    needs={real_id},
+                                    needs={real_id: ast.NeedsLevel.COMPLETED},
                                     enable=action.post_if,
                                 ).to_post_task(action.post, real_id),
                             )
@@ -1789,7 +1794,9 @@ class EarlyTaskGraphBuilder:
         for post_tasks_group in reversed(post_tasks):
             real_ids = set()
             for task in post_tasks_group:
-                task = replace(task, needs=last_needs | task.needs)
+                needs = {need: ast.NeedsLevel.COMPLETED for need in last_needs}
+                needs = {**needs, **task.needs}
+                task = replace(task, needs=needs)
                 prep_tasks[task.real_id] = task
                 real_ids.add(task.real_id)
             last_needs = real_ids
@@ -1811,10 +1818,12 @@ class EarlyTaskGraphBuilder:
 
     async def _setup_needs(
         self, ctx: RootABC, default_needs: AbstractSet[str], ast_task: ast.TaskBase
-    ) -> AbstractSet[str]:
+    ) -> Mapping[str, ast.NeedsLevel]:
         if ast_task.needs is not None:
-            return {await need.eval(ctx) for need in ast_task.needs}
-        return default_needs
+            return {
+                await need.eval(ctx): level for need, level in ast_task.needs.items()
+            }
+        return {need: ast.NeedsLevel.COMPLETED for need in default_needs}
 
 
 class TaskGraphBuilder(EarlyTaskGraphBuilder):
