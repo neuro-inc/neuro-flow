@@ -5,6 +5,16 @@
 
 [comment]: # (towncrier release notes start)
 
+Neuro_Flow 21.2.11.1 (2021-02-11)
+=================================
+
+Bugfixes
+--------
+
+
+- Enable restarting of remote executor jobs on failure.
+
+
 Neuro_Flow 21.2.11 (2021-02-11)
 ===============================
 
