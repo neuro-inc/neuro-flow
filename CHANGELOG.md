@@ -8,7 +8,18 @@
 Neuro_Flow 21.2.11 (2021-02-11)
 ===============================
 
-No significant changes.
+Features
+--------
+
+
+- Support dependencies on running tasks along with finished ones in batch mode. ([#255](https://github.com/neuro-inc/neuro-flow/issues/281))
+
+
+Bugfixes
+--------
+
+
+- Fix windows path issue. ([#261](https://github.com/neuro-inc/neuro-flow/issues/289))
 
 
 Neuro_Flow 21.1.4 (2021-01-04)
