@@ -49,9 +49,109 @@ jobs:
       run: |
         echo ${{ steps.version.outputs.version }}
 
+  unit:
+    name: Unit
+    needs: [lint]
+    strategy:
+      matrix:
+        python-version: [3.6, 3.7, 3.8, 3.9]
+        os: [ubuntu, macos, windows]
+        exclude:
+          - python-version: 3.7
+            os: macos
+          - python-version: 3.7
+            os: windows
+          - python-version: 3.8
+            os: macos
+          - python-version: 3.8
+            os: windows
+      fail-fast: false
+    runs-on: ${{ matrix.os }}-latest
+    timeout-minutes: 10
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+    - name: Setup Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v2
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Get pip cache dir
+      id: pip-cache
+      run: |
+        echo "::set-output name=dir::$(pip cache dir)"    # - name: Cache
+    - name: Cache PyPI
+      uses: actions/cache@v2.1.4
+      with:
+        key: pip-ci-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('requirements/*.txt')
+          }}
+        path: ${{ steps.pip-cache.outputs.dir }}
+        restore-keys: |
+          pip-ci-${{ runner.os }}-${{ matrix.python-version }}-
+    - name: Install dependencies
+      uses: py-actions/py-dependency-install@v2
+      with:
+        path: requirements/ci.txt
+    - name: Run unittests
+      env:
+        E2E_USER_TOKEN: ${{ secrets.CLIENT_TEST_E2E_USER_NAME }}
+        COLOR: yes
+      run: |
+        make test
+
+  e2e:
+    name: E2E
+    needs: [unit]
+    continue-on-error: true
+    strategy:
+      matrix:
+        python-version: [3.6, 3.7, 3.8, 3.9]
+        os: [ubuntu, macos, windows]
+        exclude:
+          - python-version: 3.7
+            os: macos
+          - python-version: 3.7
+            os: windows
+          - python-version: 3.8
+            os: macos
+          - python-version: 3.8
+            os: windows
+      fail-fast: false
+    runs-on: ${{ matrix.os }}-latest
+    timeout-minutes: 10
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+    - name: Setup Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v2
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Get pip cache dir
+      id: pip-cache
+      run: |
+        echo "::set-output name=dir::$(pip cache dir)"    # - name: Cache
+    - name: Cache PyPI
+      uses: actions/cache@v2.1.4
+      with:
+        key: pip-ci-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('requirements/*.txt')
+          }}
+        path: ${{ steps.pip-cache.outputs.dir }}
+        restore-keys: |
+          pip-ci-${{ runner.os }}-${{ matrix.python-version }}-
+    - name: Install dependencies
+      uses: py-actions/py-dependency-install@v2
+      with:
+        path: requirements/ci.txt
+    - name: Run e2e tests
+      env:
+        E2E_USER_TOKEN: ${{ secrets.CLIENT_TEST_E2E_USER_NAME }}
+        COLOR: yes
+      run: |
+        make test-e2e
+
+
   deploy:
     name: Deploy on PyPI
-    needs: [lint]
+    needs: [lint, unit, e2e]
     runs-on: ubuntu-latest
     # Run only on pushing a tag
     if: github.event_name == 'push' && contains(github.ref, 'refs/tags/')
