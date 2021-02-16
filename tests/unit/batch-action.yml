@@ -21,6 +21,7 @@ cache:
   life_span: 30m
 tasks:
 - id: task_1
+  needs: [ ]  # checks parser
   image: ubuntu
   bash: echo ::set-output name=task1::Task 1 ${{ inputs.arg1 }}
 - id: task_2

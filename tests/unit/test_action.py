@@ -124,7 +124,7 @@ def test_parse_batch_action(assets: LocalPath) -> None:
     action = parse_action(config_file)
     assert action == ast.BatchAction(
         Pos(0, 0, config_file),
-        Pos(28, 0, config_file),
+        Pos(29, 0, config_file),
         kind=ast.ActionKind.BATCH,
         name=SimpleOptStrExpr(
             Pos(0, 0, config_file),
@@ -212,7 +212,7 @@ def test_parse_batch_action(assets: LocalPath) -> None:
         tasks=[
             ast.Task(
                 Pos(22, 2, config_file),
-                Pos(25, 0, config_file),
+                Pos(26, 0, config_file),
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
@@ -247,7 +247,7 @@ def test_parse_batch_action(assets: LocalPath) -> None:
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
                 id=OptIdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "task_1"),
-                needs=None,
+                needs={},
                 strategy=None,
                 cache=None,
                 enable=EnableExpr(
@@ -257,8 +257,8 @@ def test_parse_batch_action(assets: LocalPath) -> None:
                 ),
             ),
             ast.Task(
-                Pos(25, 2, config_file),
-                Pos(28, 0, config_file),
+                Pos(26, 2, config_file),
+                Pos(29, 0, config_file),
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),

@@ -1196,6 +1196,17 @@ ActionLoader.add_constructor(  # type: ignore
     "action:tasks", ActionLoader.construct_sequence
 )
 
+ActionLoader.add_path_resolver(  # type: ignore
+    "action:task_needs_key",
+    [(dict, "tasks"), (list, None), (dict, "needs"), (dict, True)],
+)
+ActionLoader.add_constructor("action:task_needs_key", parse_needs_key)  # type: ignore
+ActionLoader.add_path_resolver(  # type: ignore
+    "action:task_needs",
+    [(dict, "tasks"), (list, None), (dict, "needs")],
+)
+ActionLoader.add_constructor("action:task_needs", parse_needs)  # type: ignore
+
 
 def parse_exec_unit(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.ExecUnit:
     return parse_dict(ctor, node, EXEC_UNIT, ast.ExecUnit, preprocess=select_shells)
