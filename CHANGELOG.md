@@ -5,6 +5,15 @@
 
 [comment]: # (towncrier release notes start)
 
+Neuro_Flow 21.2.16 (2021-02-16)
+===============================
+
+Bugfixes
+--------
+
+- Fixed parsing of needs in actions
+
+
 Neuro_Flow 21.2.11.1 (2021-02-11)
 =================================
 
