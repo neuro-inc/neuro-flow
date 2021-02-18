@@ -255,6 +255,7 @@ class LocalCL(StreamCL, abc.ABC):
             async with self._github_session.get(
                 url=f"https://api.github.com/repos/{repo}/tarball/{version}"
             ) as response:
+                response.raise_for_status()
                 async for chunk in response.content:
                     file.write(chunk)
             file.seek(0)
