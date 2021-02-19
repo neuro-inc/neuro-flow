@@ -120,6 +120,7 @@ neuro-flow bake [OPTIONS] BATCH
 | :--- | :--- |
 | _--local-executor_ | Run primary job locally |
 | _--param &lt;TEXT TEXT&gt;..._ | Set params of the batch config |
+| _--meta-from-file FILE_ | File with params for batch. |
 | _--help_ | Show this message and exit. |
 
 ### neuro-flow bakes

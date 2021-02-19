@@ -1353,6 +1353,39 @@ ActionLoader.add_path_resolver("action:main", [])  # type: ignore
 ActionLoader.add_constructor("action:main", parse_action_main)  # type: ignore
 
 
+# #### Action parser ####
+
+
+class BakeMetaLoader(Reader, Scanner, Parser, Composer, BaseConstructor, BaseResolver):
+    def __init__(self, stream: TextIO) -> None:
+        Reader.__init__(self, stream)
+        Scanner.__init__(self)
+        Parser.__init__(self)
+        Composer.__init__(self)
+        BaseConstructor.__init__(self)
+        BaseResolver.__init__(self)
+
+
+def parse_meta_main(ctor: BaseConstructor, node: yaml.MappingNode) -> Mapping[str, str]:
+    if not isinstance(node, yaml.MappingNode):
+        raise ConstructorError(
+            None,
+            None,
+            f"expected a mapping node, but found {node.id}",
+            node.start_mark,
+        )
+    ret = {}
+    for k, v in node.value:
+        key = str(ctor.construct_scalar(k))  # type: ignore[no-untyped-call]
+        value = str(ctor.construct_scalar(v))  # type: ignore[no-untyped-call]
+        ret[key] = value
+    return ret
+
+
+BakeMetaLoader.add_path_resolver("bake_meta:main", [])  # type: ignore
+BakeMetaLoader.add_constructor("bake_meta:main", parse_meta_main)  # type: ignore
+
+
 def parse_action_stream(stream: TextIO) -> ast.BaseAction:
     ret: ast.Project
     loader = ActionLoader(stream)
@@ -1368,3 +1401,10 @@ def parse_action(action_file: LocalPath) -> ast.BaseAction:
     # Parse project config file
     with action_file.open() as f:
         return parse_action_stream(f)
+
+
+def parse_bake_meta(meta_file: LocalPath) -> Mapping[str, str]:
+    with meta_file.open() as f:
+        result = BakeMetaLoader(f).get_single_data()  # type: ignore[no-untyped-call]
+        assert isinstance(result, dict)
+        return result
