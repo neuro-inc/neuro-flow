@@ -255,6 +255,8 @@ class LocalCL(StreamCL, abc.ABC):
             async with self._github_session.get(
                 url=f"https://api.github.com/repos/{repo}/tarball/{version}"
             ) as response:
+                if response.status == HTTPNotFound.status_code:
+                    raise ValueError(f"Cannot fetch action: either repository {repo} or tag {version} does not exists")
                 response.raise_for_status()
                 async for chunk in response.content:
                     file.write(chunk)
