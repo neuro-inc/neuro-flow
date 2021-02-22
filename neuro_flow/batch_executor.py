@@ -337,8 +337,10 @@ class BatchExecutor:
             transient_progress=transient_progress,
         )
         ret._start()
-        yield ret
-        ret._stop()
+        try:
+            yield ret
+        finally:
+            ret._stop()
 
     def _start(self) -> None:
         self._progress.start()
