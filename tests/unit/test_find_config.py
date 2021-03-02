@@ -11,7 +11,7 @@ from neuro_flow.parser import find_workspace
 async def test_not_exists(tmp_path: Path, client: Client) -> None:
     d = tmp_path / ".neuro"
     d.mkdir()
-    with pytest.raises(ValueError, match=".+ does not exist"):
+    with pytest.raises(ValueError, match="Config file for flow '.+' not found .+"):
         LiveLocalCL(find_workspace(d), client).flow_path("live")
 
 
