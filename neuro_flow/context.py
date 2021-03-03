@@ -1104,7 +1104,7 @@ class EarlyBatch:
             real_id
         ), f"get_task() cannot used for action call {real_id}"
         prep_task = self._get_prep(real_id)
-        assert isinstance(prep_task, PrepBatchCall)  # Already checked
+        assert isinstance(prep_task, EarlyBatchCall)  # Already checked
 
         tasks = await EarlyTaskGraphBuilder(self._cl, prep_task.action.tasks).build()
 

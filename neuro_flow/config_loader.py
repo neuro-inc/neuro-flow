@@ -199,7 +199,9 @@ class LocalCL(StreamCL, abc.ABC):
                 if not ret.is_file():
                     raise ValueError(f"Flow {ret} is not a file")
                 return ret
-        raise ValueError(f"Flow {name} does not exist")
+        raise ValueError(
+            f"Config file for flow '{name}' not found " f"in {self._config_dir} folder"
+        )
 
     @asynccontextmanager
     async def flow_stream(self, name: str) -> AsyncIterator[TextIO]:
