@@ -5,6 +5,18 @@
 
 [comment]: # (towncrier release notes start)
 
+Neuro_Flow 21.3.3 (2021-03-03)
+==============================
+
+Bugfixes
+--------
+
+
+- Added proper error message for the hosted on GitHub actions, which reference is wrong (URL leads to 404). ([#294](https://github.com/neuro-inc/neuro-flow/issues/294))
+
+- Fix processing of bake that has actions that use another bake action. ([#302](https://github.com/neuro-inc/neuro-flow/issues/302))
+
+
 Neuro_Flow 21.2.16 (2021-02-16)
 ===============================
 
