@@ -16,6 +16,7 @@ from neuro_flow.cli.utils import argument, option, wrap_async
 from neuro_flow.storage import FSStorage, NeuroStorageFS, Storage
 from neuro_flow.types import LocalPath
 
+from ..parser import parse_bake_meta
 from .root import Root
 
 
@@ -30,12 +31,18 @@ else:
 @click.option(
     "--param", type=(str, str), multiple=True, help="Set params of the batch config"
 )
+@click.option(
+    "--meta-from-file",
+    type=click.Path(exists=True, file_okay=True, dir_okay=False, readable=True),
+    help="File with params for batch.",
+)
 @argument("batch", type=BATCH)
 @wrap_async()
 async def bake(
     root: Root,
     batch: str,
     local_executor: bool,
+    meta_from_file: Optional[str],
     param: List[Tuple[str, str]],
 ) -> None:
     """Start a batch.
@@ -50,7 +57,11 @@ async def bake(
         runner = await stack.enter_async_context(
             BatchRunner(root.config_dir, root.console, client, storage)
         )
-        await runner.bake(batch, local_executor, {key: value for key, value in param})
+        params = {key: value for key, value in param}
+        if meta_from_file is not None:
+            bake_meta = parse_bake_meta(LocalPath(meta_from_file))
+            params = {**bake_meta, **params}
+        await runner.bake(batch, local_executor, params)
 
 
 @click.command(hidden=True)
