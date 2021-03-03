@@ -15,9 +15,6 @@ Features
 - Add support of parsing batch params from file. ([#295](https://github.com/neuro-inc/neuro-flow/issues/295))
 
 
-Neuro_Flow 21.3.3 (2021-03-03)
-==============================
-
 Bugfixes
 --------
 
