@@ -1,10 +1,10 @@
 # Batch workflow commands
 
-Tasks executed during the _batch_ workflow set some values using commands. To execute a command, a task should print a specially formatted line to standard output stream. Neuro Flow automatically scans this stream and detects commands.
+Tasks executed during _batch_ workflows set some values using commands. To execute a command, a task should print a specially formatted line to the standard output stream. Neuro Flow automatically scans this stream and detects commands in it.
 
 ## `set-output` command
 
-Sets the value of tasks output that can be later accessed by other tasks using [`needs` context](batch-contexts.md#needs-context).
+Sets the value of a task's output that can be later accessed by other tasks using the [`needs` context](batch-contexts.md#needs-context).
 
 **Format:**
 
@@ -18,7 +18,7 @@ echo "::set-output name=output_name::value of the output_name"
 
 ## `save-state` command
 
-Save some value in the `main` task of a [stateful action](actions-syntax.md#kind-stateful-actions) that can be later accessed by other `post` using [`state` context](live-actions-contexts.md#state-context).
+Saves some value in the `main` task of a [stateful action](actions-syntax.md#kind-stateful-actions) that can be later accessed by other `post` using the [`state` context](live-actions-contexts.md#state-context).
 
 **Format:**
 

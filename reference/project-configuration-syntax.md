@@ -2,10 +2,7 @@
 
 By default, the project name is generated automatically based on the name of the project folder \(a folder that contains a `.neuro` subfolder for configuration YAML files\).
 
-However, if the folder's name contains unsupported characters, this will not work. The following character's are _not_ supported: 
-* A digit in the beginning of the name 
-* Non-ASCII symbols 
-* The dash \(`-`\) symbol
+Name autogeneration will only work if the folder's name starts with a letter or an underscore symbol \(`_`\) and contains only letters, digits, or underscores. `ALL_CAPS` names are not supported.
 
 To override this, you can put the `project.yml`\(or `project.yaml`\) file into the `.neuro` configuration folder.
 
