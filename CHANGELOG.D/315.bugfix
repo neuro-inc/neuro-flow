@@ -1,1 +1,0 @@
-Fix executor restart when there is a action that should be marked as ready.

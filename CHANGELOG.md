@@ -5,6 +5,16 @@
 
 [comment]: # (towncrier release notes start)
 
+Neuro_Flow 21.3.17 (2021-03-17)
+===============================
+
+Bugfixes
+--------
+
+
+- Fix executor restart when there is a action that should be marked as ready. ([#315](https://github.com/neuro-inc/neuro-flow/issues/315))
+
+
 Neuro_Flow 21.3.3 (2021-03-03)
 ==============================
 
