@@ -457,6 +457,51 @@ async def test_complex_seq_continue(
     await asyncio.wait_for(executor_task, timeout=5)
 
 
+async def test_complex_seq_continue_2(
+    jobs_mock: JobsMock,
+    batch_storage: Storage,
+    start_executor: Callable[[ExecutorData], Awaitable[None]],
+    batch_runner: BatchRunner,
+) -> None:
+    data = await batch_runner._setup_exc_data("batch-complex-seq")
+    executor_task = asyncio.ensure_future(start_executor(data))
+
+    await jobs_mock.get_task("task_1_a")
+    await jobs_mock.get_task("task_1_b")
+
+    await jobs_mock.mark_started("task_1_a")
+    await jobs_mock.mark_started("task_1_b")
+
+    await jobs_mock.get_task("task_2_at_running.task_1")
+    await jobs_mock.mark_done(
+        "task_2_at_running.task_1", b"::set-output name=task1::Task 1 val 1"
+    )
+    await jobs_mock.get_task("task_2_at_running.task_2")
+    await jobs_mock.mark_started("task_2_at_running.task_2")
+    executor_task.cancel()
+    try:
+        await executor_task
+    except asyncio.CancelledError:
+        pass
+
+    await jobs_mock.mark_done(
+        "task_2_at_running.task_2", b"::set-output name=task2::Task 2 val 2"
+    )
+
+    executor_task = asyncio.ensure_future(start_executor(data))
+
+    await jobs_mock.mark_done("task_1_a")
+    await jobs_mock.mark_done("task_1_b")
+
+    await jobs_mock.get_task("task_2_after")
+    await jobs_mock.mark_done("task_2_after")
+
+    await jobs_mock.get_task("task_3")
+    await jobs_mock.mark_done("task_3")
+
+    await asyncio.wait_for(executor_task, timeout=5)
+
+
 async def test_complex_seq_restart(
     jobs_mock: JobsMock,
     batch_storage: Storage,

@@ -523,7 +523,7 @@ class BatchExecutor:
                     if full_id in finished:
                         self._mark_finished(finished[full_id])
             for full_id in self._graphs.get_ready_to_mark_running_embeds():
-                self._mark_running(running[full_id])
+                self._mark_running(started[full_id])
             for full_id in self._graphs.get_ready_to_mark_done_embeds():
                 if full_id in finished:
                     self._mark_finished(finished[full_id])
