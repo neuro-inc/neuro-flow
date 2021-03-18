@@ -242,7 +242,10 @@ class BakeTasksManager:
             dep = self._finished.get(full_id)
             if dep is None:
                 raise NotFinished(full_id)
-            needs[dep_id] = DepCtx(TaskStatus(dep.status), dep.outputs)
+            status = TaskStatus(dep.status)
+            if status == TaskStatus.CACHED:
+                status = TaskStatus.SUCCEEDED
+            needs[dep_id] = DepCtx(status, dep.outputs)
         return needs
 
     def build_state(self, prefix: FullID, state_from: Optional[str]) -> StateCtx:
@@ -471,7 +474,7 @@ class BatchExecutor:
             self._progress.log(
                 "Task", fmt_id(ft.id), fmt_raw_id(ft.raw_id), "is", TaskStatus.CACHED
             )
-            assert ft.status == TaskStatus.SUCCEEDED
+            assert ft.status == TaskStatus.CACHED
             self._mark_finished(ft, advance=3)
         else:
             st = await self._start_task(full_id, task)

@@ -145,6 +145,11 @@ class DepCtx:
     result: TaskStatus
     outputs: Mapping[str, str]
 
+    def __post_init__(self) -> None:
+        assert (
+            self.result != TaskStatus.CACHED
+        ), "CACHED status should replaced with SUCCEEDED for expressions"
+
 
 # Confs (similar to ..Ctx, but not available to expressions, only used
 # during evaluation)
