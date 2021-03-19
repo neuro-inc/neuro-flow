@@ -756,3 +756,13 @@ async def test_pipeline_with_batch_action_bad_output_needs(
     ):
         assert await flow.is_action("test")
         await flow.get_action_early("test")
+
+
+async def test_pipeline_additional_tags(batch_config_loader: ConfigLoader) -> None:
+    additional_tags = {"testtag1", "testtag2"}
+    flow = await RunningBatchFlow.create(
+        batch_config_loader, "batch-seq", additional_tags=additional_tags
+    )
+    ctx = flow._ctx
+
+    assert additional_tags.issubset(ctx.tags)

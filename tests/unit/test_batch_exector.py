@@ -1037,7 +1037,7 @@ async def test_fully_cached_simple(
     await jobs_mock.mark_done("task-2")
     await executor_task
 
-    await run_executor(assets, "batch-seq")
+    await asyncio.wait_for(run_executor(assets, "batch-seq"), timeout=10)
 
 
 async def test_fully_cached_with_action(
@@ -1050,7 +1050,7 @@ async def test_fully_cached_with_action(
     await jobs_mock.mark_done("test.task-2", b"::set-output name=task2::Task 2 value 2")
     await executor_task
 
-    await run_executor(assets, "batch-action-call")
+    await asyncio.wait_for(run_executor(assets, "batch-action-call"), timeout=10)
 
 
 async def test_cached_same_needs(
@@ -1068,7 +1068,8 @@ async def test_cached_same_needs(
     executor_task = asyncio.ensure_future(run_executor(assets, "batch-test-cache"))
 
     await jobs_mock.mark_done("task-1", b"::set-output name=arg::val")
-    await executor_task
+
+    await asyncio.wait_for(executor_task, timeout=10)
 
 
 async def test_not_cached_if_different_needs(
@@ -1099,13 +1100,38 @@ async def test_batch_params(
         run_executor(assets, "batch-params-required", {"arg2": "test_value"})
     )
     task_descr = await jobs_mock.get_task("task-1")
+    assert set(task_descr.tags).issuperset(
+        {
+            "flow:batch-params-required",
+            "test_value",
+            "val1",
+            "project:unit",
+            "task:task-1",
+        }
+    )
+    await jobs_mock.mark_done("task-1")
+
+    await executor_task
+
+
+async def test_batch_bake_id_tag(
+    jobs_mock: JobsMock,
+    batch_storage: Storage,
+    start_executor: Callable[[ExecutorData], Awaitable[None]],
+    batch_runner: BatchRunner,
+) -> None:
+    data = await batch_runner._setup_exc_data("batch-seq")
+    executor_task = asyncio.ensure_future(start_executor(data))
+
+    task_descr = await jobs_mock.get_task("task-1")
     assert set(task_descr.tags) == {
-        "flow:batch-params-required",
-        "test_value",
-        "val1",
+        "flow:batch-seq",
+        f"bake_id:{_executor_data_to_bake_id(data)}",
         "project:unit",
         "task:task-1",
     }
     await jobs_mock.mark_done("task-1")
+
+    await jobs_mock.mark_done("task-2")
 
     await executor_task

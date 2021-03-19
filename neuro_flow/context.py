@@ -1342,6 +1342,7 @@ class RunningBatchFlow(RunningBatchBase[BatchContext]):
         config_loader: ConfigLoader,
         batch: str,
         params: Optional[Mapping[str, str]] = None,
+        additional_tags: AbstractSet[str] = frozenset(),
     ) -> "RunningBatchFlow":
         ast_flow = await config_loader.fetch_flow(batch)
 
@@ -1358,6 +1359,7 @@ class RunningBatchFlow(RunningBatchBase[BatchContext]):
         defaults, env, tags = await setup_defaults_env_tags_ctx(
             step_1_ctx, ast_flow.defaults
         )
+        tags |= additional_tags
 
         step_2_ctx = step_1_ctx.to_step_2(
             env=env,

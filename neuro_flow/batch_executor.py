@@ -321,7 +321,12 @@ class BatchExecutor:
             load_from_storage=lambda name: storage.fetch_config(bake, name),
             client=client,
         )
-        flow = await RunningBatchFlow.create(config_loader, bake.batch, bake.params)
+        flow = await RunningBatchFlow.create(
+            config_loader,
+            bake.batch,
+            bake.params,
+            additional_tags={f"bake_id:{bake.bake_id}"},
+        )
 
         console.log("Find last attempt")
         attempt = await storage.find_attempt(bake)
