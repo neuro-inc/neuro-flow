@@ -775,7 +775,7 @@ def parse_job(
             ctor,
             node,
             JOB_OR_ACTION,
-            ast.Base,
+            ast.JobBase,
             preprocess=select_job_or_action,
             find_res_type=find_job_type,
         ),
