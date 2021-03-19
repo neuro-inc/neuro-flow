@@ -115,7 +115,7 @@ class EvalError(Exception):
         line = self.start.line
         col = self.start.col
         filename = self.start.filename
-        return str(self.args[0]) + f'\n in "{filename}", line {line}, column {col}'
+        return str(self.args[0]) + f'\n  in "{filename}", line {line}, column {col}'
 
 
 def parse_literal(arg: str, err_msg: str) -> LiteralT:
