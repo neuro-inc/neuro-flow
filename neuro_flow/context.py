@@ -801,7 +801,9 @@ async def setup_matrix(ast_matrix: Optional[ast.Matrix]) -> Sequence[MatrixCtx]:
 
 
 async def setup_output_needs(
-    outputs: Optional[ast.BatchActionOutputs], known_tasks: AbstractSet[str]
+    action_name: str,
+    outputs: Optional[ast.BatchActionOutputs],
+    known_tasks: AbstractSet[str],
 ) -> AbstractSet[str]:
     output_needs = set()
     if outputs:
@@ -809,7 +811,7 @@ async def setup_output_needs(
             task_id = await need_expr.eval(EMPTY_ROOT)
             if task_id not in known_tasks:
                 raise EvalError(
-                    f"Action does not contain task '{task_id}'",
+                    f"Action '{action_name}' does not contain task '{task_id}'",
                     outputs._start,
                     outputs._end,
                 )
@@ -1102,13 +1104,17 @@ class EarlyBatch:
     async def get_action_early(self, real_id: str) -> "EarlyBatch":
         assert await self.is_action(
             real_id
-        ), f"get_task() cannot used for action call {real_id}"
+        ), f"get_action_early() cannot used for action call {real_id}"
         prep_task = self._get_prep(real_id)
         assert isinstance(prep_task, EarlyBatchCall)  # Already checked
 
         tasks = await EarlyTaskGraphBuilder(self._cl, prep_task.action.tasks).build()
 
-        output_needs = await setup_output_needs(prep_task.action.outputs, tasks.keys())
+        output_needs = await setup_output_needs(
+            prep_task.action_name,
+            prep_task.action.outputs,
+            tasks.keys(),
+        )
 
         return EarlyBatchAction(tasks, self._cl, output_needs)
 
@@ -1285,6 +1291,7 @@ class RunningBatchBase(Generic[_T], EarlyBatch):
         ctx = self._task_context(real_id, needs, {})
 
         return await RunningBatchActionFlow.create(
+            action_name=prep_task.action_name,
             ast_action=prep_task.action,
             base_cache=prep_task.cache,
             base_strategy=prep_task.strategy,
@@ -1432,6 +1439,7 @@ class RunningBatchActionFlow(RunningBatchBase[BatchActionContext]):
     @classmethod
     async def create(
         cls,
+        action_name: str,
         ast_action: ast.BatchAction,
         base_cache: CacheConf,
         base_strategy: StrategyCtx,
@@ -1453,7 +1461,9 @@ class RunningBatchActionFlow(RunningBatchBase[BatchActionContext]):
             action_context, config_loader, cache, ast_action.tasks
         ).build()
 
-        output_needs = await setup_output_needs(ast_action.outputs, tasks.keys())
+        output_needs = await setup_output_needs(
+            action_name, ast_action.outputs, tasks.keys()
+        )
 
         return RunningBatchActionFlow(
             action_context,
@@ -1490,6 +1500,7 @@ class BaseEarlyTask:
 
     def to_batch_call(
         self,
+        action_name: str,
         action: ast.BatchAction,
         call: ast.TaskActionCall,
     ) -> "EarlyBatchCall":
@@ -1499,12 +1510,14 @@ class BaseEarlyTask:
             needs=self.needs,
             matrix=self.matrix,
             enable=self.enable,
+            action_name=action_name,
             action=action,
             call=call,
         )
 
     def to_local_call(
         self,
+        action_name: str,
         action: ast.LocalAction,
         call: ast.TaskActionCall,
     ) -> "EarlyLocalCall":
@@ -1514,12 +1527,14 @@ class BaseEarlyTask:
             needs=self.needs,
             matrix=self.matrix,
             enable=self.enable,
+            action_name=action_name,
             action=action,
             call=call,
         )
 
     def to_stateful_call(
         self,
+        action_name: str,
         action: ast.StatefulAction,
         call: ast.TaskActionCall,
     ) -> "EarlyStatefulCall":
@@ -1530,6 +1545,7 @@ class BaseEarlyTask:
             matrix=self.matrix,
             ast_task=action.main,
             enable=self.enable,
+            action_name=action_name,
             action=action,
             call=call,
         )
@@ -1565,18 +1581,21 @@ class EarlyTask(BaseEarlyTask):
 @dataclass(frozen=True)
 class EarlyBatchCall(BaseEarlyTask):
     call: ast.TaskActionCall
+    action_name: str
     action: ast.BatchAction
 
 
 @dataclass(frozen=True)
 class EarlyLocalCall(BaseEarlyTask):
     call: ast.TaskActionCall
+    action_name: str
     action: ast.LocalAction
 
 
 @dataclass(frozen=True)
 class EarlyStatefulCall(EarlyTask):
     call: ast.TaskActionCall
+    action_name: str
     action: ast.StatefulAction
 
 
@@ -1604,6 +1623,7 @@ class BasePrepTask(BaseEarlyTask):
 
     def to_batch_call(
         self,
+        action_name: str,
         action: ast.BatchAction,
         call: ast.TaskActionCall,
     ) -> "PrepBatchCall":
@@ -1615,12 +1635,14 @@ class BasePrepTask(BaseEarlyTask):
             strategy=self.strategy,
             cache=self.cache,
             enable=self.enable,
+            action_name=action_name,
             action=action,
             call=call,
         )
 
     def to_local_call(
         self,
+        action_name: str,
         action: ast.LocalAction,
         call: ast.TaskActionCall,
     ) -> "PrepLocalCall":
@@ -1632,12 +1654,14 @@ class BasePrepTask(BaseEarlyTask):
             strategy=self.strategy,
             cache=CacheConf(strategy=ast.CacheStrategy.NONE),
             enable=self.enable,
+            action_name=action_name,
             action=action,
             call=call,
         )
 
     def to_stateful_call(
         self,
+        action_name: str,
         action: ast.StatefulAction,
         call: ast.TaskActionCall,
     ) -> "PrepStatefulCall":
@@ -1649,6 +1673,7 @@ class BasePrepTask(BaseEarlyTask):
             strategy=self.strategy,
             cache=CacheConf(strategy=ast.CacheStrategy.NONE),
             enable=self.enable,
+            action_name=action_name,
             ast_task=action.main,
             action=action,
             call=call,
@@ -1763,9 +1788,13 @@ class EarlyTaskGraphBuilder:
                             ast_task._end,
                         )
                     if isinstance(action, ast.BatchAction):
-                        prep_tasks[real_id] = base.to_batch_call(action, ast_task)
+                        prep_tasks[real_id] = base.to_batch_call(
+                            action_name, action, ast_task
+                        )
                     elif isinstance(action, ast.LocalAction):
-                        prep_tasks[real_id] = base.to_local_call(action, ast_task)
+                        prep_tasks[real_id] = base.to_local_call(
+                            action_name, action, ast_task
+                        )
                     elif isinstance(action, ast.StatefulAction):
                         if action.post:
                             post_tasks_group.append(
@@ -1777,7 +1806,9 @@ class EarlyTaskGraphBuilder:
                                     enable=action.post_if,
                                 ).to_post_task(action.post, real_id),
                             )
-                        prep_tasks[real_id] = base.to_stateful_call(action, ast_task)
+                        prep_tasks[real_id] = base.to_stateful_call(
+                            action_name, action, ast_task
+                        )
 
                     else:
                         raise ValueError(
