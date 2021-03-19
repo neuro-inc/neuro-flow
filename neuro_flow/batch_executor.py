@@ -46,7 +46,7 @@ from .context import (
     Task,
     TaskMeta,
 )
-from .storage import Attempt, FinishedTask, StartedTask, Storage
+from .storage import Attempt, FinishedTask, StartedTask, Storage, _dt2str
 from .types import AlwaysT, FullID, TaskStatus
 from .utils import (
     TERMINATED_JOB_STATUSES,
@@ -85,6 +85,11 @@ class ExecutorData:
         data = json.loads(raw_json)
         data["when"] = datetime.datetime.fromisoformat(data["when"])
         return cls(**data)
+
+    def get_bake_id(self) -> str:
+        # Todo: this is duplication with code in storage.py,
+        # remove when platform service will be added
+        return "_".join([self.batch, _dt2str(self.when), self.suffix])
 
 
 _T = TypeVar("_T")
