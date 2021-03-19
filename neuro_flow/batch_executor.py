@@ -655,8 +655,8 @@ class BatchExecutor:
             # done action, make it finished
             ctx = await self._get_action(full_id)
 
-            needs = self._tasks_mgr.build_needs(full_id, await ctx.get_output_needs())
-            outputs = await ctx.calc_outputs(needs, is_cancelling=self._is_cancelling)
+            results = self._tasks_mgr.build_needs(full_id, ctx.graph.keys())
+            outputs = await ctx.calc_outputs(results)
 
             ft = await self._storage.finish_action(
                 self._attempt,

@@ -5,7 +5,6 @@ from neuro_flow import ast
 from neuro_flow.ast import BatchActionOutputs
 from neuro_flow.expr import (
     EnableExpr,
-    IdExpr,
     OptBashExpr,
     OptBoolExpr,
     OptIdExpr,
@@ -166,10 +165,6 @@ def test_parse_batch_action(assets: LocalPath) -> None:
         outputs=BatchActionOutputs(
             Pos(ANY, ANY, config_file),
             Pos(ANY, ANY, config_file),
-            needs=[
-                IdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "task_1"),
-                IdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "task_2"),
-            ],
             values={
                 "res1": ast.Output(
                     Pos(ANY, ANY, config_file),
