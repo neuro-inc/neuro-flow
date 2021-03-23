@@ -322,10 +322,10 @@ class BatchExecutor:
             client=client,
         )
         flow = await RunningBatchFlow.create(
-            config_loader,
-            bake.batch,
-            bake.params,
-            additional_tags={f"bake_id:{bake.bake_id}"},
+            config_loader=config_loader,
+            batch=bake.batch,
+            bake_id=bake.bake_id,
+            params=bake.params,
         )
 
         console.log("Find last attempt")
