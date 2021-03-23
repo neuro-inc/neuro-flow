@@ -6,14 +6,7 @@ import datetime
 import json
 import sys
 from collections import defaultdict
-from neuro_sdk import (
-    Client,
-    Container,
-    HTTPPort,
-    JobStatus,
-    ResourceNotFound,
-    Resources,
-)
+from neuro_sdk import Client, HTTPPort, JobStatus, ResourceNotFound
 from rich.console import Console
 from rich.panel import Panel
 from rich.progress import BarColumn, Progress, TaskID, TextColumn
@@ -695,20 +688,11 @@ class BatchExecutor:
         preset_name = task.preset
         if preset_name is None:
             preset_name = next(iter(self._client.config.presets))
-        preset = self._client.config.presets[preset_name]
 
         env_dict, secret_env_dict = self._client.parse.env(
             [f"{k}={v}" for k, v in task.env.items()]
         )
-        resources = Resources(
-            memory_mb=preset.memory_mb,
-            cpu=preset.cpu,
-            gpu=preset.gpu,
-            gpu_model=preset.gpu_model,
-            shm=True,
-            tpu_type=preset.tpu_type,
-            tpu_software_version=preset.tpu_software_version,
-        )
+
         volumes_parsed = self._client.parse.volumes(task.volumes)
         volumes = list(volumes_parsed.volumes)
 
@@ -716,23 +700,20 @@ class BatchExecutor:
         if http_auth is None:
             http_auth = HTTPPort.requires_auth
 
-        container = Container(
+        job = await self._client.jobs.start(
+            shm=True,
+            tty=False,
             image=self._client.parse.remote_image(task.image),
+            preset_name=preset_name,
             entrypoint=task.entrypoint,
             command=task.cmd,
             http=HTTPPort(task.http_port, http_auth) if task.http_port else None,
-            resources=resources,
             env=env_dict,
             secret_env=secret_env_dict,
             volumes=volumes,
             working_dir=str(task.workdir) if task.workdir else None,
             secret_files=list(volumes_parsed.secret_files),
             disk_volumes=list(volumes_parsed.disk_volumes),
-            tty=False,
-        )
-        job = await self._client.jobs.run(
-            container,
-            scheduler_enabled=preset.scheduler_enabled,
             name=task.name,
             tags=list(task.tags),
             description=task.title,
