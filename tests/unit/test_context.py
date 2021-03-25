@@ -186,7 +186,7 @@ async def test_bad_expr_type_after_eval(live_config_loader: ConfigLoader) -> Non
     assert str(cm.value) == dedent(
         f"""\
         invalid literal for int() with base 10: 'abc def'
-          in "{config_file}", line 5, column 19"""
+          in "{config_file}", line 6, column 20"""
     )
 
 

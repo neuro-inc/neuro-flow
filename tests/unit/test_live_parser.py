@@ -827,7 +827,7 @@ def test_bad_expr_type_before_eval(assets: pathlib.Path) -> None:
     assert str(ctx.value) == dedent(
         f"""\
         invalid literal for int() with base 10: 'abc def'
-          in "{config_file}", line 5, column 15"""
+          in "{config_file}", line 6, column 16"""
     )
 
 
