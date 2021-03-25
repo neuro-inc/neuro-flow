@@ -39,7 +39,7 @@ from yarl import URL
 from neuro_flow.batch_executor import BatchExecutor, ExecutorData, LocalsBatchExecutor
 from neuro_flow.batch_runner import BatchRunner
 from neuro_flow.parser import ConfigDir
-from neuro_flow.storage import Bake, FSStorage, LocalFS, Storage
+from neuro_flow.storage import Bake, FinishedTask, FSStorage, LocalFS, Storage
 from neuro_flow.types import LocalPath, TaskStatus
 
 
@@ -323,19 +323,29 @@ def start_executor(
     return start
 
 
+RunExecutor = Callable[[Path, str], Awaitable[Dict[Tuple[str, ...], FinishedTask]]]
+
+
 @pytest.fixture()
 def run_executor(
     make_batch_runner: MakeBatchRunner,
     start_locals_executor: Callable[[ExecutorData], Awaitable[None]],
     start_executor: Callable[[ExecutorData], Awaitable[None]],
-) -> Callable[[Path, str], Awaitable[None]]:
+    batch_storage: Storage,
+) -> RunExecutor:
     async def run(
         config_loc: Path, batch_name: str, args: Optional[Mapping[str, str]] = None
-    ) -> None:
+    ) -> Dict[Tuple[str, ...], FinishedTask]:
         runner = await make_batch_runner(config_loc)
         data = await runner._setup_exc_data(batch_name, args)
         await start_locals_executor(data)
         await start_executor(data)
+        bake = await batch_storage.fetch_bake(
+            data.project, data.batch, data.when, data.suffix
+        )
+        attempt = await batch_storage.find_attempt(bake)
+        _, finished = await batch_storage.fetch_attempt(attempt)
+        return finished
 
     return run
 
@@ -1029,7 +1039,7 @@ async def test_restart_not_last_attempt(
 async def test_fully_cached_simple(
     jobs_mock: JobsMock,
     assets: Path,
-    run_executor: Callable[[Path, str], Awaitable[None]],
+    run_executor: RunExecutor,
 ) -> None:
     executor_task = asyncio.ensure_future(run_executor(assets, "batch-seq"))
 
@@ -1037,26 +1047,31 @@ async def test_fully_cached_simple(
     await jobs_mock.mark_done("task-2")
     await executor_task
 
-    await run_executor(assets, "batch-seq")
+    finished = await run_executor(assets, "batch-seq")
+    for task in finished.values():
+        assert task.status == TaskStatus.CACHED
 
 
 async def test_fully_cached_with_action(
     jobs_mock: JobsMock,
     assets: Path,
-    run_executor: Callable[[Path, str], Awaitable[None]],
+    run_executor: RunExecutor,
 ) -> None:
     executor_task = asyncio.ensure_future(run_executor(assets, "batch-action-call"))
     await jobs_mock.mark_done("test.task-1", b"::set-output name=task1::Task 1 val 1")
     await jobs_mock.mark_done("test.task-2", b"::set-output name=task2::Task 2 value 2")
     await executor_task
 
-    await run_executor(assets, "batch-action-call")
+    finished = await run_executor(assets, "batch-action-call")
+
+    assert finished[("test", "task_1")].status == TaskStatus.CACHED
+    assert finished[("test", "task_2")].status == TaskStatus.CACHED
 
 
 async def test_cached_same_needs(
     jobs_mock: JobsMock,
     assets: Path,
-    run_executor: Callable[[Path, str], Awaitable[None]],
+    run_executor: RunExecutor,
 ) -> None:
     executor_task = asyncio.ensure_future(run_executor(assets, "batch-test-cache"))
 
@@ -1068,7 +1083,10 @@ async def test_cached_same_needs(
     executor_task = asyncio.ensure_future(run_executor(assets, "batch-test-cache"))
 
     await jobs_mock.mark_done("task-1", b"::set-output name=arg::val")
-    await executor_task
+    finished = await executor_task
+
+    assert finished[("task-1",)].status == TaskStatus.SUCCEEDED
+    assert finished[("task-2",)].status == TaskStatus.CACHED
 
 
 async def test_not_cached_if_different_needs(

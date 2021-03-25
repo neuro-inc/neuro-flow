@@ -290,7 +290,7 @@ def _get_needs_statuses(root: RootABC) -> Dict[str, TaskStatus]:
 
 
 async def always(ctx: CallCtx, *args: str) -> AlwaysT:
-    _check_has_needs(ctx, func_name="success")
+    _check_has_needs(ctx, func_name="always")
     return AlwaysT()
 
 
