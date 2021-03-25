@@ -6,14 +6,7 @@ import datetime
 import json
 import sys
 from collections import defaultdict
-from neuro_sdk import (
-    Client,
-    Container,
-    HTTPPort,
-    JobStatus,
-    ResourceNotFound,
-    Resources,
-)
+from neuro_sdk import Client, HTTPPort, JobStatus, ResourceNotFound
 from rich.console import Console
 from rich.panel import Panel
 from rich.progress import BarColumn, Progress, TaskID, TextColumn
@@ -46,7 +39,7 @@ from .context import (
     Task,
     TaskMeta,
 )
-from .storage import Attempt, FinishedTask, StartedTask, Storage
+from .storage import Attempt, FinishedTask, StartedTask, Storage, _dt2str
 from .types import AlwaysT, FullID, TaskStatus
 from .utils import (
     TERMINATED_JOB_STATUSES,
@@ -85,6 +78,11 @@ class ExecutorData:
         data = json.loads(raw_json)
         data["when"] = datetime.datetime.fromisoformat(data["when"])
         return cls(**data)
+
+    def get_bake_id(self) -> str:
+        # Todo: this is duplication with code in storage.py,
+        # remove when platform service will be added
+        return "_".join([self.batch, _dt2str(self.when), self.suffix])
 
 
 _T = TypeVar("_T")
@@ -242,7 +240,10 @@ class BakeTasksManager:
             dep = self._finished.get(full_id)
             if dep is None:
                 raise NotFinished(full_id)
-            needs[dep_id] = DepCtx(TaskStatus(dep.status), dep.outputs)
+            status = TaskStatus(dep.status)
+            if status == TaskStatus.CACHED:
+                status = TaskStatus.SUCCEEDED
+            needs[dep_id] = DepCtx(status, dep.outputs)
         return needs
 
     def build_state(self, prefix: FullID, state_from: Optional[str]) -> StateCtx:
@@ -321,7 +322,12 @@ class BatchExecutor:
             load_from_storage=lambda name: storage.fetch_config(bake, name),
             client=client,
         )
-        flow = await RunningBatchFlow.create(config_loader, bake.batch, bake.params)
+        flow = await RunningBatchFlow.create(
+            config_loader=config_loader,
+            batch=bake.batch,
+            bake_id=bake.bake_id,
+            params=bake.params,
+        )
 
         console.log("Find last attempt")
         attempt = await storage.find_attempt(bake)
@@ -471,7 +477,7 @@ class BatchExecutor:
             self._progress.log(
                 "Task", fmt_id(ft.id), fmt_raw_id(ft.raw_id), "is", TaskStatus.CACHED
             )
-            assert ft.status == TaskStatus.SUCCEEDED
+            assert ft.status == TaskStatus.CACHED
             self._mark_finished(ft, advance=3)
         else:
             st = await self._start_task(full_id, task)
@@ -695,20 +701,11 @@ class BatchExecutor:
         preset_name = task.preset
         if preset_name is None:
             preset_name = next(iter(self._client.config.presets))
-        preset = self._client.config.presets[preset_name]
 
         env_dict, secret_env_dict = self._client.parse.env(
             [f"{k}={v}" for k, v in task.env.items()]
         )
-        resources = Resources(
-            memory_mb=preset.memory_mb,
-            cpu=preset.cpu,
-            gpu=preset.gpu,
-            gpu_model=preset.gpu_model,
-            shm=True,
-            tpu_type=preset.tpu_type,
-            tpu_software_version=preset.tpu_software_version,
-        )
+
         volumes_parsed = self._client.parse.volumes(task.volumes)
         volumes = list(volumes_parsed.volumes)
 
@@ -716,23 +713,20 @@ class BatchExecutor:
         if http_auth is None:
             http_auth = HTTPPort.requires_auth
 
-        container = Container(
+        job = await self._client.jobs.start(
+            shm=True,
+            tty=False,
             image=self._client.parse.remote_image(task.image),
+            preset_name=preset_name,
             entrypoint=task.entrypoint,
             command=task.cmd,
             http=HTTPPort(task.http_port, http_auth) if task.http_port else None,
-            resources=resources,
             env=env_dict,
             secret_env=secret_env_dict,
             volumes=volumes,
             working_dir=str(task.workdir) if task.workdir else None,
             secret_files=list(volumes_parsed.secret_files),
             disk_volumes=list(volumes_parsed.disk_volumes),
-            tty=False,
-        )
-        job = await self._client.jobs.run(
-            container,
-            scheduler_enabled=preset.scheduler_enabled,
             name=task.name,
             tags=list(task.tags),
             description=task.title,

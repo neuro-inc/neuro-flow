@@ -8,6 +8,8 @@ from datetime import datetime
 from neuro_sdk import (
     Client,
     Container,
+    DiskVolume,
+    HTTPPort,
     JobDescription,
     JobRestartPolicy,
     JobStatus,
@@ -15,6 +17,8 @@ from neuro_sdk import (
     RemoteImage,
     ResourceNotFound,
     Resources,
+    SecretFile,
+    Volume,
     get as api_get,
 )
 from pathlib import Path
@@ -39,7 +43,7 @@ from yarl import URL
 from neuro_flow.batch_executor import BatchExecutor, ExecutorData, LocalsBatchExecutor
 from neuro_flow.batch_runner import BatchRunner
 from neuro_flow.parser import ConfigDir
-from neuro_flow.storage import Bake, FSStorage, LocalFS, Storage
+from neuro_flow.storage import Bake, FinishedTask, FSStorage, LocalFS, Storage
 from neuro_flow.types import LocalPath, TaskStatus
 
 
@@ -174,24 +178,54 @@ class JobsMock:
 
     # Fake Jobs methods
 
-    async def run(
+    async def start(
         self,
-        container: Container,
         *,
+        image: RemoteImage,
+        preset_name: str,
+        entrypoint: Optional[str] = None,
+        command: Optional[str] = None,
+        working_dir: Optional[str] = None,
+        http: Optional[HTTPPort] = None,
+        env: Optional[Mapping[str, str]] = None,
+        volumes: Sequence[Volume] = (),
+        secret_env: Optional[Mapping[str, URL]] = None,
+        secret_files: Sequence[SecretFile] = (),
+        disk_volumes: Sequence[DiskVolume] = (),
+        tty: bool = False,
+        shm: bool = False,
         name: Optional[str] = None,
         tags: Sequence[str] = (),
         description: Optional[str] = None,
-        scheduler_enabled: bool = False,
+        pass_config: bool = False,
+        wait_for_jobs_quota: bool = False,
         schedule_timeout: Optional[float] = None,
         restart_policy: JobRestartPolicy = JobRestartPolicy.NEVER,
         life_span: Optional[float] = None,
-        pass_config: bool = False,
+        privileged: bool = False,
     ) -> JobDescription:
         job_id = f"job-{self._make_next_id()}"
+
+        resources = Resources(cpu=1, memory_mb=1, shm=shm)
+        container = Container(
+            image=image,
+            entrypoint=entrypoint,
+            command=command,
+            http=http,
+            resources=resources,
+            env=env or {},
+            secret_env=secret_env or {},
+            volumes=volumes,
+            working_dir=working_dir,
+            secret_files=secret_files,
+            disk_volumes=disk_volumes,
+            tty=tty,
+        )
         self._data[job_id] = JobDescription(
             id=job_id,
             owner="test-user",
             cluster_name="default",
+            preset_name=preset_name,
             status=JobStatus.PENDING,
             history=JobStatusHistory(
                 status=JobStatus.PENDING,
@@ -201,7 +235,7 @@ class JobsMock:
                 restarts=0,
             ),
             container=container,
-            scheduler_enabled=scheduler_enabled,
+            scheduler_enabled=False,
             uri=URL(f"job://default/test-user/{job_id}"),
             name=name,
             tags=tags,
@@ -209,6 +243,8 @@ class JobsMock:
             restart_policy=restart_policy,
             life_span=life_span,
             pass_config=pass_config,
+            privileged=privileged,
+            schedule_timeout=schedule_timeout,
         )
         return self._data[job_id]
 
@@ -323,19 +359,29 @@ def start_executor(
     return start
 
 
+RunExecutor = Callable[[Path, str], Awaitable[Dict[Tuple[str, ...], FinishedTask]]]
+
+
 @pytest.fixture()
 def run_executor(
     make_batch_runner: MakeBatchRunner,
     start_locals_executor: Callable[[ExecutorData], Awaitable[None]],
     start_executor: Callable[[ExecutorData], Awaitable[None]],
-) -> Callable[[Path, str], Awaitable[None]]:
+    batch_storage: Storage,
+) -> RunExecutor:
     async def run(
         config_loc: Path, batch_name: str, args: Optional[Mapping[str, str]] = None
-    ) -> None:
+    ) -> Dict[Tuple[str, ...], FinishedTask]:
         runner = await make_batch_runner(config_loc)
         data = await runner._setup_exc_data(batch_name, args)
         await start_locals_executor(data)
         await start_executor(data)
+        bake = await batch_storage.fetch_bake(
+            data.project, data.batch, data.when, data.suffix
+        )
+        attempt = await batch_storage.find_attempt(bake)
+        _, finished = await batch_storage.fetch_attempt(attempt)
+        return finished
 
     return run
 
@@ -1029,7 +1075,7 @@ async def test_restart_not_last_attempt(
 async def test_fully_cached_simple(
     jobs_mock: JobsMock,
     assets: Path,
-    run_executor: Callable[[Path, str], Awaitable[None]],
+    run_executor: RunExecutor,
 ) -> None:
     executor_task = asyncio.ensure_future(run_executor(assets, "batch-seq"))
 
@@ -1037,26 +1083,33 @@ async def test_fully_cached_simple(
     await jobs_mock.mark_done("task-2")
     await executor_task
 
-    await run_executor(assets, "batch-seq")
+    finished = await asyncio.wait_for(run_executor(assets, "batch-seq"), timeout=10)
+    for task in finished.values():
+        assert task.status == TaskStatus.CACHED
 
 
 async def test_fully_cached_with_action(
     jobs_mock: JobsMock,
     assets: Path,
-    run_executor: Callable[[Path, str], Awaitable[None]],
+    run_executor: RunExecutor,
 ) -> None:
     executor_task = asyncio.ensure_future(run_executor(assets, "batch-action-call"))
     await jobs_mock.mark_done("test.task-1", b"::set-output name=task1::Task 1 val 1")
     await jobs_mock.mark_done("test.task-2", b"::set-output name=task2::Task 2 value 2")
     await executor_task
 
-    await run_executor(assets, "batch-action-call")
+    finished = await asyncio.wait_for(
+        run_executor(assets, "batch-action-call"), timeout=10
+    )
+
+    assert finished[("test", "task_1")].status == TaskStatus.CACHED
+    assert finished[("test", "task_2")].status == TaskStatus.CACHED
 
 
 async def test_cached_same_needs(
     jobs_mock: JobsMock,
     assets: Path,
-    run_executor: Callable[[Path, str], Awaitable[None]],
+    run_executor: RunExecutor,
 ) -> None:
     executor_task = asyncio.ensure_future(run_executor(assets, "batch-test-cache"))
 
@@ -1068,7 +1121,11 @@ async def test_cached_same_needs(
     executor_task = asyncio.ensure_future(run_executor(assets, "batch-test-cache"))
 
     await jobs_mock.mark_done("task-1", b"::set-output name=arg::val")
-    await executor_task
+
+    finished = await asyncio.wait_for(executor_task, timeout=10)
+
+    assert finished[("task-1",)].status == TaskStatus.SUCCEEDED
+    assert finished[("task-2",)].status == TaskStatus.CACHED
 
 
 async def test_not_cached_if_different_needs(
@@ -1099,13 +1156,38 @@ async def test_batch_params(
         run_executor(assets, "batch-params-required", {"arg2": "test_value"})
     )
     task_descr = await jobs_mock.get_task("task-1")
+    assert set(task_descr.tags).issuperset(
+        {
+            "flow:batch-params-required",
+            "test_value",
+            "val1",
+            "project:unit",
+            "task:task-1",
+        }
+    )
+    await jobs_mock.mark_done("task-1")
+
+    await executor_task
+
+
+async def test_batch_bake_id_tag(
+    jobs_mock: JobsMock,
+    batch_storage: Storage,
+    start_executor: Callable[[ExecutorData], Awaitable[None]],
+    batch_runner: BatchRunner,
+) -> None:
+    data = await batch_runner._setup_exc_data("batch-seq")
+    executor_task = asyncio.ensure_future(start_executor(data))
+
+    task_descr = await jobs_mock.get_task("task-1")
     assert set(task_descr.tags) == {
-        "flow:batch-params-required",
-        "test_value",
-        "val1",
+        "flow:batch-seq",
+        f"bake_id:{_executor_data_to_bake_id(data)}",
         "project:unit",
         "task:task-1",
     }
     await jobs_mock.mark_done("task-1")
+
+    await jobs_mock.mark_done("task-2")
 
     await executor_task

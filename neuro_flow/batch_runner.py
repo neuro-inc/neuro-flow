@@ -98,7 +98,9 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         self._console.log(f"Use config file {self.config_loader.flow_path(batch_name)}")
 
         # Check that the yaml is parseable
-        flow = await RunningBatchFlow.create(self.config_loader, batch_name, params)
+        flow = await RunningBatchFlow.create(
+            self.config_loader, batch_name, "fake-bake-id", params
+        )
 
         for volume in flow.volumes.values():
             if volume.local is not None:
@@ -195,6 +197,10 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                 "run",
                 "--restart=on-failure",
                 "--pass-config",
+                f"--tag=project:{data.project}",
+                f"--tag=flow:{data.batch}",
+                f"--tag=bake_id:{data.get_bake_id()}",
+                f"--tag=remote_executor",
                 EXECUTOR_IMAGE,
                 "neuro-flow",
                 "--fake-workspace",

@@ -145,6 +145,11 @@ class DepCtx:
     result: TaskStatus
     outputs: Mapping[str, str]
 
+    def __post_init__(self) -> None:
+        assert (
+            self.result != TaskStatus.CACHED
+        ), "CACHED status should replaced with SUCCEEDED for expressions"
+
 
 # Confs (similar to ..Ctx, but not available to expressions, only used
 # during evaluation)
@@ -1085,7 +1090,7 @@ class EarlyBatch:
     async def get_action_early(self, real_id: str) -> "EarlyBatch":
         assert await self.is_action(
             real_id
-        ), f"get_task() cannot used for action call {real_id}"
+        ), f"get_action_early() cannot used for action call {real_id}"
         prep_task = self._get_prep(real_id)
         assert isinstance(prep_task, EarlyBatchCall)  # Already checked
 
@@ -1113,10 +1118,12 @@ class RunningBatchBase(Generic[_T], EarlyBatch):
         tasks: Mapping[str, "BasePrepTask"],
         config_loader: ConfigLoader,
         defaults: DefaultsConf,
+        bake_id: str,
     ):
         super().__init__(tasks, config_loader)
         self._ctx = ctx
         self._default_tags = default_tags
+        self._bake_id = bake_id
         self._defaults = defaults
 
     def _get_prep(self, real_id: str) -> "BasePrepTask":
@@ -1247,7 +1254,11 @@ class RunningBatchBase(Generic[_T], EarlyBatch):
             env=env,
             caching_key="",
         )
-        return replace(task, caching_key=_hash(dict(task=task, ctx=ctx)))
+        return replace(
+            task,
+            tags=task.tags | {f"bake_id:{self._bake_id}"},
+            caching_key=_hash(dict(task=task, ctx=ctx)),
+        )
 
     async def get_action(
         self, real_id: str, needs: NeedsCtx
@@ -1261,11 +1272,13 @@ class RunningBatchBase(Generic[_T], EarlyBatch):
         ctx = self._task_context(real_id, needs, {})
 
         return await RunningBatchActionFlow.create(
+            action_name=prep_task.action_name,
             ast_action=prep_task.action,
             base_cache=prep_task.cache,
             base_strategy=prep_task.strategy,
             inputs=await setup_inputs_ctx(ctx, prep_task.call, prep_task.action.inputs),
             default_tags=self._default_tags,
+            bake_id=self._bake_id,
             config_loader=self._cl,
         )
 
@@ -1277,8 +1290,9 @@ class RunningBatchFlow(RunningBatchBase[BatchContext]):
         tasks: Mapping[str, "BasePrepTask"],
         config_loader: ConfigLoader,
         defaults: DefaultsConf,
+        bake_id: str,
     ):
-        super().__init__(ctx, ctx.tags, tasks, config_loader, defaults)
+        super().__init__(ctx, ctx.tags, tasks, config_loader, defaults, bake_id)
 
     @property
     def project_id(self) -> str:
@@ -1317,6 +1331,7 @@ class RunningBatchFlow(RunningBatchBase[BatchContext]):
         cls,
         config_loader: ConfigLoader,
         batch: str,
+        bake_id: str,
         params: Optional[Mapping[str, str]] = None,
     ) -> "RunningBatchFlow":
         ast_flow = await config_loader.fetch_flow(batch)
@@ -1358,7 +1373,7 @@ class RunningBatchFlow(RunningBatchBase[BatchContext]):
             batch_ctx, config_loader, cache_conf, ast_flow.tasks
         ).build()
 
-        return RunningBatchFlow(batch_ctx, tasks, config_loader, defaults)
+        return RunningBatchFlow(batch_ctx, tasks, config_loader, defaults, bake_id)
 
 
 class RunningBatchActionFlow(RunningBatchBase[BatchActionContext]):
@@ -1370,8 +1385,9 @@ class RunningBatchActionFlow(RunningBatchBase[BatchActionContext]):
         config_loader: ConfigLoader,
         defaults: DefaultsConf,
         action: ast.BatchAction,
+        bake_id: str,
     ):
-        super().__init__(ctx, default_tags, tasks, config_loader, defaults)
+        super().__init__(ctx, default_tags, tasks, config_loader, defaults, bake_id)
         self._action = action
 
     async def calc_outputs(self, task_results: NeedsCtx) -> DepCtx:
@@ -1392,12 +1408,14 @@ class RunningBatchActionFlow(RunningBatchBase[BatchActionContext]):
     @classmethod
     async def create(
         cls,
+        action_name: str,
         ast_action: ast.BatchAction,
         base_cache: CacheConf,
         base_strategy: StrategyCtx,
         inputs: InputsCtx,
         default_tags: TagsCtx,
         config_loader: ConfigLoader,
+        bake_id: str,
     ) -> "RunningBatchActionFlow":
         action_context = BatchActionContext(
             inputs=inputs,
@@ -1420,6 +1438,7 @@ class RunningBatchActionFlow(RunningBatchBase[BatchActionContext]):
             config_loader,
             DefaultsConf(),
             ast_action,
+            bake_id,
         )
 
 
@@ -1447,6 +1466,7 @@ class BaseEarlyTask:
 
     def to_batch_call(
         self,
+        action_name: str,
         action: ast.BatchAction,
         call: ast.TaskActionCall,
     ) -> "EarlyBatchCall":
@@ -1456,12 +1476,14 @@ class BaseEarlyTask:
             needs=self.needs,
             matrix=self.matrix,
             enable=self.enable,
+            action_name=action_name,
             action=action,
             call=call,
         )
 
     def to_local_call(
         self,
+        action_name: str,
         action: ast.LocalAction,
         call: ast.TaskActionCall,
     ) -> "EarlyLocalCall":
@@ -1471,12 +1493,14 @@ class BaseEarlyTask:
             needs=self.needs,
             matrix=self.matrix,
             enable=self.enable,
+            action_name=action_name,
             action=action,
             call=call,
         )
 
     def to_stateful_call(
         self,
+        action_name: str,
         action: ast.StatefulAction,
         call: ast.TaskActionCall,
     ) -> "EarlyStatefulCall":
@@ -1487,6 +1511,7 @@ class BaseEarlyTask:
             matrix=self.matrix,
             ast_task=action.main,
             enable=self.enable,
+            action_name=action_name,
             action=action,
             call=call,
         )
@@ -1522,18 +1547,21 @@ class EarlyTask(BaseEarlyTask):
 @dataclass(frozen=True)
 class EarlyBatchCall(BaseEarlyTask):
     call: ast.TaskActionCall
+    action_name: str
     action: ast.BatchAction
 
 
 @dataclass(frozen=True)
 class EarlyLocalCall(BaseEarlyTask):
     call: ast.TaskActionCall
+    action_name: str
     action: ast.LocalAction
 
 
 @dataclass(frozen=True)
 class EarlyStatefulCall(EarlyTask):
     call: ast.TaskActionCall
+    action_name: str
     action: ast.StatefulAction
 
 
@@ -1561,6 +1589,7 @@ class BasePrepTask(BaseEarlyTask):
 
     def to_batch_call(
         self,
+        action_name: str,
         action: ast.BatchAction,
         call: ast.TaskActionCall,
     ) -> "PrepBatchCall":
@@ -1572,12 +1601,14 @@ class BasePrepTask(BaseEarlyTask):
             strategy=self.strategy,
             cache=self.cache,
             enable=self.enable,
+            action_name=action_name,
             action=action,
             call=call,
         )
 
     def to_local_call(
         self,
+        action_name: str,
         action: ast.LocalAction,
         call: ast.TaskActionCall,
     ) -> "PrepLocalCall":
@@ -1589,12 +1620,14 @@ class BasePrepTask(BaseEarlyTask):
             strategy=self.strategy,
             cache=CacheConf(strategy=ast.CacheStrategy.NONE),
             enable=self.enable,
+            action_name=action_name,
             action=action,
             call=call,
         )
 
     def to_stateful_call(
         self,
+        action_name: str,
         action: ast.StatefulAction,
         call: ast.TaskActionCall,
     ) -> "PrepStatefulCall":
@@ -1606,6 +1639,7 @@ class BasePrepTask(BaseEarlyTask):
             strategy=self.strategy,
             cache=CacheConf(strategy=ast.CacheStrategy.NONE),
             enable=self.enable,
+            action_name=action_name,
             ast_task=action.main,
             action=action,
             call=call,
@@ -1720,9 +1754,13 @@ class EarlyTaskGraphBuilder:
                             ast_task._end,
                         )
                     if isinstance(action, ast.BatchAction):
-                        prep_tasks[real_id] = base.to_batch_call(action, ast_task)
+                        prep_tasks[real_id] = base.to_batch_call(
+                            action_name, action, ast_task
+                        )
                     elif isinstance(action, ast.LocalAction):
-                        prep_tasks[real_id] = base.to_local_call(action, ast_task)
+                        prep_tasks[real_id] = base.to_local_call(
+                            action_name, action, ast_task
+                        )
                     elif isinstance(action, ast.StatefulAction):
                         if action.post:
                             post_tasks_group.append(
@@ -1734,7 +1772,9 @@ class EarlyTaskGraphBuilder:
                                     enable=action.post_if,
                                 ).to_post_task(action.post, real_id),
                             )
-                        prep_tasks[real_id] = base.to_stateful_call(action, ast_task)
+                        prep_tasks[real_id] = base.to_stateful_call(
+                            action_name, action, ast_task
+                        )
 
                     else:
                         raise ValueError(

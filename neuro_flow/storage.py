@@ -820,7 +820,7 @@ class FSStorage(Storage):
                 id=task_id,
                 raw_id=data["raw_id"],
                 when=datetime.datetime.fromisoformat(data["when"]),
-                status=TaskStatus(data["status"]),
+                status=TaskStatus.CACHED,
                 exit_code=data["exit_code"],
                 created_at=datetime.datetime.fromisoformat(data["created_at"]),
                 started_at=datetime.datetime.fromisoformat(data["started_at"]),
