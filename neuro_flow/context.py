@@ -805,25 +805,6 @@ async def setup_matrix(ast_matrix: Optional[ast.Matrix]) -> Sequence[MatrixCtx]:
     return matrices
 
 
-async def setup_output_needs(
-    action_name: str,
-    outputs: Optional[ast.BatchActionOutputs],
-    known_tasks: AbstractSet[str],
-) -> AbstractSet[str]:
-    output_needs = set()
-    if outputs:
-        for need_expr in outputs.needs:
-            task_id = await need_expr.eval(EMPTY_ROOT)
-            if task_id not in known_tasks:
-                raise EvalError(
-                    f"Action '{action_name}' does not contain task '{task_id}'",
-                    outputs._start,
-                    outputs._end,
-                )
-            output_needs.add(task_id)
-    return output_needs
-
-
 async def setup_cache(
     ctx: RootABC,
     base_cache: CacheConf,
@@ -1115,13 +1096,7 @@ class EarlyBatch:
 
         tasks = await EarlyTaskGraphBuilder(self._cl, prep_task.action.tasks).build()
 
-        output_needs = await setup_output_needs(
-            prep_task.action_name,
-            prep_task.action.outputs,
-            tasks.keys(),
-        )
-
-        return EarlyBatchAction(tasks, self._cl, output_needs)
+        return EarlyBatchAction(tasks, self._cl)
 
 
 class EarlyBatchAction(EarlyBatch):
@@ -1129,13 +1104,8 @@ class EarlyBatchAction(EarlyBatch):
         self,
         tasks: Mapping[str, "BaseEarlyTask"],
         config_loader: ConfigLoader,
-        output_needs: AbstractSet[str],
     ):
         super().__init__(tasks, config_loader)
-        self._output_needs = output_needs
-
-    async def get_output_needs(self) -> AbstractSet[str]:
-        return self._output_needs
 
 
 class RunningBatchBase(Generic[_T], EarlyBatch):
@@ -1415,34 +1385,18 @@ class RunningBatchActionFlow(RunningBatchBase[BatchActionContext]):
         config_loader: ConfigLoader,
         defaults: DefaultsConf,
         action: ast.BatchAction,
-        output_needs: AbstractSet[str],
         bake_id: str,
     ):
         super().__init__(ctx, default_tags, tasks, config_loader, defaults, bake_id)
         self._action = action
-        self._output_needs = output_needs
 
-    async def get_output_needs(self) -> AbstractSet[str]:
-        return self._output_needs
-
-    async def calc_outputs(self, needs: NeedsCtx, *, is_cancelling: bool) -> DepCtx:
-        if any(i.result == TaskStatus.FAILED for i in needs.values()):
+    async def calc_outputs(self, task_results: NeedsCtx) -> DepCtx:
+        if any(i.result == TaskStatus.FAILED for i in task_results.values()):
             return DepCtx(TaskStatus.FAILED, {})
-        elif any(i.result == TaskStatus.CANCELLED for i in needs.values()):
+        elif any(i.result == TaskStatus.CANCELLED for i in task_results.values()):
             return DepCtx(TaskStatus.CANCELLED, {})
-        elif any(i.result == TaskStatus.SKIPPED for i in needs.values()):
-            # If some of our needs are disabled, then either
-            # action is misconfigured (and so it is failed)
-            # or cancellation is in progress.
-            # We cannot return DISABLED here, because it means
-            # that task did not start at all but this action
-            # is in progress when we are here.
-            if is_cancelling:
-                return DepCtx(TaskStatus.CANCELLED, {})
-            else:
-                return DepCtx(TaskStatus.FAILED, {})
         else:
-            ctx = self._ctx.to_outputs_ctx(needs)
+            ctx = self._ctx.to_outputs_ctx(task_results)
             ret = {}
             if self._action.outputs and self._action.outputs.values is not None:
                 for name, descr in self._action.outputs.values.items():
@@ -1477,10 +1431,6 @@ class RunningBatchActionFlow(RunningBatchBase[BatchActionContext]):
             action_context, config_loader, cache, ast_action.tasks
         ).build()
 
-        output_needs = await setup_output_needs(
-            action_name, ast_action.outputs, tasks.keys()
-        )
-
         return RunningBatchActionFlow(
             action_context,
             default_tags,
@@ -1488,7 +1438,6 @@ class RunningBatchActionFlow(RunningBatchBase[BatchActionContext]):
             config_loader,
             DefaultsConf(),
             ast_action,
-            output_needs,
             bake_id,
         )
 
