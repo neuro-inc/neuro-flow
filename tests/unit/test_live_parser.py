@@ -825,9 +825,9 @@ def test_bad_expr_type_before_eval(assets: pathlib.Path) -> None:
     with pytest.raises(EvalError) as ctx:
         parse_live(workspace, config_file)
     assert str(ctx.value) == dedent(
-        """\
+        f"""\
         invalid literal for int() with base 10: 'abc def'
-          in line 5, column 15"""
+          in "{config_file}", line 5, column 15"""
     )
 
 

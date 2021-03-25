@@ -182,10 +182,11 @@ async def test_bad_expr_type_after_eval(live_config_loader: ConfigLoader) -> Non
 
     with pytest.raises(EvalError) as cm:
         await flow.get_job("test", {})
+    config_file = live_config_loader.workspace / "live-bad-expr-type-after-eval.yml"
     assert str(cm.value) == dedent(
-        """\
+        f"""\
         invalid literal for int() with base 10: 'abc def'
-          in line 5, column 19"""
+          in "{config_file}", line 5, column 19"""
     )
 
 
