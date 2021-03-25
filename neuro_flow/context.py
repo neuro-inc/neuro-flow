@@ -1148,10 +1148,12 @@ class RunningBatchBase(Generic[_T], EarlyBatch):
         tasks: Mapping[str, "BasePrepTask"],
         config_loader: ConfigLoader,
         defaults: DefaultsConf,
+        bake_id: str,
     ):
         super().__init__(tasks, config_loader)
         self._ctx = ctx
         self._default_tags = default_tags
+        self._bake_id = bake_id
         self._defaults = defaults
 
     def _get_prep(self, real_id: str) -> "BasePrepTask":
@@ -1282,7 +1284,11 @@ class RunningBatchBase(Generic[_T], EarlyBatch):
             env=env,
             caching_key="",
         )
-        return replace(task, caching_key=_hash(dict(task=task, ctx=ctx)))
+        return replace(
+            task,
+            tags=task.tags | {f"bake_id:{self._bake_id}"},
+            caching_key=_hash(dict(task=task, ctx=ctx)),
+        )
 
     async def get_action(
         self, real_id: str, needs: NeedsCtx
@@ -1302,6 +1308,7 @@ class RunningBatchBase(Generic[_T], EarlyBatch):
             base_strategy=prep_task.strategy,
             inputs=await setup_inputs_ctx(ctx, prep_task.call, prep_task.action.inputs),
             default_tags=self._default_tags,
+            bake_id=self._bake_id,
             config_loader=self._cl,
         )
 
@@ -1313,8 +1320,9 @@ class RunningBatchFlow(RunningBatchBase[BatchContext]):
         tasks: Mapping[str, "BasePrepTask"],
         config_loader: ConfigLoader,
         defaults: DefaultsConf,
+        bake_id: str,
     ):
-        super().__init__(ctx, ctx.tags, tasks, config_loader, defaults)
+        super().__init__(ctx, ctx.tags, tasks, config_loader, defaults, bake_id)
 
     @property
     def project_id(self) -> str:
@@ -1353,6 +1361,7 @@ class RunningBatchFlow(RunningBatchBase[BatchContext]):
         cls,
         config_loader: ConfigLoader,
         batch: str,
+        bake_id: str,
         params: Optional[Mapping[str, str]] = None,
     ) -> "RunningBatchFlow":
         ast_flow = await config_loader.fetch_flow(batch)
@@ -1394,7 +1403,7 @@ class RunningBatchFlow(RunningBatchBase[BatchContext]):
             batch_ctx, config_loader, cache_conf, ast_flow.tasks
         ).build()
 
-        return RunningBatchFlow(batch_ctx, tasks, config_loader, defaults)
+        return RunningBatchFlow(batch_ctx, tasks, config_loader, defaults, bake_id)
 
 
 class RunningBatchActionFlow(RunningBatchBase[BatchActionContext]):
@@ -1407,8 +1416,9 @@ class RunningBatchActionFlow(RunningBatchBase[BatchActionContext]):
         defaults: DefaultsConf,
         action: ast.BatchAction,
         output_needs: AbstractSet[str],
+        bake_id: str,
     ):
-        super().__init__(ctx, default_tags, tasks, config_loader, defaults)
+        super().__init__(ctx, default_tags, tasks, config_loader, defaults, bake_id)
         self._action = action
         self._output_needs = output_needs
 
@@ -1451,6 +1461,7 @@ class RunningBatchActionFlow(RunningBatchBase[BatchActionContext]):
         inputs: InputsCtx,
         default_tags: TagsCtx,
         config_loader: ConfigLoader,
+        bake_id: str,
     ) -> "RunningBatchActionFlow":
         action_context = BatchActionContext(
             inputs=inputs,
@@ -1478,6 +1489,7 @@ class RunningBatchActionFlow(RunningBatchBase[BatchActionContext]):
             DefaultsConf(),
             ast_action,
             output_needs,
+            bake_id,
         )
 
 

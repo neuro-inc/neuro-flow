@@ -1083,7 +1083,7 @@ async def test_fully_cached_simple(
     await jobs_mock.mark_done("task-2")
     await executor_task
 
-    finished = await run_executor(assets, "batch-seq")
+    finished = await asyncio.wait_for(run_executor(assets, "batch-seq"), timeout=10)
     for task in finished.values():
         assert task.status == TaskStatus.CACHED
 
@@ -1098,7 +1098,9 @@ async def test_fully_cached_with_action(
     await jobs_mock.mark_done("test.task-2", b"::set-output name=task2::Task 2 value 2")
     await executor_task
 
-    finished = await run_executor(assets, "batch-action-call")
+    finished = await asyncio.wait_for(
+        run_executor(assets, "batch-action-call"), timeout=10
+    )
 
     assert finished[("test", "task_1")].status == TaskStatus.CACHED
     assert finished[("test", "task_2")].status == TaskStatus.CACHED
@@ -1119,7 +1121,8 @@ async def test_cached_same_needs(
     executor_task = asyncio.ensure_future(run_executor(assets, "batch-test-cache"))
 
     await jobs_mock.mark_done("task-1", b"::set-output name=arg::val")
-    finished = await executor_task
+
+    finished = await asyncio.wait_for(executor_task, timeout=10)
 
     assert finished[("task-1",)].status == TaskStatus.SUCCEEDED
     assert finished[("task-2",)].status == TaskStatus.CACHED
@@ -1153,13 +1156,38 @@ async def test_batch_params(
         run_executor(assets, "batch-params-required", {"arg2": "test_value"})
     )
     task_descr = await jobs_mock.get_task("task-1")
+    assert set(task_descr.tags).issuperset(
+        {
+            "flow:batch-params-required",
+            "test_value",
+            "val1",
+            "project:unit",
+            "task:task-1",
+        }
+    )
+    await jobs_mock.mark_done("task-1")
+
+    await executor_task
+
+
+async def test_batch_bake_id_tag(
+    jobs_mock: JobsMock,
+    batch_storage: Storage,
+    start_executor: Callable[[ExecutorData], Awaitable[None]],
+    batch_runner: BatchRunner,
+) -> None:
+    data = await batch_runner._setup_exc_data("batch-seq")
+    executor_task = asyncio.ensure_future(start_executor(data))
+
+    task_descr = await jobs_mock.get_task("task-1")
     assert set(task_descr.tags) == {
-        "flow:batch-params-required",
-        "test_value",
-        "val1",
+        "flow:batch-seq",
+        f"bake_id:{_executor_data_to_bake_id(data)}",
         "project:unit",
         "task:task-1",
     }
     await jobs_mock.mark_done("task-1")
+
+    await jobs_mock.mark_done("task-2")
 
     await executor_task

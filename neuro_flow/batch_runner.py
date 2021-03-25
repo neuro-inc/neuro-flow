@@ -98,7 +98,9 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         self._console.log(f"Use config file {self.config_loader.flow_path(batch_name)}")
 
         # Check that the yaml is parseable
-        flow = await RunningBatchFlow.create(self.config_loader, batch_name, params)
+        flow = await RunningBatchFlow.create(
+            self.config_loader, batch_name, "fake-bake-id", params
+        )
 
         for volume in flow.volumes.values():
             if volume.local is not None:
