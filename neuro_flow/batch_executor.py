@@ -650,7 +650,7 @@ class BatchExecutor:
             st = self._tasks_mgr.started[full_id]
             self._mark_running(st)
             self._progress.log(
-                "Task",
+                "Action",
                 fmt_id(st.id),
                 fmt_raw_id(st.raw_id),
                 "is",
