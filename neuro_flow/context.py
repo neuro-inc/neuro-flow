@@ -1808,8 +1808,8 @@ class EarlyTaskGraphBuilder:
         # Check needs sanity
         for prep_task in prep_tasks.values():
             for need_id in prep_task.needs.keys():
-                id_expr = real_id_to_need_to_expr[prep_task.real_id][need_id]
                 if need_id not in prep_tasks:
+                    id_expr = real_id_to_need_to_expr[prep_task.real_id][need_id]
                     raise EvalError(
                         f"Task {prep_task.real_id} needs unknown task {need_id}",
                         id_expr.start,
