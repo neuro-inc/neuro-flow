@@ -8,6 +8,8 @@ from datetime import datetime
 from neuro_sdk import (
     Client,
     Container,
+    DiskVolume,
+    HTTPPort,
     JobDescription,
     JobRestartPolicy,
     JobStatus,
@@ -15,6 +17,8 @@ from neuro_sdk import (
     RemoteImage,
     ResourceNotFound,
     Resources,
+    SecretFile,
+    Volume,
     get as api_get,
 )
 from pathlib import Path
@@ -174,24 +178,54 @@ class JobsMock:
 
     # Fake Jobs methods
 
-    async def run(
+    async def start(
         self,
-        container: Container,
         *,
+        image: RemoteImage,
+        preset_name: str,
+        entrypoint: Optional[str] = None,
+        command: Optional[str] = None,
+        working_dir: Optional[str] = None,
+        http: Optional[HTTPPort] = None,
+        env: Optional[Mapping[str, str]] = None,
+        volumes: Sequence[Volume] = (),
+        secret_env: Optional[Mapping[str, URL]] = None,
+        secret_files: Sequence[SecretFile] = (),
+        disk_volumes: Sequence[DiskVolume] = (),
+        tty: bool = False,
+        shm: bool = False,
         name: Optional[str] = None,
         tags: Sequence[str] = (),
         description: Optional[str] = None,
-        scheduler_enabled: bool = False,
+        pass_config: bool = False,
+        wait_for_jobs_quota: bool = False,
         schedule_timeout: Optional[float] = None,
         restart_policy: JobRestartPolicy = JobRestartPolicy.NEVER,
         life_span: Optional[float] = None,
-        pass_config: bool = False,
+        privileged: bool = False,
     ) -> JobDescription:
         job_id = f"job-{self._make_next_id()}"
+
+        resources = Resources(cpu=1, memory_mb=1, shm=shm)
+        container = Container(
+            image=image,
+            entrypoint=entrypoint,
+            command=command,
+            http=http,
+            resources=resources,
+            env=env or {},
+            secret_env=secret_env or {},
+            volumes=volumes,
+            working_dir=working_dir,
+            secret_files=secret_files,
+            disk_volumes=disk_volumes,
+            tty=tty,
+        )
         self._data[job_id] = JobDescription(
             id=job_id,
             owner="test-user",
             cluster_name="default",
+            preset_name=preset_name,
             status=JobStatus.PENDING,
             history=JobStatusHistory(
                 status=JobStatus.PENDING,
@@ -201,7 +235,7 @@ class JobsMock:
                 restarts=0,
             ),
             container=container,
-            scheduler_enabled=scheduler_enabled,
+            scheduler_enabled=False,
             uri=URL(f"job://default/test-user/{job_id}"),
             name=name,
             tags=tags,
@@ -209,6 +243,8 @@ class JobsMock:
             restart_policy=restart_policy,
             life_span=life_span,
             pass_config=pass_config,
+            privileged=privileged,
+            schedule_timeout=schedule_timeout,
         )
         return self._data[job_id]
 
