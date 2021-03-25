@@ -231,6 +231,12 @@ async def upload(ctx: CallCtx, volume_ctx: ContainerT) -> ContainerT:
         raise ValueError("upload() argument should be volume")
     await run_subproc(
         "neuro",
+        "mkdir",
+        "--parents",
+        str(volume_ctx.remote.parent),
+    )
+    await run_subproc(
+        "neuro",
         "cp",
         "--recursive",
         "--update",
@@ -290,7 +296,7 @@ def _get_needs_statuses(root: RootABC) -> Dict[str, TaskStatus]:
 
 
 async def always(ctx: CallCtx, *args: str) -> AlwaysT:
-    _check_has_needs(ctx, func_name="success")
+    _check_has_needs(ctx, func_name="always")
     return AlwaysT()
 
 

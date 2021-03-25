@@ -786,7 +786,11 @@ async def test_pipeline_with_batch_action_bad_output_needs(
         batch_config_loader, "batch-action-call-bad-output-needs", "bake-id"
     )
     with pytest.raises(
-        EvalError, match=r"Action does not contain task 'task_2_bad_suffix'"
+        EvalError,
+        match=(
+            r"Action 'ws:batch-action-bad-output-needs' does"
+            r" not contain task 'task_2_bad_suffix'"
+        ),
     ):
         assert await flow.is_action("test")
         await flow.get_action_early("test")
