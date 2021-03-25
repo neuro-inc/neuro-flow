@@ -231,6 +231,12 @@ async def upload(ctx: CallCtx, volume_ctx: ContainerT) -> ContainerT:
         raise ValueError("upload() argument should be volume")
     await run_subproc(
         "neuro",
+        "mkdir",
+        "--parents",
+        str(volume_ctx.remote.parent),
+    )
+    await run_subproc(
+        "neuro",
         "cp",
         "--recursive",
         "--update",
