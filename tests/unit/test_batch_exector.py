@@ -359,7 +359,9 @@ def start_executor(
     return start
 
 
-RunExecutor = Callable[[Path, str], Awaitable[Dict[Tuple[str, ...], FinishedTask]]]
+RunExecutor = Callable[
+    [Path, str], Awaitable[Tuple[Dict[Tuple[str, ...], FinishedTask], TaskStatus]]
+]
 
 
 @pytest.fixture()
@@ -371,17 +373,18 @@ def run_executor(
 ) -> RunExecutor:
     async def run(
         config_loc: Path, batch_name: str, args: Optional[Mapping[str, str]] = None
-    ) -> Dict[Tuple[str, ...], FinishedTask]:
+    ) -> Tuple[Dict[Tuple[str, ...], FinishedTask], TaskStatus]:
         runner = await make_batch_runner(config_loc)
         data = await runner._setup_exc_data(batch_name, args)
-        await start_locals_executor(data)
-        await start_executor(data)
+        status = await start_locals_executor(data)
+        if status == TaskStatus.SUCCEEDED:
+            await start_executor(data)
         bake = await batch_storage.fetch_bake(
             data.project, data.batch, data.when, data.suffix
         )
         attempt = await batch_storage.find_attempt(bake)
         _, finished = await batch_storage.fetch_attempt(attempt)
-        return finished
+        return finished, attempt.result
 
     return run
 
@@ -1083,7 +1086,10 @@ async def test_fully_cached_simple(
     await jobs_mock.mark_done("task-2")
     await executor_task
 
-    finished = await asyncio.wait_for(run_executor(assets, "batch-seq"), timeout=10)
+    finished, status = await asyncio.wait_for(
+        run_executor(assets, "batch-seq"), timeout=10
+    )
+    assert status == TaskStatus.SUCCEEDED
     for task in finished.values():
         assert task.status == TaskStatus.CACHED
 
@@ -1098,10 +1104,11 @@ async def test_fully_cached_with_action(
     await jobs_mock.mark_done("test.task-2", b"::set-output name=task2::Task 2 value 2")
     await executor_task
 
-    finished = await asyncio.wait_for(
+    finished, status = await asyncio.wait_for(
         run_executor(assets, "batch-action-call"), timeout=10
     )
 
+    assert status == TaskStatus.SUCCEEDED
     assert finished[("test", "task_1")].status == TaskStatus.CACHED
     assert finished[("test", "task_2")].status == TaskStatus.CACHED
 
@@ -1122,8 +1129,9 @@ async def test_cached_same_needs(
 
     await jobs_mock.mark_done("task-1", b"::set-output name=arg::val")
 
-    finished = await asyncio.wait_for(executor_task, timeout=10)
+    finished, status = await asyncio.wait_for(executor_task, timeout=10)
 
+    assert status == TaskStatus.SUCCEEDED
     assert finished[("task-1",)].status == TaskStatus.SUCCEEDED
     assert finished[("task-2",)].status == TaskStatus.CACHED
 
@@ -1191,3 +1199,19 @@ async def test_batch_bake_id_tag(
     await jobs_mock.mark_done("task-2")
 
     await executor_task
+
+
+async def test_bake_marked_as_failed_on_eval_error(
+    assets: Path,
+    run_executor: RunExecutor,
+) -> None:
+    _, status = await run_executor(assets, "batch-bad-eval")
+    assert status == TaskStatus.FAILED
+
+
+async def test_bake_marked_as_failed_on_eval_error_in_local(
+    assets: Path,
+    run_executor: RunExecutor,
+) -> None:
+    _, status = await run_executor(assets / "local_actions", "call-bad-local")
+    assert status == TaskStatus.FAILED

@@ -160,14 +160,14 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
     async def _run_locals(
         self,
         data: ExecutorData,
-    ) -> None:
+    ) -> TaskStatus:
         async with LocalsBatchExecutor.create(
             self._console,
             data,
             self._client,
             self._storage,
         ) as executor:
-            await executor.run()
+            return await executor.run()
 
     async def bake(
         self,
@@ -184,7 +184,9 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
 
     async def _run_bake(self, data: ExecutorData, local_executor: bool) -> None:
         self._console.rule("Run local actions")
-        await self._run_locals(data)
+        locals_result = await self._run_locals(data)
+        if locals_result != TaskStatus.SUCCEEDED:
+            return
         self._console.rule("Run main actions")
         if local_executor:
             self._console.log(f"[bright_black]Using local executor")

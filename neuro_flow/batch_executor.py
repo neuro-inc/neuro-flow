@@ -39,6 +39,7 @@ from .context import (
     Task,
     TaskMeta,
 )
+from .expr import EvalError
 from .storage import Attempt, FinishedTask, StartedTask, Storage, _dt2str
 from .types import AlwaysT, FullID, TaskStatus
 from .utils import (
@@ -349,10 +350,10 @@ class BatchExecutor:
             ret._stop()
 
     def _start(self) -> None:
-        self._progress.start()
+        pass
 
     def _stop(self) -> None:
-        self._progress.stop()
+        pass
 
     async def _refresh_attempt(self) -> None:
         self._attempt = await self._storage.find_attempt(
@@ -537,7 +538,20 @@ class BatchExecutor:
     async def _should_continue(self) -> bool:
         return self._graphs.is_active
 
-    async def run(self) -> None:
+    async def run(self) -> TaskStatus:
+        with self._progress:
+            try:
+                self._progress.start()
+                return await self._run()
+            except EvalError as exp:
+                self._is_cancelling = True
+                await self._stop_unfinished()
+                self._progress.log(f"[red][b]ERROR:[/b] {exp}[/red]")
+                self._progress.stop()  # Put result block below progress
+                await self._finish_run(TaskStatus.FAILED)
+                return TaskStatus.FAILED
+
+    async def _run(self) -> TaskStatus:
         await self._load_previous_run()
 
         while await self._should_continue():
@@ -571,10 +585,11 @@ class BatchExecutor:
 
             await asyncio.sleep(self._polling_timeout)
 
-        await self._finish_run()
-
-    async def _finish_run(self) -> None:
         attempt_status = self._accumulate_result()
+        await self._finish_run(attempt_status)
+        return attempt_status
+
+    async def _finish_run(self, attempt_status: TaskStatus) -> None:
         if self._attempt.result not in TERMINATED_TASK_STATUSES:
             await self._storage.finish_attempt(self._attempt, attempt_status)
         self._progress.print(
@@ -813,5 +828,7 @@ class LocalsBatchExecutor(BatchExecutor):
                 return True
         return False
 
-    async def _finish_run(self) -> None:
-        pass  # Do nothing for locals run
+    async def _finish_run(self, attempt_status: TaskStatus) -> None:
+        # Only process failures during local run
+        if attempt_status != TaskStatus.SUCCEEDED:
+            await super()._finish_run(attempt_status)
