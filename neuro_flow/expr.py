@@ -112,8 +112,9 @@ class EvalError(Exception):
         self.end = end
 
     def __str__(self) -> str:
-        line = self.start.line
-        col = self.start.col
+        # For humans, line and columns are enumerated from 1, so we should add 1 here.
+        line = self.start.line + 1
+        col = self.start.col + 1
         filename = self.start.filename
         return str(self.args[0]) + f'\n  in "{filename}", line {line}, column {col}'
 
@@ -679,6 +680,10 @@ def make_list(args: Tuple[Item, List[Item]]) -> ListMaker:
     return ListMaker(lst[0].start, lst[-1].end, lst)
 
 
+def make_empty_list(args: Tuple[Item, Item]) -> ListMaker:
+    return ListMaker(args[0].start, args[1].end, [])
+
+
 @dataclasses.dataclass(frozen=True)
 class DictMaker(Item):
     items: Sequence[Tuple[Item, Item]]
@@ -697,6 +702,10 @@ def make_dict(args: Tuple[Item, Item, List[Tuple[Item, Item]]]) -> DictMaker:
     if len(args) > 2:
         lst += args[2]
     return DictMaker(lst[0][0].start, lst[-1][1].end, lst)
+
+
+def make_empty_dict(args: Tuple[Item, Item]) -> DictMaker:
+    return DictMaker(args[0].start, args[0].end, [])
 
 
 def a(value: str) -> Parser:
@@ -832,7 +841,10 @@ FACTOR.define((OP_PLUS | OP_MINUS) + FACTOR >> make_unary_op_expr | ATOM_EXPR)
 
 EXPR.define(DISJUNCTION)  # Just synonym
 
-LIST_MAKER.define((LSQB + EXPR + many(COMMA + EXPR) + maybe(COMMA) + RSQB) >> make_list)
+LIST_MAKER.define(
+    (LSQB + EXPR + many(COMMA + EXPR) + maybe(COMMA) + RSQB) >> make_list
+    | (a("[") + a("]")) >> make_empty_list
+)
 
 DICT_MAKER.define(
     (
@@ -845,6 +857,7 @@ DICT_MAKER.define(
         + RBRACE
     )
     >> make_dict
+    | (a("{") + a("}")) >> make_empty_dict
 )
 
 TMPL: Final = (OPEN_TMPL + EXPR + CLOSE_TMPL) | (OPEN_TMPL2 + EXPR + CLOSE_TMPL2)
@@ -867,6 +880,8 @@ class Expr(BaseExpr[_T]):
     allow_none: ClassVar[bool] = True
     allow_expr: ClassVar[bool] = True
     type: ClassVar[Type[_T]]
+    start: Pos
+    end: Pos
     _ret: Union[None, _T]
     _pattern: Union[None, str, _T]
     _parsed: Optional[Sequence[Item]]
@@ -882,6 +897,8 @@ class Expr(BaseExpr[_T]):
             raise EvalError(str(exc), start, end)
 
     def __init__(self, start: Pos, end: Pos, pattern: Union[None, str, _T]) -> None:
+        self.start = start
+        self.end = end
         self._pattern = pattern
         # precalculated value for constant string, allows raising errors earlier
         self._ret = None

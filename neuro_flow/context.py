@@ -33,7 +33,7 @@ from yarl import URL
 
 from neuro_flow import ast
 from neuro_flow.config_loader import ConfigLoader
-from neuro_flow.expr import EnableExpr, EvalError, LiteralT, RootABC, TypeT
+from neuro_flow.expr import EnableExpr, EvalError, IdExpr, LiteralT, RootABC, TypeT
 from neuro_flow.types import AlwaysT, FullID, LocalPath, RemotePath, TaskStatus
 
 
@@ -688,49 +688,57 @@ async def setup_images_ctx(
     return images
 
 
-async def setup_inputs_ctx(
-    ctx: RootABC,
-    call_ast: ast.BaseActionCall,  # Only used to generate errors
+async def validate_action_call(
+    call_ast: ast.BaseActionCall,
     ast_inputs: Optional[Mapping[str, ast.Input]],
-) -> InputsCtx:
-    if call_ast.args:
-        inputs = {k: await v.eval(ctx) for k, v in call_ast.args.items()}
+) -> None:
+    if ast_inputs:
+        supported_inputs = ast_inputs.keys()
+        required_inputs = {
+            input_name
+            for input_name, input_ast in ast_inputs.items()
+            if not input_ast.default.pattern
+        }
     else:
-        inputs = {}
-
-    if ast_inputs is None:
-        if inputs:
-            raise EvalError(
-                f"Unsupported input(s): {','.join(sorted(inputs))}",
-                call_ast._start,
-                call_ast._end,
-            )
-        else:
-            return {}
-
-    new_inputs = dict(inputs)
-    for name, inp in ast_inputs.items():
-        if name not in new_inputs and inp.default.pattern is not None:
-            val = await inp.default.eval(EMPTY_ROOT)
-            # inputs doesn't support expressions,
-            # non-none pattern means non-none input
-            assert val is not None
-            new_inputs[name] = val
-    extra = new_inputs.keys() - ast_inputs.keys()
-    if extra:
-        raise EvalError(
-            f"Unsupported input(s): {','.join(sorted(extra))}",
-            call_ast._start,
-            call_ast._end,
-        )
-    missing = ast_inputs.keys() - new_inputs.keys()
+        supported_inputs = set()
+        required_inputs = set()
+    if call_ast.args:
+        supplied_inputs = call_ast.args.keys()
+    else:
+        supplied_inputs = set()
+    missing = required_inputs - supplied_inputs
     if missing:
         raise EvalError(
             f"Required input(s): {','.join(sorted(missing))}",
             call_ast._start,
             call_ast._end,
         )
-    return new_inputs
+    extra = supplied_inputs - supported_inputs
+    if extra:
+        raise EvalError(
+            f"Unsupported input(s): {','.join(sorted(extra))}",
+            call_ast._start,
+            call_ast._end,
+        )
+
+
+async def setup_inputs_ctx(
+    ctx: RootABC,
+    call_ast: ast.BaseActionCall,  # Only used to generate errors
+    ast_inputs: Optional[Mapping[str, ast.Input]],
+) -> InputsCtx:
+    await validate_action_call(call_ast, ast_inputs)
+    if call_ast.args is None or ast_inputs is None:
+        return {}
+    inputs = {k: await v.eval(ctx) for k, v in call_ast.args.items()}
+    for name, inp in ast_inputs.items():
+        if name not in inputs and inp.default.pattern is not None:
+            val = await inp.default.eval(EMPTY_ROOT)
+            # inputs doesn't support expressions,
+            # non-none pattern means non-none input
+            assert val is not None
+            inputs[name] = val
+    return inputs
 
 
 async def setup_params_ctx(
@@ -1118,6 +1126,7 @@ class EarlyBatch:
         prep_task = self._get_prep(real_id)
         assert isinstance(prep_task, EarlyBatchCall)  # Already checked
 
+        await validate_action_call(prep_task.call, prep_task.action.inputs)
         tasks = await EarlyTaskGraphBuilder(self._cl, prep_task.action.tasks).build()
 
         return EarlyBatchAction(tasks, self._cl)
@@ -1736,6 +1745,10 @@ class EarlyTaskGraphBuilder:
         post_tasks: List[List[EarlyPostTask]] = []
         prep_tasks: Dict[str, BaseEarlyTask] = {}
         last_needs: Set[str] = set()
+
+        # Only used for sanity checks
+        real_id_to_need_to_expr: Dict[str, Mapping[str, IdExpr]] = {}
+
         for num, ast_task in enumerate(self._ast_tasks, 1):
             assert isinstance(ast_task, (ast.Task, ast.TaskActionCall))
 
@@ -1760,7 +1773,10 @@ class EarlyTaskGraphBuilder:
                 )
 
                 task_id, real_id = await self._setup_ids(matrix_ctx, num, ast_task)
-                needs = await self._setup_needs(matrix_ctx, last_needs, ast_task)
+                needs, need_to_expr = await self._setup_needs(
+                    matrix_ctx, last_needs, ast_task
+                )
+                real_id_to_need_to_expr[real_id] = need_to_expr
 
                 base = BaseEarlyTask(
                     id=task_id,
@@ -1830,6 +1846,16 @@ class EarlyTaskGraphBuilder:
                 real_ids.add(task.real_id)
             last_needs = real_ids
 
+        # Check needs sanity
+        for prep_task in prep_tasks.values():
+            for need_id in prep_task.needs.keys():
+                if need_id not in prep_tasks:
+                    id_expr = real_id_to_need_to_expr[prep_task.real_id][need_id]
+                    raise EvalError(
+                        f"Task {prep_task.real_id} needs unknown task {need_id}",
+                        id_expr.start,
+                        id_expr.end,
+                    )
         return prep_tasks
 
     async def _setup_ids(
@@ -1847,12 +1873,15 @@ class EarlyTaskGraphBuilder:
 
     async def _setup_needs(
         self, ctx: RootABC, default_needs: AbstractSet[str], ast_task: ast.TaskBase
-    ) -> Mapping[str, ast.NeedsLevel]:
+    ) -> Tuple[Mapping[str, ast.NeedsLevel], Mapping[str, IdExpr]]:
         if ast_task.needs is not None:
-            return {
-                await need.eval(ctx): level for need, level in ast_task.needs.items()
-            }
-        return {need: ast.NeedsLevel.COMPLETED for need in default_needs}
+            needs, to_expr_map = {}, {}
+            for need, level in ast_task.needs.items():
+                need_id = await need.eval(ctx)
+                needs[need_id] = level
+                to_expr_map[need_id] = need
+            return needs, to_expr_map
+        return {need: ast.NeedsLevel.COMPLETED for need in default_needs}, {}
 
 
 class TaskGraphBuilder(EarlyTaskGraphBuilder):

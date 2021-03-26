@@ -187,7 +187,7 @@ async def test_bad_expr_type_after_eval(live_config_loader: ConfigLoader) -> Non
     assert str(cm.value) == dedent(
         f"""\
         invalid literal for int() with base 10: 'abc def'
-          in "{config_file}", line 5, column 19"""
+          in "{config_file}", line 6, column 20"""
     )
 
 
@@ -545,7 +545,7 @@ async def test_setup_inputs_ctx(
     batch_config_loader: ConfigLoader,
 ) -> None:
 
-    with pytest.raises(EvalError, match=r"Unsupported input\(s\): other,unknown"):
+    with pytest.raises(EvalError, match=r"Required input\(s\): expected"):
         await setup_inputs_ctx(
             EMPTY_ROOT,
             _make_ast_call({"other": "1", "unknown": "2"}),
@@ -779,6 +779,18 @@ async def test_pipeline_with_batch_action(batch_config_loader: ConfigLoader) -> 
         "task_1": {},
         "task_2": {"task_1": ast.NeedsLevel.COMPLETED},
     }
+
+
+async def test_wrong_needs(
+    batch_config_loader: ConfigLoader,
+) -> None:
+    with pytest.raises(
+        EvalError,
+        match=r"Task task-2 needs unknown task something_wrong.*",
+    ):
+        await RunningBatchFlow.create(
+            batch_config_loader, "batch-wrong-need", "bake-id"
+        )
 
 
 async def test_pipeline_life_span(
