@@ -544,7 +544,7 @@ async def test_setup_inputs_ctx(
     batch_config_loader: ConfigLoader,
 ) -> None:
 
-    with pytest.raises(EvalError, match=r"Unsupported input\(s\): other,unknown"):
+    with pytest.raises(EvalError, match=r"Required input\(s\): expected"):
         await setup_inputs_ctx(
             EMPTY_ROOT,
             _make_ast_call({"other": "1", "unknown": "2"}),

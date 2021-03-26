@@ -664,49 +664,57 @@ async def setup_images_ctx(
     return images
 
 
-async def setup_inputs_ctx(
-    ctx: RootABC,
-    call_ast: ast.BaseActionCall,  # Only used to generate errors
+async def validate_action_call(
+    call_ast: ast.BaseActionCall,
     ast_inputs: Optional[Mapping[str, ast.Input]],
-) -> InputsCtx:
-    if call_ast.args:
-        inputs = {k: await v.eval(ctx) for k, v in call_ast.args.items()}
+) -> None:
+    if ast_inputs:
+        supported_inputs = ast_inputs.keys()
+        required_inputs = {
+            input_name
+            for input_name, input_ast in ast_inputs.items()
+            if not input_ast.default.pattern
+        }
     else:
-        inputs = {}
-
-    if ast_inputs is None:
-        if inputs:
-            raise EvalError(
-                f"Unsupported input(s): {','.join(sorted(inputs))}",
-                call_ast._start,
-                call_ast._end,
-            )
-        else:
-            return {}
-
-    new_inputs = dict(inputs)
-    for name, inp in ast_inputs.items():
-        if name not in new_inputs and inp.default.pattern is not None:
-            val = await inp.default.eval(EMPTY_ROOT)
-            # inputs doesn't support expressions,
-            # non-none pattern means non-none input
-            assert val is not None
-            new_inputs[name] = val
-    extra = new_inputs.keys() - ast_inputs.keys()
-    if extra:
-        raise EvalError(
-            f"Unsupported input(s): {','.join(sorted(extra))}",
-            call_ast._start,
-            call_ast._end,
-        )
-    missing = ast_inputs.keys() - new_inputs.keys()
+        supported_inputs = set()
+        required_inputs = set()
+    if call_ast.args:
+        supplied_inputs = call_ast.args.keys()
+    else:
+        supplied_inputs = set()
+    missing = required_inputs - supplied_inputs
     if missing:
         raise EvalError(
             f"Required input(s): {','.join(sorted(missing))}",
             call_ast._start,
             call_ast._end,
         )
-    return new_inputs
+    extra = supplied_inputs - supported_inputs
+    if extra:
+        raise EvalError(
+            f"Unsupported input(s): {','.join(sorted(extra))}",
+            call_ast._start,
+            call_ast._end,
+        )
+
+
+async def setup_inputs_ctx(
+    ctx: RootABC,
+    call_ast: ast.BaseActionCall,  # Only used to generate errors
+    ast_inputs: Optional[Mapping[str, ast.Input]],
+) -> InputsCtx:
+    await validate_action_call(call_ast, ast_inputs)
+    if call_ast.args is None or ast_inputs is None:
+        return {}
+    inputs = {k: await v.eval(ctx) for k, v in call_ast.args.items()}
+    for name, inp in ast_inputs.items():
+        if name not in inputs and inp.default.pattern is not None:
+            val = await inp.default.eval(EMPTY_ROOT)
+            # inputs doesn't support expressions,
+            # non-none pattern means non-none input
+            assert val is not None
+            inputs[name] = val
+    return inputs
 
 
 async def setup_params_ctx(
@@ -1094,6 +1102,7 @@ class EarlyBatch:
         prep_task = self._get_prep(real_id)
         assert isinstance(prep_task, EarlyBatchCall)  # Already checked
 
+        await validate_action_call(prep_task.call, prep_task.action.inputs)
         tasks = await EarlyTaskGraphBuilder(self._cl, prep_task.action.tasks).build()
 
         return EarlyBatchAction(tasks, self._cl)
