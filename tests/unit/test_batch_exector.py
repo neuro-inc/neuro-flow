@@ -25,6 +25,7 @@ from pathlib import Path
 from rich import get_console
 from tempfile import TemporaryDirectory
 from typing import (
+    Any,
     AsyncIterator,
     Awaitable,
     Callable,
@@ -468,6 +469,11 @@ class FakeForceStopException(BaseException):
     pass
 
 
+def run_in_loop(coro: Awaitable[Any]) -> Any:
+    loop = asyncio.new_event_loop()
+    return loop.run_until_complete(coro)
+
+
 async def test_complex_seq_continue(
     jobs_mock: JobsMock,
     batch_storage: Storage,
@@ -477,7 +483,7 @@ async def test_complex_seq_continue(
     data = await batch_runner._setup_exc_data("batch-complex-seq")
     # Use separate thread to allow force abort
     executor_task = asyncio.get_event_loop().run_in_executor(
-        None, asyncio.run, start_executor(data)
+        None, run_in_loop, start_executor(data)
     )
 
     await jobs_mock.get_task("task_1_a")
@@ -528,7 +534,7 @@ async def test_complex_seq_continue_2(
     data = await batch_runner._setup_exc_data("batch-complex-seq")
     # Use separate thread to allow force abort
     executor_task = asyncio.get_event_loop().run_in_executor(
-        None, asyncio.run, start_executor(data)
+        None, run_in_loop, start_executor(data)
     )
 
     await jobs_mock.get_task("task_1_a")
