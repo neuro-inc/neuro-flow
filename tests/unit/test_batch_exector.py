@@ -104,11 +104,13 @@ class JobsMock:
 
     _data: Dict[str, JobDescription]
     _outputs: Dict[str, bytes]
+    exception_on_status: Optional[BaseException]
 
     def __init__(self) -> None:
         self.id_counter = 0
         self._data = {}
         self._outputs = {}
+        self.exception_on_status = None
 
     def _make_next_id(self) -> int:
         self.id_counter += 1
@@ -262,6 +264,8 @@ class JobsMock:
         self._data[descr.id] = descr
 
     async def status(self, job_id: str) -> JobDescription:
+        if self.exception_on_status:
+            raise self.exception_on_status
         try:
             return self._data[job_id]
         except KeyError:
@@ -329,15 +333,15 @@ async def patched_client(
 @pytest.fixture()
 def start_locals_executor(
     batch_storage: Storage, patched_client: Client
-) -> Callable[[ExecutorData], Awaitable[None]]:
-    async def start(data: ExecutorData) -> None:
+) -> Callable[[ExecutorData], Awaitable[TaskStatus]]:
+    async def start(data: ExecutorData) -> TaskStatus:
         async with LocalsBatchExecutor.create(
             get_console(),
             data,
             patched_client,
             batch_storage,
         ) as executor:
-            await executor.run()
+            return await executor.run()
 
     return start
 
@@ -459,6 +463,11 @@ async def test_complex_seq(
     await asyncio.wait_for(executor_task, timeout=5)
 
 
+class FakeForceStopException(BaseException):
+    # Used to simulate almost instant kills of executor
+    pass
+
+
 async def test_complex_seq_continue(
     jobs_mock: JobsMock,
     batch_storage: Storage,
@@ -466,7 +475,10 @@ async def test_complex_seq_continue(
     batch_runner: BatchRunner,
 ) -> None:
     data = await batch_runner._setup_exc_data("batch-complex-seq")
-    executor_task = asyncio.ensure_future(start_executor(data))
+    # Use separate thread to allow force abort
+    executor_task = asyncio.get_event_loop().run_in_executor(
+        None, asyncio.run, start_executor(data)
+    )
 
     await jobs_mock.get_task("task_1_a")
     await jobs_mock.get_task("task_1_b")
@@ -486,13 +498,14 @@ async def test_complex_seq_continue(
     await jobs_mock.get_task("task_2_after")
     await jobs_mock.mark_done("task_2_after")
 
-    executor_task.cancel()
+    jobs_mock.exception_on_status = FakeForceStopException()
     try:
         await executor_task
-    except asyncio.CancelledError:
+    except FakeForceStopException:
         pass
+    jobs_mock.exception_on_status = None
 
-    executor_task = asyncio.ensure_future(start_executor(data))
+    executor_task_2 = asyncio.ensure_future(start_executor(data))
 
     await jobs_mock.mark_started("task_2_at_running.task_2")
 
@@ -503,7 +516,7 @@ async def test_complex_seq_continue(
         "task_2_at_running.task_2", b"::set-output name=task2::Task 2 val 2"
     )
 
-    await asyncio.wait_for(executor_task, timeout=5)
+    await asyncio.wait_for(executor_task_2, timeout=5)
 
 
 async def test_complex_seq_continue_2(
@@ -513,7 +526,10 @@ async def test_complex_seq_continue_2(
     batch_runner: BatchRunner,
 ) -> None:
     data = await batch_runner._setup_exc_data("batch-complex-seq")
-    executor_task = asyncio.ensure_future(start_executor(data))
+    # Use separate thread to allow force abort
+    executor_task = asyncio.get_event_loop().run_in_executor(
+        None, asyncio.run, start_executor(data)
+    )
 
     await jobs_mock.get_task("task_1_a")
     await jobs_mock.get_task("task_1_b")
@@ -527,17 +543,19 @@ async def test_complex_seq_continue_2(
     )
     await jobs_mock.get_task("task_2_at_running.task_2")
     await jobs_mock.mark_started("task_2_at_running.task_2")
-    executor_task.cancel()
+
+    jobs_mock.exception_on_status = FakeForceStopException()
     try:
         await executor_task
-    except asyncio.CancelledError:
+    except FakeForceStopException:
         pass
+    jobs_mock.exception_on_status = None
 
     await jobs_mock.mark_done(
         "task_2_at_running.task_2", b"::set-output name=task2::Task 2 val 2"
     )
 
-    executor_task = asyncio.ensure_future(start_executor(data))
+    executor_task_2 = asyncio.ensure_future(start_executor(data))
 
     await jobs_mock.mark_done("task_1_a")
     await jobs_mock.mark_done("task_1_b")
@@ -548,7 +566,7 @@ async def test_complex_seq_continue_2(
     await jobs_mock.get_task("task_3")
     await jobs_mock.mark_done("task_3")
 
-    await asyncio.wait_for(executor_task, timeout=5)
+    await asyncio.wait_for(executor_task_2, timeout=5)
 
 
 async def test_complex_seq_restart(
@@ -1215,3 +1233,24 @@ async def test_bake_marked_as_failed_on_eval_error_in_local(
 ) -> None:
     _, status = await run_executor(assets / "local_actions", "call-bad-local")
     assert status == TaskStatus.FAILED
+
+
+async def test_bake_marked_as_failed_on_random_error(
+    assets: Path,
+    run_executor: RunExecutor,
+    jobs_mock: JobsMock,
+) -> None:
+    jobs_mock.exception_on_status = Exception("Something failed")
+    _, status = await run_executor(assets, "batch-seq")
+    assert status == TaskStatus.FAILED
+
+
+async def test_bake_marked_as_cancelled_on_task_cancelation(
+    assets: Path,
+    run_executor: RunExecutor,
+) -> None:
+    executor_task = asyncio.ensure_future(run_executor(assets, "batch-seq"))
+    await asyncio.sleep(0)  # All to start
+    executor_task.cancel()
+    _, status = await executor_task
+    assert status == TaskStatus.CANCELLED
