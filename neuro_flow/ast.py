@@ -232,6 +232,7 @@ class LiveFlow(BaseFlow):
 @dataclass(frozen=True)
 class BatchFlow(BaseFlow):
     # self.kind == Kind.Batch
+    life_span: OptTimeDeltaExpr = field(metadata={"allow_none": True})
     params: Optional[Mapping[str, Param]] = field(metadata={"allow_none": True})
     tasks: Sequence[Union[Task, TaskActionCall]]
 

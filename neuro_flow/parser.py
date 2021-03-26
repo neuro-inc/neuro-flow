@@ -919,6 +919,7 @@ FLOW = {
     "kind": ast.FlowKind,
     "id": SimpleOptIdExpr,
     "title": SimpleOptStrExpr,
+    "life_span": OptTimeDeltaExpr,
     "images": None,
     "volumes": None,
     "defaults": None,

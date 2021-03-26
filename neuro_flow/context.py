@@ -9,6 +9,7 @@ import json
 import shlex
 import sys
 from abc import abstractmethod
+from datetime import timedelta
 from functools import lru_cache
 from neuro_sdk import Client
 from typing import (
@@ -89,6 +90,11 @@ class FlowCtx:
             fg="yellow",
         )
         return self.flow_id
+
+
+@dataclass(frozen=True)
+class BatchFlowCtx(FlowCtx):
+    life_span: Optional[float]
 
 
 @dataclass(frozen=True)
@@ -351,6 +357,7 @@ class LiveActionContext(Context):
 
 @dataclass(frozen=True)
 class BatchContextStep1(WithFlowContext, Context):
+    flow: BatchFlowCtx
     params: ParamsCtx
 
     def to_step_2(
@@ -544,6 +551,23 @@ async def setup_flow_ctx(
         project_id=project_id,
         workspace=config_loader.workspace,
         title=flow_title or flow_id,
+    )
+
+
+async def setup_batch_flow_ctx(
+    ctx: RootABC,
+    ast_flow: ast.BatchFlow,
+    config_name: str,
+    config_loader: ConfigLoader,
+) -> BatchFlowCtx:
+    base_flow = await setup_flow_ctx(ctx, ast_flow, config_name, config_loader)
+    life_span = await ast_flow.life_span.eval(ctx)
+    return BatchFlowCtx(
+        flow_id=base_flow.flow_id,
+        project_id=base_flow.project_id,
+        workspace=base_flow.workspace,
+        title=base_flow.title,
+        life_span=life_span,
     )
 
 
@@ -1306,6 +1330,12 @@ class RunningBatchFlow(RunningBatchBase[BatchContext]):
     def images(self) -> Mapping[str, ImageCtx]:
         return self._ctx.images
 
+    @property
+    def life_span(self) -> Optional[timedelta]:
+        if self._ctx.flow.life_span:
+            return timedelta(seconds=self._ctx.flow.life_span)
+        return None
+
     async def get_local(self, real_id: str, needs: NeedsCtx) -> LocalTask:
         assert await self.is_local(
             real_id
@@ -1338,7 +1368,9 @@ class RunningBatchFlow(RunningBatchBase[BatchContext]):
 
         assert isinstance(ast_flow, ast.BatchFlow)
 
-        flow_ctx = await setup_flow_ctx(EMPTY_ROOT, ast_flow, batch, config_loader)
+        flow_ctx = await setup_batch_flow_ctx(
+            EMPTY_ROOT, ast_flow, batch, config_loader
+        )
         params_ctx = await setup_params_ctx(EMPTY_ROOT, params, ast_flow.params)
         step_1_ctx = BatchContextStep1(
             flow=flow_ctx,

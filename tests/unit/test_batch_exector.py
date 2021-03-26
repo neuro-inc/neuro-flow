@@ -373,7 +373,7 @@ def run_executor(
         config_loc: Path, batch_name: str, args: Optional[Mapping[str, str]] = None
     ) -> Dict[Tuple[str, ...], FinishedTask]:
         runner = await make_batch_runner(config_loc)
-        data = await runner._setup_exc_data(batch_name, args)
+        data, _ = await runner._setup_bake(batch_name, args)
         await start_locals_executor(data)
         await start_executor(data)
         bake = await batch_storage.fetch_bake(
@@ -462,7 +462,7 @@ async def test_complex_seq_continue(
     start_executor: Callable[[ExecutorData], Awaitable[None]],
     batch_runner: BatchRunner,
 ) -> None:
-    data = await batch_runner._setup_exc_data("batch-complex-seq")
+    data, _ = await batch_runner._setup_bake("batch-complex-seq")
     executor_task = asyncio.ensure_future(start_executor(data))
 
     await jobs_mock.get_task("task_1_a")
@@ -509,7 +509,7 @@ async def test_complex_seq_continue_2(
     start_executor: Callable[[ExecutorData], Awaitable[None]],
     batch_runner: BatchRunner,
 ) -> None:
-    data = await batch_runner._setup_exc_data("batch-complex-seq")
+    data, _ = await batch_runner._setup_bake("batch-complex-seq")
     executor_task = asyncio.ensure_future(start_executor(data))
 
     await jobs_mock.get_task("task_1_a")
@@ -554,7 +554,7 @@ async def test_complex_seq_restart(
     start_executor: Callable[[ExecutorData], Awaitable[None]],
     batch_runner: BatchRunner,
 ) -> None:
-    data = await batch_runner._setup_exc_data("batch-complex-seq")
+    data, _ = await batch_runner._setup_bake("batch-complex-seq")
     executor_task = asyncio.ensure_future(start_executor(data))
 
     await jobs_mock.get_task("task_1_a")
@@ -582,7 +582,7 @@ async def test_complex_seq_restart(
     await asyncio.wait_for(executor_task, timeout=5)
 
     jobs_mock.clear()
-    data = await batch_runner._restart(_executor_data_to_bake_id(data))
+    data, _ = await batch_runner._restart(_executor_data_to_bake_id(data))
 
     executor_task = asyncio.ensure_future(start_executor(data))
 
@@ -720,7 +720,7 @@ async def test_cancellation(
     batch_runner: BatchRunner,
     start_executor: Callable[[ExecutorData], Awaitable[None]],
 ) -> None:
-    data = await batch_runner._setup_exc_data("batch-seq")
+    data, _ = await batch_runner._setup_bake("batch-seq")
     executor_task = asyncio.ensure_future(start_executor(data))
     await jobs_mock.mark_done("task-1")
     descr = await jobs_mock.get_task("task-2")
@@ -767,7 +767,7 @@ async def test_graphs(
     batch_storage: Storage,
     batch_runner: BatchRunner,
 ) -> None:
-    data = await batch_runner._setup_exc_data("batch-action-call")
+    data, _ = await batch_runner._setup_bake("batch-action-call")
     bake = await batch_storage.fetch_bake(
         data.project, data.batch, data.when, data.suffix
     )
@@ -786,7 +786,7 @@ async def test_early_graph(
     assets: Path,
 ) -> None:
     batch_runner = await make_batch_runner(assets / "early_graph")
-    data = await batch_runner._setup_exc_data("batch")
+    data, _ = await batch_runner._setup_bake("batch")
     bake = await batch_storage.fetch_bake(
         data.project, data.batch, data.when, data.suffix
     )
@@ -843,7 +843,7 @@ async def test_always_during_cancellation(
     batch_runner: BatchRunner,
     start_executor: Callable[[ExecutorData], Awaitable[None]],
 ) -> None:
-    data = await batch_runner._setup_exc_data("batch-last-always")
+    data, _ = await batch_runner._setup_bake("batch-last-always")
     executor_task = asyncio.ensure_future(start_executor(data))
     descr = await jobs_mock.get_task("task-1")
     assert descr.status == JobStatus.PENDING
@@ -954,7 +954,7 @@ async def test_stateful_post_after_cancellation(
     start_executor: Callable[[ExecutorData], Awaitable[None]],
 ) -> None:
     runner = await make_batch_runner(assets / "stateful_actions")
-    data = await runner._setup_exc_data("call-with-post")
+    data, _ = await runner._setup_bake("call-with-post")
     executor_task = asyncio.ensure_future(start_executor(data))
     await jobs_mock.mark_done("first")
     await jobs_mock.mark_done("test")
@@ -967,7 +967,7 @@ async def test_stateful_post_after_cancellation(
 
 
 async def test_restart(batch_storage: Storage, batch_runner: BatchRunner) -> None:
-    data = await batch_runner._setup_exc_data("batch-seq")
+    data, _ = await batch_runner._setup_bake("batch-seq")
     bake = await batch_storage.fetch_bake(
         data.project, data.batch, data.when, data.suffix
     )
@@ -1005,7 +1005,7 @@ async def test_restart(batch_storage: Storage, batch_runner: BatchRunner) -> Non
 
     await batch_storage.finish_attempt(attempt, TaskStatus.FAILED)
 
-    data2 = await batch_runner._restart(bake.bake_id)
+    data2, _ = await batch_runner._restart(bake.bake_id)
     assert data == data2
 
     attempt2 = await batch_storage.find_attempt(bake)
@@ -1020,7 +1020,7 @@ async def test_restart(batch_storage: Storage, batch_runner: BatchRunner) -> Non
 async def test_restart_not_last_attempt(
     batch_storage: Storage, batch_runner: BatchRunner
 ) -> None:
-    data = await batch_runner._setup_exc_data("batch-seq")
+    data, _ = await batch_runner._setup_bake("batch-seq")
     bake = await batch_storage.fetch_bake(
         data.project, data.batch, data.when, data.suffix
     )
@@ -1060,7 +1060,7 @@ async def test_restart_not_last_attempt(
 
     await batch_runner._restart(bake.bake_id)
 
-    data3 = await batch_runner._restart(bake.bake_id, attempt_no=1)
+    data3, _ = await batch_runner._restart(bake.bake_id, attempt_no=1)
     assert data == data3
 
     attempt3 = await batch_storage.find_attempt(bake)
@@ -1176,7 +1176,7 @@ async def test_batch_bake_id_tag(
     start_executor: Callable[[ExecutorData], Awaitable[None]],
     batch_runner: BatchRunner,
 ) -> None:
-    data = await batch_runner._setup_exc_data("batch-seq")
+    data, _ = await batch_runner._setup_bake("batch-seq")
     executor_task = asyncio.ensure_future(start_executor(data))
 
     task_descr = await jobs_mock.get_task("task-1")

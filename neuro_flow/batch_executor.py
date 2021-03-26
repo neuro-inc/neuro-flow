@@ -39,7 +39,7 @@ from .context import (
     Task,
     TaskMeta,
 )
-from .storage import Attempt, FinishedTask, StartedTask, Storage, _dt2str
+from .storage import Attempt, Bake, FinishedTask, StartedTask, Storage, _dt2str
 from .types import AlwaysT, FullID, TaskStatus
 from .utils import (
     TERMINATED_JOB_STATUSES,
@@ -83,6 +83,23 @@ class ExecutorData:
         # Todo: this is duplication with code in storage.py,
         # remove when platform service will be added
         return "_".join([self.batch, _dt2str(self.when), self.suffix])
+
+
+async def get_running_flow(
+    bake: Bake, client: Client, storage: Storage
+) -> RunningBatchFlow:
+    meta = await storage.fetch_configs_meta(bake)
+    config_loader = BatchRemoteCL(
+        meta,
+        load_from_storage=lambda name: storage.fetch_config(bake, name),
+        client=client,
+    )
+    return await RunningBatchFlow.create(
+        config_loader=config_loader,
+        batch=bake.batch,
+        bake_id=bake.bake_id,
+        params=bake.params,
+    )
 
 
 _T = TypeVar("_T")
@@ -316,18 +333,7 @@ class BatchExecutor:
         )
 
         console.log("Fetch configs metadata")
-        meta = await storage.fetch_configs_meta(bake)
-        config_loader = BatchRemoteCL(
-            meta,
-            load_from_storage=lambda name: storage.fetch_config(bake, name),
-            client=client,
-        )
-        flow = await RunningBatchFlow.create(
-            config_loader=config_loader,
-            batch=bake.batch,
-            bake_id=bake.bake_id,
-            params=bake.params,
-        )
+        flow = await get_running_flow(bake, client, storage)
 
         console.log("Find last attempt")
         attempt = await storage.find_attempt(bake)

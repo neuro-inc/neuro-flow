@@ -17,7 +17,12 @@ from typing_extensions import AsyncContextManager, AsyncIterator
 
 import neuro_flow
 
-from .batch_executor import BatchExecutor, ExecutorData, LocalsBatchExecutor
+from .batch_executor import (
+    BatchExecutor,
+    ExecutorData,
+    LocalsBatchExecutor,
+    get_running_flow,
+)
 from .colored_topo_sorter import ColoredTopoSorter
 from .commands import CmdProcessor
 from .config_loader import BatchLocalCL
@@ -25,7 +30,7 @@ from .context import EMPTY_ROOT, EarlyBatch, RunningBatchFlow
 from .parser import ConfigDir
 from .storage import Attempt, Bake, FinishedTask, Storage
 from .types import FullID, LocalPath, TaskStatus
-from .utils import TERMINATED_TASK_STATUSES, fmt_datetime, run_subproc
+from .utils import TERMINATED_TASK_STATUSES, fmt_datetime, fmt_timedelta, run_subproc
 
 
 EXECUTOR_IMAGE = f"neuromation/neuro-flow:{neuro_flow.__version__}"
@@ -86,9 +91,9 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         await self.close()
 
     # Next function is also used in tests:
-    async def _setup_exc_data(
+    async def _setup_bake(
         self, batch_name: str, params: Optional[Mapping[str, str]] = None
-    ) -> ExecutorData:
+    ) -> Tuple[ExecutorData, RunningBatchFlow]:
         # batch_name is a name of yaml config inside self._workspace / .neuro
         # folder without the file extension
         self._console.log(f"[bright_black]neuro_sdk=={sdk_version}")
@@ -127,11 +132,14 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             f"Bake [b]{bake.bake_id}[/b] of project [b]{bake.project}[/b] is created"
         )
 
-        return ExecutorData(
-            project=bake.project,
-            batch=bake.batch,
-            when=bake.when,
-            suffix=bake.suffix,
+        return (
+            ExecutorData(
+                project=bake.project,
+                batch=bake.batch,
+                when=bake.when,
+                suffix=bake.suffix,
+            ),
+            flow,
         )
 
     async def _build_graphs(
@@ -179,10 +187,12 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             Panel(f"[bright_blue]Bake [b]{batch_name}[/b]", padding=1),
             justify="center",
         )
-        data = await self._setup_exc_data(batch_name, params)
-        await self._run_bake(data, local_executor)
+        data, flow = await self._setup_bake(batch_name, params)
+        await self._run_bake(data, flow, local_executor)
 
-    async def _run_bake(self, data: ExecutorData, local_executor: bool) -> None:
+    async def _run_bake(
+        self, data: ExecutorData, flow: RunningBatchFlow, local_executor: bool
+    ) -> None:
         self._console.rule("Run local actions")
         await self._run_locals(data)
         self._console.rule("Run main actions")
@@ -192,11 +202,16 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         else:
             self._console.log(f"[bright_black]Starting remote executor")
             param = data.serialize()
+            if flow.life_span:
+                life_span = fmt_timedelta(flow.life_span)
+            else:
+                life_span = "7d"
             await run_subproc(
                 "neuro",
                 "run",
                 "--restart=on-failure",
                 "--pass-config",
+                f"--life-span={life_span}",
                 f"--tag=project:{data.project}",
                 f"--tag=flow:{data.batch}",
                 f"--tag=bake_id:{data.get_bake_id()}",
@@ -445,10 +460,10 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         from_failed: bool = True,
         local_executor: bool = False,
     ) -> None:
-        data = await self._restart(
+        data, flow = await self._restart(
             bake_id, attempt_no=attempt_no, from_failed=from_failed
         )
-        await self._run_bake(data, local_executor)
+        await self._run_bake(data, flow, local_executor)
 
     async def _restart(
         self,
@@ -456,7 +471,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         *,
         attempt_no: int = -1,
         from_failed: bool = True,
-    ) -> ExecutorData:
+    ) -> Tuple[ExecutorData, RunningBatchFlow]:
         bake = await self._storage.fetch_bake_by_id(self.project, bake_id)
         last_attempt = await self._storage.find_attempt(bake, -1)
         attempt = await self._storage.find_attempt(bake, attempt_no)
@@ -511,4 +526,6 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             when=bake.when,
             suffix=bake.suffix,
         )
-        return data
+        flow = await get_running_flow(bake, self._client, self._storage)
+
+        return data, flow
