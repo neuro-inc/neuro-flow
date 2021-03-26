@@ -32,7 +32,7 @@ from yarl import URL
 
 from neuro_flow import ast
 from neuro_flow.config_loader import ConfigLoader
-from neuro_flow.expr import EnableExpr, EvalError, LiteralT, RootABC, TypeT
+from neuro_flow.expr import EnableExpr, EvalError, IdExpr, LiteralT, RootABC, TypeT
 from neuro_flow.types import AlwaysT, FullID, LocalPath, RemotePath, TaskStatus
 
 
@@ -1713,6 +1713,10 @@ class EarlyTaskGraphBuilder:
         post_tasks: List[List[EarlyPostTask]] = []
         prep_tasks: Dict[str, BaseEarlyTask] = {}
         last_needs: Set[str] = set()
+
+        # Only used for sanity checks
+        real_id_to_need_to_expr: Dict[str, Mapping[str, IdExpr]] = {}
+
         for num, ast_task in enumerate(self._ast_tasks, 1):
             assert isinstance(ast_task, (ast.Task, ast.TaskActionCall))
 
@@ -1737,7 +1741,10 @@ class EarlyTaskGraphBuilder:
                 )
 
                 task_id, real_id = await self._setup_ids(matrix_ctx, num, ast_task)
-                needs = await self._setup_needs(matrix_ctx, last_needs, ast_task)
+                needs, need_to_expr = await self._setup_needs(
+                    matrix_ctx, last_needs, ast_task
+                )
+                real_id_to_need_to_expr[real_id] = need_to_expr
 
                 base = BaseEarlyTask(
                     id=task_id,
@@ -1807,6 +1814,16 @@ class EarlyTaskGraphBuilder:
                 real_ids.add(task.real_id)
             last_needs = real_ids
 
+        # Check needs sanity
+        for prep_task in prep_tasks.values():
+            for need_id in prep_task.needs.keys():
+                if need_id not in prep_tasks:
+                    id_expr = real_id_to_need_to_expr[prep_task.real_id][need_id]
+                    raise EvalError(
+                        f"Task {prep_task.real_id} needs unknown task {need_id}",
+                        id_expr.start,
+                        id_expr.end,
+                    )
         return prep_tasks
 
     async def _setup_ids(
@@ -1824,12 +1841,15 @@ class EarlyTaskGraphBuilder:
 
     async def _setup_needs(
         self, ctx: RootABC, default_needs: AbstractSet[str], ast_task: ast.TaskBase
-    ) -> Mapping[str, ast.NeedsLevel]:
+    ) -> Tuple[Mapping[str, ast.NeedsLevel], Mapping[str, IdExpr]]:
         if ast_task.needs is not None:
-            return {
-                await need.eval(ctx): level for need, level in ast_task.needs.items()
-            }
-        return {need: ast.NeedsLevel.COMPLETED for need in default_needs}
+            needs, to_expr_map = {}, {}
+            for need, level in ast_task.needs.items():
+                need_id = await need.eval(ctx)
+                needs[need_id] = level
+                to_expr_map[need_id] = need
+            return needs, to_expr_map
+        return {need: ast.NeedsLevel.COMPLETED for need in default_needs}, {}
 
 
 class TaskGraphBuilder(EarlyTaskGraphBuilder):

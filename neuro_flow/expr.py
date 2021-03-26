@@ -867,6 +867,8 @@ class Expr(BaseExpr[_T]):
     allow_none: ClassVar[bool] = True
     allow_expr: ClassVar[bool] = True
     type: ClassVar[Type[_T]]
+    start: Pos
+    end: Pos
     _ret: Union[None, _T]
     _pattern: Union[None, str, _T]
     _parsed: Optional[Sequence[Item]]
@@ -882,6 +884,8 @@ class Expr(BaseExpr[_T]):
             raise EvalError(str(exc), start, end)
 
     def __init__(self, start: Pos, end: Pos, pattern: Union[None, str, _T]) -> None:
+        self.start = start
+        self.end = end
         self._pattern = pattern
         # precalculated value for constant string, allows raising errors earlier
         self._ret = None

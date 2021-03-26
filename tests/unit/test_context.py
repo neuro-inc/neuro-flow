@@ -778,3 +778,15 @@ async def test_pipeline_with_batch_action(batch_config_loader: ConfigLoader) -> 
         "task_1": {},
         "task_2": {"task_1": ast.NeedsLevel.COMPLETED},
     }
+
+
+async def test_wrong_needs(
+    batch_config_loader: ConfigLoader,
+) -> None:
+    with pytest.raises(
+        EvalError,
+        match=r"Task task-2 needs unknown task something_wrong.*",
+    ):
+        await RunningBatchFlow.create(
+            batch_config_loader, "batch-wrong-need", "bake-id"
+        )
