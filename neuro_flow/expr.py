@@ -112,8 +112,9 @@ class EvalError(Exception):
         self.end = end
 
     def __str__(self) -> str:
-        line = self.start.line
-        col = self.start.col
+        # For humans, line and columns are enumerated from 1, so we should add 1 here.
+        line = self.start.line + 1
+        col = self.start.col + 1
         filename = self.start.filename
         return str(self.args[0]) + f'\n  in "{filename}", line {line}, column {col}'
 
