@@ -880,6 +880,61 @@ async def test_local_action(
         await executor_task
 
 
+@pytest.mark.skipif(
+    sys.platform == "win32", reason="cp command is not support by Windows"
+)
+async def test_action_with_local_action(
+    jobs_mock: JobsMock,
+    assets: Path,
+    run_executor: Callable[[Path, str], Awaitable[None]],
+) -> None:
+    with TemporaryDirectory() as dir:
+        ws = LocalPath(dir) / "local_actions"
+        shutil.copytree(assets / "local_actions", ws)
+
+        executor_task = asyncio.ensure_future(
+            run_executor(ws, "call-batch-action-with-local")
+        )
+        descr = await jobs_mock.get_task("call_action.remote-task")
+        assert descr.container.command
+        assert "echo 0" in descr.container.command
+
+        assert (ws / "file").read_text() == "test\n"
+        assert (ws / "file_copy").read_text() == "test\n"
+
+        await jobs_mock.mark_done("call_action.remote-task")
+
+        await executor_task
+
+
+async def test_local_deps_on_remote_1(
+    jobs_mock: JobsMock,
+    assets: Path,
+    make_batch_runner: MakeBatchRunner,
+    run_executor: Callable[[Path, str], Awaitable[None]],
+) -> None:
+    batch_runner = await make_batch_runner(assets / "local_actions")
+    with pytest.raises(
+        Exception, match=r"Local action 'local' depends on remote task 'remote'"
+    ):
+        await batch_runner._setup_exc_data("bad-order")
+
+
+async def test_local_deps_on_remote_2(
+    jobs_mock: JobsMock,
+    assets: Path,
+    make_batch_runner: MakeBatchRunner,
+    run_executor: Callable[[Path, str], Awaitable[None]],
+) -> None:
+    batch_runner = await make_batch_runner(assets / "local_actions")
+    with pytest.raises(
+        Exception,
+        match=r"Local action 'local' depends on "
+        r"remote task 'call_action.remote_task'",
+    ):
+        await batch_runner._setup_exc_data("bad-order-through-action")
+
+
 async def test_stateful_no_post(
     jobs_mock: JobsMock,
     assets: Path,
