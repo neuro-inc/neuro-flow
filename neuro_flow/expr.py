@@ -679,6 +679,10 @@ def make_list(args: Tuple[Item, List[Item]]) -> ListMaker:
     return ListMaker(lst[0].start, lst[-1].end, lst)
 
 
+def make_empty_list(args: Tuple[Item, Item]) -> ListMaker:
+    return ListMaker(args[0].start, args[1].end, [])
+
+
 @dataclasses.dataclass(frozen=True)
 class DictMaker(Item):
     items: Sequence[Tuple[Item, Item]]
@@ -697,6 +701,10 @@ def make_dict(args: Tuple[Item, Item, List[Tuple[Item, Item]]]) -> DictMaker:
     if len(args) > 2:
         lst += args[2]
     return DictMaker(lst[0][0].start, lst[-1][1].end, lst)
+
+
+def make_empty_dict(args: Tuple[Item, Item]) -> DictMaker:
+    return DictMaker(args[0].start, args[0].end, [])
 
 
 def a(value: str) -> Parser:
@@ -832,7 +840,10 @@ FACTOR.define((OP_PLUS | OP_MINUS) + FACTOR >> make_unary_op_expr | ATOM_EXPR)
 
 EXPR.define(DISJUNCTION)  # Just synonym
 
-LIST_MAKER.define((LSQB + EXPR + many(COMMA + EXPR) + maybe(COMMA) + RSQB) >> make_list)
+LIST_MAKER.define(
+    (LSQB + EXPR + many(COMMA + EXPR) + maybe(COMMA) + RSQB) >> make_list
+    | (a("[") + a("]")) >> make_empty_list
+)
 
 DICT_MAKER.define(
     (
@@ -845,6 +856,7 @@ DICT_MAKER.define(
         + RBRACE
     )
     >> make_dict
+    | (a("{") + a("}")) >> make_empty_dict
 )
 
 TMPL: Final = (OPEN_TMPL + EXPR + CLOSE_TMPL) | (OPEN_TMPL2 + EXPR + CLOSE_TMPL2)
