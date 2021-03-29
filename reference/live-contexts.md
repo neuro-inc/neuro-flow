@@ -1,6 +1,6 @@
 # Live contexts
 
-This page describes the contexts the [Live workflow](live-workflow-syntax.md#live-workflow) can use in expressions for calculating YAML attribute values.
+This page describes the contexts a [live workflow](live-workflow-syntax.md#live-workflow) can use in expressions for calculating YAML attribute values.
 
 ## Live Contexts
 
@@ -23,6 +23,8 @@ The `env` context syntax allows you to use the value of an environment variable 
 | Property name | Type | Description |
 | :--- | :--- | :--- |
 | `env.<env-name>` | `str` | The value of a specific environment variable. |
+
+This context also allows using dictionaries to specify multiple variables at once.
 
 ### `flow` context
 
@@ -184,6 +186,8 @@ Tags are combined from system tags \(`project:<project-id>`, `job:<job-id>`\), f
 | Property name | Type | Description |
 | :--- | :--- | :--- |
 | `tags` | `set[str]` | This context changes for each job. You can access this context from any job. |
+
+This context also allows using lists to specify multiple tags at once.
 
 ### `volumes` context
 

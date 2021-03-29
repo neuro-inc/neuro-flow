@@ -45,6 +45,8 @@ The `env` context syntax allows you to use the value of an environment variable 
 | :--- | :--- | :--- |
 | `env.<env-name>` | `str` | The value of a specific environment variable. |
 
+This context also allows using dictionaries to specify multiple variables at once.
+
 ### `tags` context
 
 A set of job tags.
@@ -54,6 +56,8 @@ Tags available in this context are combined from system tags \(`project:<project
 | Property name | Type | Description |
 | :--- | :--- | :--- |
 | `tags` | `set[str]` | This context changes for each job. You can access this context from any job. |
+
+This context also allows using lists to specify multiple tags at once.
 
 ### `volumes` context
 
@@ -144,6 +148,8 @@ Contains information about volumes defined in the [`volumes` section ](batch-wor
     </tr>
   </tbody>
 </table>
+
+This context also allows using lists and dictionaries to specify multiple volumes at once.
 
 ### `images` context
 
