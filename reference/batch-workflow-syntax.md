@@ -191,7 +191,7 @@ cache:
 
 ## `params`
 
-Mapping of key-value pairs that have default value and could be overridden from the command line by using `neuro-flow bake <batch-id> --param name1 val1 --param name2 val2`.
+Mapping of key-value pairs that have default values.
 
 This attribute describes a set of names and default values of parameters accepted by a flow.
 
@@ -219,6 +219,28 @@ params:
   name3:
     default: ""
     descr: The name3 description
+```
+
+This attribute can be overridden from the command line in two ways while running a batch in Neuro CLI: 
+
+1. Specifying the parameters through `--param`.
+
+```yaml
+> neuro-flow bake <batch-id> --param name1 val1 --param name2 val2
+```
+
+2. Pointing to a YAML file with parameter descriptions through `--meta-from-file`.
+
+```yaml
+> neuro-flow bake --meta-from-file <some-file> 
+```
+
+The file should have the following structure:
+
+```yaml
+param1: value
+param2: value
+...
 ```
 
 **Expression contexts:** This attribute only allows expressions that don't access contexts. 
@@ -392,6 +414,33 @@ In this case, tasks will be executed in the following order:
 
 1. task\_1 and task\_2 \(simultaneously\)
 2. task\_3
+
+**Example 3**
+
+```yaml
+tasks:
+  - id: task_1  
+  - id: task_2
+    needs: [] 
+  - id: task_3
+    needs: 
+      task_1: running
+      task_2: running
+```
+
+Here, task\_3 will only be executed if task\_1 and task\_2 are already running simultaneously.
+
+The following are two different ways to specify needed tasks: 
+
+```yaml
+needs:
+  task_1: running
+```
+
+```yaml
+needs:
+  ${{`task_1`}}: running
+```
 
 {% hint style="info" %}
 You can use `neuro-flow inspect --view BAKE_ID` to view the graph of running batch tasks converted to a PDF file.
