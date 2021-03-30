@@ -226,13 +226,13 @@ This attribute can be overridden from the command line in two ways while running
 1. Specifying the parameters through `--param`.
 
 ```yaml
-> neuro-flow bake <batch-id> --param name1 val1 --param name2 val2
+$ neuro-flow bake <batch-id> --param name1 val1 --param name2 val2
 ```
 
 2. Pointing to a YAML file with parameter descriptions through `--meta-from-file`.
 
 ```yaml
-> neuro-flow bake --meta-from-file <some-file> 
+$ neuro-flow bake --meta-from-file <some-file> 
 ```
 
 The file should have the following structure:
