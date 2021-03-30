@@ -1,43 +1,45 @@
 # Live contexts
 
-This page describes contexts the [Live workflow](live-workflow-syntax.md#live-workflow) can use in expressions for calculating YAML attribute values.
+This page describes the contexts a [live workflow](live-workflow-syntax.md#live-workflow) can use in expressions for calculating YAML attribute values.
 
 ## Live Contexts
 
 | Context name | Description |
 | :--- | :--- |
-| `env` | Contains environment variables set in a workflow or job. For more information, see [`env` context](live-contexts.md#env-context) . |
+| `env` | Contains environment variables set in a workflow or a job. For more information, see [`env` context](live-contexts.md#env-context) . |
 | `flow` | Information about the main workflow settings, defaults, etc. See [`flow` context](live-contexts.md#flow-context) for details. |
 | `images` | Contains a mapping of images on the Neu.ro registry. See [`images` context](live-contexts.md#images-context) for details. |
 | `multi` | Multi-job context. For more information, see [`multi` context](live-contexts.md#multi-context). |
-| `params` | A mapping of workflow-global parameters. For more information, see [`params` context](live-contexts.md#params-context). |
-| `tags` | A set of job tags set in a workflow or job. See [`tags` context](live-contexts.md#tags-context) for details. |
+| `params` | A mapping of global workflow parameters. For more information, see [`params` context](live-contexts.md#params-context). |
+| `tags` | A set of job tags set in a workflow or a job. See [`tags` context](live-contexts.md#tags-context) for details. |
 | `volumes` | Contains a mapping of volume definitions. For more information, see [`volumes` context](live-contexts.md#volumes-context). |
 
 ### `env` context
 
-The `env` context contains environment variables that have been set in a workflow or job. For more information about setting environment variables in your workflow, see "[Live workflow syntax](live-workflow-syntax.md#live-workflow)."
+The `env` context contains environment variables that have been set in a workflow or a job. For more information about setting environment variables in your workflow, see "[Live workflow syntax](live-workflow-syntax.md#live-workflow)."
 
-The `env` context syntax allows you to use the value of an environment variable in your workflow file. If you want to use the value of an environment variable inside a job, use the operating system's normal method for reading environment variables.
+The `env` context syntax allows you to use the value of an environment variable in your workflow file. If you want to use the value of an environment variable inside a job, use your operating system's standard method for reading environment variables.
 
 | Property name | Type | Description |
 | :--- | :--- | :--- |
 | `env.<env-name>` | `str` | The value of a specific environment variable. |
 
+This context also allows using dictionaries to specify multiple variables at once.
+
 ### `flow` context
 
-The `flow`context contains information about the workflow: it's id, title, etc.
+The `flow` context contains information about the workflow: its id, title, etc.
 
 | Property name | Type | Description |
 | :--- | :--- | :--- |
-| `flow.flow_id` | `str` | The workflow id. It is auto-calculated from the workflow's YAML filename with a dropped suffix. You can override the property by setting [`flow.id`](live-workflow-syntax.md#id)attribute. |
-| `flow.project_id` | `str` | The project id. See also [the project configuration](project-configuration-syntax.md#id). |
+| `flow.flow_id` | `str` | The workflow's ID. It's automatically generated based on the workflow's YAML filename with a dropped suffix. You can override the property by setting the [`flow.id`](live-workflow-syntax.md#id) attribute. |
+| `flow.project_id` | `str` | The project's ID. See also: [Project configuration syntax](project-configuration-syntax.md#id). |
 | `flow.workspace` | `LocalPath` | A path to the workspace \(the root folder of the project\). |
-| `flow.title` | `str` | The workflow title. Set [`flow.title`](live-workflow-syntax.md#title) attribute to override auto-calculated value. |
+| `flow.title` | `str` | The workflow title. Set the [`flow.title`](live-workflow-syntax.md#title) attribute to override the auto-generated value. |
 
 ### `images` context
 
-Contains information about images defined in [`images` section](live-workflow-syntax.md#images) of _live_ workflow.
+Contains information about images defined in the [`images` section](live-workflow-syntax.md#images) of a _live_ workflow.
 
 <table>
   <thead>
@@ -69,7 +71,7 @@ Contains information about images defined in [`images` section](live-workflow-sy
       </td>
       <td style="text-align:left">
         <p>The context directory used for building the image or <code>None</code> if
-          the context is not set. The path is relative to the project root (<code>flow.workspace</code> property).</p>
+          the context is not set. The path is relative to the project's root (<code>flow.workspace</code> property).</p>
         <p>For more information, see <a href="live-workflow-syntax.md#images-less-than-image-id-greater-than-context"><code>images.&lt;image-id&gt;.context</code> attribute</a>.</p>
       </td>
     </tr>
@@ -78,7 +80,7 @@ Contains information about images defined in [`images` section](live-workflow-sy
       </td>
       <td style="text-align:left"><code>LocalPath</code> or <code>None</code>
       </td>
-      <td style="text-align:left">The absolute path, pointing on <code>context</code> folder if set.</td>
+      <td style="text-align:left">The absolute path, pointing to the <code>context</code> folder if set.</td>
     </tr>
     <tr>
       <td style="text-align:left"><code>images.&lt;image-id&gt;.dockerfile</code>
@@ -95,7 +97,7 @@ Contains information about images defined in [`images` section](live-workflow-sy
       </td>
       <td style="text-align:left"><code>LocalPath</code> or <code>None</code>
       </td>
-      <td style="text-align:left">Full version of <code>dockerfile</code> attribute.</td>
+      <td style="text-align:left">Full version of the <code>dockerfile</code> attribute.</td>
     </tr>
     <tr>
       <td style="text-align:left"><code>images.&lt;image-id&gt;.build_args</code>
@@ -150,9 +152,9 @@ The additional arguments passed to _multi-job_.
       <td style="text-align:left"><code>str</code>
       </td>
       <td style="text-align:left">
-        <p>Additional command-line arguments passed to <em>multi-job</em>.
-          <br />You can The command-line run defines the field as <code>neuro-flow run &lt;job-id&gt; -- &lt;args&gt;</code>.</p>
-        <p><code>multi.args</code> is usually used for passing args to command line
+        <p>Additional command line arguments passed to <em>multi-job</em>.
+          <br />The command line run defines the field as <code>neuro-flow run &lt;job-id&gt; -- &lt;args&gt;</code>.</p>
+        <p><code>multi.args</code> is mainly used for passing args to command line
           parameters accepted by <em>multi-job</em>, see <a href="live-workflow-syntax.md#jobs-less-than-job-id-greater-than-cmd"><code>jobs.&lt;job-id&gt;.cmd</code></a> for
           details.</p>
       </td>
@@ -169,7 +171,7 @@ The additional arguments passed to _multi-job_.
 
 ### `params` context
 
-Parameter described in [`jobs.<job-id>.params` attribute](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-params) and available for substitution, for example, in [`jobs.<job-id>.cmd`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-cmd) calculation.
+Parameter described in the [`jobs.<job-id>.params` attribute](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-params) and available for substitution - for example, in [`jobs.<job-id>.cmd`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-cmd) calculation.
 
 | Property name | Type | Description |
 | :--- | :--- | :--- |
@@ -179,15 +181,17 @@ Parameter described in [`jobs.<job-id>.params` attribute](live-workflow-syntax.m
 
 A set of job tags.
 
-Tags are combined from system tags \(`project:<project-id>`, `job:<job-id>`\), flow default tags \(see [`defaults.tags` attribute](live-workflow-syntax.md#defaults-tags)\) and job-specific tags \(see `jobs.<job-id>.tags` attribute\).
+Tags are combined from system tags \(`project:<project-id>`, `job:<job-id>`\), flow default tags \(see [`defaults.tags` attribute](live-workflow-syntax.md#defaults-tags)\), and job-specific tags \(see `jobs.<job-id>.tags` attribute\).
 
 | Property name | Type | Description |
 | :--- | :--- | :--- |
 | `tags` | `set[str]` | This context changes for each job. You can access this context from any job. |
 
+This context also allows using lists to specify multiple tags at once.
+
 ### `volumes` context
 
-Contains information about volumes defined in [`volumes` section ](live-workflow-syntax.md#volumes)of _live_ workflow.
+Contains information about volumes defined in the [`volumes` section ](live-workflow-syntax.md#volumes) of a _live_ workflow.
 
 <table>
   <thead>
@@ -219,7 +223,7 @@ Contains information about volumes defined in [`volumes` section ](live-workflow
       <td style="text-align:left"><code>RemotePath</code>
       </td>
       <td style="text-align:left">
-        <p>The path inside a job where the volume should be mounted in.</p>
+        <p>The path inside a job by which the volume should be mounted.</p>
         <p>For more information, see <a href="live-workflow-syntax.md#volumes-less-than-volume-id-greater-than-mount"><code>volumes.&lt;volume-id&gt;.mount</code> attribute</a>.</p>
       </td>
     </tr>
@@ -239,7 +243,7 @@ Contains information about volumes defined in [`volumes` section ](live-workflow
       <td style="text-align:left"><code>LocalPath</code>or <code>None</code>
       </td>
       <td style="text-align:left">
-        <p>A path in workspace folder to syncronize with remote Neu.ro storage or <code>None</code> if
+        <p>A path in the workspace folder to synchronize with remote Neu.ro storage or <code>None</code> if
           not set.</p>
         <p>For more information, see <a href="live-workflow-syntax.md#volumes-less-than-volume-id-greater-than-local"><code>volumes.&lt;volume-id&gt;.local</code> attribute</a>.</p>
       </td>
