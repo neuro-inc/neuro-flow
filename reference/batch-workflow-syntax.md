@@ -223,13 +223,13 @@ params:
 
 This attribute can be overridden from the command line in two ways while running a batch in Neuro CLI: 
 
-1. Specifying the parameters through `--param`.
+* Specifying the parameters through `--param`.
 
 ```yaml
 $ neuro-flow bake <batch-id> --param name1 val1 --param name2 val2
 ```
 
-2. Pointing to a YAML file with parameter descriptions through `--meta-from-file`.
+* Pointing to a YAML file with parameter descriptions through `--meta-from-file`.
 
 ```yaml
 $ neuro-flow bake --meta-from-file <some-file> 
