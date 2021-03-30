@@ -1,6 +1,6 @@
 # Getting started
 
-`neuro-flow` is a tool that simplifies daily jobs with the Neu.ro platform.
+`neuro-flow` is a tool that simplifies daily jobs on the Neu.ro platform.
 
 Neuro Flow provides users the ability to create YAML files that configure routine things, for example, starting a Jupiter Notebook on the platform, starting a training pipeline, opening a file browser for remote storage, etc.
 
