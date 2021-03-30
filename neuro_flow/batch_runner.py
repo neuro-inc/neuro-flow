@@ -197,7 +197,6 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             await run_subproc(
                 "neuro",
                 "run",
-                "--restart=on-failure",
                 "--pass-config",
                 f"--tag=project:{data.project}",
                 f"--tag=flow:{data.batch}",
