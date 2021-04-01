@@ -276,7 +276,7 @@ This attribute also supports lists and dictionaries as values:
 ```yaml
 images:
   my_image:
-    volumes: ${{ ['ubuntu', volumes.volume_id.ref] }}
+    volumes: ${{ ['storage:path/to:/mnt/path/to', volumes.volume_id.ref] }}
 ```
 
 **Expression contexts:** [`flow` context](live-contexts.md#flow-context).
@@ -290,7 +290,7 @@ Volumes can be synchronized between local and storage versions with the `neuro-f
 {% hint style="info" %}
 The `volumes` section is optional. A job can mount a volume by a direct reference string.
 
-However, this section is very handy to use in a bundle with `run`, `upload`, and `download` commands: define a volume once and refer to it everywhere by name instead of using full definition definition details.
+However, this section is very handy to use in a bundle with `run`, `upload`, and `download` commands: define a volume once and refer to it everywhere by name instead of using full definition details.
 {% endhint %}
 
 ### `volumes.<volume-id>`

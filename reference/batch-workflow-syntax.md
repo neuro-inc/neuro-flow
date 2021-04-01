@@ -2,7 +2,7 @@
 
 ## _Batch_ workflow
 
-Batch workflows are located in the `.neuro/<batch-name>.yml` or `.neuro/<batch-name>.yaml` file under the project's root. The config filename should be be lowercase and not start with a digit if the [`id`](batch-workflow-syntax.md#id) attribute is not specified. The following YAML attributes are supported:
+Batch workflows are located in the `.neuro/<batch-name>.yml` or `.neuro/<batch-name>.yaml` file under the project's root. The config filename should be lowercase and not start with a digit if the [`id`](batch-workflow-syntax.md#id) attribute is not specified. The following YAML attributes are supported:
 
 ## `kind`
 
