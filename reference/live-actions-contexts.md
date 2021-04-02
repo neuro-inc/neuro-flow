@@ -1,6 +1,6 @@
 # Actions contexts
 
-This page describes contexts that [Live actions](actions-syntax.md#kind-live-actions) can use in expressions for calculating YAML attribute values.
+This page describes contexts that [actions](actions-syntax.md) can use in expressions for calculating YAML attribute values.
 
 ## Action Contexts
 

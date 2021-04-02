@@ -97,7 +97,7 @@ ${{ from_json('{"array": [1, 2, 3], "value": "value"}').value }}
 
 ### `upload(volume_ctx)`
 
-Upload the volume to the Neu.ro storage and then return the passed argument back. The argument should contain an entry of the [`volumes` context](live-contexts.md#volumes-context). The function will fail if the [`local` attribute](live-workflow-syntax.md#volumes-less-than-volume-id-greater-than-local) is not set for the corresponding volume definition in the workflow file. 
+Upload the volume to the Neu.ro storage and then return the passed argument back. The argument should contain an entry of the [`volumes` context](live-contexts.md#volumes-context). The function will fail if the [`local` attribute](live-workflow-syntax.md#volumes-less-than-volume-id-greater-than-local) is not set for the corresponding volume definition in the workflow file.
 
 This function allows to automatically upload a volume before a job runs.
 
@@ -116,7 +116,7 @@ jobs:
 
 ### `parse_volume(string)`
 
-Parse a volume reference string into an object that resembles an entry of the [`volumes`  context](live-contexts.md#volumes-context). The `id` property will be set to `"<volume>"`, and the `local` property will be set to `None`.
+Parse a volume reference string into an object that resembles an entry of the [`volumes` context](live-contexts.md#volumes-context). The `id` property will be set to `"<volume>"`, and the `local` property will be set to `None`.
 
 **Example:**
 
@@ -189,7 +189,7 @@ tasks:
 
 ### `failure([task_id, ...])`
 
-Returns `True` if at least one of the specified tasks failed. If no arguments are provided, checks all tasks form [`tasks.needs`](batch-workflow-syntax.md#tasks-needs). This function doesn't enable task execution if a ependency is skipped or cancelled.
+Returns `True` if at least one of the specified tasks failed. If no arguments are provided, checks all tasks form [`tasks.needs`](batch-workflow-syntax.md#tasks-needs). This function doesn't enable task execution if a dependency is skipped or cancelled.
 
 **Example:**
 
@@ -208,7 +208,7 @@ tasks:
 
 ### `always()`
 
-Returns a special mark so that Neuro Flow will always run this task, even if some tasks in [`tasks.needs`](batch-workflow-syntax.md#tasks-needs) have failed or were skipped, or the workflowflow was [cancelled](cli.md#neuro-flow-cancel).
+Returns a special mark so that Neuro Flow will always run this task, even if some tasks in [`tasks.needs`](batch-workflow-syntax.md#tasks-needs) have failed or were skipped, or the workflow was [cancelled](cli.md#neuro-flow-cancel).
 
 **Example:**
 

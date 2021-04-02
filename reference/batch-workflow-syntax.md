@@ -2,7 +2,7 @@
 
 ## _Batch_ workflow
 
-Batch workflows are located in the `.neuro/<batch-name>.yml` or `.neuro/<batch-name>.yaml` file under the project's root. The config filename should be be lowercase and not start with a digit if the [`id`](batch-workflow-syntax.md#id) attribute is not specified. The following YAML attributes are supported:
+Batch workflows are located in the `.neuro/<batch-name>.yml` or `.neuro/<batch-name>.yaml` file under the project's root. The config filename should be lowercase and not start with a digit if the [`id`](batch-workflow-syntax.md#id) attribute is not specified. The following YAML attributes are supported:
 
 ## `kind`
 
@@ -18,7 +18,7 @@ Identifier of the workflow. By default, the `id` is generated from the filename 
 
 Workflow title.
 
-**Expression contexts:** This attribute only allows expressions that don't access contexts. 
+**Expression contexts:** This attribute only allows expressions that don't access contexts.
 
 ## `defaults`
 
@@ -37,7 +37,7 @@ env:
   SERVER: production
 ```
 
-This attribute also supports lists and dictionaries as values:
+This attribute also supports dictionaries as values:
 
 ```yaml
 env: ${{ {'global_a': 'val-a', 'global_b': 'val-b'} }}
@@ -111,7 +111,7 @@ defaults:
   tags: [tag-a, tag-b]
 ```
 
-This attribute supports lists and dictionaries as values.
+This attribute supports lists as values.
 
 ### `defaults.workdir`
 
@@ -221,7 +221,7 @@ params:
     descr: The name3 description
 ```
 
-This attribute can be overridden from the command line in two ways while running a batch in Neuro CLI: 
+This attribute can be overridden from the command line in two ways while running a batch in Neuro CLI:
 
 * Specifying the parameters through `--param`.
 
@@ -232,7 +232,7 @@ $ neuro-flow bake <batch-id> --param name1 val1 --param name2 val2
 * Pointing to a YAML file with parameter descriptions through `--meta-from-file`.
 
 ```yaml
-$ neuro-flow bake --meta-from-file <some-file> 
+$ neuro-flow bake --meta-from-file <some-file>
 ```
 
 The file should have the following structure:
@@ -243,7 +243,7 @@ param2: value
 ...
 ```
 
-**Expression contexts:** This attribute only allows expressions that don't access contexts. 
+**Expression contexts:** This attribute only allows expressions that don't access contexts.
 
 ## `images`
 
@@ -258,7 +258,7 @@ However, this section exists for convenience: there is no need to repeat yoursel
 {% endhint %}
 
 {% hint style="danger" %}
-The following fields are disabled in _batch_ flows and will be ignored:
+The following fields are disabled in _batch_ workflows and will be ignored:
 
 * **`images.<image-id>.context`**
 * **`images.<image-id>.dockerfile`**
@@ -372,7 +372,7 @@ A unique identifier for the task. It's used to reference the task in [`tasks.nee
 It is impossible to refer to tasks without an ID inside the workflow file, but you can refer to them as `task-<num>` in the command line output. Here, `<num>` is an index from the [`tasks`](batch-workflow-syntax.md#tasks) list.
 {% endhint %}
 
-**Expression contexts:**  [`matrix` context](batch-contexts.md#matrix-context).
+**Expression contexts:** [`matrix` context](batch-contexts.md#matrix-context).
 
 ### `tasks.needs`
 
@@ -430,7 +430,7 @@ tasks:
 
 Here, task\_3 will only be executed if task\_1 and task\_2 are already running simultaneously.
 
-The following are two different ways to specify needed tasks: 
+The following are two different ways to specify needed tasks:
 
 ```yaml
 needs:
@@ -439,14 +439,14 @@ needs:
 
 ```yaml
 needs:
-  ${{`task_1`}}: running
+  ${{ 'task_1' }}: running
 ```
 
 {% hint style="info" %}
 You can use `neuro-flow inspect --view BAKE_ID` to view the graph of running batch tasks converted to a PDF file.
 {% endhint %}
 
-**Expression contexts:**  [`matrix` context](batch-contexts.md#matrix-context).
+**Expression contexts:** [`matrix` context](batch-contexts.md#matrix-context).
 
 ### `tasks.enable`
 
@@ -497,7 +497,7 @@ In this example, tasks with IDs `a_x`, `a_y`, `b_x`, `b_y` will be generated.
 Auto-generated IDs for matrix tasks will have suffixes in the form of `-<param-1>-<param-2>`
 {% endhint %}
 
-**Expression contexts:** Matrix values only allows expressions that don't access contexts. 
+**Expression contexts:** Matrix values only allows expressions that don't access contexts.
 
 ### `tasks.strategy.matrix.exclude`
 
@@ -522,7 +522,7 @@ strategy:
 
 In this example, tasks with IDs `a_x_2`, `a_y_1`, `a_y_2`, `b_x_1`, `b_x_2` will be generated.
 
-**Expression contexts:** Matrix values only allows expressions that don't access contexts. 
+**Expression contexts:** Matrix values only allows expressions that don't access contexts.
 
 ### `tasks.strategy.matrix.include`
 
@@ -543,7 +543,7 @@ strategy:
 
 In this example, tasks with IDs `a_x`, `a_y`, `b_x`, `b_y`, `a_z` will be generated.
 
-**Expression contexts:** Matrix values only allows expressions that don't access contexts. 
+**Expression contexts:** Matrix values only allows expressions that don't access contexts.
 
 ### `tasks.strategy.fail_fast`
 
@@ -722,7 +722,7 @@ tasks:
       ENV2: val2
 ```
 
-This attribute also supports lists and dictionaries as values:
+This attribute also supports dictionaries as values:
 
 ```yaml
 tasks:
@@ -771,7 +771,7 @@ The time period after which a task will be automatically killed.
 
 By default, tasks live 1 day. You may want to change this period by customizing the attribute.
 
-The value could be: 
+The value could be:
 
 * A float number representing an amount of seconds \(`3600` for an hour\) 
 * An expression in the following format: `1d6h15m` \(1 day, 6 hours, 15 minutes\) 
@@ -829,9 +829,9 @@ Use this attribute if you want to increase the _schedule timeout_. This will pre
 
 If the Neu.ro cluster has no resources to launch a task immediately, this task is pushed into the waiting queue. If the task is not started yet at the end of the _schedule timeout_, it will be failed.
 
-The default system-wide _schedule timeout_ is controlled by the cluster administrator and is usually about 5-10 minutes. 
+The default system-wide _schedule timeout_ is controlled by the cluster administrator and is usually about 5-10 minutes.
 
-The value of this attribute can be: 
+The value of this attribute can be:
 
 * A `float` number representing an amount of seconds 
 * A string in the following format: `1d6h15m45s` \(1 day, 6 hours, 15 minutes, 45 seconds\)
@@ -860,7 +860,7 @@ task:
     - tag-b
 ```
 
-This attribute also supports lists and dictionaries as values:
+This attribute also supports lists as values:
 
 ```yaml
 task:
@@ -888,7 +888,7 @@ tasks:
     - ${{ volumes.my_volume.ref }}
 ```
 
-This attribute also supports lists and dictionaries as values:
+This attribute also supports lists as values:
 
 ```yaml
 tasks:
@@ -911,7 +911,7 @@ The attributes described in this section are only applicable to action calls. An
 
 ### `tasks.action`
 
-A URL that selects an action to run. It supports two schemes: 
+A URL that selects an action to run. It supports two schemes:
 
 * `workspace:` or `ws:` for action files that are stored locally
 * `github:` or `gh:` for actions that are bound to a Github repository
@@ -934,7 +934,7 @@ tasks:
   - action: gh:username/repository@v1
 ```
 
-**Expression contexts:** This attribute only allows expressions that don't access contexts. 
+**Expression contexts:** This attribute only allows expressions that don't access contexts.
 
 ### `tasks.args`
 

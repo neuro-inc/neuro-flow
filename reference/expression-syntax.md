@@ -49,7 +49,7 @@ In order to use property dereference syntax, the property name must:
 
 ## Literals
 
-As part of an expression, you can use `None`, `bool`, `int`, `float`, or `string` data types. 
+As part of an expression, you can use `None`, `bool`, `int`, `float`, or `string` data types.
 
 <table>
   <thead>
