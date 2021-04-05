@@ -40,7 +40,7 @@ env:
   SERVER: production
 ```
 
-This attribute also supports lists and dictionaries as values:
+This attribute also supports dictionaries as values:
 
 ```yaml
 env: ${{ ['SERVER': 'production'] }}
@@ -246,7 +246,7 @@ images:
       ENV2: val2
 ```
 
-This attribute also supports lists and dictionaries as values:
+This attribute also supports dictionaries as values:
 
 ```yaml
 images:
@@ -271,7 +271,7 @@ images:
     - volumes.volume_id.ref
 ```
 
-This attribute also supports lists and dictionaries as values:
+This attribute also supports lists as values:
 
 ```yaml
 images:
@@ -578,7 +578,7 @@ jobs:
       ENV2: val2
 ```
 
-This attribute also supports lists and dictionaries as values:
+This attribute also supports dictionaries as values:
 
 ```yaml
 jobs:
@@ -715,7 +715,7 @@ jobs:
     - 9200:9200  # Default Zipkin port
 ```
 
-This attribute also supports lists and dictionaries as values:
+This attribute also supports lists as values:
 
 ```yaml
 jobs:
@@ -770,7 +770,7 @@ jobs:
     - tag-b
 ```
 
-This attribute also supports lists and dictionaries as values:
+This attribute also supports lists as values:
 
 ```yaml
 jobs:
@@ -798,7 +798,7 @@ jobs:
     - ${{ volumes.my_volume.ref }}
 ```
 
-This attribute also supports lists and dictionaries as values:
+This attribute also supports lists as values:
 
 ```yaml
 jobs:
