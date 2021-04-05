@@ -394,7 +394,6 @@ class BatchExecutor:
         needs = self._tasks_mgr.build_needs(
             prefix, self._only_completed_needs(flow.graph[tid])
         )
-        assert isinstance(flow, RunningBatchFlow)
         return await flow.get_local(tid, needs=needs)
 
     async def _get_action(self, full_id: FullID) -> RunningBatchActionFlow:
@@ -800,11 +799,10 @@ class LocalsBatchExecutor(BatchExecutor):
         st = await self._storage.start_action(self._attempt, full_id)
         self._mark_started(st)
         self._progress.log(f"Local action {fmt_id(st.id)} is", TaskStatus.PENDING)
-
         subprocess = await asyncio.create_subprocess_shell(
             local.cmd,
             stdout=asyncio.subprocess.PIPE,
-            cwd=local.workdir,
+            cwd=self._top_flow.workspace,
         )
         (stdout_data, stderr_data) = await subprocess.communicate()
         async with CmdProcessor() as proc:
@@ -834,16 +832,18 @@ class LocalsBatchExecutor(BatchExecutor):
         for key, value in ft.outputs.items():
             self._progress.log(f"  {key}: {value}")
 
-    async def _process_action(self, full_id: FullID) -> None:
-        pass  # Skip for local
-
     async def _process_task(self, full_id: FullID) -> None:
         pass  # Skip for local
 
     async def _should_continue(self) -> bool:
         for full_id, flow in self._graphs.get_ready_with_meta():
             if await flow.is_local(full_id[-1]):
-                return True
+                return True  # Has local action
+            if (
+                await flow.is_action(full_id[-1])
+                and full_id not in self._tasks_mgr.started
+            ):
+                return True  # Has unchecked batch action
         return False
 
     async def _finish_run(self, attempt_status: TaskStatus) -> None:

@@ -12,7 +12,20 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 from types import TracebackType
-from typing import AbstractSet, Dict, List, Mapping, Optional, Tuple, Type
+from typing import (
+    AbstractSet,
+    Awaitable,
+    Callable,
+    Dict,
+    Iterable,
+    List,
+    Mapping,
+    Optional,
+    Set,
+    Tuple,
+    Type,
+    cast,
+)
 from typing_extensions import AsyncContextManager, AsyncIterator
 
 import neuro_flow
@@ -21,7 +34,7 @@ from .batch_executor import BatchExecutor, ExecutorData, LocalsBatchExecutor
 from .colored_topo_sorter import ColoredTopoSorter
 from .commands import CmdProcessor
 from .config_loader import BatchLocalCL
-from .context import EMPTY_ROOT, EarlyBatch, RunningBatchFlow
+from .context import EMPTY_ROOT, EarlyBatch, EarlyLocalCall, RunningBatchFlow
 from .parser import ConfigDir
 from .storage import Attempt, Bake, FinishedTask, Storage
 from .types import FullID, LocalPath, TaskStatus
@@ -107,6 +120,8 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                 # TODO: sync volumes if needed
                 raise NotImplementedError("Volumes sync is not supported")
 
+        await self._check_no_cycles(flow)
+        await self._check_local_deps(flow)
         graphs = await self._build_graphs(flow)
 
         self._console.log(
@@ -134,26 +149,99 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             suffix=bake.suffix,
         )
 
+    async def _run_for_each_flow(
+        self,
+        flow: EarlyBatch,
+        callback: Callable[[FullID, EarlyBatch], Awaitable[None]],
+    ) -> None:
+        to_check: List[Tuple[FullID, EarlyBatch]] = [((), flow)]
+        while to_check:
+            prefix, flow = to_check.pop(0)
+            await callback(prefix, flow)
+            for tid in flow.graph:
+                if await flow.is_action(tid):
+                    sub_flow = await flow.get_action_early(tid)
+                    to_check.append((prefix + (tid,), sub_flow))
+
+    async def _check_no_cycles(self, top_flow: RunningBatchFlow) -> None:
+        async def check_cycle(_: FullID, flow: EarlyBatch) -> None:
+            ColoredTopoSorter(flow.graph)
+
+        await self._run_for_each_flow(top_flow, check_cycle)
+
+    async def _check_local_deps(self, top_flow: RunningBatchFlow) -> None:
+        # This methods works in O(kn^3), where:
+        # - n is number of tasks in the flow
+        # - k is maximal depths of actions
+        # This complexity is because:
+        # For each task (n) for task's each dependency (n) and for each remote task (n)
+        # do prefix check (k). Note that task are ofter have a few dependencies,
+        # so in real cases one of those n effectively const.
+        #
+        # If performance becomes a problem, it can be replaced
+        # with Trie (prefix tree) to reduce time complexity to O(kn^2)
+        # (for each task (n) for each task's dependency (n) do Trie check (k))
+
+        runs_on_remote: Set[FullID] = set()
+
+        def _is_prefix(item: FullID, prefix: FullID) -> bool:
+            if len(item) < len(prefix):
+                return False
+            return all(x == y for (x, y) in zip(item, prefix))
+
+        def _remote_deps(prefix: FullID, deps: Iterable[str]) -> Iterable[FullID]:
+            return (
+                remote
+                for dep in deps
+                for remote in runs_on_remote
+                if _is_prefix(remote, prefix + (dep,))
+            )
+
+        async def _collect_remotes(prefix: FullID, flow: EarlyBatch) -> None:
+            runs_on_remote.update(
+                {prefix + (tid,) for tid in flow.graph if await flow.is_task(tid)}
+            )
+
+        await self._run_for_each_flow(top_flow, _collect_remotes)
+
+        async def _check_locals(prefix: FullID, flow: EarlyBatch) -> None:
+            early_locals = cast(
+                AsyncIterator[EarlyLocalCall],
+                (
+                    await flow.get_local_early(tid)
+                    for tid in flow.graph
+                    if await flow.is_local(tid)
+                ),
+            )
+            with_bad_deps = (
+                (early_local, remote)
+                async for early_local in early_locals
+                for remote in _remote_deps(prefix, early_local.needs)
+            )
+            async for early_local, remote in with_bad_deps:
+                early_local_str = ".".join(prefix + (early_local.real_id,))
+                remote_str = ".".join(remote)
+                raise Exception(
+                    f"Local action '{early_local_str}' depends on remote "
+                    f"task '{remote_str}'. This is not supported because "
+                    "all local action should succeed before "
+                    "remote executor starts."
+                )
+
+        await self._run_for_each_flow(top_flow, _check_locals)
+
     async def _build_graphs(
         self, top_flow: RunningBatchFlow
     ) -> Mapping[FullID, Mapping[FullID, AbstractSet[FullID]]]:
         graphs = {}
-        to_check: List[Tuple[FullID, EarlyBatch]] = [((), top_flow)]
-        while to_check:
-            prefix, flow = to_check.pop(0)
-            graph = flow.graph
+
+        async def _make_graph(prefix: FullID, flow: EarlyBatch) -> None:
             graphs[prefix] = {
                 prefix + (key,): {prefix + (node,) for node in nodes}
-                for key, nodes in graph.items()
+                for key, nodes in flow.graph.items()
             }
 
-            # check fast for the graph cycle error
-            ColoredTopoSorter(flow.graph)
-
-            for tid in graph:
-                if await flow.is_action(tid):
-                    sub_flow = await flow.get_action_early(tid)
-                    to_check.append((prefix + (tid,), sub_flow))
+        await self._run_for_each_flow(top_flow, _make_graph)
         return graphs
 
     # Next function is also used in tests:
