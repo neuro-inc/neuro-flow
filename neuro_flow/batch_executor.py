@@ -802,14 +802,17 @@ class LocalsBatchExecutor(BatchExecutor):
         subprocess = await asyncio.create_subprocess_shell(
             local.cmd,
             stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
             cwd=self._top_flow.workspace,
         )
         (stdout_data, stderr_data) = await subprocess.communicate()
         async with CmdProcessor() as proc:
             async for line in proc.feed_chunk(stdout_data):
-                self._progress.log(line)
+                self._progress.log(line.decode())
             async for line in proc.feed_eof():
-                self._progress.log(line)
+                self._progress.log(line.decode())
+        if stderr_data:
+            self._progress.log(stderr_data.decode())
         if subprocess.returncode == 0:
             result_status = TaskStatus.SUCCEEDED
         else:
