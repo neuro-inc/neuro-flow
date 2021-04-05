@@ -376,7 +376,7 @@ It is impossible to refer to tasks without an ID inside the workflow file, but y
 
 ### `tasks.needs`
 
-An array of strings identifying all tasks that must be completed before this task will run. If a task fails, all tasks that need it are skipped unless the task uses a [`tasks.enable`](batch-workflow-syntax.md#tasks-enable) statement that causes it to ignore the dependency failure.  
+An array of strings identifying all tasks that must be completed or running before this task will run. If a task fails, all tasks that need it are skipped unless the task uses a [`tasks.enable`](batch-workflow-syntax.md#tasks-enable) statement that causes it to ignore the dependency failure.  
 By default, `tasks.needs` is set to the previous task in the [`tasks`](batch-workflow-syntax.md#tasks) list. In case the previous task has [`matrix`](batch-workflow-syntax.md#tasks-strategy-matrix) enabled, the current task will only run after all matrix tasks are completed.  
 This property also specifies what entries are available in the [needs context](batch-contexts.md#needs-context).
 
@@ -428,7 +428,7 @@ tasks:
       task_2: running
 ```
 
-Here, task\_3 will only be executed if task\_1 and task\_2 are already running simultaneously.
+Here, task\_3 will only be executed if task\_1 and task\_2 are already running.
 
 The following are two different ways to specify needed tasks:
 
