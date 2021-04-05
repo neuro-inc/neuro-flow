@@ -4,15 +4,15 @@
 
 ## About contexts and expressions
 
-You can use expressions to programmatically set variables in workflow files and access contexts. An expression can be any combination of literal values, references to a context, or functions. You can combine literals, context references, and functions using operators.
+You can use expressions to programmatically set variables in workflow files and access contexts. An expression can be any combination of literal values, references to a context, or functions. You can combine literals, context references, and functions with the help of operators.
 
-You need to use specific syntax to tell Neuro Flow to evaluate an expression rather than treat it as a string.
+You need to use specific syntax to tell Neuro Flow to evaluate an expression rather than to treat it as a string.
 
 ```text
 ${{ <expression> }}
 ```
 
-### Example setting an environment variable:
+### Example - setting an environment variable:
 
 ```yaml
 env:
@@ -22,7 +22,7 @@ env:
 {% hint style="info" %}
 Sometimes curly brackets conflict with other tools in your toolchain. For example, `cookiecutter` uses `Jinja2` templates which also uses curly brackets for template formatting.
 
-In this case, `neuro-flow` accepts square brackets syntax for expressions: `$[[ <expression> ]]`. Both notations are equal and interchangeable.
+In this case, `neuro-flow` accepts the square brackets syntax for expressions: `$[[ <expression> ]]`. Both notations are equal and interchangeable.
 {% endhint %}
 
 ## Contexts
@@ -33,23 +33,23 @@ Contexts are a way to access information about workflow runs, jobs, tasks, volum
 ${{ <context> }}
 ```
 
-There are two main sets of contexts: one is available for _live_ mode and another one exists for _batch_ mode. Additionally, actions can access a specific namespace with contexts that similar but slightly different from ones from the main workflow. The following chapters describe all mentioned context namespaces in detail. Refer to [live contexts](live-contexts.md), [batch contexts](batch-contexts.md), and [actions contexts](live-actions-contexts.md) for details.
+There are two main sets of contexts: one is available for _live_ mode and another one for _batch_ mode. Additionally, actions can access a specific namespace with contexts that are similar but slightly different from ones from the main workflow. The following chapters describe all mentioned context namespaces in detail. Refer to [live contexts](live-contexts.md), [batch contexts](batch-contexts.md), and [actions contexts](live-actions-contexts.md) for details.
 
 ## Property access
 
-In the expression, you can access properties of contexts and other objects using one of the following syntaxes:
+You can access properties of contexts and other objects using one of the following syntaxes:
 
 * Index syntax: `flow['workspace']`
 * Property dereference syntax: `flow.workspace`
 
 In order to use property dereference syntax, the property name must:
 
-* start with a letter`a-Z` .
+* start with a letter`a-Z`.
 * be followed by a letter `a-Z`, digit `0-9` or underscore `_`.
 
 ## Literals
 
-As part of an expression, you can use `None`, `bool`, `int`, `float` or `string` data types. 
+As part of an expression, you can use `None`, `bool`, `int`, `float`, or `string` data types.
 
 <table>
   <thead>
@@ -75,14 +75,14 @@ As part of an expression, you can use `None`, `bool`, `int`, `float` or `string`
       </td>
       <td style="text-align:left">
         <p>Any integer defined by either decimal (<code>42</code>), hex (<code>0xFF</code>),
-          octal (<code>0o22</code>) or binary</p>
+          octal (<code>0o22</code>), or binary</p>
         <p>(<code>0b1011</code>) format.</p>
       </td>
     </tr>
     <tr>
       <td style="text-align:left"><code>float</code>
       </td>
-      <td style="text-align:left">A real number that contains digits after the dot. Exponential notation
+      <td style="text-align:left">A real number that contains digits after the period. Exponential notation
         is also supported.</td>
     </tr>
     <tr>
@@ -137,5 +137,5 @@ When a function returns an object as the result, you can access properties as us
 ${{ parse_json('{"name": "value"}').name }}
 ```
 
-Check [functions reference](expression-functions.md) for the list of available functions.
+Check the [functions reference](expression-functions.md) for the list of available functions.
 

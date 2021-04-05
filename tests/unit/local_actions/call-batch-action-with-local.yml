@@ -1,0 +1,4 @@
+kind: batch
+tasks:
+- id: call_action
+  action: ws:call-cp

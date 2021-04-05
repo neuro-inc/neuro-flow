@@ -25,6 +25,7 @@ from pathlib import Path
 from rich import get_console
 from tempfile import TemporaryDirectory
 from typing import (
+    Any,
     AsyncIterator,
     Awaitable,
     Callable,
@@ -104,11 +105,13 @@ class JobsMock:
 
     _data: Dict[str, JobDescription]
     _outputs: Dict[str, bytes]
+    exception_on_status: Optional[BaseException]
 
     def __init__(self) -> None:
         self.id_counter = 0
         self._data = {}
         self._outputs = {}
+        self.exception_on_status = None
 
     def _make_next_id(self) -> int:
         self.id_counter += 1
@@ -262,6 +265,8 @@ class JobsMock:
         self._data[descr.id] = descr
 
     async def status(self, job_id: str) -> JobDescription:
+        if self.exception_on_status:
+            raise self.exception_on_status
         try:
             return self._data[job_id]
         except KeyError:
@@ -329,15 +334,15 @@ async def patched_client(
 @pytest.fixture()
 def start_locals_executor(
     batch_storage: Storage, patched_client: Client
-) -> Callable[[ExecutorData], Awaitable[None]]:
-    async def start(data: ExecutorData) -> None:
+) -> Callable[[ExecutorData], Awaitable[TaskStatus]]:
+    async def start(data: ExecutorData) -> TaskStatus:
         async with LocalsBatchExecutor.create(
             get_console(),
             data,
             patched_client,
             batch_storage,
         ) as executor:
-            await executor.run()
+            return await executor.run()
 
     return start
 
@@ -359,7 +364,9 @@ def start_executor(
     return start
 
 
-RunExecutor = Callable[[Path, str], Awaitable[Dict[Tuple[str, ...], FinishedTask]]]
+RunExecutor = Callable[
+    [Path, str], Awaitable[Tuple[Dict[Tuple[str, ...], FinishedTask], TaskStatus]]
+]
 
 
 @pytest.fixture()
@@ -371,17 +378,18 @@ def run_executor(
 ) -> RunExecutor:
     async def run(
         config_loc: Path, batch_name: str, args: Optional[Mapping[str, str]] = None
-    ) -> Dict[Tuple[str, ...], FinishedTask]:
+    ) -> Tuple[Dict[Tuple[str, ...], FinishedTask], TaskStatus]:
         runner = await make_batch_runner(config_loc)
         data, _ = await runner._setup_bake(batch_name, args)
-        await start_locals_executor(data)
-        await start_executor(data)
+        status = await start_locals_executor(data)
+        if status == TaskStatus.SUCCEEDED:
+            await start_executor(data)
         bake = await batch_storage.fetch_bake(
             data.project, data.batch, data.when, data.suffix
         )
         attempt = await batch_storage.find_attempt(bake)
         _, finished = await batch_storage.fetch_attempt(attempt)
-        return finished
+        return finished, attempt.result
 
     return run
 
@@ -456,6 +464,16 @@ async def test_complex_seq(
     await asyncio.wait_for(executor_task, timeout=5)
 
 
+class FakeForceStopException(BaseException):
+    # Used to simulate almost instant kills of executor
+    pass
+
+
+def run_in_loop(coro: Awaitable[Any]) -> Any:
+    loop = asyncio.new_event_loop()
+    return loop.run_until_complete(coro)
+
+
 async def test_complex_seq_continue(
     jobs_mock: JobsMock,
     batch_storage: Storage,
@@ -463,7 +481,10 @@ async def test_complex_seq_continue(
     batch_runner: BatchRunner,
 ) -> None:
     data, _ = await batch_runner._setup_bake("batch-complex-seq")
-    executor_task = asyncio.ensure_future(start_executor(data))
+    # Use separate thread to allow force abort
+    executor_task = asyncio.get_event_loop().run_in_executor(
+        None, run_in_loop, start_executor(data)
+    )
 
     await jobs_mock.get_task("task_1_a")
     await jobs_mock.get_task("task_1_b")
@@ -483,13 +504,14 @@ async def test_complex_seq_continue(
     await jobs_mock.get_task("task_2_after")
     await jobs_mock.mark_done("task_2_after")
 
-    executor_task.cancel()
+    jobs_mock.exception_on_status = FakeForceStopException()
     try:
         await executor_task
-    except asyncio.CancelledError:
+    except FakeForceStopException:
         pass
+    jobs_mock.exception_on_status = None
 
-    executor_task = asyncio.ensure_future(start_executor(data))
+    executor_task_2 = asyncio.ensure_future(start_executor(data))
 
     await jobs_mock.mark_started("task_2_at_running.task_2")
 
@@ -500,7 +522,7 @@ async def test_complex_seq_continue(
         "task_2_at_running.task_2", b"::set-output name=task2::Task 2 val 2"
     )
 
-    await asyncio.wait_for(executor_task, timeout=5)
+    await asyncio.wait_for(executor_task_2, timeout=5)
 
 
 async def test_complex_seq_continue_2(
@@ -510,7 +532,10 @@ async def test_complex_seq_continue_2(
     batch_runner: BatchRunner,
 ) -> None:
     data, _ = await batch_runner._setup_bake("batch-complex-seq")
-    executor_task = asyncio.ensure_future(start_executor(data))
+    # Use separate thread to allow force abort
+    executor_task = asyncio.get_event_loop().run_in_executor(
+        None, run_in_loop, start_executor(data)
+    )
 
     await jobs_mock.get_task("task_1_a")
     await jobs_mock.get_task("task_1_b")
@@ -524,17 +549,19 @@ async def test_complex_seq_continue_2(
     )
     await jobs_mock.get_task("task_2_at_running.task_2")
     await jobs_mock.mark_started("task_2_at_running.task_2")
-    executor_task.cancel()
+
+    jobs_mock.exception_on_status = FakeForceStopException()
     try:
         await executor_task
-    except asyncio.CancelledError:
+    except FakeForceStopException:
         pass
+    jobs_mock.exception_on_status = None
 
     await jobs_mock.mark_done(
         "task_2_at_running.task_2", b"::set-output name=task2::Task 2 val 2"
     )
 
-    executor_task = asyncio.ensure_future(start_executor(data))
+    executor_task_2 = asyncio.ensure_future(start_executor(data))
 
     await jobs_mock.mark_done("task_1_a")
     await jobs_mock.mark_done("task_1_b")
@@ -545,7 +572,7 @@ async def test_complex_seq_continue_2(
     await jobs_mock.get_task("task_3")
     await jobs_mock.mark_done("task_3")
 
-    await asyncio.wait_for(executor_task, timeout=5)
+    await asyncio.wait_for(executor_task_2, timeout=5)
 
 
 async def test_complex_seq_restart(
@@ -880,6 +907,61 @@ async def test_local_action(
         await executor_task
 
 
+@pytest.mark.skipif(
+    sys.platform == "win32", reason="cp command is not support by Windows"
+)
+async def test_action_with_local_action(
+    jobs_mock: JobsMock,
+    assets: Path,
+    run_executor: Callable[[Path, str], Awaitable[None]],
+) -> None:
+    with TemporaryDirectory() as dir:
+        ws = LocalPath(dir) / "local_actions"
+        shutil.copytree(assets / "local_actions", ws)
+
+        executor_task = asyncio.ensure_future(
+            run_executor(ws, "call-batch-action-with-local")
+        )
+        descr = await jobs_mock.get_task("call_action.remote-task")
+        assert descr.container.command
+        assert "echo 0" in descr.container.command
+
+        assert (ws / "file").read_text() == "test\n"
+        assert (ws / "file_copy").read_text() == "test\n"
+
+        await jobs_mock.mark_done("call_action.remote-task")
+
+        await executor_task
+
+
+async def test_local_deps_on_remote_1(
+    jobs_mock: JobsMock,
+    assets: Path,
+    make_batch_runner: MakeBatchRunner,
+    run_executor: Callable[[Path, str], Awaitable[None]],
+) -> None:
+    batch_runner = await make_batch_runner(assets / "local_actions")
+    with pytest.raises(
+        Exception, match=r"Local action 'local' depends on remote task 'remote'"
+    ):
+        await batch_runner._setup_bake("bad-order")
+
+
+async def test_local_deps_on_remote_2(
+    jobs_mock: JobsMock,
+    assets: Path,
+    make_batch_runner: MakeBatchRunner,
+    run_executor: Callable[[Path, str], Awaitable[None]],
+) -> None:
+    batch_runner = await make_batch_runner(assets / "local_actions")
+    with pytest.raises(
+        Exception,
+        match=r"Local action 'local' depends on "
+        r"remote task 'call_action.remote_task'",
+    ):
+        await batch_runner._setup_bake("bad-order-through-action")
+
+
 async def test_stateful_no_post(
     jobs_mock: JobsMock,
     assets: Path,
@@ -1083,7 +1165,10 @@ async def test_fully_cached_simple(
     await jobs_mock.mark_done("task-2")
     await executor_task
 
-    finished = await asyncio.wait_for(run_executor(assets, "batch-seq"), timeout=10)
+    finished, status = await asyncio.wait_for(
+        run_executor(assets, "batch-seq"), timeout=10
+    )
+    assert status == TaskStatus.SUCCEEDED
     for task in finished.values():
         assert task.status == TaskStatus.CACHED
 
@@ -1098,10 +1183,11 @@ async def test_fully_cached_with_action(
     await jobs_mock.mark_done("test.task-2", b"::set-output name=task2::Task 2 value 2")
     await executor_task
 
-    finished = await asyncio.wait_for(
+    finished, status = await asyncio.wait_for(
         run_executor(assets, "batch-action-call"), timeout=10
     )
 
+    assert status == TaskStatus.SUCCEEDED
     assert finished[("test", "task_1")].status == TaskStatus.CACHED
     assert finished[("test", "task_2")].status == TaskStatus.CACHED
 
@@ -1122,8 +1208,9 @@ async def test_cached_same_needs(
 
     await jobs_mock.mark_done("task-1", b"::set-output name=arg::val")
 
-    finished = await asyncio.wait_for(executor_task, timeout=10)
+    finished, status = await asyncio.wait_for(executor_task, timeout=10)
 
+    assert status == TaskStatus.SUCCEEDED
     assert finished[("task-1",)].status == TaskStatus.SUCCEEDED
     assert finished[("task-2",)].status == TaskStatus.CACHED
 
@@ -1191,3 +1278,40 @@ async def test_batch_bake_id_tag(
     await jobs_mock.mark_done("task-2")
 
     await executor_task
+
+
+async def test_bake_marked_as_failed_on_eval_error(
+    assets: Path,
+    run_executor: RunExecutor,
+) -> None:
+    _, status = await run_executor(assets, "batch-bad-eval")
+    assert status == TaskStatus.FAILED
+
+
+async def test_bake_marked_as_failed_on_eval_error_in_local(
+    assets: Path,
+    run_executor: RunExecutor,
+) -> None:
+    _, status = await run_executor(assets / "local_actions", "call-bad-local")
+    assert status == TaskStatus.FAILED
+
+
+async def test_bake_marked_as_failed_on_random_error(
+    assets: Path,
+    run_executor: RunExecutor,
+    jobs_mock: JobsMock,
+) -> None:
+    jobs_mock.exception_on_status = Exception("Something failed")
+    _, status = await run_executor(assets, "batch-seq")
+    assert status == TaskStatus.FAILED
+
+
+async def test_bake_marked_as_cancelled_on_task_cancelation(
+    assets: Path,
+    run_executor: RunExecutor,
+) -> None:
+    executor_task = asyncio.ensure_future(run_executor(assets, "batch-seq"))
+    await asyncio.sleep(0)  # All to start
+    executor_task.cancel()
+    _, status = await executor_task
+    assert status == TaskStatus.CANCELLED

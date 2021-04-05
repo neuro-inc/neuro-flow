@@ -39,6 +39,7 @@ from .context import (
     Task,
     TaskMeta,
 )
+from .expr import EvalError
 from .storage import Attempt, Bake, FinishedTask, StartedTask, Storage, _dt2str
 from .types import AlwaysT, FullID, TaskStatus
 from .utils import (
@@ -355,10 +356,10 @@ class BatchExecutor:
             ret._stop()
 
     def _start(self) -> None:
-        self._progress.start()
+        pass
 
     def _stop(self) -> None:
-        self._progress.stop()
+        pass
 
     async def _refresh_attempt(self) -> None:
         self._attempt = await self._storage.find_attempt(
@@ -399,7 +400,6 @@ class BatchExecutor:
         needs = self._tasks_mgr.build_needs(
             prefix, self._only_completed_needs(flow.graph[tid])
         )
-        assert isinstance(flow, RunningBatchFlow)
         return await flow.get_local(tid, needs=needs)
 
     async def _get_action(self, full_id: FullID) -> RunningBatchActionFlow:
@@ -543,8 +543,41 @@ class BatchExecutor:
     async def _should_continue(self) -> bool:
         return self._graphs.is_active
 
-    async def run(self) -> None:
+    async def run(self) -> TaskStatus:
+        with self._progress:
+            try:
+                result = await self._run()
+            except (KeyboardInterrupt, asyncio.CancelledError):
+                await self._cancel_unfinished()
+                result = TaskStatus.CANCELLED
+            except Exception as exp:
+                await self.log_error(exp)
+                await self._cancel_unfinished()
+                result = TaskStatus.FAILED
+        await self._finish_run(result)
+        return result
+
+    async def log_error(self, exp: Exception) -> None:
+        if isinstance(exp, EvalError):
+            self._progress.log(f"[red][b]ERROR:[/b] {exp}[/red]")
+        else:
+            # Looks like this is some bug in our code, so we should print stacktrace
+            # for easier debug
+            self._progress.console.print_exception()
+            self._progress.log(
+                "[red][b]ERROR:[/b] Some unknown error happened. Please report "
+                "an issue to https://github.com/neuro-inc/neuro-flow/issues/new "
+                "with traceback printed above.[/red]"
+            )
+
+    async def _run(self) -> TaskStatus:
         await self._load_previous_run()
+
+        if self._attempt.result in TERMINATED_TASK_STATUSES:
+            # If attempt is already terminated, just clean up tasks
+            # and exit
+            await self._cancel_unfinished()
+            return self._attempt.result
 
         while await self._should_continue():
             for full_id, flow in self._graphs.get_ready_with_meta():
@@ -572,15 +605,13 @@ class BatchExecutor:
                 await self._refresh_attempt()
 
                 if not ok or self._attempt.result == TaskStatus.CANCELLED:
-                    self._is_cancelling = True
-                    await self._stop_unfinished()
+                    await self._cancel_unfinished()
 
             await asyncio.sleep(self._polling_timeout)
 
-        await self._finish_run()
+        return self._accumulate_result()
 
-    async def _finish_run(self) -> None:
-        attempt_status = self._accumulate_result()
+    async def _finish_run(self, attempt_status: TaskStatus) -> None:
         if self._attempt.result not in TERMINATED_TASK_STATUSES:
             await self._storage.finish_attempt(self._attempt, attempt_status)
         self._progress.print(
@@ -590,7 +621,8 @@ class BatchExecutor:
             justify="center",
         )
 
-    async def _stop_unfinished(self) -> None:
+    async def _cancel_unfinished(self) -> None:
+        self._is_cancelling = True
         for full_id, st in self._tasks_mgr.unfinished_tasks.items():
             task = await self._get_task(full_id)
             if task.enable is not AlwaysT():
@@ -773,11 +805,10 @@ class LocalsBatchExecutor(BatchExecutor):
         st = await self._storage.start_action(self._attempt, full_id)
         self._mark_started(st)
         self._progress.log(f"Local action {fmt_id(st.id)} is", TaskStatus.PENDING)
-
         subprocess = await asyncio.create_subprocess_shell(
             local.cmd,
             stdout=asyncio.subprocess.PIPE,
-            cwd=local.workdir,
+            cwd=self._top_flow.workspace,
         )
         (stdout_data, stderr_data) = await subprocess.communicate()
         async with CmdProcessor() as proc:
@@ -807,17 +838,21 @@ class LocalsBatchExecutor(BatchExecutor):
         for key, value in ft.outputs.items():
             self._progress.log(f"  {key}: {value}")
 
-    async def _process_action(self, full_id: FullID) -> None:
-        pass  # Skip for local
-
     async def _process_task(self, full_id: FullID) -> None:
         pass  # Skip for local
 
     async def _should_continue(self) -> bool:
         for full_id, flow in self._graphs.get_ready_with_meta():
             if await flow.is_local(full_id[-1]):
-                return True
+                return True  # Has local action
+            if (
+                await flow.is_action(full_id[-1])
+                and full_id not in self._tasks_mgr.started
+            ):
+                return True  # Has unchecked batch action
         return False
 
-    async def _finish_run(self) -> None:
-        pass  # Do nothing for locals run
+    async def _finish_run(self, attempt_status: TaskStatus) -> None:
+        # Only process failures during local run
+        if attempt_status != TaskStatus.SUCCEEDED:
+            await super()._finish_run(attempt_status)

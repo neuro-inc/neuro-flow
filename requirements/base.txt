@@ -8,5 +8,5 @@ humanize==3.3.0
 neuro-cli==21.3.3
 neuro-extras==21.3.19
 pyyaml==5.4.1
-rich==9.13.0
+rich==11.0.1
 trafaret==2.1.0

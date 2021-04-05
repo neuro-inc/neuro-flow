@@ -1,0 +1,5 @@
+kind: batch
+tasks:
+  - image: ${{ something.wrong }}
+    preset: cpu-micro
+    bash: echo abc

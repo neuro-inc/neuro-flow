@@ -2,24 +2,24 @@
 
 ## Basic functions
 
-All expression \(`${{ <expression }}`\) supports a set of pre-built functions:
+All expressions \(`${{ <expression }}`\) support a set of pre-built functions:
 
 | Function name | Description |
 | :--- | :--- |
-| [len\(\)](expression-functions.md#len-s) | Return the length of an argument. |
-| [keys\(\)](expression-functions.md#keys-dictionary) | Return keys of the dictionary. |
+| [len\(\)](expression-functions.md#len-s) | Return the length of the argument. |
+| [keys\(\)](expression-functions.md#keys-dictionary) | Return the keys of the dictionary. |
 | [lower\(\)](expression-functions.md#lower-string) | Convert a string to lowercase. |
 | [upper\(\)](expression-functions.md#upper-string) | Convert a string to uppercase. |
-| [fmt\(\)](expression-functions.md#fmt-format_string-arg-1) | Do a string formating. |
-| [to\_json\(\)](expression-functions.md#to_json-data) | Convert an object to the JSON string. |
-| [from\_json\(\)](expression-functions.md#from_json-json_string) | Convert a JSON string to the object. |
-| [upload\(\)](expression-functions.md#upload-volume_ctx) | Upload volume to Neu.ro storage. |
-| [parse\_volume\(\)](expression-functions.md#parse_volume-string) | Parse volume ref string to the object. |
-| [hash\_files\(\)](expression-functions.md#hash_files-pattern) | Calculate SHA256 hash of given files |
+| [fmt\(\)](expression-functions.md#fmt-format_string-arg-1) | Perform string formatting. |
+| [to\_json\(\)](expression-functions.md#to_json-data) | Convert an object to a JSON string. |
+| [from\_json\(\)](expression-functions.md#from_json-json_string) | Convert a JSON string to an object. |
+| [upload\(\)](expression-functions.md#upload-volume_ctx) | Upload a volume to the Neu.ro storage. |
+| [parse\_volume\(\)](expression-functions.md#parse_volume-string) | Parse a volume reference string to an object. |
+| [hash\_files\(\)](expression-functions.md#hash_files-pattern) | Calculate a SHA256 hash of given files |
 
 ### `len(s)`
 
-Return the length \(the number of items\) of an object. The argument may be a string, list, or a dictionary.
+Return the length of an object \(the number of items it contains\). The argument may be a string, a list, or a dictionary.
 
 **Example:**
 
@@ -29,7 +29,7 @@ ${{ len('fooo') }}
 
 ### `keys(dictionary)`
 
-Get a list of keys in some dictionary.
+Get the list of keys in a dictionary.
 
 **Example:**
 
@@ -39,7 +39,7 @@ ${{ keys(env) }}
 
 ### `lower(string)`
 
-Convert string to lowercase.
+Convert a string to lowercase.
 
 **Example:**
 
@@ -49,7 +49,7 @@ ${{ lower('VALue') == 'value' }}
 
 ### `upper(string)`
 
-Convert string to uppercase.
+Convert a string to uppercase.
 
 **Example:**
 
@@ -59,7 +59,7 @@ ${{ upper('valUE') == 'VALUE' }}
 
 ### `fmt(format_string, arg1, ...)`
 
-Perform a string formatting operation. The `format_string` can contain literal text or replacement fields delimited by braces `{}`. The replacement filed will be replaced with other arguments string values in order as they appear in `format_string`.
+Perform a string formatting operation. The `format_string` can contain text or replacement fields delimited by curly braces `{}`. The replacement field will be replaced with other arguments' string values in order they appear in the `format_string`.
 
 **Example:**
 
@@ -68,7 +68,7 @@ ${{ fmt("Param test value is: {}", params.test) }}
 ```
 
 {% hint style="info" %}
-This function can be useful in situations where you want to get value from mapping using a non-static key:
+This function can be useful in situations when you want to get a value from a mapping using a non-static key:
 
 ```python
 ${{ needs[fmt("{}-{}", matrix.x, matrix.y)] }}
@@ -97,9 +97,9 @@ ${{ from_json('{"array": [1, 2, 3], "value": "value"}').value }}
 
 ### `upload(volume_ctx)`
 
-Upload volume to Neu.ro storage and then return passed argument back. The argument should an entry of [`volumes`  context](live-contexts.md#volumes-context). The function will fail if the [`local` attribute](live-workflow-syntax.md#volumes-less-than-volume-id-greater-than-local) is not set for the corresponding volume definition in the workflow file. 
+Upload the volume to the Neu.ro storage and then return the passed argument back. The argument should contain an entry of the [`volumes` context](live-contexts.md#volumes-context). The function will fail if the [`local` attribute](live-workflow-syntax.md#volumes-less-than-volume-id-greater-than-local) is not set for the corresponding volume definition in the workflow file.
 
-This function allows to automatically upload volume before the job runs.
+This function allows to automatically upload a volume before a job runs.
 
 **Example:**
 
@@ -116,7 +116,7 @@ jobs:
 
 ### `parse_volume(string)`
 
-Parse volume ref string into an object that resembles entry of [`volumes`  context](live-contexts.md#volumes-context). The `id` property will be set to `"<volume>"` and the `local` property will be set to `None`.
+Parse a volume reference string into an object that resembles an entry of the [`volumes` context](live-contexts.md#volumes-context). The `id` property will be set to `"<volume>"`, and the `local` property will be set to `None`.
 
 **Example:**
 
@@ -126,9 +126,9 @@ ${{ parse_volume("storage:data:/mnt/data:rw").mount == "/mnt/data" }}
 
 ### `hash_files(pattern, ...)`
 
-Calculate [the SHA256](https://en.wikipedia.org/wiki/SHA-2) hash of given files.
+Calculate the [SHA256 hash](https://en.wikipedia.org/wiki/SHA-2) of given files.
 
-File names are relative to the project root \(`${{ flow.workspace }}`\).
+File names are relative to the project's root \(`${{ flow.workspace }}`\).
 
 Glob patterns are supported:
 
@@ -138,9 +138,9 @@ Glob patterns are supported:
 | `?` | matches any single character |
 | `[seq]` | matches any character in _seq_ |
 | `[!seq]` | matches any character not in _seq_ |
-| `**` | matches this directory and all subdirectories, recursively |
+| `**` | recursively matches this directory and all subdirectories |
 
-The calculated hash contains hashed filenames to generate different results on the bare file renaming.
+The calculated hash contains hashed filenames to generate different results when the files are renamed.
 
 **Example:**
 
@@ -150,7 +150,7 @@ ${{ hash_files('Dockerfile', 'requiremtnts/*.txt', 'modules/**/*.py') }}
 
 ### `inspect_job(job_name, [suffix])`
 
-Fetch info about the [job](live-workflow-syntax.md#jobs-job-id-env) in live mode. The `suffix` argument should be used with [multi jobs](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-multi). The returned object is [JobDescription](https://neuro-sdk.readthedocs.io/en/latest/jobs_reference.html#jobdescription).
+Fetch info about a [job](live-workflow-syntax.md#jobs-job-id-env) in live mode. The `suffix` argument should be used with [multi jobs](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-multi). The returned object is a [JobDescription](https://neuro-sdk.readthedocs.io/en/latest/jobs_reference.html#jobdescription).
 
 **Example:**
 
@@ -160,17 +160,17 @@ ${{ inspect_job('test_job').http_url }}
 
 ## Task status check functions
 
-The following functions can be used in [`tasks.enable`](batch-workflow-syntax.md#tasks-enable) attribute to conditionally enable task execution.
+The following functions can be used in the [`tasks.enable`](batch-workflow-syntax.md#tasks-enable) attribute to conditionally enable task execution.
 
 | Function name | Description |
 | :--- | :--- |
-| [success\(\)](expression-functions.md#success-task_id) | `True` if given dependencies succeeded |
+| [success\(\)](expression-functions.md#success-task_id) | `True` if given dependencies succeeded. |
 | [failure\(\)](expression-functions.md#failure-task_id) | `True` if some of the given dependencies failed. |
-| [always\(\)](expression-functions.md#always) | Mark task to always execute. |
+| [always\(\)](expression-functions.md#always) | Mark a task to be always executed. |
 
 ### `success([task_id, ...])`
 
-Returns `True` if all of the specified tasks are completed successfully. If no arguments provided, checks all tasks form [`tasks.needs`](batch-workflow-syntax.md#tasks-needs).
+Returns `True` if all of the specified tasks are completed successfully. If no arguments are provided, checks all tasks form [`tasks.needs`](batch-workflow-syntax.md#tasks-needs).
 
 **Example:**
 
@@ -189,7 +189,7 @@ tasks:
 
 ### `failure([task_id, ...])`
 
-Returns `True` if at least one of the specified tasks has failed. If no arguments provided, checks all tasks form [`tasks.needs`](batch-workflow-syntax.md#tasks-needs). This function does not enable task execution if dependency is skipped or canceled.
+Returns `True` if at least one of the specified tasks failed. If no arguments are provided, checks all tasks form [`tasks.needs`](batch-workflow-syntax.md#tasks-needs). This function doesn't enable task execution if a dependency is skipped or cancelled.
 
 **Example:**
 
@@ -208,7 +208,7 @@ tasks:
 
 ### `always()`
 
-Returns special mark so that Neuro Flow will always run this task, even if some tasks in [`tasks.needs`](batch-workflow-syntax.md#tasks-needs) have failed or was skipped, or flow execution was [canceled](cli.md#neuro-flow-cancel).
+Returns a special mark so that Neuro Flow will always run this task, even if some tasks in [`tasks.needs`](batch-workflow-syntax.md#tasks-needs) have failed or were skipped, or the workflow was [cancelled](cli.md#neuro-flow-cancel).
 
 **Example:**
 

@@ -1,16 +1,19 @@
 # Project configuration syntax
 
-By default, the project name is auto-calculated from the name of the project folder \(a folder with `.neuro` subfolder for configuration YAML files inside\).
+By default, the project name is generated automatically based on the name of the project folder \(a folder that contains a `.neuro` subfolder for configuration YAML files\).
 
-It works in 99% cases but sometimes the folder name contains characters that are not allowed: the name started with a digit, contains non-ASCII leters, a dash \(`-`\) symbol etc.
+Name autogeneration will only work if the folder's name starts with a letter or an underscore symbol \(`_`\) and contains only letters, digits, or underscores. `ALL_CAPS` names are not supported.
 
-In this case, you can put `project.yml` file into `.neuro` configuration folder to override the name \(`project.yaml` is also supported\).
+To override this, you can put the `project.yml`\(or `project.yaml`\) file into the `.neuro` configuration folder.
 
-The file contains the only `id` attribute but the format can be expanded later.
+This file only contains the `id` attribute by default, but the format can be expanded later.
 
-### id
+## id
 
-Project `id` that is available as `${{ flow.project_id }}` context.
+Project `id` available as a `${{ flow.project_id }}` context.
 
-See also [live contexts: `flow`](live-contexts.md#flow-context)and batch contexts: `flow`.
+See also:
+
+* [live contexts: `flow`](live-contexts.md#flow-context)
+* [batch contexts: `flow`](batch-contexts.md#flow-context)
 

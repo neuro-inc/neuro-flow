@@ -1,0 +1,8 @@
+kind: batch
+tasks:
+- id: bad
+  action: ws:bad-local
+- id: remote_task
+  needs: [bad]
+  image: ubuntu
+  bash: echo "Should never happen"

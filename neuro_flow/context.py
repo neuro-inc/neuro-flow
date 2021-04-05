@@ -225,7 +225,6 @@ class Task(ExecUnit):
 class LocalTask:
     # executed task
     id: Optional[str]
-    workdir: LocalPath
     cmd: str
 
 
@@ -1131,6 +1130,14 @@ class EarlyBatch:
 
         return EarlyBatchAction(tasks, self._cl)
 
+    async def get_local_early(self, real_id: str) -> "EarlyLocalCall":
+        assert await self.is_local(
+            real_id
+        ), f"get_local_early() cannot used for action call {real_id}"
+        prep_task = self._get_prep(real_id)
+        assert isinstance(prep_task, EarlyLocalCall)  # Already checked
+        return prep_task
+
 
 class EarlyBatchAction(EarlyBatch):
     def __init__(
@@ -1315,6 +1322,25 @@ class RunningBatchBase(Generic[_T], EarlyBatch):
             config_loader=self._cl,
         )
 
+    async def get_local(self, real_id: str, needs: NeedsCtx) -> LocalTask:
+        assert await self.is_local(
+            real_id
+        ), f"get_task() cannot used for action call {real_id}"
+        prep_task = self._get_prep(real_id)
+        assert isinstance(prep_task, PrepLocalCall)  # Already checked
+
+        ctx = self._task_context(real_id, needs, {})
+
+        action_ctx = LocalActionContext(
+            inputs=await setup_inputs_ctx(ctx, prep_task.call, prep_task.action.inputs),
+            _client=self._ctx._client,
+        )
+
+        return LocalTask(
+            id=prep_task.id,
+            cmd=await prep_task.action.cmd.eval(action_ctx),
+        )
+
 
 class RunningBatchFlow(RunningBatchBase[BatchContext]):
     def __init__(
@@ -1345,25 +1371,9 @@ class RunningBatchFlow(RunningBatchBase[BatchContext]):
             return timedelta(seconds=self._ctx.flow.life_span)
         return None
 
-    async def get_local(self, real_id: str, needs: NeedsCtx) -> LocalTask:
-        assert await self.is_local(
-            real_id
-        ), f"get_task() cannot used for action call {real_id}"
-        prep_task = self._get_prep(real_id)
-        assert isinstance(prep_task, PrepLocalCall)  # Already checked
-
-        ctx = self._task_context(real_id, needs, {})
-
-        action_ctx = LocalActionContext(
-            inputs=await setup_inputs_ctx(ctx, prep_task.call, prep_task.action.inputs),
-            _client=self._ctx._client,
-        )
-
-        return LocalTask(
-            id=prep_task.id,
-            workdir=self._ctx.flow.workspace,
-            cmd=await prep_task.action.cmd.eval(action_ctx),
-        )
+    @property
+    def workspace(self) -> LocalPath:
+        return self._ctx.flow.workspace
 
     @classmethod
     async def create(
