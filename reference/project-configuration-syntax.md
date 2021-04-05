@@ -8,10 +8,12 @@ To override this, you can put the `project.yml`\(or `project.yaml`\) file into t
 
 This file only contains the `id` attribute by default, but the format can be expanded later.
 
-### id
+## id
 
 Project `id` available as a `${{ flow.project_id }}` context.
 
-See also: 
+See also:
+
 * [live contexts: `flow`](live-contexts.md#flow-context)
 * [batch contexts: `flow`](batch-contexts.md#flow-context)
+
