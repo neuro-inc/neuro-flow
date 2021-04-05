@@ -1,5 +1,6 @@
 import pathlib
 import pytest
+from datetime import timedelta
 from neuro_sdk import Client
 from textwrap import dedent
 from typing import Mapping, Optional
@@ -790,3 +791,12 @@ async def test_wrong_needs(
         await RunningBatchFlow.create(
             batch_config_loader, "batch-wrong-need", "bake-id"
         )
+
+
+async def test_pipeline_life_span(
+    batch_config_loader: ConfigLoader,
+) -> None:
+    flow = await RunningBatchFlow.create(
+        batch_config_loader, "batch-life-span", "bake-id"
+    )
+    assert flow.life_span == timedelta(days=30)

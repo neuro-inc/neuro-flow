@@ -38,6 +38,26 @@ def fmt_datetime(when: Optional[datetime.datetime]) -> str:
         return cast(str, humanize.naturaldate(when.astimezone()))
 
 
+def fmt_timedelta(delta: datetime.timedelta) -> str:
+    s = int(delta.total_seconds())
+    if s < 0:
+        raise ValueError(f"Invalid delta {delta}: expect non-negative total value")
+    _sec_in_minute = 60
+    _sec_in_hour = _sec_in_minute * 60
+    _sec_in_day = _sec_in_hour * 24
+    d, s = divmod(s, _sec_in_day)
+    h, s = divmod(s, _sec_in_hour)
+    m, s = divmod(s, _sec_in_minute)
+    return "".join(
+        [
+            f"{d}d" if d else "",
+            f"{h}h" if h else "",
+            f"{m}m" if m else "",
+            f"{s}s" if s else "",
+        ]
+    )
+
+
 RUNNING_JOB_STATUSES = {JobStatus.PENDING, JobStatus.RUNNING}
 RUNNING_TASK_STATUSES = {TaskStatus.PENDING, TaskStatus.RUNNING}
 

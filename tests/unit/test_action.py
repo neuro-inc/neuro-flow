@@ -479,6 +479,9 @@ def test_parse_batch_call(assets: LocalPath) -> None:
             Pos(0, 0, config_file),
             None,
         ),
+        life_span=OptTimeDeltaExpr(
+            Pos(0, 0, config_file), Pos(0, 0, config_file), None
+        ),
         images=None,
         volumes=None,
         defaults=None,

@@ -45,6 +45,9 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
             Pos(0, 0, config_file),
             "Global title",
         ),
+        life_span=OptTimeDeltaExpr(
+            Pos(0, 0, config_file), Pos(0, 0, config_file), None
+        ),
         params=None,
         images={
             "image_a": ast.Image(
@@ -266,6 +269,9 @@ def test_parse_seq(assets: pathlib.Path) -> None:
             Pos(0, 0, config_file),
             None,
         ),
+        life_span=OptTimeDeltaExpr(
+            Pos(0, 0, config_file), Pos(0, 0, config_file), None
+        ),
         params=None,
         images=None,
         volumes=None,
@@ -384,6 +390,9 @@ def test_parse_needs(assets: pathlib.Path) -> None:
             Pos(0, 0, config_file),
             Pos(0, 0, config_file),
             None,
+        ),
+        life_span=OptTimeDeltaExpr(
+            Pos(0, 0, config_file), Pos(0, 0, config_file), None
         ),
         params=None,
         images=None,
@@ -507,6 +516,9 @@ def test_parse_needs_dict(assets: pathlib.Path) -> None:
             Pos(0, 0, config_file),
             Pos(0, 0, config_file),
             None,
+        ),
+        life_span=OptTimeDeltaExpr(
+            Pos(0, 0, config_file), Pos(0, 0, config_file), None
         ),
         params=None,
         images=None,
@@ -633,6 +645,9 @@ def test_parse_matrix(assets: pathlib.Path) -> None:
             Pos(0, 0, config_file),
             None,
         ),
+        life_span=OptTimeDeltaExpr(
+            Pos(0, 0, config_file), Pos(0, 0, config_file), None
+        ),
         params=None,
         images=None,
         volumes=None,
@@ -754,6 +769,9 @@ def test_parse_matrix_with_strategy(assets: pathlib.Path) -> None:
             Pos(0, 0, config_file),
             Pos(0, 0, config_file),
             None,
+        ),
+        life_span=OptTimeDeltaExpr(
+            Pos(0, 0, config_file), Pos(0, 0, config_file), None
         ),
         params=None,
         images=None,
@@ -955,6 +973,9 @@ def test_parse_args(assets: pathlib.Path) -> None:
             Pos(0, 0, config_file),
             None,
         ),
+        life_span=OptTimeDeltaExpr(
+            Pos(0, 0, config_file), Pos(0, 0, config_file), None
+        ),
         params={
             "arg1": ast.Param(
                 _start=Pos(2, 8, config_file),
@@ -1107,6 +1128,9 @@ def test_parse_enable(assets: pathlib.Path) -> None:
             Pos(0, 0, config_file),
             Pos(0, 0, config_file),
             None,
+        ),
+        life_span=OptTimeDeltaExpr(
+            Pos(0, 0, config_file), Pos(0, 0, config_file), None
         ),
         params=None,
         images=None,
