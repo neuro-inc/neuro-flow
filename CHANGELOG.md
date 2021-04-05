@@ -5,6 +5,59 @@
 
 [comment]: # (towncrier release notes start)
 
+Neuro_Flow 21.4.5 (2021-04-05)
+==============================
+
+Features
+--------
+
+
+- Mark cached task in `neuro-flow inspect <bake>` as "cached" instead of "succeeded". ([#318](https://github.com/neuro-inc/neuro-flow/issues/318))
+
+- Auto create parent directories in "upload()" expression function. ([#319](https://github.com/neuro-inc/neuro-flow/issues/319))
+
+- Add bake_id tag to jobs started by bake inside neuro platform. ([#320](https://github.com/neuro-inc/neuro-flow/issues/320))
+
+- Add tags to remote executor jobs. The tags are: "project:project_id", "flow:flow_name", "bake:bake_id",
+  "remote_executor". ([#321](https://github.com/neuro-inc/neuro-flow/issues/321))
+
+- Print name of the action in error about unexpected needs entry, for example:
+  ```
+  ERROR: Action 'ws:some_action' does not contain task 'wrong_task_name'
+  ``` ([#323](https://github.com/neuro-inc/neuro-flow/issues/323))
+
+- Added printing of filename in expression evaluation errors. ([#324](https://github.com/neuro-inc/neuro-flow/issues/324))
+
+- Dropped `outputs.needs` in batch actions. Made all action task results available for calculation action needs.
+  This avoids confusing behavior when action can succeed even when some of its tasks have failed. ([#325](https://github.com/neuro-inc/neuro-flow/issues/325))
+
+- Add support of empty list and dict (`[]` and `{}`) in expressions. ([#333](https://github.com/neuro-inc/neuro-flow/issues/333))
+
+- Added validation of tasks `needs` property. ([#334](https://github.com/neuro-inc/neuro-flow/issues/334))
+
+- Added validation of action arguments before starting a bake. ([#336](https://github.com/neuro-inc/neuro-flow/issues/336))
+
+- Implemented marking of bake as failed when an error happens during the batch execution. If the error is caused
+  because of SIGINT, the bake will be marked as cancelled instead of failed. ([#338](https://github.com/neuro-inc/neuro-flow/issues/338))
+
+- Allow to specify timeout for executor job in yaml and increase default lifespan to 7d. Example:
+  ```
+  kind: batch
+  life_span: 30d
+  tasks:
+    ...
+  ``` ([#339](https://github.com/neuro-inc/neuro-flow/issues/339))
+
+- Add support of local actions inside of batch actions if they do not depend on any remote tasks. ([#340](https://github.com/neuro-inc/neuro-flow/issues/340))
+
+
+Bugfixes
+--------
+
+
+- Use 1-based indexes instead of 0-based for lines and columns in error messages. ([#335](https://github.com/neuro-inc/neuro-flow/issues/335))
+
+
 Neuro_Flow 21.3.17 (2021-03-17)
 ===============================
 
