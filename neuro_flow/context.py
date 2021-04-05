@@ -696,7 +696,7 @@ async def validate_action_call(
         required_inputs = {
             input_name
             for input_name, input_ast in ast_inputs.items()
-            if not input_ast.default.pattern
+            if input_ast.default.pattern is None
         }
     else:
         supported_inputs = set()
