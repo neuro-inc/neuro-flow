@@ -35,6 +35,7 @@ from typing import (
     ClassVar,
     Dict,
     Generic,
+    Iterable,
     Iterator,
     List,
     Mapping,
@@ -117,6 +118,14 @@ class EvalError(Exception):
         col = self.start.col + 1
         filename = self.start.filename
         return str(self.args[0]) + f'\n  in "{filename}", line {line}, column {col}'
+
+
+class MultiEvalError(Exception):
+    def __init__(self, errors: Sequence[EvalError]):
+        self.errors = errors
+
+    def __str__(self) -> str:
+        return "\n".join(str(error) for error in self.errors)
 
 
 def parse_literal(arg: str, err_msg: str) -> LiteralT:
@@ -410,6 +419,9 @@ class Item(Entity):
     async def eval(self, root: RootABC) -> TypeT:
         pass
 
+    def child_items(self) -> Iterable["Item"]:
+        return []
+
 
 @dataclasses.dataclass(frozen=True)
 class Literal(Item):
@@ -493,6 +505,11 @@ class Lookup(Item):
             ret = await op.eval(root, ret, start)
         return ret
 
+    def child_items(self) -> Iterable["Item"]:
+        for getter in self.trailer:
+            if isinstance(getter, ItemGetter):
+                yield getter.key
+
 
 def make_lookup(arg: Tuple[Token, List[Getter]]) -> Lookup:
     name, trailer = arg
@@ -529,6 +546,12 @@ class Call(Item):
         for op in self.trailer:
             ret = await op.eval(root, ret, start)
         return ret
+
+    def child_items(self) -> Iterable["Item"]:
+        yield from self.args
+        for getter in self.trailer:
+            if isinstance(getter, ItemGetter):
+                yield getter.key
 
 
 def make_call(arg: Tuple[Token, List[Item], Sequence[Getter]]) -> Call:
@@ -570,6 +593,9 @@ class BinOp(Item):
         left_val = await self.left.eval(root)
         right_val = await self.right.eval(root)
         return self.op(left_val, right_val)  # type: ignore
+
+    def child_items(self) -> Iterable["Item"]:
+        return [self.left, self.right]
 
 
 def or_(arg1: Any, arg2: Any) -> Any:
@@ -643,6 +669,9 @@ class UnaryOp(Item):
         operand_val = await self.operand.eval(root)
         return self.op(operand_val)  # type: ignore
 
+    def child_items(self) -> Iterable["Item"]:
+        return [self.operand]
+
 
 def _unary_plus(arg: Any) -> Any:
     return +arg
@@ -674,6 +703,9 @@ class ListMaker(Item):
     async def eval(self, root: RootABC) -> SequenceT:
         return [await item.eval(root) for item in self.items]  # type: ignore
 
+    def child_items(self) -> Iterable["Item"]:
+        return self.items
+
 
 def make_list(args: Tuple[Item, List[Item]]) -> ListMaker:
     lst = [args[0]] + args[1]
@@ -695,6 +727,11 @@ class DictMaker(Item):
             v = await value.eval(root)
             ret[k] = v
         return ret  # type: ignore
+
+    def child_items(self) -> Iterable["Item"]:
+        for entry in self.items:
+            yield entry[0]
+            yield entry[1]
 
 
 def make_dict(args: Tuple[Item, Item, List[Tuple[Item, Item]]]) -> DictMaker:

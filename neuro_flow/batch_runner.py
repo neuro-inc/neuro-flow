@@ -40,6 +40,7 @@ from .colored_topo_sorter import ColoredTopoSorter
 from .commands import CmdProcessor
 from .config_loader import BatchLocalCL
 from .context import EMPTY_ROOT, EarlyBatch, EarlyLocalCall, RunningBatchFlow
+from .expr import EvalError, MultiEvalError
 from .parser import ConfigDir
 from .storage import Attempt, Bake, FinishedTask, Storage
 from .types import FullID, LocalPath, TaskStatus
@@ -127,6 +128,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
 
         await self._check_no_cycles(flow)
         await self._check_local_deps(flow)
+        await self._check_expressions(flow)
         graphs = await self._build_graphs(flow)
 
         self._console.log(
@@ -237,6 +239,17 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                 )
 
         await self._run_for_each_flow(top_flow, _check_locals)
+
+    async def _check_expressions(self, top_flow: RunningBatchFlow) -> None:
+        errors: List[EvalError] = []
+
+        async def check_expressions(_: FullID, flow: EarlyBatch) -> None:
+            nonlocal errors
+            errors += flow.validate_expressions()
+
+        await self._run_for_each_flow(top_flow, check_expressions)
+        if errors:
+            raise MultiEvalError(errors)
 
     async def _build_graphs(
         self, top_flow: RunningBatchFlow

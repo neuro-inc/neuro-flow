@@ -25,6 +25,7 @@ from typing import (
     Sequence,
     Set,
     Tuple,
+    Type,
     TypeVar,
     Union,
     cast,
@@ -33,7 +34,15 @@ from yarl import URL
 
 from neuro_flow import ast
 from neuro_flow.config_loader import ConfigLoader
-from neuro_flow.expr import EnableExpr, EvalError, IdExpr, LiteralT, RootABC, TypeT
+from neuro_flow.expr import (
+    EnableExpr,
+    EvalError,
+    Expr,
+    IdExpr,
+    LiteralT,
+    RootABC,
+    TypeT,
+)
 from neuro_flow.types import AlwaysT, FullID, LocalPath, RemotePath, TaskStatus
 
 
@@ -60,12 +69,17 @@ class UnknownTask(KeyError):
 
 # ...Ctx types, they define parts that can be available in expressions
 
+
+# Allows to distinguish ...Ctx from Mapping[str, str] in runtime
+_inputs_str = str
+_params_str = str
+
 EnvCtx = Mapping[str, str]
 TagsCtx = AbstractSet[str]
 VolumesCtx = Mapping[str, "VolumeCtx"]
 ImagesCtx = Mapping[str, "ImageCtx"]
-InputsCtx = Mapping[str, str]
-ParamsCtx = Mapping[str, str]
+InputsCtx = Mapping[str, "_inputs_str"]
+ParamsCtx = Mapping[str, "_params_str"]
 
 NeedsCtx = Mapping[str, "DepCtx"]
 StateCtx = Mapping[str, str]
@@ -1118,6 +1132,44 @@ class EarlyBatch:
             return prep_task.state_from
         return None
 
+    def _task_context_class(self) -> Type[Context]:
+        return BatchTaskContext
+
+    def _known_inputs(self) -> AbstractSet[str]:
+        return set()
+
+    def validate_expressions(self) -> List[EvalError]:
+        from .expr_validation import validate_expr
+
+        errors: List[EvalError] = []
+        for task in self._tasks.values():
+            ctx_cls = self._task_context_class()
+            known_needs = task.needs.keys()
+            known_inputs = self._known_inputs()
+            errors += validate_expr(task.enable, ctx_cls, known_needs)
+            if isinstance(task, EarlyTask):
+                _ctx_cls = ctx_cls
+                if isinstance(task, EarlyStatefulCall):
+                    _ctx_cls = StatefulActionContext
+                    known_inputs = (task.action.inputs or {}).keys()
+                ast_task = task.ast_task
+                for field in fields(ast.ExecUnit):
+                    field_value = getattr(ast_task, field.name)
+                    if field_value is not None and isinstance(field_value, Expr):
+                        errors += validate_expr(
+                            field_value, _ctx_cls, known_needs, known_inputs
+                        )
+            if isinstance(task, BaseEarlyCall):
+                args = task.call.args or {}
+                for arg_expr in args.values():
+                    errors += validate_expr(arg_expr, ctx_cls, known_needs)
+            if isinstance(task, EarlyLocalCall):
+                known_inputs = (task.action.inputs or {}).keys()
+                errors += validate_expr(
+                    task.action.cmd, LocalActionContext, known_inputs=known_inputs
+                )
+        return errors
+
     async def get_action_early(self, real_id: str) -> "EarlyBatch":
         assert await self.is_action(
             real_id
@@ -1128,7 +1180,7 @@ class EarlyBatch:
         await validate_action_call(prep_task.call, prep_task.action.inputs)
         tasks = await EarlyTaskGraphBuilder(self._cl, prep_task.action.tasks).build()
 
-        return EarlyBatchAction(tasks, self._cl)
+        return EarlyBatchAction(tasks, self._cl, prep_task.action)
 
     async def get_local_early(self, real_id: str) -> "EarlyLocalCall":
         assert await self.is_local(
@@ -1144,8 +1196,41 @@ class EarlyBatchAction(EarlyBatch):
         self,
         tasks: Mapping[str, "BaseEarlyTask"],
         config_loader: ConfigLoader,
+        action: ast.BatchAction,
     ):
         super().__init__(tasks, config_loader)
+        self._action = action
+
+    def _task_context_class(self) -> Type[Context]:
+        return BatchActionTaskContext
+
+    def _known_inputs(self) -> AbstractSet[str]:
+        return (self._action.inputs or {}).keys()
+
+    def validate_expressions(self) -> List[EvalError]:
+        from .expr_validation import validate_expr
+
+        errors = super().validate_expressions()
+        known_inputs = self._known_inputs()
+
+        if self._action.cache:
+            errors += validate_expr(
+                self._action.cache.life_span,
+                BatchActionContext,
+                known_inputs=known_inputs,
+            )
+        outputs = self._action.outputs
+
+        tasks_ids = self._tasks.keys()
+        if outputs and outputs.values:
+            for output in outputs.values.values():
+                errors += validate_expr(
+                    output.value,
+                    BatchActionOutputsContext,
+                    known_needs=tasks_ids,
+                    known_inputs=known_inputs,
+                )
+        return errors
 
 
 class RunningBatchBase(Generic[_T], EarlyBatch):
@@ -1427,6 +1512,9 @@ class RunningBatchFlow(RunningBatchBase[BatchContext]):
         return RunningBatchFlow(batch_ctx, tasks, config_loader, defaults, bake_id)
 
 
+EarlyBatchAction
+
+
 class RunningBatchActionFlow(RunningBatchBase[BatchActionContext]):
     def __init__(
         self,
@@ -1596,23 +1684,23 @@ class EarlyTask(BaseEarlyTask):
 
 
 @dataclass(frozen=True)
-class EarlyBatchCall(BaseEarlyTask):
+class BaseEarlyCall(BaseEarlyTask):
     call: ast.TaskActionCall
     action_name: str
+
+
+@dataclass(frozen=True)
+class EarlyBatchCall(BaseEarlyCall):
     action: ast.BatchAction
 
 
 @dataclass(frozen=True)
-class EarlyLocalCall(BaseEarlyTask):
-    call: ast.TaskActionCall
-    action_name: str
+class EarlyLocalCall(BaseEarlyCall):
     action: ast.LocalAction
 
 
 @dataclass(frozen=True)
-class EarlyStatefulCall(EarlyTask):
-    call: ast.TaskActionCall
-    action_name: str
+class EarlyStatefulCall(EarlyTask, BaseEarlyCall):
     action: ast.StatefulAction
 
 
