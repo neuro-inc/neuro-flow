@@ -3,18 +3,10 @@ import dataclasses
 import abc
 import collections
 from abc import abstractmethod
-from typing import (
-    AbstractSet,
-    Any,
-    Callable,
-    ForwardRef,
-    Iterable,
-    List,
-    Optional,
-    Type,
-)
+from typing import AbstractSet, Any, Callable, Iterable, List, Optional, Tuple, Type
+from typing_extensions import get_args, get_type_hints
 
-from neuro_flow.context import Context, InputsCtx, NeedsCtx, TagsCtx
+from neuro_flow.context import Context, TagsCtx
 from neuro_flow.expr import AttrGetter, EvalError, Expr, Item, ItemGetter, Lookup
 
 
@@ -41,7 +33,7 @@ def iter_lookups(expr: Expr[Any]) -> Iterable[Lookup]:
 
 
 def _get_dataclass_field_type(dataclass: Any, attr: str) -> Optional[Any]:
-    return {field.name: field.type for field in dataclasses.fields(dataclass)}.get(attr)
+    return get_type_hints(dataclass, include_extras=True).get(attr)
 
 
 class GetterVisitor(abc.ABC):
@@ -50,11 +42,11 @@ class GetterVisitor(abc.ABC):
         pass
 
     @abstractmethod
-    def mapping(self, obj: Any) -> Optional[Any]:
+    def mapping(self, type_args: Tuple[Any, ...], metadata: str) -> Optional[Any]:
         pass
 
     @abstractmethod
-    def set(self, obj: Any) -> Optional[Any]:
+    def set(self, type_args: Tuple[Any, ...], metadata: str) -> Optional[Any]:
         pass
 
 
@@ -92,8 +84,8 @@ class AttrGetterVisitor(GetterVisitor):
             )
         return new_ctx
 
-    def mapping(self, obj: Any) -> Optional[Any]:
-        if obj == NeedsCtx and self._getter.name not in self._known_needs:
+    def mapping(self, type_args: Tuple[Any, ...], metadata: str) -> Optional[Any]:
+        if metadata == "NeedsCtx" and self._getter.name not in self._known_needs:
             self._record_error(
                 EvalError(
                     f"Task '{self._getter.name}' is not available under "
@@ -102,7 +94,7 @@ class AttrGetterVisitor(GetterVisitor):
                     self._getter.end,
                 )
             )
-        if obj == InputsCtx and self._getter.name not in self._known_inputs:
+        if metadata == "InputsCtx" and self._getter.name not in self._known_inputs:
             self._record_error(
                 EvalError(
                     f"Input '{self._getter.name}' is undefined",
@@ -110,12 +102,12 @@ class AttrGetterVisitor(GetterVisitor):
                     self._getter.end,
                 )
             )
-        return obj.__args__[1]
+        return type_args[1]
 
-    def set(self, obj: Any) -> Optional[Any]:
+    def set(self, type_args: Tuple[Any, ...], metadata: str) -> Optional[Any]:
         self._record_error(
             EvalError(
-                f"'{_format_obj_name(obj)}' has no attribute " f"'{self._getter.name}'",
+                f"'{metadata}' has no attribute " f"'{self._getter.name}'",
                 self._getter.start,
                 self._getter.end,
             )
@@ -138,24 +130,18 @@ class ItemGetterVisitor(GetterVisitor):
         )
         return None
 
-    def mapping(self, obj: Any) -> Optional[Any]:
-        return obj.__args__[1]
+    def mapping(self, type_args: Tuple[Any, ...], metadata: str) -> Optional[Any]:
+        return type_args[1]
 
-    def set(self, obj: Any) -> Optional[Any]:
+    def set(self, type_args: Tuple[Any, ...], metadata: str) -> Optional[Any]:
         self._record_error(
             EvalError(
-                f"'{_format_obj_name(obj)}' is not subscriptable",
+                f"'{metadata}' is not subscriptable",
                 self._getter.start,
                 self._getter.end,
             )
         )
         return None
-
-
-def _eval_forward_ref(ref: ForwardRef) -> Any:
-    from neuro_flow import context
-
-    return ref._evaluate(context.__dict__, {})
 
 
 def validate_lookup(
@@ -172,8 +158,6 @@ def validate_lookup(
         )
         return
     for getter in lookup.trailer:
-        if isinstance(ctx, ForwardRef):
-            ctx = _eval_forward_ref(ctx)
         if isinstance(getter, AttrGetter):
             visitor: GetterVisitor = AttrGetterVisitor(
                 record_error,
@@ -190,12 +174,15 @@ def validate_lookup(
 
         if dataclasses.is_dataclass(ctx):
             ctx = visitor.dataclass(ctx)
-        elif hasattr(ctx, "__origin__"):  # This is type alias
-            origin = ctx.__origin__
-            if origin == collections.abc.Mapping:
-                ctx = visitor.mapping(ctx)
-            elif origin == collections.abc.Set:
-                ctx = visitor.set(ctx)
+        elif hasattr(ctx, "__metadata__"):  # This is typing.Annotated
+            annotation = ctx.__metadata__[0]
+            origin_type = ctx.__origin__
+            type_args = get_args(origin_type)
+            origin_abc = origin_type.__origin__
+            if origin_abc == collections.abc.Mapping:
+                ctx = visitor.mapping(type_args, annotation)
+            elif origin_abc == collections.abc.Set:
+                ctx = visitor.set(type_args, annotation)
         else:
             ctx = None  # Unknown ...Ctx type, skip check
 

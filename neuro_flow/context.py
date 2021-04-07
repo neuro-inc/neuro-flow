@@ -30,6 +30,7 @@ from typing import (
     Union,
     cast,
 )
+from typing_extensions import Annotated
 from yarl import URL
 
 from neuro_flow import ast
@@ -70,20 +71,16 @@ class UnknownTask(KeyError):
 # ...Ctx types, they define parts that can be available in expressions
 
 
-# Allows to distinguish ...Ctx from Mapping[str, str] in runtime
-_inputs_str = str
-_params_str = str
+EnvCtx = Annotated[Mapping[str, str], "EnvCtx"]
+TagsCtx = Annotated[AbstractSet[str], "TagsCtx"]
+VolumesCtx = Annotated[Mapping[str, "VolumeCtx"], "VolumesCtx"]
+ImagesCtx = Annotated[Mapping[str, "ImageCtx"], "ImagesCtx"]
+InputsCtx = Annotated[Mapping[str, str], "InputsCtx"]
+ParamsCtx = Annotated[Mapping[str, str], "ParamsCtx"]
 
-EnvCtx = Mapping[str, str]
-TagsCtx = AbstractSet[str]
-VolumesCtx = Mapping[str, "VolumeCtx"]
-ImagesCtx = Mapping[str, "ImageCtx"]
-InputsCtx = Mapping[str, "_inputs_str"]
-ParamsCtx = Mapping[str, "_params_str"]
-
-NeedsCtx = Mapping[str, "DepCtx"]
-StateCtx = Mapping[str, str]
-MatrixCtx = Mapping[str, LiteralT]
+NeedsCtx = Annotated[Mapping[str, "DepCtx"], "NeedsCtx"]
+StateCtx = Annotated[Mapping[str, str], "StateCtx"]
+MatrixCtx = Annotated[Mapping[str, LiteralT], "MatrixCtx"]
 
 
 @dataclass(frozen=True)
