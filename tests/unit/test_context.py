@@ -439,6 +439,19 @@ async def test_pipeline_matrix_2(batch_config_loader: ConfigLoader) -> None:
     )
 
 
+async def test_pipeline_matrix_with_doubles(batch_config_loader: ConfigLoader) -> None:
+    flow = await RunningBatchFlow.create(
+        batch_config_loader, "batch-matrix-doubles", "bake-id"
+    )
+
+    assert flow.graph == {
+        "task_0_1__0_3": {},
+        "task_0_1__0_5": {},
+        "task_0_2__0_3": {},
+        "task_0_2__0_5": {},
+    }
+
+
 async def test_pipeline_matrix_incomplete_include(
     batch_config_loader: ConfigLoader,
 ) -> None:
