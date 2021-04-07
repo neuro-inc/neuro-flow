@@ -60,14 +60,16 @@ RunCLI = Callable[[List[str]], SysCap]
 
 
 @pytest.fixture
-def run_cli(loop: None, ws: pathlib.Path, api_config: Optional[pathlib.Path]) -> RunCLI:
+def _run_cli(
+    loop: None, ws: pathlib.Path, api_config: Optional[pathlib.Path]
+) -> RunCLI:
     def _run(
         arguments: List[str],
     ) -> SysCap:
         if api_config:
             os.environ["NEUROMATION_CONFIG"] = str(api_config)
         proc = subprocess.run(
-            ["neuro-flow"] + arguments,
+            arguments,
             timeout=600,
             cwd=ws,
             encoding="utf8",
@@ -84,3 +86,13 @@ def run_cli(loop: None, ws: pathlib.Path, api_config: Optional[pathlib.Path]) ->
         return SysCap(out=proc.stdout.strip(), err=proc.stderr.strip())
 
     return _run
+
+
+@pytest.fixture
+def run_cli(_run_cli: RunCLI) -> RunCLI:
+    return lambda args: _run_cli(["neuro-flow"] + args)
+
+
+@pytest.fixture
+def run_neuro_cli(_run_cli: RunCLI) -> RunCLI:
+    return lambda args: _run_cli(["neuro"] + args)
