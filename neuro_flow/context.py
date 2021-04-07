@@ -1143,7 +1143,7 @@ class EarlyBatch:
             ctx_cls = self._task_context_class()
             known_needs = task.needs.keys()
             known_inputs = self._known_inputs()
-            errors += validate_expr(task.enable, ctx_cls, known_needs)
+            errors += validate_expr(task.enable, ctx_cls, known_needs, known_inputs)
             if isinstance(task, EarlyTask):
                 _ctx_cls = ctx_cls
                 if isinstance(task, EarlyStatefulCall):
@@ -1159,7 +1159,9 @@ class EarlyBatch:
             if isinstance(task, BaseEarlyCall):
                 args = task.call.args or {}
                 for arg_expr in args.values():
-                    errors += validate_expr(arg_expr, ctx_cls, known_needs)
+                    errors += validate_expr(
+                        arg_expr, ctx_cls, known_needs, known_inputs
+                    )
             if isinstance(task, EarlyLocalCall):
                 known_inputs = (task.action.inputs or {}).keys()
                 errors += validate_expr(
