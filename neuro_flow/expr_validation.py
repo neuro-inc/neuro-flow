@@ -2,12 +2,23 @@ import dataclasses
 
 import abc
 import collections
+import sys
 from abc import abstractmethod
 from typing import AbstractSet, Any, Callable, Iterable, List, Optional, Tuple, Type
-from typing_extensions import get_args, get_type_hints
 
 from neuro_flow.context import Context, TagsCtx
 from neuro_flow.expr import AttrGetter, EvalError, Expr, Item, ItemGetter, Lookup
+
+
+if sys.version_info[:3] >= (3, 7):
+    from typing_extensions import get_type_hints as _get_hints
+
+    def get_hints(obj: Any) -> Any:
+        return _get_hints(obj, include_extras=True)
+
+
+else:
+    from typing import get_type_hints as get_hints
 
 
 def validate_expr(
@@ -33,7 +44,7 @@ def iter_lookups(expr: Expr[Any]) -> Iterable[Lookup]:
 
 
 def _get_dataclass_field_type(dataclass: Any, attr: str) -> Optional[Any]:
-    return get_type_hints(dataclass, include_extras=True).get(attr)
+    return get_hints(dataclass).get(attr)
 
 
 class GetterVisitor(abc.ABC):
@@ -175,10 +186,18 @@ def validate_lookup(
         if dataclasses.is_dataclass(ctx):
             ctx = visitor.dataclass(ctx)
         elif hasattr(ctx, "__metadata__"):  # This is typing.Annotated
+            # The following code is ugly, unfortunately typing got
+            # clear retrospection api only recently,
+            # and it is not backported to python3.6
             annotation = ctx.__metadata__[0]
-            origin_type = ctx.__origin__
-            type_args = get_args(origin_type)
-            origin_abc = origin_type.__origin__
+            origin_type = ctx.__args__[0]
+            type_args = origin_type.__args__
+            if hasattr(origin_type, "__extra__"):
+                # python 3.6
+                origin_abc = origin_type.__extra__
+            else:
+                origin_abc = origin_type.__origin__
+
             if origin_abc == collections.abc.Mapping:
                 ctx = visitor.mapping(type_args, annotation)
             elif origin_abc == collections.abc.Set:
