@@ -169,6 +169,7 @@ class CacheConf:
 
 @dataclass(frozen=True)
 class DefaultsConf:
+    volumes: Sequence[str] = ()
     workdir: Optional[RemotePath] = None
     life_span: Optional[float] = None
     schedule_timeout: Optional[float] = None
@@ -576,6 +577,7 @@ async def setup_defaults_env_tags_ctx(
 ) -> Tuple[DefaultsConf, EnvCtx, TagsCtx]:
     env: EnvCtx
     tags: TagsCtx
+    volumes: List[str]
     if ast_defaults is not None:
         if ast_defaults.env is not None:
             tmp_env = await ast_defaults.env.eval(ctx)
@@ -590,6 +592,16 @@ async def setup_defaults_env_tags_ctx(
             tags = set(tmp_tags)
         else:
             tags = set()
+
+        if ast_defaults.volumes:
+            tmp_volumes = await ast_defaults.volumes.eval(ctx)
+            assert isinstance(tmp_volumes, list)
+            volumes = []
+            for volume in tmp_volumes:
+                if volume:
+                    volumes.append(volume)
+        else:
+            volumes = []
         workdir = await ast_defaults.workdir.eval(ctx)
         life_span = await ast_defaults.life_span.eval(ctx)
         preset = await ast_defaults.preset.eval(ctx)
@@ -597,6 +609,7 @@ async def setup_defaults_env_tags_ctx(
     else:
         env = {}
         tags = set()
+        volumes = []
         workdir = None
         life_span = None
         preset = None
@@ -606,6 +619,7 @@ async def setup_defaults_env_tags_ctx(
     tags.add(f"flow:{_id2tag(ctx.flow.flow_id)}")
 
     defaults = DefaultsConf(
+        volumes=volumes,
         workdir=workdir,
         life_span=life_span,
         preset=preset,
@@ -1004,7 +1018,7 @@ class RunningLiveFlow:
 
         workdir = (await job.workdir.eval(ctx)) or defaults.workdir
 
-        volumes: List[str] = []
+        volumes: List[str] = list(defaults.volumes)
         if job.volumes is not None:
             tmp_volumes = await job.volumes.eval(ctx)
             assert isinstance(tmp_volumes, list)
@@ -1255,7 +1269,7 @@ class RunningBatchBase(Generic[_T], EarlyBatch):
 
         workdir = (await prep_task.ast_task.workdir.eval(ctx)) or defaults.workdir
 
-        volumes: List[str] = []
+        volumes: List[str] = list(defaults.volumes)
         if prep_task.ast_task.volumes is not None:
             tmp_volumes = await prep_task.ast_task.volumes.eval(ctx)
             assert isinstance(tmp_volumes, list)
