@@ -51,7 +51,7 @@ def test_live_context(ws: pathlib.Path, run_cli: RunCLI, project_id: str) -> Non
         "images": {
             "img": {
                 "id": "img",
-                "ref": f"image:{project_id}:v1.0",
+                "ref": f"image:neuro-flow-e2e/{project_id}:v1.0",
                 "context": str(ws),
                 "full_context_path": str(ws),
                 "dockerfile": str(ws / "Dockerfile"),
