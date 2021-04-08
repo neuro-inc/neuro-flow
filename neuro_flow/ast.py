@@ -53,6 +53,8 @@ class Cache(Base):
 @dataclass(frozen=True)
 class Project(Base):
     id: SimpleIdExpr
+    owner: SimpleOptIdExpr
+    role: SimpleOptStrExpr
 
 
 # There are 'batch' for pipelined mode and 'live' for interactive one

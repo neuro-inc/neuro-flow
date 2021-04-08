@@ -6,7 +6,16 @@ import datetime
 import secrets
 import shlex
 import sys
-from neuro_sdk import Client, JobDescription, JobStatus, ResourceNotFound
+from neuro_sdk import (
+    Action,
+    Client,
+    IllegalArgumentError,
+    JobDescription,
+    JobStatus,
+    Permission,
+    ResourceNotFound,
+)
+from neuro_sdk.storage import normalize_storage_path_uri  # type: ignore
 from rich import box
 from rich.console import Console
 from rich.table import Table
@@ -22,9 +31,19 @@ from typing import (
     Type,
 )
 from typing_extensions import AsyncContextManager
+from yarl import URL
 
 from .config_loader import LiveLocalCL
-from .context import ImageCtx, JobMeta, RunningLiveFlow, UnknownJob, VolumeCtx
+from .context import (
+    EMPTY_ROOT,
+    ImageCtx,
+    JobMeta,
+    ProjectCtx,
+    RunningLiveFlow,
+    UnknownJob,
+    VolumeCtx,
+    setup_project_ctx,
+)
 from .parser import ConfigDir
 from .storage import Storage
 from .types import TaskStatus
@@ -60,11 +79,14 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
         self._flow: Optional[RunningLiveFlow] = None
         self._client = client
         self._storage = storage
+        self._project: Optional[ProjectCtx] = None
+        self._is_projet_role_created = False
 
     async def post_init(self) -> None:
         if self._flow is not None:
             return
         self._config_loader = LiveLocalCL(self._config_dir, self._client)
+        self._project = await setup_project_ctx(EMPTY_ROOT, self._config_loader)
         try:
             self._flow = await RunningLiveFlow.create(self._config_loader)
         except Exception:
@@ -342,6 +364,12 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
             run_args.append(f"--port-forward={pf}")
         if job.pass_config:
             run_args.append(f"--pass-config")
+        assert self._flow is not None
+        assert self._project is not None
+        project_role = self._project.role
+        if project_role is not None:
+            await self._create_project_role(project_role)
+            run_args.append(f"--share={project_role}")
 
         run_args.append(job.image)
         if job.cmd:
@@ -450,6 +478,10 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
             str(volume_ctx.full_local_path),
             str(volume_ctx.remote),
         )
+        uri = normalize_storage_path_uri(
+            volume_ctx.remote, self._client.username, self._client.cluster_name
+        )
+        await self._add_resource(uri)
 
     async def download(self, volume: str) -> None:
         volume_ctx = await self.find_volume(volume)
@@ -493,6 +525,10 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
                     "--parents",
                     str(volume_ctx.remote),
                 )
+                uri = normalize_storage_path_uri(
+                    volume_ctx.remote, self._client.username, self._client.cluster_name
+                )
+                await self._add_resource(uri)
 
     # images subsystem
 
@@ -534,8 +570,38 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
         cmd.append(str(image_ctx.full_context_path))
         cmd.append(str(image_ctx.ref))
         await run_subproc("neuro-extras", "image", "build", *cmd)
+        image_ref = self._client.parse.remote_image(image_ctx.ref)
+        image_ref = dataclasses.replace(image_ref, tag=None)
+        await self._add_resource(URL(str(image_ref)))
 
     async def build_all(self, force_overwrite: bool) -> None:
         for image, image_ctx in self.flow.images.items():
             if image_ctx.context is not None:
                 await self.build(image, force_overwrite=force_overwrite)
+
+    async def _create_project_role(self, project_role: str) -> None:
+        if self._is_projet_role_created:
+            return
+        try:
+            await self._client.users.add(project_role)
+        except IllegalArgumentError as e:
+            if "already exists" not in str(e):
+                raise
+        self._is_projet_role_created = True
+
+    async def _add_storage_resource(self, uri: URL) -> None:
+        uri = normalize_storage_path_uri(
+            uri, self._client.username, self._client.cluster_name
+        )
+
+    async def _add_resource(self, uri: URL) -> None:
+        assert self._project is not None
+        project_role = self._project.role
+        if project_role is None:
+            return
+        await self._create_project_role(project_role)
+        permission = Permission(uri, Action.WRITE)
+        try:
+            await self._client.users.share(project_role, permission)
+        except ValueError:
+            self._console.print(f"[red]Cannot share [b]{uri!s}[/b]")

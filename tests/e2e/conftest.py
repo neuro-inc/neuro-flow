@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 
+import aiohttp
 import logging
 import os
 import pathlib
@@ -7,10 +8,14 @@ import pytest
 import secrets
 import shutil
 import subprocess
-from neuro_sdk import login_with_token
+from neuro_sdk import Config, get as api_get, login_with_token
+from pathlib import Path
 from typing import Any, AsyncIterator, Callable, List, Optional
 from yarl import URL
 
+
+NETWORK_TIMEOUT = 3 * 60.0
+CLIENT_TIMEOUT = aiohttp.ClientTimeout(None, None, NETWORK_TIMEOUT, NETWORK_TIMEOUT)
 
 log = logging.getLogger(__name__)
 
@@ -25,12 +30,33 @@ def project_id() -> str:
     return f"e2e_proj_{secrets.token_hex(10)}"
 
 
+async def get_config(nmrc_path: Optional[Path]) -> Config:
+    __tracebackhide__ = True
+    async with api_get(timeout=CLIENT_TIMEOUT, path=nmrc_path) as client:
+        return client.config
+
+
 @pytest.fixture
-def ws(assets: pathlib.Path, tmp_path_factory: Any, project_id: str) -> pathlib.Path:
+async def username(api_config: Optional[pathlib.Path]) -> Optional[str]:
+    config = await get_config(api_config)
+    return config.username
+
+
+@pytest.fixture
+def ws(
+    assets: pathlib.Path,
+    tmp_path_factory: Any,
+    project_id: str,
+    username: Optional[str],
+) -> pathlib.Path:
     tmp_dir: pathlib.Path = tmp_path_factory.mktemp("proj-dir-parent")
     ws_dir = tmp_dir / project_id
     shutil.copytree(assets / "ws", ws_dir)
-    (ws_dir / "project.yml").write_text(f"id: {project_id}")
+    project_data = f"id: {project_id}"
+    if username:
+        project_data += f"\nowner: {username}"
+    print(f"project_data = {project_data!r}")
+    (ws_dir / "project.yml").write_text(project_data)
     return ws_dir
 
 

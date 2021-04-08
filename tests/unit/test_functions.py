@@ -6,7 +6,7 @@ from neuro_sdk import Client
 from re_assert import Matches
 from typing import AbstractSet, Any, AsyncIterator, Callable, Mapping
 
-from neuro_flow.context import FlowCtx, LiveContext, TagsCtx
+from neuro_flow.context import FlowCtx, LiveContext, ProjectCtx, TagsCtx
 from neuro_flow.expr import EvalError, RootABC, StrExpr, TypeT
 from neuro_flow.tokenizer import Pos
 from neuro_flow.types import LocalPath
@@ -127,7 +127,11 @@ async def live_context_factory(assets: pathlib.Path) -> LiveContextFactory:
             _client=client,
             flow=FlowCtx(
                 flow_id="live",
-                project_id="test",
+                project=ProjectCtx(
+                    project_id="test",
+                    owner=None,
+                    role=None,
+                ),
                 workspace=assets,
                 title="unit test flow",
             ),

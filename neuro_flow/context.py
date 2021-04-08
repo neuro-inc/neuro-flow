@@ -73,9 +73,16 @@ MatrixCtx = Mapping[str, LiteralT]
 
 
 @dataclass(frozen=True)
+class ProjectCtx:
+    project_id: str
+    owner: Optional[str] = None
+    role: Optional[str] = None
+
+
+@dataclass(frozen=True)
 class FlowCtx:
     flow_id: str
-    project_id: str
+    project: ProjectCtx
     workspace: LocalPath
     title: str
 
@@ -90,6 +97,10 @@ class FlowCtx:
             fg="yellow",
         )
         return self.flow_id
+
+    @property
+    def project_id(self) -> str:
+        return self.project.project_id
 
 
 @dataclass(frozen=True)
@@ -531,6 +542,19 @@ class LocalActionContext(Context):
     inputs: InputsCtx
 
 
+async def setup_project_ctx(
+    ctx: RootABC,
+    config_loader: ConfigLoader,
+) -> ProjectCtx:
+    ast_project = await config_loader.fetch_project()
+    project_id = await ast_project.id.eval(ctx)
+    project_owner = await ast_project.owner.eval(ctx)
+    project_role = await ast_project.role.eval(ctx)
+    if project_role is None and project_owner is not None:
+        project_role = f"{project_owner}/projects/{project_id}"
+    return ProjectCtx(project_id=project_id, owner=project_owner, role=project_role)
+
+
 async def setup_flow_ctx(
     ctx: RootABC,
     ast_flow: ast.BaseFlow,
@@ -540,14 +564,12 @@ async def setup_flow_ctx(
     flow_id = await ast_flow.id.eval(ctx)
     if flow_id is None:
         flow_id = config_name.replace("-", "_")
-
-    project = await config_loader.fetch_project()
-    project_id = await project.id.eval(ctx)
+    project = await setup_project_ctx(ctx, config_loader)
     flow_title = await ast_flow.title.eval(ctx)
 
     return FlowCtx(
         flow_id=flow_id,
-        project_id=project_id,
+        project=project,
         workspace=config_loader.workspace,
         title=flow_title or flow_id,
     )
@@ -563,7 +585,7 @@ async def setup_batch_flow_ctx(
     life_span = await ast_flow.life_span.eval(ctx)
     return BatchFlowCtx(
         flow_id=base_flow.flow_id,
-        project_id=base_flow.project_id,
+        project=base_flow.project,
         workspace=base_flow.workspace,
         title=base_flow.title,
         life_span=life_span,
