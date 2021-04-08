@@ -66,13 +66,19 @@ class MainGroup(click.Group):
 
         console = Console(highlight=False, log_path=False)
 
-        setup_logging(color=bool(console.color_system), verbosity=verbose - quiet)
+        verbosity = verbose - quiet
+        setup_logging(color=bool(console.color_system), verbosity=verbosity)
 
         global LOG_ERROR
         if show_traceback:
             LOG_ERROR = log.exception
 
-        ctx.obj = Root(config_dir=config_dir, console=console)
+        ctx.obj = Root(
+            config_dir=config_dir,
+            console=console,
+            verbosity=verbosity,
+            show_traceback=show_traceback,
+        )
 
     def make_context(
         self,

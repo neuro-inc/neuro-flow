@@ -26,7 +26,7 @@ from typing import (
     Type,
     cast,
 )
-from typing_extensions import AsyncContextManager, AsyncIterator
+from typing_extensions import AsyncContextManager, AsyncIterator, Protocol
 
 import neuro_flow
 
@@ -58,6 +58,16 @@ GRAPH_COLORS = {
     TaskStatus.FAILED: "orangered",
     TaskStatus.UNKNOWN: "crimson",
 }
+
+
+class ExecutorOptions(Protocol):
+    @property
+    def verbosity(self) -> int:
+        ...
+
+    @property
+    def show_traceback(self) -> int:
+        ...
 
 
 class BatchRunner(AsyncContextManager["BatchRunner"]):
@@ -268,6 +278,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
     async def bake(
         self,
         batch_name: str,
+        executor_options: ExecutorOptions,
         local_executor: bool = False,
         params: Optional[Mapping[str, str]] = None,
     ) -> None:
@@ -276,10 +287,14 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             justify="center",
         )
         data, flow = await self._setup_bake(batch_name, params)
-        await self._run_bake(data, flow, local_executor)
+        await self._run_bake(data, flow, local_executor, executor_options)
 
     async def _run_bake(
-        self, data: ExecutorData, flow: RunningBatchFlow, local_executor: bool
+        self,
+        data: ExecutorData,
+        flow: RunningBatchFlow,
+        local_executor: bool,
+        executor_options: ExecutorOptions,
     ) -> None:
         self._console.rule("Run local actions")
         locals_result = await self._run_locals(data)
@@ -296,6 +311,16 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                 life_span = fmt_timedelta(flow.life_span)
             else:
                 life_span = "7d"
+
+            global_options = []
+            verbosity_abs = abs(executor_options.verbosity)
+            if executor_options.verbosity < 0:
+                global_options += ["-q"] * verbosity_abs
+            if executor_options.verbosity > 0:
+                global_options += ["-v"] * verbosity_abs
+            if executor_options.show_traceback:
+                global_options += ["--show-traceback"]
+
             await run_subproc(
                 "neuro",
                 "run",
@@ -307,6 +332,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                 f"--tag=remote_executor",
                 EXECUTOR_IMAGE,
                 "neuro-flow",
+                *global_options,
                 "--fake-workspace",
                 "execute",
                 param,
@@ -544,6 +570,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
     async def restart(
         self,
         bake_id: str,
+        executor_options: ExecutorOptions,
         *,
         attempt_no: int = -1,
         from_failed: bool = True,
@@ -552,7 +579,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         data, flow = await self._restart(
             bake_id, attempt_no=attempt_no, from_failed=from_failed
         )
-        await self._run_bake(data, flow, local_executor)
+        await self._run_bake(data, flow, local_executor, executor_options)
 
     async def _restart(
         self,

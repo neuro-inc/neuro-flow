@@ -61,7 +61,12 @@ async def bake(
         if meta_from_file is not None:
             bake_meta = parse_bake_meta(LocalPath(meta_from_file))
             params = {**bake_meta, **params}
-        await runner.bake(batch, local_executor, params)
+        await runner.bake(
+            batch_name=batch,
+            local_executor=local_executor,
+            params=params,
+            executor_options=root,
+        )
 
 
 @click.command(hidden=True)
@@ -324,6 +329,7 @@ async def restart(
         )
         await runner.restart(
             bake_id,
+            executor_options=root,
             attempt_no=attempt,
             from_failed=from_failed,
             local_executor=local_executor,
