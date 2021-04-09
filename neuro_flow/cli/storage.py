@@ -32,7 +32,7 @@ async def upload(
             FSStorage(NeuroStorageFS(client))
         )
         runner = await stack.enter_async_context(
-            LiveRunner(root.config_dir, root.console, client, storage)
+            LiveRunner(root.config_dir, root.console, client, storage, root)
         )
         if volume != "ALL":
             await runner.upload(volume)
@@ -57,7 +57,7 @@ async def download(
             FSStorage(NeuroStorageFS(client))
         )
         runner = await stack.enter_async_context(
-            LiveRunner(root.config_dir, root.console, client, storage)
+            LiveRunner(root.config_dir, root.console, client, storage, root)
         )
         if volume != "ALL":
             await runner.download(volume)
@@ -82,7 +82,7 @@ async def clean(
             FSStorage(NeuroStorageFS(client))
         )
         runner = await stack.enter_async_context(
-            LiveRunner(root.config_dir, root.console, client, storage)
+            LiveRunner(root.config_dir, root.console, client, storage, root)
         )
         if volume != "ALL":
             await runner.clean(volume)
@@ -102,6 +102,6 @@ async def mkvolumes(
             FSStorage(NeuroStorageFS(client))
         )
         runner = await stack.enter_async_context(
-            LiveRunner(root.config_dir, root.console, client, storage)
+            LiveRunner(root.config_dir, root.console, client, storage, root)
         )
         await runner.mkvolumes()

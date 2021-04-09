@@ -29,7 +29,7 @@ async def ps(
             FSStorage(NeuroStorageFS(client))
         )
         runner = await stack.enter_async_context(
-            LiveRunner(root.config_dir, root.console, client, storage)
+            LiveRunner(root.config_dir, root.console, client, storage, root)
         )
         await runner.ps()
 
@@ -65,7 +65,7 @@ async def run(
             FSStorage(NeuroStorageFS(client))
         )
         runner = await stack.enter_async_context(
-            LiveRunner(root.config_dir, root.console, client, storage)
+            LiveRunner(root.config_dir, root.console, client, storage, root)
         )
         await runner.run(job_id, suffix, args, {key: value for key, value in param})
 
@@ -89,7 +89,7 @@ async def logs(
             FSStorage(NeuroStorageFS(client))
         )
         runner = await stack.enter_async_context(
-            LiveRunner(root.config_dir, root.console, client, storage)
+            LiveRunner(root.config_dir, root.console, client, storage, root)
         )
         await runner.logs(job_id, suffix)
 
@@ -113,7 +113,7 @@ async def status(
             FSStorage(NeuroStorageFS(client))
         )
         runner = await stack.enter_async_context(
-            LiveRunner(root.config_dir, root.console, client, storage)
+            LiveRunner(root.config_dir, root.console, client, storage, root)
         )
         await runner.status(job_id, suffix)
 
@@ -136,7 +136,7 @@ async def kill(
             FSStorage(NeuroStorageFS(client))
         )
         runner = await stack.enter_async_context(
-            LiveRunner(root.config_dir, root.console, client, storage)
+            LiveRunner(root.config_dir, root.console, client, storage, root)
         )
         if job_id != "ALL":
             await runner.kill(job_id, suffix)
