@@ -36,8 +36,14 @@ async def ps(
 
 @click.command()
 @option("-s", "--suffix", help="Optional suffix for multi-jobs")
-@click.option(
+@option(
     "--param", type=(str, str), multiple=True, help="Set params of the batch config"
+)
+@option(
+    "--dry-run",
+    is_flag=True,
+    default=False,
+    help="Print run command instead of starting job.",
 )
 @argument("job-id", type=LIVE_JOB)
 @argument("args", nargs=-1)
@@ -46,6 +52,7 @@ async def run(
     root: Root,
     job_id: str,
     suffix: Optional[str],
+    dry_run: bool,
     args: Optional[Tuple[str]],
     param: List[Tuple[str, str]],
 ) -> None:
@@ -67,7 +74,13 @@ async def run(
         runner = await stack.enter_async_context(
             LiveRunner(root.config_dir, root.console, client, storage)
         )
-        await runner.run(job_id, suffix, args, {key: value for key, value in param})
+        await runner.run(
+            job_id,
+            suffix=suffix,
+            args=args,
+            params={key: value for key, value in param},
+            dry_run=dry_run,
+        )
 
 
 @click.command()

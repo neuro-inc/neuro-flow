@@ -116,7 +116,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
             return meta
         except UnknownJob:
             self._console.print(f"[red]Unknown job [b]{job_id}[/b]")
-            jobs_str = ",".join(self.flow.job_ids)
+            jobs_str = ", ".join(self.flow.job_ids)
             self._console.print(f"[dim]Existing jobs: {jobs_str}")
             sys.exit(1)
 
@@ -286,10 +286,12 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
         suffix: Optional[str],
         args: Optional[Tuple[str]],
         params: Mapping[str, str],
+        dry_run: bool,
     ) -> None:
         """Run a named job"""
 
-        is_multi = await self.flow.is_multi(job_id)
+        meta_ctx = await self._ensure_meta(job_id, suffix)
+        is_multi = meta_ctx.multi
 
         if not is_multi and args:
             raise click.BadArgumentUsage(
@@ -349,6 +351,14 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
 
         if job.multi and args:
             run_args.extend(args)
+
+        if dry_run:
+            run_args = ["neuro", *run_args]
+            self._console.print(
+                " ".join(shlex.quote(arg) for arg in run_args), soft_wrap=True
+            )
+            return
+
         jobs = []
         for job_id in self.flow.job_ids:
             job_meta = await self.flow.get_meta(job_id)
