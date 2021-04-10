@@ -49,7 +49,7 @@ repos:
       docs/spelling_wordlist.txt|
       .gitignore
 - repo: https://github.com/asottile/pyupgrade
-  rev: 'v2.11.0'
+  rev: 'v2.12.0'
   hooks:
   - id: pyupgrade
     args: ['--py36-plus']
