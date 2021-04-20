@@ -19,7 +19,7 @@ volumes:
 
 images:
   img:
-    ref: image:${{ flow.project_id }}:v1.0
+    ref: image:neuro-flow-e2e/${{ flow.project_id }}:v1.0
     dockerfile: ${{ flow.workspace }}/Dockerfile
     context: ${{ flow.workspace }}
 
