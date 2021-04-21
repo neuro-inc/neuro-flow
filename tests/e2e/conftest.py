@@ -71,8 +71,7 @@ def ws(
     shutil.copytree(assets / "ws", ws_dir)
     project_data = f"id: {project_id}"
     if username:
-        project_data += f"\nowner: {username}"
-    print(f"project_data = {project_data!r}")
+        project_data += f'\nowner: "{username}"'
     (ws_dir / "project.yml").write_text(project_data)
     return ws_dir
 
