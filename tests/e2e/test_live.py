@@ -97,12 +97,8 @@ def test_volumes(
 ) -> None:
     run_cli(["mkvolumes"])
 
-    storage_uri = (
-        URL.build(scheme="storage", host=cluster_name)
-        / username
-        / "neuro-flow-e2e"
-        / project_id
-    )
+    storage_uri = URL.build(scheme="storage", host=cluster_name)
+    storage_uri = storage_uri / username / "neuro-flow-e2e" / project_id
     captured = run_neuro_cli(["acl", "list", "--shared", str(storage_uri)])
     assert sorted(line.split() for line in captured.out.splitlines()) == [
         [f"storage:neuro-flow-e2e/{project_id}/ro_dir", "write", project_role],
@@ -115,18 +111,6 @@ def test_volumes(
     captured = run_cli(["run", "volumes_test"])
     assert "initial_file_content" in captured.out
     assert random_text in captured.out
-
-    storage_uri = (
-        URL.build(scheme="storage", host=cluster_name)
-        / username
-        / "neuro-flow-e2e"
-        / project_id
-    )
-    captured = run_neuro_cli(["acl", "list", "--shared", str(storage_uri)])
-    assert sorted(line.split() for line in captured.out.splitlines()) == [
-        [f"storage:neuro-flow-e2e/{project_id}/ro_dir", "write", project_role],
-        [f"storage:neuro-flow-e2e/{project_id}/rw_dir", "write", project_role],
-    ]
 
 
 def test_image_build(
