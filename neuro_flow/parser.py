@@ -438,7 +438,7 @@ class ProjectLoader(Reader, Scanner, Parser, Composer, BaseConstructor, BaseReso
         BaseResolver.__init__(self)
 
 
-PROJECT = {"id": SimpleIdExpr, "owner": SimpleOptIdExpr, "role": SimpleOptStrExpr}
+PROJECT = {"id": SimpleIdExpr, "owner": SimpleOptStrExpr, "role": SimpleOptStrExpr}
 
 
 def parse_project_main(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Project:
@@ -485,7 +485,7 @@ def make_default_project(workspace_stem: str) -> ast.Project:
             Pos(0, 0, LocalPath("<default>")),
             project_id,
         ),
-        owner=SimpleOptIdExpr(
+        owner=SimpleOptStrExpr(
             Pos(0, 0, LocalPath("<default>")),
             Pos(0, 0, LocalPath("<default>")),
             None,
