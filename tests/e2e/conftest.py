@@ -13,6 +13,8 @@ from pathlib import Path
 from typing import Any, AsyncIterator, Callable, List, Optional
 from yarl import URL
 
+from neuro_flow.context import sanitize_name
+
 
 NETWORK_TIMEOUT = 3 * 60.0
 CLIENT_TIMEOUT = aiohttp.ClientTimeout(None, None, NETWORK_TIMEOUT, NETWORK_TIMEOUT)
@@ -37,9 +39,23 @@ async def get_config(nmrc_path: Optional[Path]) -> Config:
 
 
 @pytest.fixture
-async def username(api_config: Optional[pathlib.Path]) -> Optional[str]:
-    config = await get_config(api_config)
-    return config.username
+async def api_config_data(api_config: Optional[pathlib.Path]) -> Config:
+    return await get_config(api_config)
+
+
+@pytest.fixture
+def username(api_config_data: Config) -> str:
+    return api_config_data.username
+
+
+@pytest.fixture
+def cluster_name(api_config_data: Config) -> str:
+    return api_config_data.cluster_name
+
+
+@pytest.fixture
+async def project_role(project_id: str, username: str) -> str:
+    return f"{username}/projects/{sanitize_name(project_id)}"
 
 
 @pytest.fixture
@@ -47,7 +63,7 @@ def ws(
     assets: pathlib.Path,
     tmp_path_factory: Any,
     project_id: str,
-    username: Optional[str],
+    username: str,
 ) -> pathlib.Path:
     tmp_dir: pathlib.Path = tmp_path_factory.mktemp("proj-dir-parent")
     ws_dir = tmp_dir / project_id
@@ -87,13 +103,11 @@ RunCLI = Callable[[List[str]], SysCap]
 
 @pytest.fixture
 def run_cli(loop: None, ws: pathlib.Path, api_config: Optional[pathlib.Path]) -> RunCLI:
-    def _run(
-        arguments: List[str],
-    ) -> SysCap:
+    def _run(arguments: List[str], executable: str = "neuro-flow") -> SysCap:
         if api_config:
             os.environ["NEUROMATION_CONFIG"] = str(api_config)
         proc = subprocess.run(
-            ["neuro-flow"] + arguments,
+            [executable] + arguments,
             timeout=600,
             cwd=ws,
             encoding="utf8",
@@ -108,5 +122,13 @@ def run_cli(loop: None, ws: pathlib.Path, api_config: Optional[pathlib.Path]) ->
             log.error(f"Last stderr: '{proc.stderr}'")
             raise
         return SysCap(out=proc.stdout.strip(), err=proc.stderr.strip())
+
+    return _run
+
+
+@pytest.fixture
+def run_neuro_cli(loop: None, run_cli: RunCLI) -> RunCLI:
+    def _run(arguments: List[str]) -> SysCap:
+        return run_cli(arguments, executable="neuro")  # type: ignore
 
     return _run

@@ -319,7 +319,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             ]
             project_role = self.project_role
             if project_role is not None:
-                run_args += ["--share", project_role]
+                run_args.append(f"--share={project_role}")
             run_args += [
                 EXECUTOR_IMAGE,
                 "neuro-flow",

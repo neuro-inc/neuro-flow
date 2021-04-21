@@ -6,6 +6,7 @@ import enum
 import hashlib
 import itertools
 import json
+import re
 import shlex
 import sys
 from abc import abstractmethod
@@ -542,6 +543,19 @@ class LocalActionContext(Context):
     inputs: InputsCtx
 
 
+def sanitize_name(name: str) -> str:
+    # replace non-printable characters with "_"
+    if not name.isprintable():
+        name = "".join(c if c.isprintable() else "_" for c in name)
+    # ":" is special in role name, replace it with "_"
+    name = name.replace(":", "_")
+    name = name.replace(" ", "_")  # replace space for readability
+    name = re.sub(r"//+", "/", name)  # collapse repeated "/"
+    name = name.strip("/")  # remove initial and and trailing "/"
+    name = name or "_"  # name should be non-empty
+    return name
+
+
 async def setup_project_ctx(
     ctx: RootABC,
     config_loader: ConfigLoader,
@@ -551,7 +565,7 @@ async def setup_project_ctx(
     project_owner = await ast_project.owner.eval(ctx)
     project_role = await ast_project.role.eval(ctx)
     if project_role is None and project_owner is not None:
-        project_role = f"{project_owner}/projects/{project_id}"
+        project_role = f"{project_owner}/projects/{sanitize_name(project_id)}"
     return ProjectCtx(project_id=project_id, owner=project_owner, role=project_role)
 
 
