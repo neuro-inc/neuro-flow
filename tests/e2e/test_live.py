@@ -137,18 +137,20 @@ def test_image_build(
     project_role: str,
     cluster_name: str,
 ) -> None:
-    image_uri = URL.build(scheme="image", host=cluster_name) / username / project_id
+    image_uri = URL.build(scheme="image", host=cluster_name)
+    image_uri = image_uri / username / "neuro-flow-e2e" / project_id
     try:
         run_cli(["build", "img"])
+
+        captured = run_neuro_cli(["acl", "list", "--shared", str(image_uri)])
+        assert sorted(line.split() for line in captured.out.splitlines()) == [
+            [f"image:neuro-flow-e2e/{project_id}", "write", project_role],
+        ]
+
         random_text = secrets.token_hex(20)
         captured = run_cli(
             ["run", "image_py", "--param", "py_script", f"print('{random_text}')"]
         )
         assert random_text in captured.out
-
-        captured = run_neuro_cli(["acl", "list", "--shared", str(image_uri)])
-        assert sorted(line.split() for line in captured.out.splitlines()) == [
-            [f"image:{project_id}", "write", project_role],
-        ]
     finally:
         run_neuro_cli(["image", "rm", str(image_uri)])
