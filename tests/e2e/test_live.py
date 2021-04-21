@@ -1,6 +1,5 @@
 import json
 import pathlib
-import pytest
 import secrets
 from yarl import URL
 
@@ -66,7 +65,7 @@ def test_live_context(
         "images": {
             "img": {
                 "id": "img",
-                "ref": f"image:{project_id}:v1.0",
+                "ref": f"image:neuro-flow-e2e/{project_id}:v1.0",
                 "context": str(ws),
                 "full_context_path": str(ws),
                 "dockerfile": str(ws / "Dockerfile"),
@@ -130,7 +129,6 @@ def test_volumes(
     ]
 
 
-@pytest.mark.xfail()  # Currently image build always fails
 def test_image_build(
     run_cli: RunCLI,
     run_neuro_cli: RunCLI,
@@ -139,15 +137,18 @@ def test_image_build(
     project_role: str,
     cluster_name: str,
 ) -> None:
-    run_cli(["build", "img"])
-    random_text = secrets.token_hex(20)
-    captured = run_cli(
-        ["run", "image_py", "--param", "py_script", f"print('{random_text}')"]
-    )
-    assert random_text in captured.out
-
     image_uri = URL.build(scheme="image", host=cluster_name) / username / project_id
-    captured = run_neuro_cli(["acl", "list", "--shared", str(image_uri)])
-    assert sorted(line.split() for line in captured.out.splitlines()) == [
-        [f"image:{project_id}", "write", project_role],
-    ]
+    try:
+        run_cli(["build", "img"])
+        random_text = secrets.token_hex(20)
+        captured = run_cli(
+            ["run", "image_py", "--param", "py_script", f"print('{random_text}')"]
+        )
+        assert random_text in captured.out
+
+        captured = run_neuro_cli(["acl", "list", "--shared", str(image_uri)])
+        assert sorted(line.split() for line in captured.out.splitlines()) == [
+            [f"image:{project_id}", "write", project_role],
+        ]
+    finally:
+        run_neuro_cli(["image", "rm", str(image_uri)])
