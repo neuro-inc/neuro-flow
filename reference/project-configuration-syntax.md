@@ -10,10 +10,17 @@ This file only contains the `id` attribute by default, but the format can be exp
 
 ## id
 
-Project `id` available as a `${{ flow.project_id }}` context.
+Project `id` available as a `${{ flow.project.project_id }}` context.
 
 See also:
 
 * [live contexts: `flow`](live-contexts.md#flow-context)
 * [batch contexts: `flow`](batch-contexts.md#flow-context)
 
+## owner
+
+Optional owner name available as a `${{ flow.project.owner }}` context.  Shared projects require `owner` or `role`.
+
+## role
+
+Optional project role name available as a `${{ flow.project.owner }}` context.  By default is defrined as `{owner}/projects/{id}`.  Shared projects require `owner` or `role`.
