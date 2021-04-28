@@ -6,7 +6,7 @@ from neuro_flow.cli.click_types import LIVE_IMAGE_OR_ALL
 from neuro_flow.cli.root import Root
 from neuro_flow.cli.utils import argument, option, wrap_async
 from neuro_flow.live_runner import LiveRunner
-from neuro_flow.storage import FSStorage, NeuroStorageFS, Storage
+from neuro_flow.storage import APIStorage, NeuroStorageFS, Storage
 
 
 if sys.version_info >= (3, 7):
@@ -33,7 +33,7 @@ async def build(root: Root, force_overwrite: bool, image: str) -> None:
     async with AsyncExitStack() as stack:
         client = await stack.enter_async_context(neuro_sdk.get())
         storage: Storage = await stack.enter_async_context(
-            FSStorage(NeuroStorageFS(client))
+            APIStorage(client, NeuroStorageFS(client))
         )
         runner = await stack.enter_async_context(
             LiveRunner(root.config_dir, root.console, client, storage)

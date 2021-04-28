@@ -6,7 +6,7 @@ from typing import List, Optional, Tuple
 from neuro_flow.cli.click_types import LIVE_JOB, LIVE_JOB_OR_ALL, SUFFIX_AFTER_LIVE_JOB
 from neuro_flow.cli.utils import argument, option, wrap_async
 from neuro_flow.live_runner import LiveRunner
-from neuro_flow.storage import FSStorage, NeuroStorageFS, Storage
+from neuro_flow.storage import APIStorage, NeuroStorageFS, Storage
 
 from .root import Root
 
@@ -26,7 +26,7 @@ async def ps(
     async with AsyncExitStack() as stack:
         client = await stack.enter_async_context(neuro_sdk.get())
         storage: Storage = await stack.enter_async_context(
-            FSStorage(NeuroStorageFS(client))
+            APIStorage(client, NeuroStorageFS(client))
         )
         runner = await stack.enter_async_context(
             LiveRunner(root.config_dir, root.console, client, storage)
@@ -62,7 +62,7 @@ async def run(
     async with AsyncExitStack() as stack:
         client = await stack.enter_async_context(neuro_sdk.get())
         storage: Storage = await stack.enter_async_context(
-            FSStorage(NeuroStorageFS(client))
+            APIStorage(client, NeuroStorageFS(client))
         )
         runner = await stack.enter_async_context(
             LiveRunner(root.config_dir, root.console, client, storage)
@@ -86,7 +86,7 @@ async def logs(
     async with AsyncExitStack() as stack:
         client = await stack.enter_async_context(neuro_sdk.get())
         storage: Storage = await stack.enter_async_context(
-            FSStorage(NeuroStorageFS(client))
+            APIStorage(client, NeuroStorageFS(client))
         )
         runner = await stack.enter_async_context(
             LiveRunner(root.config_dir, root.console, client, storage)
@@ -110,7 +110,7 @@ async def status(
     async with AsyncExitStack() as stack:
         client = await stack.enter_async_context(neuro_sdk.get())
         storage: Storage = await stack.enter_async_context(
-            FSStorage(NeuroStorageFS(client))
+            APIStorage(client, NeuroStorageFS(client))
         )
         runner = await stack.enter_async_context(
             LiveRunner(root.config_dir, root.console, client, storage)
@@ -133,7 +133,7 @@ async def kill(
     async with AsyncExitStack() as stack:
         client = await stack.enter_async_context(neuro_sdk.get())
         storage: Storage = await stack.enter_async_context(
-            FSStorage(NeuroStorageFS(client))
+            APIStorage(client, NeuroStorageFS(client))
         )
         runner = await stack.enter_async_context(
             LiveRunner(root.config_dir, root.console, client, storage)
