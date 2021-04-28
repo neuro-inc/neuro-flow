@@ -4,8 +4,8 @@ backports-datetime-fromisoformat==1.0.0; python_version<"3.7"
 dataclasses==0.7; python_version<"3.7"
 funcparserlib==0.3.6
 graphviz==0.16
-humanize==3.4.0
-neuro-cli==21.4.13
+humanize==3.4.1
+neuro-cli==21.4.23
 neuro-extras==21.3.19
 pyyaml==5.4.1
 rich==10.1.0
