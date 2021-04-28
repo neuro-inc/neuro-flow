@@ -922,6 +922,7 @@ class APIStorage(Storage):
 
         self._projects_cache: Dict[str, Project] = {}
         self._bakes_cache: Dict[str, Dict[str, Any]] = {}
+        self._attempts_cache: Dict[str, Dict[str, Any]] = {}
 
     async def close(self) -> None:
         pass
@@ -1208,6 +1209,8 @@ class APIStorage(Storage):
         ) as resp:
             attempt_data = await resp.json()
 
+        self._attempts_cache[attempt_data["id"]] = attempt_data
+
         bake_uri = _mk_bake_uri(self._fs, bake)
         attempt_uri = bake_uri / f"{attempt_no:02d}.attempt"
         await self._fs.mkdir(attempt_uri)
@@ -1239,6 +1242,14 @@ class APIStorage(Storage):
         self, bake: Bake, attempt_no: int = -1
     ) -> Dict[str, Any]:
         bake_data = await self._find_bake_data(bake)
+
+        for attempt_data in self._attempts_cache.values():
+            if (
+                attempt_data["bake_id"] == bake_data["id"]
+                and attempt_data["number"] == attempt_no
+            ):
+                return attempt_data
+
         assert attempt_no == -1 or 0 < attempt_no < 99
         url = self._base_url / "api/v1/flow/attempts/by_number"
         auth = await self._config._api_auth()
@@ -1321,7 +1332,8 @@ class APIStorage(Storage):
             },
             auth=auth,
         ) as resp:
-            assert resp
+            await resp.json()
+            self._attempts_cache[attempt_data["id"]]["result"] = result.value
 
         bake_uri = _mk_bake_uri(self._fs, attempt.bake)
         attempt_url = bake_uri / f"{attempt.number:02d}.attempt"
@@ -1347,7 +1359,7 @@ class APIStorage(Storage):
             },
             auth=auth,
         ) as resp:
-            resp
+            await resp.json()
 
         bake_uri = _mk_bake_uri(self._fs, st.attempt.bake)
         attempt_url = bake_uri / f"{st.attempt.number:02d}.attempt"
@@ -1400,7 +1412,7 @@ class APIStorage(Storage):
                 json=task_data,
                 auth=auth,
             ) as resp:
-                resp
+                await resp.json()
         else:
             # update existing task
             async with self._core.request(
@@ -1409,7 +1421,7 @@ class APIStorage(Storage):
                 json=task_data,
                 auth=auth,
             ) as resp:
-                resp
+                await resp.json()
 
         bake_uri = _mk_bake_uri(self._fs, ft.attempt.bake)
         attempt_url = bake_uri / f"{ft.attempt.number:02d}.attempt"
