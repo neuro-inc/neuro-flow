@@ -55,8 +55,14 @@ def cluster_name(api_config_data: Config) -> str:
 
 
 @pytest.fixture
-async def project_role(project_id: str, username: str) -> str:
-    return f"{username}/projects/{sanitize_name(project_id)}"
+async def project_role(
+    project_id: str, username: str, run_neuro_cli: "RunCLI"
+) -> AsyncIterator[str]:
+    project_role = f"{username}/projects/{sanitize_name(project_id)}"
+    try:
+        yield project_role
+    finally:
+        run_neuro_cli(["acl", "remove-role", project_role])
 
 
 @pytest.fixture
