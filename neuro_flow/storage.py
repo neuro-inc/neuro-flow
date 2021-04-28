@@ -2,6 +2,7 @@ import dataclasses
 
 import abc
 import datetime
+import hashlib
 import json
 import logging
 import re
@@ -25,6 +26,7 @@ from typing import (
     AsyncIterator,
     Dict,
     Iterable,
+    List,
     Mapping,
     Optional,
     Sequence,
@@ -32,7 +34,7 @@ from typing import (
     Type,
     cast,
 )
-from typing_extensions import Final
+from typing_extensions import Final, TypedDict
 from yarl import URL
 
 from neuro_flow.types import LocalPath
@@ -53,6 +55,14 @@ log = logging.getLogger(__name__)
 STARTED_RE: Final = re.compile(r"\A(?P<id>[a-zA-Z][a-zA-Z0-9_\-\.]*).started.json\Z")
 FINISHED_RE: Final = re.compile(r"\A(?P<id>[a-zA-Z][a-zA-Z0-9_\-\.]*).finished.json\Z")
 DIGITS = 4
+
+
+@dataclasses.dataclass(frozen=True)
+class Project:
+    id: str
+    name: str
+    owner: str
+    cluster: str
 
 
 @dataclasses.dataclass(frozen=True)
@@ -118,12 +128,9 @@ class FinishedTask:
     raw_id: str
     when: datetime.datetime
     status: TaskStatus
-    exit_code: Optional[int]
     created_at: datetime.datetime
     started_at: datetime.datetime
     finished_at: datetime.datetime
-    finish_reason: str
-    finish_description: str
     outputs: Mapping[str, str]
     state: Mapping[str, str]
 
@@ -147,6 +154,12 @@ class Storage(abc.ABC):
 
     @abc.abstractmethod
     async def close(self) -> None:
+        pass
+
+    @abc.abstractmethod
+    async def ensure_project(
+        self, name: str, owner: Optional[str] = None, cluster: Optional[str] = None
+    ) -> Project:
         pass
 
     # TODO: implement fetch_live() counterpart
@@ -268,12 +281,9 @@ class Storage(abc.ABC):
             raw_id=task.raw_id,
             when=datetime.datetime.now(datetime.timezone.utc),
             status=TaskStatus(descr.history.status),
-            exit_code=descr.history.exit_code,
             created_at=descr.history.created_at,
             started_at=descr.history.started_at,
             finished_at=descr.history.finished_at,
-            finish_reason=descr.history.reason,
-            finish_description=descr.history.description,
             outputs=outputs,
             state=state,
         )
@@ -298,12 +308,9 @@ class Storage(abc.ABC):
             raw_id="",
             when=now,
             status=status,
-            exit_code=None,
             created_at=task.created_at,
             started_at=task.created_at,
             finished_at=now,
-            finish_reason="",
-            finish_description="",
             outputs=result.outputs,
             state={},
         )
@@ -332,12 +339,9 @@ class Storage(abc.ABC):
             raw_id="",
             when=now,
             status=TaskStatus.SKIPPED,
-            exit_code=None,
             created_at=now,
             started_at=now,
             finished_at=now,
-            finish_reason="",
-            finish_description="",
             outputs={},
             state={},
         )
@@ -540,6 +544,11 @@ class FSStorage(Storage):
     async def close(self) -> None:
         pass
 
+    async def ensure_project(
+        self, name: str, owner: Optional[str] = None, cluster: Optional[str] = None
+    ) -> Project:
+        return Project(id=name, name=name, owner=owner or "", cluster=cluster or "")
+
     async def write_live(self, project: str, jobs: Iterable[JobMeta]) -> Live:
         when = _now()
         live = Live(
@@ -731,12 +740,9 @@ class FSStorage(Storage):
                     raw_id=data["raw_id"],
                     when=datetime.datetime.fromisoformat(data["when"]),
                     status=TaskStatus(data["status"]),
-                    exit_code=data["exit_code"],
                     created_at=datetime.datetime.fromisoformat(data["created_at"]),
                     started_at=datetime.datetime.fromisoformat(data["started_at"]),
                     finished_at=datetime.datetime.fromisoformat(data["finished_at"]),
-                    finish_reason=data["finish_reason"],
-                    finish_description=data["finish_description"],
                     outputs=data["outputs"],
                     state=data["state"],
                 )
@@ -772,12 +778,12 @@ class FSStorage(Storage):
             "raw_id": ft.raw_id,
             "when": ft.when.isoformat(),
             "status": ft.status.value,
-            "exit_code": ft.exit_code,
+            "exit_code": None,
             "created_at": ft.created_at.isoformat(),
             "started_at": ft.started_at.isoformat(),
             "finished_at": ft.finished_at.isoformat(),
-            "finish_reason": ft.finish_reason,
-            "finish_description": ft.finish_description,
+            "finish_reason": "",
+            "finish_description": "",
             "outputs": ft.outputs,
             "state": ft.state,
         }
@@ -821,12 +827,9 @@ class FSStorage(Storage):
                 raw_id=data["raw_id"],
                 when=datetime.datetime.fromisoformat(data["when"]),
                 status=TaskStatus.CACHED,
-                exit_code=data["exit_code"],
                 created_at=datetime.datetime.fromisoformat(data["created_at"]),
                 started_at=datetime.datetime.fromisoformat(data["started_at"]),
                 finished_at=datetime.datetime.fromisoformat(data["finished_at"]),
-                finish_reason=data["finish_reason"],
-                finish_description=data["finish_description"],
                 outputs=data["outputs"],
                 state=data["state"],
             )
@@ -851,12 +854,12 @@ class FSStorage(Storage):
             "caching_key": caching_key,
             "raw_id": ft.raw_id,
             "status": ft.status.value,
-            "exit_code": ft.exit_code,
+            "exit_code": None,
             "created_at": ft.created_at.isoformat(),
             "started_at": ft.started_at.isoformat(),
             "finished_at": ft.finished_at.isoformat(),
-            "finish_reason": ft.finish_reason,
-            "finish_description": ft.finish_description,
+            "finish_reason": "",
+            "finish_description": "",
             "outputs": ft.outputs,
             "state": ft.state,
         }
@@ -895,6 +898,693 @@ class FSStorage(Storage):
             if url.name in files:
                 raise ValueError(f"File {url} already exists")
         await self._fs.create(url, body.encode("utf-8"))
+
+    async def _write_json(
+        self, url: URL, data: Dict[str, Any], *, overwrite: bool = False
+    ) -> None:
+        if not data.get("when"):
+            data["when"] = _now().isoformat()
+
+        await self._write_file(url, json.dumps(data), overwrite=overwrite)
+
+
+class APIStorage(Storage):
+    # A storage that uses neuro-flow-api server as a storage
+    # https://dev.neu.ro
+
+    def __init__(self, client: Client, fs: FileSystem) -> None:
+        self._core = client._core
+        self._config = client.config
+        # https://dev.neu.ro/api/v1 two levels up
+        self._base_url = client.config.api_url.parent.parent
+
+        self._fs = fs
+
+        self._projects_cache: Dict[str, Project] = {}
+        self._bakes_cache: Dict[str, Dict[str, Any]] = {}
+        self._attempts_cache: Dict[str, Dict[str, Any]] = {}
+
+    async def close(self) -> None:
+        pass
+
+    async def ensure_project(
+        self,
+        name: str,
+        owner: Optional[str] = None,
+        cluster: Optional[str] = None,
+    ) -> Project:
+        if cluster is None:
+            cluster = self._config.cluster_name
+        try:
+            prj = await self._get_project(name, cluster)
+            assert (
+                prj.cluster == cluster
+            ), f"cluster mismatch, {prj.cluster} != {cluster}"
+        except ResourceNotFound:
+            projects_url = self._base_url / "api/v1/flow/projects"
+            auth = await self._config._api_auth()
+            async with self._core.request(
+                "POST",
+                projects_url,
+                json={"name": name, "cluster": cluster},
+                auth=auth,
+            ) as resp:
+                payload = await resp.json()
+                prj = Project(
+                    id=payload["id"],
+                    name=payload["name"],
+                    owner=payload["owner"],
+                    cluster=payload["cluster"],
+                )
+            self._projects_cache[name] = prj
+        return prj
+
+    async def _get_project(
+        self, project: str, cluster: Optional[str] = None
+    ) -> Project:
+        if cluster is None:
+            cluster = self._config.cluster_name
+        prj = self._projects_cache.get(project)
+        if prj is not None and prj.cluster == cluster:
+            return prj
+        projects_url = self._base_url / "api/v1/flow/projects"
+        auth = await self._config._api_auth()
+        async with self._core.request(
+            "GET",
+            projects_url / "by_name",
+            params={"name": project, "cluster": cluster},
+            auth=auth,
+        ) as resp:
+            payload = await resp.json()
+            prj = Project(
+                id=payload["id"],
+                name=payload["name"],
+                owner=payload["owner"],
+                cluster=payload["cluster"],
+            )
+            self._projects_cache[prj.name] = prj
+            return prj
+
+    async def write_live(self, project: str, jobs: Iterable[JobMeta]) -> Live:
+        # prj = await self._get_project(project)
+        # for job in jobs:
+        #     pass
+        when = _now()
+        live = Live(
+            project=project,
+            when=when,
+            jobs=sorted(
+                [
+                    Job(id=job.id, multi=job.multi, tags=sorted(job.tags))
+                    for job in jobs
+                ],
+                key=attrgetter("id"),
+            ),
+        )
+        prj_uri = self._fs.root / project
+        await self._fs.mkdir(prj_uri, parents=True, exist_ok=True)
+        url = prj_uri / "live.json"
+        await self._write_json(url, _live_to_json(live), overwrite=True)
+        return live
+
+    async def list_bakes(self, project: str) -> AsyncIterator[Bake]:
+        prj = await self._get_project(project)
+        url = self._base_url / "api/v1/flow/bakes"
+        auth = await self._config._api_auth()
+
+        async with self._core.request(
+            "GET",
+            url,
+            params={"project_id": prj.id},
+            headers={
+                "Accept": "application/x-ndjson",
+            },
+            auth=auth,
+        ) as resp:
+            async for line in resp.content:
+                bake_data = json.loads(line)
+                bake = _bake_from_api_json(bake_data)
+                self._bakes_cache[bake_data["id"]] = bake_data
+                yield bake
+
+    async def create_bake(
+        self,
+        project: str,
+        batch: str,
+        configs_meta: Mapping[str, Any],
+        configs: Sequence[ConfigFile],
+        graphs: Mapping[FullID, Mapping[FullID, AbstractSet[FullID]]],
+        params: Optional[Mapping[str, str]],
+    ) -> Bake:
+        prj = await self._get_project(project)
+        gr = {}
+        for k1, v1 in graphs.items():
+            subgr = {}
+            for k2, v2 in v1.items():
+                subgr[_id_to_json(k2)] = [_id_to_json(it) for it in v2]
+            gr[_id_to_json(k1)] = subgr
+        auth = await self._config._api_auth()
+        async with self._core.request(
+            "POST",
+            url=self._base_url / "api/v1/flow/bakes",
+            json={
+                "project_id": prj.id,
+                "batch": batch,
+                "graphs": gr,
+                "params": params,
+            },
+            auth=auth,
+        ) as resp:
+            bake_data = await resp.json()
+
+        bake = _bake_from_api_json(bake_data)
+        self._bakes_cache[bake_data["id"]] = bake_data
+        bake_uri = _mk_bake_uri(self._fs, bake)
+        await self._fs.mkdir(bake_uri, parents=True)
+
+        # Upload all configs
+        await self._write_file(bake_uri / "configs_meta.json", json.dumps(configs_meta))
+        configs_dir = bake_uri / "configs"
+        await self._fs.mkdir(configs_dir)
+
+        real_meta = {
+            "workspace": configs_meta["workspace"],
+            "flow_config_id": None,
+            "project_config_id": None,
+            "action_config_ids": {},
+        }
+        flow_config_meta = configs_meta["flow_config"]
+        project_config_meta = configs_meta.get("project_config")
+
+        for config in configs:
+            await self._write_file(configs_dir / config.filename, config.content)
+            filename = config.filename
+            if filename == flow_config_meta["storage_filename"]:
+                filename = flow_config_meta["real_name"]
+                real_meta["flow_config_id"] = await self._write_config(
+                    bake_data["id"], filename, config.content
+                )
+            elif (
+                project_config_meta is not None
+                and filename == project_config_meta["storage_filename"]
+            ):
+                filename = project_config_meta["real_name"]
+                real_meta["project_config_id"] = await self._write_config(
+                    bake_data["id"], filename, config.content
+                )
+            else:
+                for key, action_meta in configs_meta["action_configs"].items():
+                    if filename == action_meta["storage_filename"]:
+                        filename == action_meta["real_name"]
+                        real_meta["action_config_ids"][key] = await self._write_config(
+                            bake_data["id"], filename, config.content
+                        )
+                        break
+
+        await self._write_json(bake_uri / "00.init.json", _bake_to_json(bake))
+        await self._create_attempt(bake, 1, real_meta)
+        return bake
+
+    async def fetch_bake(
+        self, project: str, batch: str, when: datetime.datetime, suffix: str
+    ) -> Bake:
+        for bake_data in self._bakes_cache.values():
+            rounded = _dt2str(datetime.datetime.fromisoformat(bake_data["created_at"]))
+            if (
+                bake_data["project_id"] == project
+                and bake_data["batch"] == batch
+                and rounded == _dt2str(when)
+            ):
+                return _bake_from_api_json(bake_data)
+
+        async for bake in self.list_bakes(project):
+            if bake.batch == batch and bake.when == when:
+                return bake
+
+        raise ResourceNotFound
+
+    async def fetch_bake_by_id(self, project: str, bake_id: str) -> Bake:
+        batch, whenstr, suffix = bake_id.split("_")
+        when = datetime.datetime.fromisoformat(whenstr)
+
+        return await self.fetch_bake(project, batch, when, "")
+
+    async def _find_bake_data(self, bake: Bake) -> Dict[str, Any]:
+        # refresh cache if needed
+        await self.fetch_bake(bake.project, bake.batch, bake.when, bake.suffix)
+        when_str = _dt2str(bake.when)
+        for bake_data in self._bakes_cache.values():
+            rounded = _dt2str(datetime.datetime.fromisoformat(bake_data["created_at"]))
+            if (
+                bake_data["project_id"] == bake.project
+                and bake_data["batch"] == bake.batch
+                and rounded == when_str
+            ):
+                return bake_data
+        raise ValueError(f"Not found: {bake}")
+
+    async def fetch_configs_meta(self, bake: Bake) -> Mapping[str, Any]:
+        attempt_data = await self._find_attempt_data(bake, -1)
+        meta = attempt_data["configs_meta"]
+        assert isinstance(meta, dict)
+        flow_config = await self._get_config(meta["flow_config_id"])
+        ret = {
+            "workspace": meta["workspace"],
+            "flow_config": {
+                "storage_filename": meta["flow_config_id"],
+                "real_name": flow_config["filename"],
+            },
+            "project_config": None,
+            "action_configs": {},
+        }
+        prj_meta = meta["project_config_id"]
+        if prj_meta is not None:
+            project_config = await self._get_config(prj_meta)
+            ret["project_config"] = {
+                "storage_filename": prj_meta,
+                "real_name": project_config["filename"],
+            }
+        for key, val in meta["action_config_ids"].items():
+            cfg = await self._get_config(val)
+            ret["action_configs"][key] = {
+                "storage_filename": val,
+                "real_name": cfg["filename"],
+            }
+        return cast(Mapping[str, Any], ret)
+
+    async def _get_config(self, config_id: str) -> Dict[str, Any]:
+        url = self._base_url / "api/v1/flow/config_files" / config_id
+        auth = await self._config._api_auth()
+        async with self._core.request(
+            "GET",
+            url,
+            auth=auth,
+        ) as resp:
+            payload = await resp.json()
+            return cast(Dict[str, Any], payload)
+
+    async def fetch_config(self, bake: Bake, filename: str) -> str:
+        # filename is config id actually
+        ret = await self._get_config(filename)
+        return str(ret["content"])
+
+    async def _create_attempt(
+        self, bake: Bake, attempt_no: int, configs_meta: Mapping[str, Any]
+    ) -> Attempt:
+        bake_data = await self._find_bake_data(bake)
+
+        assert 0 < attempt_no < 100, attempt_no
+        url = self._base_url / "api/v1/flow/attempts"
+        auth = await self._config._api_auth()
+        async with self._core.request(
+            "POST",
+            url,
+            json={
+                "bake_id": bake_data["id"],
+                "number": attempt_no,
+                "result": "pending",
+                "configs_meta": configs_meta,
+            },
+            auth=auth,
+        ) as resp:
+            attempt_data = await resp.json()
+
+        self._attempts_cache[attempt_data["id"]] = attempt_data
+
+        bake_uri = _mk_bake_uri(self._fs, bake)
+        attempt_uri = bake_uri / f"{attempt_no:02d}.attempt"
+        await self._fs.mkdir(attempt_uri)
+        pre = "0".zfill(DIGITS)
+        ret = _attempt_from_api_json(bake, attempt_data)
+        await self._write_json(attempt_uri / f"{pre}.init.json", _attempt_to_json(ret))
+        return ret
+
+    async def create_attempt(self, bake: Bake, attempt_no: int) -> Attempt:
+        bake_data = await self._find_bake_data(bake)
+        assert attempt_no > 1
+        url = self._base_url / "api/v1/flow/attempts/by_number"
+        auth = await self._config._api_auth()
+        async with self._core.request(
+            "GET",
+            url,
+            params={
+                "bake_id": bake_data["id"],
+                "number": attempt_no - 1,
+            },
+            auth=auth,
+        ) as resp:
+            prev_attempt_data = await resp.json()
+        return await self._create_attempt(
+            bake, attempt_no, prev_attempt_data["configs_meta"]
+        )
+
+    async def _find_attempt_data(
+        self, bake: Bake, attempt_no: int = -1
+    ) -> Dict[str, Any]:
+        bake_data = await self._find_bake_data(bake)
+
+        for attempt_data in self._attempts_cache.values():
+            if (
+                attempt_data["bake_id"] == bake_data["id"]
+                and attempt_data["number"] == attempt_no
+            ):
+                return attempt_data
+
+        assert attempt_no == -1 or 0 < attempt_no < 99
+        url = self._base_url / "api/v1/flow/attempts/by_number"
+        auth = await self._config._api_auth()
+        async with self._core.request(
+            "GET",
+            url,
+            params={
+                "bake_id": bake_data["id"],
+                "number": attempt_no,
+            },
+            auth=auth,
+        ) as resp:
+            return cast(Dict[str, Any], await resp.json())
+
+    async def find_attempt(self, bake: Bake, attempt_no: int = -1) -> Attempt:
+        attempt_data = await self._find_attempt_data(bake, attempt_no)
+        return _attempt_from_api_json(bake, attempt_data)
+
+    async def fetch_attempt(
+        self, attempt: Attempt
+    ) -> Tuple[Dict[FullID, StartedTask], Dict[FullID, FinishedTask]]:
+        started = {}
+        finished = {}
+
+        attempt_data = await self._find_attempt_data(attempt.bake, attempt.number)
+        url = self._base_url / "api/v1/flow/tasks"
+        auth = await self._config._api_auth()
+
+        async with self._core.request(
+            "GET",
+            url,
+            params={"attempt_id": attempt_data["id"]},
+            headers={
+                "Accept": "application/x-ndjson",
+            },
+            auth=auth,
+        ) as resp:
+            async for line in resp.content:
+                task_data = json.loads(line)
+                full_id = _id_from_json(task_data["yaml_id"])
+                statuses = _parse_statuses(task_data["statuses"])
+                status = statuses[-1]["status"]
+
+                started[full_id] = StartedTask(
+                    attempt=attempt,
+                    id=full_id,
+                    raw_id=task_data["raw_id"],
+                    created_at=statuses[0]["created_at"],
+                    when=statuses[-1]["created_at"],
+                )
+                if status not in (TaskStatus.PENDING, TaskStatus.RUNNING):
+                    finished[full_id] = FinishedTask(
+                        attempt=attempt,
+                        id=full_id,
+                        raw_id=task_data["raw_id"],
+                        when=statuses[-1]["created_at"],
+                        status=status,
+                        created_at=statuses[0]["created_at"],
+                        started_at=_find_started_at(statuses),
+                        finished_at=_find_finished_at(statuses),
+                        outputs=task_data["outputs"],
+                        state=task_data["state"],
+                    )
+        assert finished.keys() <= started.keys()
+        return started, finished
+
+    async def finish_attempt(self, attempt: Attempt, result: TaskStatus) -> None:
+        attempt_data = await self._find_attempt_data(attempt.bake, attempt.number)
+        auth = await self._config._api_auth()
+        url = self._base_url / "api/v1/flow/attempts/replace"
+
+        async with self._core.request(
+            "PUT",
+            url,
+            json={
+                "bake_id": attempt_data["bake_id"],
+                "number": attempt_data["number"],
+                "result": result.value,
+                "configs_meta": attempt_data["configs_meta"],
+            },
+            auth=auth,
+        ) as resp:
+            await resp.json()
+            self._attempts_cache[attempt_data["id"]]["result"] = result.value
+
+        bake_uri = _mk_bake_uri(self._fs, attempt.bake)
+        attempt_url = bake_uri / f"{attempt.number:02d}.attempt"
+        pre = "9" * DIGITS
+        data = {"result": result.value}
+        await self._write_json(attempt_url / f"{pre}.result.json", data)
+
+    async def write_start(self, st: StartedTask) -> None:
+        attempt_data = await self._find_attempt_data(st.attempt.bake, st.attempt.number)
+        auth = await self._config._api_auth()
+        async with self._core.request(
+            "POST",
+            self._base_url / "api/v1/flow/tasks",
+            json={
+                "yaml_id": _id_to_json(st.id),
+                "attempt_id": attempt_data["id"],
+                "raw_id": None,
+                "outputs": {},
+                "state": {},
+                "statuses": [
+                    {"created_at": st.created_at.isoformat(), "status": "pending"}
+                ],
+            },
+            auth=auth,
+        ) as resp:
+            await resp.json()
+
+        bake_uri = _mk_bake_uri(self._fs, st.attempt.bake)
+        attempt_url = bake_uri / f"{st.attempt.number:02d}.attempt"
+
+        data = {
+            "id": _id_to_json(st.id),
+            "raw_id": st.raw_id,
+            "when": st.when.isoformat(),
+            "created_at": st.created_at.isoformat(),
+        }
+        await self._write_json(attempt_url / f"{data['id']}.started.json", data)
+
+    async def write_finish(self, ft: FinishedTask) -> None:
+        attempt_data = await self._find_attempt_data(ft.attempt.bake, ft.attempt.number)
+        auth = await self._config._api_auth()
+
+        try:
+            async with self._core.request(
+                "GET",
+                self._base_url / "api/v1/flow/tasks/by_yaml_id",
+                params={
+                    "attempt_id": attempt_data["id"],
+                    "yaml_id": _id_to_json(ft.id),
+                },
+                auth=auth,
+            ) as resp:
+                payload = await resp.json()
+                statuses = payload["statuses"]
+        except ResourceNotFound:
+            statuses = []
+
+        statuses.append(
+            {"created_at": ft.created_at.isoformat(), "status": ft.status.value}
+        )
+
+        task_data = {
+            "yaml_id": _id_to_json(ft.id),
+            "attempt_id": attempt_data["id"],
+            "raw_id": ft.raw_id,
+            "outputs": ft.outputs,
+            "state": ft.state,
+            "statuses": statuses,
+        }
+
+        if len(statuses) == 1:
+            # create new task record
+            async with self._core.request(
+                "POST",
+                self._base_url / "api/v1/flow/tasks",
+                json=task_data,
+                auth=auth,
+            ) as resp:
+                await resp.json()
+        else:
+            # update existing task
+            async with self._core.request(
+                "PUT",
+                self._base_url / "api/v1/flow/tasks/replace",
+                json=task_data,
+                auth=auth,
+            ) as resp:
+                await resp.json()
+
+        bake_uri = _mk_bake_uri(self._fs, ft.attempt.bake)
+        attempt_url = bake_uri / f"{ft.attempt.number:02d}.attempt"
+        data = {
+            "id": _id_to_json(ft.id),
+            "raw_id": ft.raw_id,
+            "when": ft.when.isoformat(),
+            "status": ft.status.value,
+            "exit_code": None,
+            "created_at": ft.created_at.isoformat(),
+            "started_at": ft.started_at.isoformat(),
+            "finished_at": ft.finished_at.isoformat(),
+            "finish_reason": "",
+            "finish_description": "",
+            "outputs": ft.outputs,
+            "state": ft.state,
+        }
+        await self._write_json(attempt_url / f"{data['id']}.finished.json", data)
+
+    async def check_cache(
+        self,
+        attempt: Attempt,
+        task_id: FullID,
+        caching_key: str,
+        life_span: datetime.timedelta,
+    ) -> Optional[FinishedTask]:
+        # prj = await self._get_project(attempt.bake.project)
+
+        # auth = await self._config._api_auth()
+        # url = self._base_url / "api/v1/flow/cache_entries/by_key"
+        # try:
+        #     async with self._core.request(
+        #         "GET",
+        #         url,
+        #         params={
+        #             "project_id": prj.id,
+        #             "task_id": _id_to_json(task_id),
+        #             "batch": attempt.bake.batch,
+        #             "key": caching_key,
+        #         },
+        #         auth=auth,
+        #     ) as resp:
+        #         payload = await resp.json()
+        # except ResourceNotFound:
+        #     return None
+
+        url = _mk_cache_uri(self._fs, attempt, task_id)
+
+        try:
+            data = await self._read_json(url)
+        except ValueError:
+            # not found
+            return None
+
+        try:
+            when = datetime.datetime.fromisoformat(data["when"])
+            now = datetime.datetime.now(datetime.timezone.utc)
+            eol = when + life_span
+            if eol < now:
+                return None
+            if data["caching_key"] != caching_key:
+                return None
+            st = StartedTask(
+                attempt=attempt,
+                id=task_id,
+                raw_id=data["raw_id"],
+                when=datetime.datetime.fromisoformat(data["when"]),
+                created_at=datetime.datetime.fromisoformat(data["created_at"]),
+            )
+            await self.write_start(st)
+            ft = FinishedTask(
+                attempt=attempt,
+                id=task_id,
+                raw_id=data["raw_id"],
+                when=datetime.datetime.fromisoformat(data["when"]),
+                status=TaskStatus.CACHED,
+                created_at=datetime.datetime.fromisoformat(data["created_at"]),
+                started_at=datetime.datetime.fromisoformat(data["started_at"]),
+                finished_at=datetime.datetime.fromisoformat(data["finished_at"]),
+                outputs=data["outputs"],
+                state=data["state"],
+            )
+            await self.write_finish(ft)
+            return ft
+        except (KeyError, ValueError, TypeError):
+            # something is wrong with stored JSON,
+            # e.g. the structure doesn't match the expected schema
+            return None
+
+    async def write_cache(
+        self,
+        attempt: Attempt,
+        ft: FinishedTask,
+        caching_key: str,
+    ) -> None:
+        url = _mk_cache_uri(self._fs, attempt, ft.id)
+        assert ft.raw_id is not None, (ft.id, ft.raw_id)
+
+        data = {
+            "when": ft.when.isoformat(),
+            "caching_key": caching_key,
+            "raw_id": ft.raw_id,
+            "status": ft.status.value,
+            "exit_code": None,
+            "created_at": ft.created_at.isoformat(),
+            "started_at": ft.started_at.isoformat(),
+            "finished_at": ft.finished_at.isoformat(),
+            "finish_reason": "",
+            "finish_description": "",
+            "outputs": ft.outputs,
+            "state": ft.state,
+        }
+        try:
+            await self._write_json(url, data, overwrite=True)
+        except ResourceNotFound:
+            await self._fs.mkdir(url.parent, parents=True)
+            await self._write_json(url, data, overwrite=True)
+
+    async def clear_cache(self, project: str, batch: Optional[str] = None) -> None:
+        await self._fs.rm(_mk_cache_uri2(self._fs, project, batch), recursive=True)
+
+    async def _read_file(self, url: URL) -> str:
+        ret = []
+        async for chunk in self._fs.open(url):
+            ret.append(chunk)
+        return b"".join(ret).decode("utf-8")
+
+    async def _read_json(self, url: URL) -> Any:
+        data = await self._read_file(url)
+        return json.loads(data)
+
+    async def _write_file(
+        self, url: URL, body: str, *, overwrite: bool = False
+    ) -> None:
+        # TODO: Prevent overriding the target on the storage.
+        #
+        # It might require platform_storage_api change.
+        #
+        # There is no clean understanding if the storage can support this strong
+        # guarantee at all.
+        if not overwrite:
+            files = set()
+            async for fi in self._fs.ls(url.parent):
+                files.add(fi.name)
+            if url.name in files:
+                raise ValueError(f"File {url} already exists")
+        await self._fs.create(url, body.encode("utf-8"))
+
+    async def _write_config(self, bake_id: str, filename: str, body: str) -> str:
+        url = self._base_url / "api/v1/flow/config_files"
+        auth = await self._config._api_auth()
+        async with self._core.request(
+            "POST",
+            url,
+            json={
+                "bake_id": bake_id,
+                "filename": filename,
+                "content": body,
+            },
+            auth=auth,
+        ) as resp:
+            data = await resp.json()
+            return str(data["id"])
 
     async def _write_json(
         self, url: URL, data: Dict[str, Any], *, overwrite: bool = False
@@ -968,6 +1658,26 @@ def _bake_from_json(data: Dict[str, Any]) -> Bake:
     )
 
 
+def _bake_from_api_json(data: Dict[str, Any]) -> Bake:
+    graphs = {}
+    for pre, gr in data["graphs"].items():
+        graphs[_id_from_json(pre)] = {
+            _id_from_json(full_id): {_id_from_json(dep) for dep in deps}
+            for full_id, deps in gr.items()
+        }
+    payload = json.dumps(data)
+    digest = hashlib.new("sha256")
+    digest.update(payload.encode("utf8"))
+    return Bake(
+        project=data["project_id"],
+        batch=data["batch"],
+        when=datetime.datetime.fromisoformat(data["created_at"]),
+        suffix=digest.hexdigest()[:6],
+        graphs=graphs,
+        params=data["params"],
+    )
+
+
 def _id_to_json(full_id: FullID) -> str:
     return ".".join(full_id)
 
@@ -1002,6 +1712,15 @@ def _attempt_from_json(
     )
 
 
+def _attempt_from_api_json(bake: Bake, data: Dict[str, Any]) -> Attempt:
+    return Attempt(
+        bake=bake,
+        when=datetime.datetime.fromisoformat(data["created_at"]),
+        number=data["number"],
+        result=TaskStatus(data["result"]),
+    )
+
+
 def _mk_cache_uri(fs: FileSystem, attempt: Attempt, task_id: FullID) -> URL:
     return _mk_cache_uri2(fs, attempt.bake.project, attempt.bake.batch) / (
         _id_to_json(task_id) + ".json"
@@ -1013,3 +1732,44 @@ def _mk_cache_uri2(fs: FileSystem, project: str, batch: Optional[str]) -> URL:
     if batch:
         ret /= batch
     return ret
+
+
+class _RawStatusItem(TypedDict):
+    created_at: str
+    status: str
+
+
+class _StatusItem(TypedDict):
+    created_at: datetime.datetime
+    status: TaskStatus
+
+
+def _parse_statuses(statuses: List[_RawStatusItem]) -> List[_StatusItem]:
+    return [
+        {
+            "created_at": datetime.datetime.fromisoformat(item["created_at"]),
+            "status": TaskStatus(item["status"]),
+        }
+        for item in statuses
+    ]
+
+
+def _find_started_at(statuses: List[_StatusItem]) -> datetime.datetime:
+    for item in reversed(statuses):
+        if item["status"] == TaskStatus.PENDING:
+            return item["created_at"]
+    else:
+        raise ValueError("Task is not started")
+
+
+def _find_finished_at(statuses: List[_StatusItem]) -> datetime.datetime:
+    for item in reversed(statuses):
+        if item["status"] in (
+            TaskStatus.CACHED,
+            TaskStatus.CANCELLED,
+            TaskStatus.FAILED,
+            TaskStatus.SUCCEEDED,
+        ):
+            return item["created_at"]
+    else:
+        raise ValueError("Task is not finished")
