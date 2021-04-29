@@ -1023,7 +1023,7 @@ class APIStorage(Storage):
         ) as resp:
             async for line in resp.content:
                 bake_data = json.loads(line)
-                bake = _bake_from_api_json(bake_data)
+                bake = _bake_from_api_json(prj, bake_data)
                 self._bakes_cache[bake_data["id"]] = bake_data
                 yield bake
 
@@ -1057,7 +1057,7 @@ class APIStorage(Storage):
         ) as resp:
             bake_data = await resp.json()
 
-        bake = _bake_from_api_json(bake_data)
+        bake = _bake_from_api_json(prj, bake_data)
         self._bakes_cache[bake_data["id"]] = bake_data
         bake_uri = _mk_bake_uri(self._fs, bake)
         await self._fs.mkdir(bake_uri, parents=True)
@@ -1108,6 +1108,7 @@ class APIStorage(Storage):
     async def fetch_bake(
         self, project: str, batch: str, when: datetime.datetime, suffix: str
     ) -> Bake:
+        prj = await self._get_project(project)
         for bake_data in self._bakes_cache.values():
             rounded = _dt2str(datetime.datetime.fromisoformat(bake_data["created_at"]))
             if (
@@ -1115,7 +1116,7 @@ class APIStorage(Storage):
                 and bake_data["batch"] == batch
                 and rounded == _dt2str(when)
             ):
-                return _bake_from_api_json(bake_data)
+                return _bake_from_api_json(prj, bake_data)
 
         async for bake in self.list_bakes(project):
             if bake.batch == batch and bake.when == when:
@@ -1135,8 +1136,9 @@ class APIStorage(Storage):
         when_str = _dt2str(bake.when)
         for bake_data in self._bakes_cache.values():
             rounded = _dt2str(datetime.datetime.fromisoformat(bake_data["created_at"]))
+            prj = await self._get_project(bake.project)
             if (
-                bake_data["project_id"] == bake.project
+                bake_data["project_id"] == prj.id
                 and bake_data["batch"] == bake.batch
                 and rounded == when_str
             ):
@@ -1677,18 +1679,21 @@ def _bake_from_json(data: Dict[str, Any]) -> Bake:
     )
 
 
-def _bake_from_api_json(data: Dict[str, Any]) -> Bake:
+def _bake_from_api_json(project: Project, data: Dict[str, Any]) -> Bake:
     graphs = {}
     for pre, gr in data["graphs"].items():
         graphs[_id_from_json(pre)] = {
             _id_from_json(full_id): {_id_from_json(dep) for dep in deps}
             for full_id, deps in gr.items()
         }
-    payload = json.dumps(data)
     digest = hashlib.new("sha256")
-    digest.update(payload.encode("utf8"))
+    digest.update(project.name.encode("utf8"))
+    digest.update(data["batch"].encode("utf8"))
+    digest.update(json.dumps(data["graphs"], sort_keys=True).encode("utf8"))
+    digest.update(json.dumps(data["params"], sort_keys=True).encode("utf8"))
+    assert data["project_id"] == project.id
     return Bake(
-        project=data["project_id"],
+        project=project.name,
         batch=data["batch"],
         when=datetime.datetime.fromisoformat(data["created_at"]),
         suffix=digest.hexdigest()[:6],
