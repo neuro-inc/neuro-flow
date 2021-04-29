@@ -1448,68 +1448,55 @@ class APIStorage(Storage):
         caching_key: str,
         life_span: datetime.timedelta,
     ) -> Optional[FinishedTask]:
-        # prj = await self._get_project(attempt.bake.project)
+        prj = await self._get_project(attempt.bake.project)
 
-        # auth = await self._config._api_auth()
-        # url = self._base_url / "api/v1/flow/cache_entries/by_key"
-        # try:
-        #     async with self._core.request(
-        #         "GET",
-        #         url,
-        #         params={
-        #             "project_id": prj.id,
-        #             "task_id": _id_to_json(task_id),
-        #             "batch": attempt.bake.batch,
-        #             "key": caching_key,
-        #         },
-        #         auth=auth,
-        #     ) as resp:
-        #         payload = await resp.json()
-        # except ResourceNotFound:
-        #     return None
-
-        url = _mk_cache_uri(self._fs, attempt, task_id)
-
+        auth = await self._config._api_auth()
         try:
-            data = await self._read_json(url)
-        except ValueError:
-            # not found
+            async with self._core.request(
+                "GET",
+                self._base_url / "api/v1/flow/cache_entries/by_key",
+                params={
+                    "project_id": prj.id,
+                    "task_id": _id_to_json(task_id),
+                    "batch": attempt.bake.batch,
+                    "key": caching_key,
+                },
+                auth=auth,
+            ) as resp:
+                payload = await resp.json()
+        except ResourceNotFound:
             return None
 
-        try:
-            when = datetime.datetime.fromisoformat(data["when"])
-            now = datetime.datetime.now(datetime.timezone.utc)
-            eol = when + life_span
-            if eol < now:
-                return None
-            if data["caching_key"] != caching_key:
-                return None
-            st = StartedTask(
-                attempt=attempt,
-                id=task_id,
-                raw_id=data["raw_id"],
-                when=datetime.datetime.fromisoformat(data["when"]),
-                created_at=datetime.datetime.fromisoformat(data["created_at"]),
-            )
-            await self.write_start(st)
-            ft = FinishedTask(
-                attempt=attempt,
-                id=task_id,
-                raw_id=data["raw_id"],
-                when=datetime.datetime.fromisoformat(data["when"]),
-                status=TaskStatus.CACHED,
-                created_at=datetime.datetime.fromisoformat(data["created_at"]),
-                started_at=datetime.datetime.fromisoformat(data["started_at"]),
-                finished_at=datetime.datetime.fromisoformat(data["finished_at"]),
-                outputs=data["outputs"],
-                state=data["state"],
-            )
-            await self.write_finish(ft)
-            return ft
-        except (KeyError, ValueError, TypeError):
-            # something is wrong with stored JSON,
-            # e.g. the structure doesn't match the expected schema
+        created_at = datetime.datetime.fromisoformat(payload["created_at"])
+        now = datetime.datetime.now(datetime.timezone.utc)
+        eol = created_at + life_span
+        if eol < now:
             return None
+        if payload["key"] != caching_key:
+            return None
+
+        st = StartedTask(
+            attempt=attempt,
+            id=task_id,
+            raw_id=payload["raw_id"],
+            when=created_at,
+            created_at=created_at,
+        )
+        await self.write_start(st)
+        ft = FinishedTask(
+            attempt=attempt,
+            id=task_id,
+            raw_id=payload["raw_id"],
+            when=created_at,
+            status=TaskStatus.CACHED,
+            created_at=created_at,
+            started_at=created_at,
+            finished_at=created_at,
+            outputs=payload["outputs"],
+            state=payload["state"],
+        )
+        await self.write_finish(ft)
+        return ft
 
     async def write_cache(
         self,
@@ -1517,6 +1504,24 @@ class APIStorage(Storage):
         ft: FinishedTask,
         caching_key: str,
     ) -> None:
+        prj = await self._get_project(attempt.bake.project)
+
+        auth = await self._config._api_auth()
+        async with self._core.request(
+            "POST",
+            self._base_url / "api/v1/flow/cache_entries",
+            json={
+                "project_id": prj.id,
+                "task_id": _id_to_json(ft.id),
+                "batch": attempt.bake.batch,
+                "key": caching_key,
+                "outputs": ft.outputs,
+                "state": ft.state,
+            },
+            auth=auth,
+        ) as resp:
+            await resp.json()
+
         url = _mk_cache_uri(self._fs, attempt, ft.id)
         assert ft.raw_id is not None, (ft.id, ft.raw_id)
 
@@ -1541,6 +1546,20 @@ class APIStorage(Storage):
             await self._write_json(url, data, overwrite=True)
 
     async def clear_cache(self, project: str, batch: Optional[str] = None) -> None:
+        prj = await self._get_project(project)
+
+        auth = await self._config._api_auth()
+        async with self._core.request(
+            "DELETE",
+            self._base_url / "api/v1/flow/cache_entries",
+            params={
+                "project_id": prj.id,
+                "batch": batch,
+            },
+            auth=auth,
+        ) as resp:
+            await resp.json()
+
         await self._fs.rm(_mk_cache_uri2(self._fs, project, batch), recursive=True)
 
     async def _read_file(self, url: URL) -> str:
