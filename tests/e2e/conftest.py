@@ -169,6 +169,7 @@ def drop_old_test_images(
 
     res: SysCap = run_neuro_cli(["-q", "image", "ls", "--full-uri"])
     for image_str in res.out.splitlines():
+        image_str = image_str.strip()
         image_url = URL(image_str)
         image_name = image_url.parts[-1]
         try:

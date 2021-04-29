@@ -146,6 +146,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
 
         self._console.log("Create bake...")
         config_meta, configs = await self.config_loader.collect_configs(batch_name)
+        await self._storage.ensure_project(flow.project_id)
         bake = await self._storage.create_bake(
             flow.project_id,
             batch_name,

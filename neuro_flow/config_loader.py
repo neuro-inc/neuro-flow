@@ -389,7 +389,7 @@ class ConfigsMeta:
 
     @classmethod
     def from_json(cls, data: Mapping[str, Any]) -> "ConfigsMeta":
-        if data["project_config"]:
+        if data.get("project_config"):
             project_config: Optional[ConfigOnStorage] = ConfigOnStorage.from_json(
                 data["project_config"]
             )
