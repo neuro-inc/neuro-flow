@@ -21,6 +21,7 @@ from typing import (
     List,
     Mapping,
     Optional,
+    Sequence,
     Set,
     Tuple,
     Type,
@@ -119,7 +120,10 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
 
     # Next function is also used in tests:
     async def _setup_bake(
-        self, batch_name: str, params: Optional[Mapping[str, str]] = None
+        self,
+        batch_name: str,
+        params: Optional[Mapping[str, str]] = None,
+        tags: Sequence[str] = (),
     ) -> Tuple[ExecutorData, RunningBatchFlow]:
         # batch_name is a name of yaml config inside self._workspace / .neuro
         # folder without the file extension
@@ -158,6 +162,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             configs,
             graphs=graphs,
             params=params,
+            tags=tags,
         )
         self._console.log(
             f"Bake [b]{bake.bake_id}[/b] of project [b]{bake.project}[/b] is created"
@@ -297,12 +302,13 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         batch_name: str,
         local_executor: bool = False,
         params: Optional[Mapping[str, str]] = None,
+        tags: Sequence[str] = (),
     ) -> None:
         self._console.print(
             Panel(f"[bright_blue]Bake [b]{batch_name}[/b]", padding=1),
             justify="center",
         )
-        data, flow = await self._setup_bake(batch_name, params)
+        data, flow = await self._setup_bake(batch_name, params, tags)
         await self._run_bake(data, flow, local_executor)
 
     async def _run_bake(
@@ -359,14 +365,14 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         bake = await self._storage.fetch_bake_by_id(self.project, bake_id)
         return await self._storage.find_attempt(bake, attempt_no)
 
-    async def list_bakes(self) -> None:
+    async def list_bakes(self, tags: AbstractSet[str] = frozenset()) -> None:
         table = Table(box=box.MINIMAL_HEAVY_HEAD)
         table.add_column("ID", style="bold")
         table.add_column("STATUS")
         table.add_column("WHEN")
 
         rows: List[Tuple[str, TaskStatus, datetime.datetime]] = []
-        async for bake in self._storage.list_bakes(self.project):
+        async for bake in self._storage.list_bakes(self.project, tags):
             try:
                 attempt = await self._storage.find_attempt(bake)
             except ValueError:
