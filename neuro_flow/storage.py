@@ -1480,7 +1480,7 @@ class APIStorage(Storage):
         st = StartedTask(
             attempt=attempt,
             id=task_id,
-            raw_id=payload["raw_id"],
+            raw_id=None,
             when=created_at,
             created_at=created_at,
         )
@@ -1488,7 +1488,7 @@ class APIStorage(Storage):
         ft = FinishedTask(
             attempt=attempt,
             id=task_id,
-            raw_id=payload["raw_id"],
+            raw_id=None,
             when=created_at,
             status=TaskStatus.CACHED,
             created_at=created_at,
