@@ -1689,7 +1689,7 @@ def _bake_from_api_json(project: Project, data: Dict[str, Any]) -> Bake:
     digest = hashlib.new("sha256")
     digest.update(project.name.encode("utf8"))
     digest.update(data["batch"].encode("utf8"))
-    digest.update(json.dumps(data["graphs"], sort_keys=True).encode("utf8"))
+    #    digest.update(json.dumps(data["graphs"], sort_keys=True).encode("utf8"))
     digest.update(json.dumps(data["params"], sort_keys=True).encode("utf8"))
     assert data["project_id"] == project.id
     return Bake(
