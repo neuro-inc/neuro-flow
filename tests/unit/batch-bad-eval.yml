@@ -1,5 +1,5 @@
 kind: batch
 tasks:
-  - image: ${{ something.wrong }}
+  - image: ${{ needs['fff'].outputs.foo }}
     preset: cpu-micro
     bash: echo abc
