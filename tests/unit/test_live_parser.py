@@ -205,7 +205,7 @@ def test_parse_full(assets: pathlib.Path) -> None:
     flow = parse_live(workspace, config_file)
     assert flow == ast.LiveFlow(
         Pos(0, 0, config_file),
-        Pos(61, 0, config_file),
+        Pos(63, 0, config_file),
         id=SimpleOptIdExpr(
             Pos(0, 0, config_file),
             Pos(0, 0, config_file),
@@ -300,7 +300,7 @@ def test_parse_full(assets: pathlib.Path) -> None:
         },
         defaults=ast.FlowDefaults(
             Pos(26, 2, config_file),
-            Pos(34, 0, config_file),
+            Pos(36, 0, config_file),
             tags=SequenceItemsExpr(
                 [
                     StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "tag-a"),
@@ -317,6 +317,15 @@ def test_parse_full(assets: pathlib.Path) -> None:
                     ),
                 }
             ),
+            volumes=SequenceItemsExpr(
+                [
+                    OptStrExpr(
+                        Pos(0, 0, config_file),
+                        Pos(0, 0, config_file),
+                        "storage:common:/mnt/common:rw",
+                    ),
+                ]
+            ),
             workdir=OptRemotePathExpr(
                 Pos(0, 0, config_file), Pos(0, 0, config_file), "/global/dir"
             ),
@@ -332,8 +341,8 @@ def test_parse_full(assets: pathlib.Path) -> None:
         ),
         jobs={
             "test_a": ast.Job(
-                Pos(36, 4, config_file),
-                Pos(61, 0, config_file),
+                Pos(38, 4, config_file),
+                Pos(63, 0, config_file),
                 name=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "job-name"
                 ),
@@ -444,7 +453,7 @@ def test_parse_full_exprs(assets: pathlib.Path) -> None:
     flow = parse_live(workspace, config_file)
     assert flow == ast.LiveFlow(
         Pos(0, 0, config_file),
-        Pos(47, 0, config_file),
+        Pos(48, 0, config_file),
         id=SimpleOptIdExpr(
             Pos(0, 0, config_file),
             Pos(0, 0, config_file),
@@ -528,7 +537,7 @@ def test_parse_full_exprs(assets: pathlib.Path) -> None:
         },
         defaults=ast.FlowDefaults(
             Pos(21, 2, config_file),
-            Pos(27, 0, config_file),
+            Pos(28, 0, config_file),
             tags=SequenceExpr(
                 Pos(0, 0, config_file),
                 Pos(0, 0, config_file),
@@ -539,6 +548,12 @@ def test_parse_full_exprs(assets: pathlib.Path) -> None:
                 Pos(0, 0, config_file),
                 Pos(0, 0, config_file),
                 "${{ {'global_a': 'val-a', 'global_b': 'val-b'} }}",
+                type2str,
+            ),
+            volumes=SequenceExpr(
+                Pos(0, 0, config_file),
+                Pos(0, 0, config_file),
+                "${{ ['storage:common:/mnt/common:rw'] }}",
                 type2str,
             ),
             workdir=OptRemotePathExpr(
@@ -556,8 +571,8 @@ def test_parse_full_exprs(assets: pathlib.Path) -> None:
         ),
         jobs={
             "test_a": ast.Job(
-                Pos(29, 4, config_file),
-                Pos(47, 0, config_file),
+                Pos(30, 4, config_file),
+                Pos(48, 0, config_file),
                 name=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "job-name"
                 ),

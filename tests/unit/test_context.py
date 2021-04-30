@@ -160,7 +160,11 @@ async def test_job(live_config_loader: ConfigLoader) -> None:
     assert job.entrypoint == "bash"
     assert job.cmd == "echo abc"
     assert job.workdir == RemotePath("/local/dir")
-    assert job.volumes == ["storage:dir:/var/dir:ro", "storage:dir:/var/dir:ro"]
+    assert job.volumes == [
+        "storage:common:/mnt/common:rw",
+        "storage:dir:/var/dir:ro",
+        "storage:dir:/var/dir:ro",
+    ]
     assert job.tags == {
         "tag-1",
         "tag-2",
@@ -206,7 +210,11 @@ async def test_pipeline_minimal_ctx(batch_config_loader: ConfigLoader) -> None:
     assert task.entrypoint == "bash"
     assert task.cmd == "echo abc"
     assert task.workdir == RemotePath("/local/dir")
-    assert task.volumes == ["storage:dir:/var/dir:ro", "storage:dir:/var/dir:ro"]
+    assert task.volumes == [
+        "storage:common:/mnt/common:rw",
+        "storage:dir:/var/dir:ro",
+        "storage:dir:/var/dir:ro",
+    ]
     assert task.tags == {
         "tag-1",
         "tag-2",

@@ -880,6 +880,7 @@ def parse_flow_defaults(ctor: FlowLoader, node: yaml.MappingNode) -> ast.FlowDef
             {
                 "tags": ExprOrSeq(StrExpr, type2str),
                 "env": ExprOrMapping(StrExpr, type2str),
+                "volumes": ExprOrSeq(OptStrExpr, type2str),
                 "workdir": OptRemotePathExpr,
                 "life_span": OptTimeDeltaExpr,
                 "preset": OptStrExpr,
@@ -894,6 +895,7 @@ def parse_flow_defaults(ctor: FlowLoader, node: yaml.MappingNode) -> ast.FlowDef
             {
                 "tags": ExprOrSeq(StrExpr, type2str),
                 "env": ExprOrMapping(StrExpr, type2str),
+                "volumes": ExprOrSeq(OptStrExpr, type2str),
                 "workdir": OptRemotePathExpr,
                 "life_span": OptTimeDeltaExpr,
                 "preset": OptStrExpr,
