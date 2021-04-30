@@ -164,6 +164,13 @@ async def akeys(ctx: CallCtx, arg: TypeT) -> TypeT:
     return list(arg)  # type: ignore  # List[...] is implicitly converted to SequenceT
 
 
+async def values(ctx: CallCtx, arg: TypeT) -> TypeT:
+    # Trampoline for mapping.values, async is required for the sake of uniformness.
+    if not isinstance(arg, Mapping):
+        raise TypeError(f"values() requires a mapping, got {arg!r}")
+    return list(arg.values())  # type: ignore  # implicitly converted to SequenceT
+
+
 async def fmt(ctx: CallCtx, spec: str, *args: TypeT) -> str:
     # We need a trampoline since expression syntax doesn't support classes and named
     # argumens
@@ -261,6 +268,38 @@ async def aupper(ctx: CallCtx, arg: TypeT) -> str:
     if not isinstance(arg, str):
         raise TypeError(f"upper() requires a str, got {arg!r}")
     return arg.upper()
+
+
+async def astr(ctx: CallCtx, arg: TypeT) -> str:
+    # Async version of str(), async is required for the sake of uniformness.
+    return str(arg)
+
+
+async def replace(ctx: CallCtx, arg: TypeT, old: TypeT, new: TypeT) -> str:
+    # We need a trampoline since expression syntax doesn't support classes
+    if not isinstance(arg, str):
+        raise TypeError(f"replace() first argument should be a str, got {arg!r}")
+    if not isinstance(old, str):
+        raise TypeError(f"replace() second argument should be a str, got {old!r}")
+    if not isinstance(new, str):
+        raise TypeError(f"replace() third argument should be a str, got {new!r}")
+    return arg.replace(old, new)
+
+
+async def join(ctx: CallCtx, sep: TypeT, array: TypeT) -> str:
+    # We need a trampoline since expression syntax doesn't support classes
+    if not isinstance(sep, str):
+        raise TypeError(f"join() first argument should be a str, got {sep!r}")
+    if not isinstance(array, SequenceT):
+        raise TypeError(
+            f"replace() second argument should be a sequence, got {array!r}"
+        )
+    str_array = []
+    for idx, item in enumerate(array):
+        if not isinstance(item, str):
+            raise TypeError(f"join() array item {idx} should be a str, got {item!r}")
+        str_array.append(item)
+    return sep.join(str_array)
 
 
 async def parse_volume(ctx: CallCtx, arg: TypeT) -> ContainerT:
@@ -384,7 +423,11 @@ FUNCTIONS = _build_signatures(
     len=alen,
     nothing=nothing,
     fmt=fmt,
+    str=astr,
+    replace=replace,
+    join=join,
     keys=akeys,
+    values=values,
     to_json=to_json,
     from_json=from_json,
     success=success,
