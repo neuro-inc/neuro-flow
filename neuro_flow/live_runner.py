@@ -370,6 +370,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
         for job_id in self.flow.job_ids:
             job_meta = await self.flow.get_meta(job_id)
             jobs.append(job_meta)
+        await self._storage.ensure_project(self.flow.flow.project_id)
         await self._storage.write_live(self.flow.flow.project_id, jobs)
         await self._run_neuro_cli(*run_args)
 

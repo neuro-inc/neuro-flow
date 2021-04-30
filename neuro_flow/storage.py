@@ -986,21 +986,28 @@ class APIStorage(Storage):
             return prj
 
     async def write_live(self, project: str, jobs: Iterable[JobMeta]) -> Live:
-        # prj = await self._get_project(project)
-        # for job in jobs:
-        #     pass
-        when = _now()
-        live = Live(
-            project=project,
-            when=when,
-            jobs=sorted(
-                [
-                    Job(id=job.id, multi=job.multi, tags=sorted(job.tags))
-                    for job in jobs
-                ],
-                key=attrgetter("id"),
-            ),
+        prj = await self._get_project(project)
+        jobs = sorted(
+            [Job(id=job.id, multi=job.multi, tags=sorted(job.tags)) for job in jobs],
+            key=attrgetter("id"),
         )
+        auth = await self._config._api_auth()
+        for job in jobs:
+            async with self._core.request(
+                "PUT",
+                url=self._base_url / "api/v1/flow/live_jobs/replace",
+                json={
+                    "project_id": prj.id,
+                    "yaml_id": job.id,
+                    "multi": job.multi,
+                    "tags": job.tags,
+                },
+                auth=auth,
+            ) as resp:
+                await resp.json()
+
+        when = _now()
+        live = Live(project=project, when=when, jobs=jobs)
         prj_uri = self._fs.root / project
         await self._fs.mkdir(prj_uri, parents=True, exist_ok=True)
         url = prj_uri / "live.json"
