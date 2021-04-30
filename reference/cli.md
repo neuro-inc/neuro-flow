@@ -365,6 +365,7 @@ neuro-flow run [OPTIONS] JOB_ID [ARGS]...
 | :--- | :--- |
 | _-s, --suffix TEXT_ | Optional suffix for multi-jobs |
 | _--param &lt;TEXT TEXT&gt;..._ | Set params of the batch config |
+| _--dry-run_ | Print run command instead of starting job. |
 | _--help_ | Show this message and exit. |
 
 ### neuro-flow show
