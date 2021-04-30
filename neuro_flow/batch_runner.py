@@ -119,7 +119,10 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
 
     # Next function is also used in tests:
     async def _setup_bake(
-        self, batch_name: str, params: Optional[Mapping[str, str]] = None
+        self,
+        batch_name: str,
+        params: Optional[Mapping[str, str]] = None,
+        name: Optional[str] = None,
     ) -> Tuple[ExecutorData, RunningBatchFlow]:
         # batch_name is a name of yaml config inside self._workspace / .neuro
         # folder without the file extension
@@ -158,6 +161,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             configs,
             graphs=graphs,
             params=params,
+            name=name,
         )
         self._console.log(
             f"Bake [b]{bake.bake_id}[/b] of project [b]{bake.project}[/b] is created"
@@ -297,12 +301,13 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         batch_name: str,
         local_executor: bool = False,
         params: Optional[Mapping[str, str]] = None,
+        name: Optional[str] = None,
     ) -> None:
         self._console.print(
             Panel(f"[bright_blue]Bake [b]{batch_name}[/b]", padding=1),
             justify="center",
         )
-        data, flow = await self._setup_bake(batch_name, params)
+        data, flow = await self._setup_bake(batch_name, params, name)
         await self._run_bake(data, flow, local_executor)
 
     async def _run_bake(
@@ -362,10 +367,11 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
     async def list_bakes(self) -> None:
         table = Table(box=box.MINIMAL_HEAVY_HEAD)
         table.add_column("ID", style="bold")
+        table.add_column("NAME")
         table.add_column("STATUS")
         table.add_column("WHEN")
 
-        rows: List[Tuple[str, TaskStatus, datetime.datetime]] = []
+        rows: List[Tuple[str, str, TaskStatus, datetime.datetime]] = []
         async for bake in self._storage.list_bakes(self.project):
             try:
                 attempt = await self._storage.find_attempt(bake)
@@ -374,14 +380,16 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                     f"[yellow]Bake [b]{bake}[/b] is malformed, skipping"
                 )
             else:
-                rows.append((bake.bake_id, attempt.result, attempt.when))
+                rows.append(
+                    (bake.bake_id, bake.name or "", attempt.result, attempt.when)
+                )
 
         # sort by date, ascending order (last is bottommost)
-        rows.sort(key=itemgetter(2))
+        rows.sort(key=itemgetter(3))
 
         for row in rows:
-            bake_id, result, when = row
-            table.add_row(bake_id, result, fmt_datetime(when))
+            bake_id, name, result, when = row
+            table.add_row(bake_id, name, result, fmt_datetime(when))
         self._console.print(table)
 
     async def inspect(

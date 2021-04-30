@@ -120,6 +120,7 @@ neuro-flow bake [OPTIONS] BATCH
 | :--- | :--- |
 | _--local-executor_ | Run primary job locally |
 | _--param &lt;TEXT TEXT&gt;..._ | Set params of the batch config |
+| _-n, --name NAME_ | Optional bake name |
 | _--meta-from-file FILE_ | File with params for batch. |
 | _--help_ | Show this message and exit. |
 
@@ -167,7 +168,7 @@ Cancel a bake execution by stopping all started tasks.
 **Usage:**
 
 ```bash
-neuro-flow cancel [OPTIONS] BAKE_ID
+neuro-flow cancel [OPTIONS] BAKE
 ```
 
 **Options:**
@@ -242,7 +243,7 @@ Display a list of started/finished tasks of BAKE\_ID.
 **Usage:**
 
 ```bash
-neuro-flow inspect [OPTIONS] BAKE_ID
+neuro-flow inspect [OPTIONS] BAKE
 ```
 
 **Options:**
@@ -333,7 +334,7 @@ Run BATCH pipeline remotely on the cluster.
 **Usage:**
 
 ```bash
-neuro-flow restart [OPTIONS] BAKE_ID
+neuro-flow restart [OPTIONS] BAKE
 ```
 
 **Options:**
@@ -377,7 +378,7 @@ Display a logged output of TASK\_ID from BAKE\_ID.
 **Usage:**
 
 ```bash
-neuro-flow show [OPTIONS] BAKE_ID TASK_ID
+neuro-flow show [OPTIONS] BAKE TASK_ID
 ```
 
 **Options:**
