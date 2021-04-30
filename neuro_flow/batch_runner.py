@@ -43,7 +43,14 @@ from .context import EMPTY_ROOT, EarlyBatch, EarlyLocalCall, RunningBatchFlow
 from .parser import ConfigDir
 from .storage import Attempt, Bake, FinishedTask, Storage
 from .types import FullID, LocalPath, TaskStatus
-from .utils import TERMINATED_TASK_STATUSES, fmt_datetime, fmt_timedelta, run_subproc
+from .utils import (
+    TERMINATED_TASK_STATUSES,
+    GlobalOptions,
+    encode_global_options,
+    fmt_datetime,
+    fmt_timedelta,
+    make_cmd_exec,
+)
 
 
 EXECUTOR_IMAGE = f"neuromation/neuro-flow:{neuro_flow.__version__}"
@@ -68,6 +75,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         console: Console,
         client: Client,
         storage: Storage,
+        global_options: GlobalOptions,
     ) -> None:
         self._config_dir = config_dir
         self._console = console
@@ -75,6 +83,10 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         self._storage = storage
         self._config_loader: Optional[BatchLocalCL] = None
         self._project: Optional[str] = None
+        self._run_neuro_cli = make_cmd_exec(
+            "neuro", global_options=encode_global_options(global_options)
+        )
+        self._global_options = global_options
 
     @property
     def project(self) -> str:
@@ -281,7 +293,10 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         await self._run_bake(data, flow, local_executor)
 
     async def _run_bake(
-        self, data: ExecutorData, flow: RunningBatchFlow, local_executor: bool
+        self,
+        data: ExecutorData,
+        flow: RunningBatchFlow,
+        local_executor: bool,
     ) -> None:
         self._console.rule("Run local actions")
         locals_result = await self._run_locals(data)
@@ -298,8 +313,8 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                 life_span = fmt_timedelta(flow.life_span)
             else:
                 life_span = "7d"
-            await run_subproc(
-                "neuro",
+
+            await self._run_neuro_cli(
                 "run",
                 "--pass-config",
                 f"--life-span={life_span}",
@@ -309,6 +324,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                 f"--tag=remote_executor",
                 EXECUTOR_IMAGE,
                 "neuro-flow",
+                *encode_global_options(self._global_options),
                 "--fake-workspace",
                 "execute",
                 param,

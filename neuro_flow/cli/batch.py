@@ -55,13 +55,17 @@ async def bake(
             APIStorage(client, NeuroStorageFS(client))
         )
         runner = await stack.enter_async_context(
-            BatchRunner(root.config_dir, root.console, client, storage)
+            BatchRunner(root.config_dir, root.console, client, storage, root)
         )
         params = {key: value for key, value in param}
         if meta_from_file is not None:
             bake_meta = parse_bake_meta(LocalPath(meta_from_file))
             params = {**bake_meta, **params}
-        await runner.bake(batch, local_executor, params)
+        await runner.bake(
+            batch_name=batch,
+            local_executor=local_executor,
+            params=params,
+        )
 
 
 @click.command(hidden=True)
@@ -96,7 +100,7 @@ async def execute(
             APIStorage(client, NeuroStorageFS(client))
         )
         runner = await stack.enter_async_context(
-            BatchRunner(root.config_dir, root.console, client, storage)
+            BatchRunner(root.config_dir, root.console, client, storage, root)
         )
         await runner.process(data)
 
@@ -113,7 +117,7 @@ async def bakes(
             APIStorage(client, NeuroStorageFS(client))
         )
         runner = await stack.enter_async_context(
-            BatchRunner(root.config_dir, root.console, client, storage)
+            BatchRunner(root.config_dir, root.console, client, storage, root)
         )
         await runner.list_bakes()
 
@@ -171,7 +175,7 @@ async def inspect(
             APIStorage(client, NeuroStorageFS(client))
         )
         runner = await stack.enter_async_context(
-            BatchRunner(root.config_dir, root.console, client, storage)
+            BatchRunner(root.config_dir, root.console, client, storage, root)
         )
         if output_graph is not None:
             real_output: Optional[LocalPath] = LocalPath(output_graph)
@@ -224,7 +228,7 @@ async def show(
             APIStorage(client, NeuroStorageFS(client))
         )
         runner = await stack.enter_async_context(
-            BatchRunner(root.config_dir, root.console, client, storage)
+            BatchRunner(root.config_dir, root.console, client, storage, root)
         )
         await runner.logs(bake_id, task_id, attempt_no=attempt, raw=raw)
 
@@ -254,7 +258,7 @@ async def cancel(
             APIStorage(client, NeuroStorageFS(client))
         )
         runner = await stack.enter_async_context(
-            BatchRunner(root.config_dir, root.console, client, storage)
+            BatchRunner(root.config_dir, root.console, client, storage, root)
         )
         await runner.cancel(bake_id, attempt_no=attempt)
 
@@ -278,7 +282,7 @@ async def clear_cache(
             APIStorage(client, NeuroStorageFS(client))
         )
         runner = await stack.enter_async_context(
-            BatchRunner(root.config_dir, root.console, client, storage)
+            BatchRunner(root.config_dir, root.console, client, storage, root)
         )
         if batch == "ALL":
             await runner.clear_cache(None)
@@ -320,7 +324,7 @@ async def restart(
             APIStorage(client, NeuroStorageFS(client))
         )
         runner = await stack.enter_async_context(
-            BatchRunner(root.config_dir, root.console, client, storage)
+            BatchRunner(root.config_dir, root.console, client, storage, root)
         )
         await runner.restart(
             bake_id,

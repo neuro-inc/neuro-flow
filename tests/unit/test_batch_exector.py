@@ -283,6 +283,11 @@ def batch_storage(loop: None) -> Iterator[Storage]:
         yield FSStorage(fs)
 
 
+class FakeGlobalOptions:
+    verbosity = 0
+    show_traceback = False
+
+
 @pytest.fixture()
 async def make_batch_runner(
     batch_storage: Storage,
@@ -297,8 +302,13 @@ async def make_batch_runner(
         )
         nonlocal runner
         # BatchRunner should not use client in this case
+
         runner = BatchRunner(
-            config_dir, get_console(), cast(Client, None), batch_storage
+            config_dir,
+            get_console(),
+            cast(Client, None),
+            batch_storage,
+            FakeGlobalOptions(),
         )
         await runner.__aenter__()
         return runner

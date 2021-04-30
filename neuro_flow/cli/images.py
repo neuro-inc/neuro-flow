@@ -36,7 +36,7 @@ async def build(root: Root, force_overwrite: bool, image: str) -> None:
             APIStorage(client, NeuroStorageFS(client))
         )
         runner = await stack.enter_async_context(
-            LiveRunner(root.config_dir, root.console, client, storage)
+            LiveRunner(root.config_dir, root.console, client, storage, root)
         )
         if image == "ALL":
             await runner.build_all(force_overwrite=force_overwrite)
