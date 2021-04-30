@@ -1023,7 +1023,7 @@ class APIStorage(Storage):
         ) as resp:
             async for line in resp.content:
                 bake_data = json.loads(line)
-                bake = _bake_from_api_json(bake_data)
+                bake = _bake_from_api_json(prj, bake_data)
                 self._bakes_cache[bake_data["id"]] = bake_data
                 yield bake
 
@@ -1057,7 +1057,7 @@ class APIStorage(Storage):
         ) as resp:
             bake_data = await resp.json()
 
-        bake = _bake_from_api_json(bake_data)
+        bake = _bake_from_api_json(prj, bake_data)
         self._bakes_cache[bake_data["id"]] = bake_data
         bake_uri = _mk_bake_uri(self._fs, bake)
         await self._fs.mkdir(bake_uri, parents=True)
@@ -1108,6 +1108,7 @@ class APIStorage(Storage):
     async def fetch_bake(
         self, project: str, batch: str, when: datetime.datetime, suffix: str
     ) -> Bake:
+        prj = await self._get_project(project)
         for bake_data in self._bakes_cache.values():
             rounded = _dt2str(datetime.datetime.fromisoformat(bake_data["created_at"]))
             if (
@@ -1115,7 +1116,7 @@ class APIStorage(Storage):
                 and bake_data["batch"] == batch
                 and rounded == _dt2str(when)
             ):
-                return _bake_from_api_json(bake_data)
+                return _bake_from_api_json(prj, bake_data)
 
         async for bake in self.list_bakes(project):
             if bake.batch == batch and bake.when == when:
@@ -1135,8 +1136,9 @@ class APIStorage(Storage):
         when_str = _dt2str(bake.when)
         for bake_data in self._bakes_cache.values():
             rounded = _dt2str(datetime.datetime.fromisoformat(bake_data["created_at"]))
+            prj = await self._get_project(bake.project)
             if (
-                bake_data["project_id"] == bake.project
+                bake_data["project_id"] == prj.id
                 and bake_data["batch"] == bake.batch
                 and rounded == when_str
             ):
@@ -1448,68 +1450,55 @@ class APIStorage(Storage):
         caching_key: str,
         life_span: datetime.timedelta,
     ) -> Optional[FinishedTask]:
-        # prj = await self._get_project(attempt.bake.project)
+        prj = await self._get_project(attempt.bake.project)
 
-        # auth = await self._config._api_auth()
-        # url = self._base_url / "api/v1/flow/cache_entries/by_key"
-        # try:
-        #     async with self._core.request(
-        #         "GET",
-        #         url,
-        #         params={
-        #             "project_id": prj.id,
-        #             "task_id": _id_to_json(task_id),
-        #             "batch": attempt.bake.batch,
-        #             "key": caching_key,
-        #         },
-        #         auth=auth,
-        #     ) as resp:
-        #         payload = await resp.json()
-        # except ResourceNotFound:
-        #     return None
-
-        url = _mk_cache_uri(self._fs, attempt, task_id)
-
+        auth = await self._config._api_auth()
         try:
-            data = await self._read_json(url)
-        except ValueError:
-            # not found
+            async with self._core.request(
+                "GET",
+                self._base_url / "api/v1/flow/cache_entries/by_key",
+                params={
+                    "project_id": prj.id,
+                    "task_id": _id_to_json(task_id),
+                    "batch": attempt.bake.batch,
+                    "key": caching_key,
+                },
+                auth=auth,
+            ) as resp:
+                payload = await resp.json()
+        except ResourceNotFound:
             return None
 
-        try:
-            when = datetime.datetime.fromisoformat(data["when"])
-            now = datetime.datetime.now(datetime.timezone.utc)
-            eol = when + life_span
-            if eol < now:
-                return None
-            if data["caching_key"] != caching_key:
-                return None
-            st = StartedTask(
-                attempt=attempt,
-                id=task_id,
-                raw_id=data["raw_id"],
-                when=datetime.datetime.fromisoformat(data["when"]),
-                created_at=datetime.datetime.fromisoformat(data["created_at"]),
-            )
-            await self.write_start(st)
-            ft = FinishedTask(
-                attempt=attempt,
-                id=task_id,
-                raw_id=data["raw_id"],
-                when=datetime.datetime.fromisoformat(data["when"]),
-                status=TaskStatus.CACHED,
-                created_at=datetime.datetime.fromisoformat(data["created_at"]),
-                started_at=datetime.datetime.fromisoformat(data["started_at"]),
-                finished_at=datetime.datetime.fromisoformat(data["finished_at"]),
-                outputs=data["outputs"],
-                state=data["state"],
-            )
-            await self.write_finish(ft)
-            return ft
-        except (KeyError, ValueError, TypeError):
-            # something is wrong with stored JSON,
-            # e.g. the structure doesn't match the expected schema
+        created_at = datetime.datetime.fromisoformat(payload["created_at"])
+        now = datetime.datetime.now(datetime.timezone.utc)
+        eol = created_at + life_span
+        if eol < now:
             return None
+        if payload["key"] != caching_key:
+            return None
+
+        st = StartedTask(
+            attempt=attempt,
+            id=task_id,
+            raw_id="",
+            when=created_at,
+            created_at=created_at,
+        )
+        await self.write_start(st)
+        ft = FinishedTask(
+            attempt=attempt,
+            id=task_id,
+            raw_id="",
+            when=created_at,
+            status=TaskStatus.CACHED,
+            created_at=created_at,
+            started_at=created_at,
+            finished_at=created_at,
+            outputs=payload["outputs"],
+            state=payload["state"],
+        )
+        await self.write_finish(ft)
+        return ft
 
     async def write_cache(
         self,
@@ -1517,6 +1506,24 @@ class APIStorage(Storage):
         ft: FinishedTask,
         caching_key: str,
     ) -> None:
+        prj = await self._get_project(attempt.bake.project)
+
+        auth = await self._config._api_auth()
+        async with self._core.request(
+            "POST",
+            self._base_url / "api/v1/flow/cache_entries",
+            json={
+                "project_id": prj.id,
+                "task_id": _id_to_json(ft.id),
+                "batch": attempt.bake.batch,
+                "key": caching_key,
+                "outputs": ft.outputs,
+                "state": ft.state,
+            },
+            auth=auth,
+        ) as resp:
+            await resp.json()
+
         url = _mk_cache_uri(self._fs, attempt, ft.id)
         assert ft.raw_id is not None, (ft.id, ft.raw_id)
 
@@ -1541,6 +1548,20 @@ class APIStorage(Storage):
             await self._write_json(url, data, overwrite=True)
 
     async def clear_cache(self, project: str, batch: Optional[str] = None) -> None:
+        prj = await self._get_project(project)
+
+        auth = await self._config._api_auth()
+        async with self._core.request(
+            "DELETE",
+            self._base_url / "api/v1/flow/cache_entries",
+            params={
+                "project_id": prj.id,
+                "batch": batch,
+            },
+            auth=auth,
+        ) as resp:
+            await resp.json()
+
         await self._fs.rm(_mk_cache_uri2(self._fs, project, batch), recursive=True)
 
     async def _read_file(self, url: URL) -> str:
@@ -1658,18 +1679,21 @@ def _bake_from_json(data: Dict[str, Any]) -> Bake:
     )
 
 
-def _bake_from_api_json(data: Dict[str, Any]) -> Bake:
+def _bake_from_api_json(project: Project, data: Dict[str, Any]) -> Bake:
     graphs = {}
     for pre, gr in data["graphs"].items():
         graphs[_id_from_json(pre)] = {
             _id_from_json(full_id): {_id_from_json(dep) for dep in deps}
             for full_id, deps in gr.items()
         }
-    payload = json.dumps(data)
     digest = hashlib.new("sha256")
-    digest.update(payload.encode("utf8"))
+    digest.update(project.name.encode("utf8"))
+    digest.update(data["batch"].encode("utf8"))
+    #    digest.update(json.dumps(data["graphs"], sort_keys=True).encode("utf8"))
+    digest.update(json.dumps(data["params"], sort_keys=True).encode("utf8"))
+    assert data["project_id"] == project.id
     return Bake(
-        project=data["project_id"],
+        project=project.name,
         batch=data["batch"],
         when=datetime.datetime.fromisoformat(data["created_at"]),
         suffix=digest.hexdigest()[:6],
