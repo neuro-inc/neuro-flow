@@ -55,6 +55,7 @@ GRAPH_COLORS = {
     TaskStatus.SUCCEEDED: "limegreen",
     TaskStatus.CANCELLED: "orange",
     TaskStatus.SKIPPED: "magenta",
+    TaskStatus.CACHED: "yellowgreen",
     TaskStatus.FAILED: "orangered",
     TaskStatus.UNKNOWN: "crimson",
 }
@@ -376,7 +377,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         except ResourceNotFound:
             self._console.print("[yellow]Bake not found")
             self._console.print(
-                "Please make sure that the bake [b]{bake_id}[/b] and "
+                f"Please make sure that the bake [b]{bake_id}[/b] and "
                 f"project [b]{self.project}[/b] are correct."
             )
             exit(1)
@@ -459,9 +460,9 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
 
             if task_id in finished:
                 status = finished[task_id].status
-                color = GRAPH_COLORS[status]
+                color = GRAPH_COLORS.get(status)
             elif task_id in statuses:
-                color = GRAPH_COLORS[statuses[task_id]]
+                color = GRAPH_COLORS.get(statuses[task_id])
             else:
                 color = None
 
