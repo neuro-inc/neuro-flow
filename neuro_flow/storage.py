@@ -1387,7 +1387,7 @@ class APIStorage(Storage):
             json={
                 "yaml_id": _id_to_json(st.id),
                 "attempt_id": attempt_data["id"],
-                "raw_id": None,
+                "raw_id": st.raw_id,
                 "outputs": {},
                 "state": {},
                 "statuses": [
