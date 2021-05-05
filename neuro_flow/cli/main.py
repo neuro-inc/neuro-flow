@@ -11,6 +11,7 @@ from neuro_flow.cli import batch, completion, images, live, storage
 from neuro_flow.parser import ConfigDir, find_workspace
 from neuro_flow.types import LocalPath
 
+from ..expr import MultiEvalError
 from .root import Root
 
 
@@ -66,13 +67,19 @@ class MainGroup(click.Group):
 
         console = Console(highlight=False, log_path=False)
 
-        setup_logging(color=bool(console.color_system), verbosity=verbose - quiet)
+        verbosity = verbose - quiet
+        setup_logging(color=bool(console.color_system), verbosity=verbosity)
 
         global LOG_ERROR
         if show_traceback:
             LOG_ERROR = log.exception
 
-        ctx.obj = Root(config_dir=config_dir, console=console)
+        ctx.obj = Root(
+            config_dir=config_dir,
+            console=console,
+            verbosity=verbosity,
+            show_traceback=show_traceback,
+        )
 
     def make_context(
         self,
@@ -193,6 +200,11 @@ def main(args: Optional[List[str]] = None) -> None:
 
     except SystemExit:
         raise
+
+    except MultiEvalError as e:
+        for error in e.errors:
+            LOG_ERROR(f"{error}")
+        sys.exit(1)
 
     except Exception as e:
         LOG_ERROR(f"{e}")

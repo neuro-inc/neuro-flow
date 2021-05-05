@@ -26,15 +26,25 @@ from typing import (
     Sequence,
     Set,
     Tuple,
+    Type,
     TypeVar,
     Union,
     cast,
 )
+from typing_extensions import Annotated
 from yarl import URL
 
 from neuro_flow import ast
 from neuro_flow.config_loader import ConfigLoader
-from neuro_flow.expr import EnableExpr, EvalError, IdExpr, LiteralT, RootABC, TypeT
+from neuro_flow.expr import (
+    EnableExpr,
+    EvalError,
+    Expr,
+    IdExpr,
+    LiteralT,
+    RootABC,
+    TypeT,
+)
 from neuro_flow.types import AlwaysT, FullID, LocalPath, RemotePath, TaskStatus
 
 
@@ -61,16 +71,17 @@ class UnknownTask(KeyError):
 
 # ...Ctx types, they define parts that can be available in expressions
 
-EnvCtx = Mapping[str, str]
-TagsCtx = AbstractSet[str]
-VolumesCtx = Mapping[str, "VolumeCtx"]
-ImagesCtx = Mapping[str, "ImageCtx"]
-InputsCtx = Mapping[str, str]
-ParamsCtx = Mapping[str, str]
 
-NeedsCtx = Mapping[str, "DepCtx"]
-StateCtx = Mapping[str, str]
-MatrixCtx = Mapping[str, LiteralT]
+EnvCtx = Annotated[Mapping[str, str], "EnvCtx"]
+TagsCtx = Annotated[AbstractSet[str], "TagsCtx"]
+VolumesCtx = Annotated[Mapping[str, "VolumeCtx"], "VolumesCtx"]
+ImagesCtx = Annotated[Mapping[str, "ImageCtx"], "ImagesCtx"]
+InputsCtx = Annotated[Mapping[str, str], "InputsCtx"]
+ParamsCtx = Annotated[Mapping[str, str], "ParamsCtx"]
+
+NeedsCtx = Annotated[Mapping[str, "DepCtx"], "NeedsCtx"]
+StateCtx = Annotated[Mapping[str, str], "StateCtx"]
+MatrixCtx = Annotated[Mapping[str, LiteralT], "MatrixCtx"]
 
 
 @dataclass(frozen=True)
@@ -181,6 +192,7 @@ class CacheConf:
 
 @dataclass(frozen=True)
 class DefaultsConf:
+    volumes: Sequence[str] = ()
     workdir: Optional[RemotePath] = None
     life_span: Optional[float] = None
     schedule_timeout: Optional[float] = None
@@ -612,6 +624,7 @@ async def setup_defaults_env_tags_ctx(
 ) -> Tuple[DefaultsConf, EnvCtx, TagsCtx]:
     env: EnvCtx
     tags: TagsCtx
+    volumes: List[str]
     if ast_defaults is not None:
         if ast_defaults.env is not None:
             tmp_env = await ast_defaults.env.eval(ctx)
@@ -626,6 +639,16 @@ async def setup_defaults_env_tags_ctx(
             tags = set(tmp_tags)
         else:
             tags = set()
+
+        if ast_defaults.volumes:
+            tmp_volumes = await ast_defaults.volumes.eval(ctx)
+            assert isinstance(tmp_volumes, list)
+            volumes = []
+            for volume in tmp_volumes:
+                if volume:
+                    volumes.append(volume)
+        else:
+            volumes = []
         workdir = await ast_defaults.workdir.eval(ctx)
         life_span = await ast_defaults.life_span.eval(ctx)
         preset = await ast_defaults.preset.eval(ctx)
@@ -633,6 +656,7 @@ async def setup_defaults_env_tags_ctx(
     else:
         env = {}
         tags = set()
+        volumes = []
         workdir = None
         life_span = None
         preset = None
@@ -642,6 +666,7 @@ async def setup_defaults_env_tags_ctx(
     tags.add(f"flow:{_id2tag(ctx.flow.flow_id)}")
 
     defaults = DefaultsConf(
+        volumes=volumes,
         workdir=workdir,
         life_span=life_span,
         preset=preset,
@@ -1040,7 +1065,7 @@ class RunningLiveFlow:
 
         workdir = (await job.workdir.eval(ctx)) or defaults.workdir
 
-        volumes: List[str] = []
+        volumes: List[str] = list(defaults.volumes)
         if job.volumes is not None:
             tmp_volumes = await job.volumes.eval(ctx)
             assert isinstance(tmp_volumes, list)
@@ -1154,6 +1179,46 @@ class EarlyBatch:
             return prep_task.state_from
         return None
 
+    def _task_context_class(self) -> Type[Context]:
+        return BatchTaskContext
+
+    def _known_inputs(self) -> AbstractSet[str]:
+        return set()
+
+    def validate_expressions(self) -> List[EvalError]:
+        from .expr_validation import validate_expr
+
+        errors: List[EvalError] = []
+        for task in self._tasks.values():
+            ctx_cls = self._task_context_class()
+            known_needs = task.needs.keys()
+            known_inputs = self._known_inputs()
+            errors += validate_expr(task.enable, ctx_cls, known_needs, known_inputs)
+            if isinstance(task, EarlyTask):
+                _ctx_cls = ctx_cls
+                if isinstance(task, EarlyStatefulCall):
+                    _ctx_cls = StatefulActionContext
+                    known_inputs = (task.action.inputs or {}).keys()
+                ast_task = task.ast_task
+                for field in fields(ast.ExecUnit):
+                    field_value = getattr(ast_task, field.name)
+                    if field_value is not None and isinstance(field_value, Expr):
+                        errors += validate_expr(
+                            field_value, _ctx_cls, known_needs, known_inputs
+                        )
+            if isinstance(task, BaseEarlyCall):
+                args = task.call.args or {}
+                for arg_expr in args.values():
+                    errors += validate_expr(
+                        arg_expr, ctx_cls, known_needs, known_inputs
+                    )
+            if isinstance(task, EarlyLocalCall):
+                known_inputs = (task.action.inputs or {}).keys()
+                errors += validate_expr(
+                    task.action.cmd, LocalActionContext, known_inputs=known_inputs
+                )
+        return errors
+
     async def get_action_early(self, real_id: str) -> "EarlyBatch":
         assert await self.is_action(
             real_id
@@ -1164,7 +1229,7 @@ class EarlyBatch:
         await validate_action_call(prep_task.call, prep_task.action.inputs)
         tasks = await EarlyTaskGraphBuilder(self._cl, prep_task.action.tasks).build()
 
-        return EarlyBatchAction(tasks, self._cl)
+        return EarlyBatchAction(tasks, self._cl, prep_task.action)
 
     async def get_local_early(self, real_id: str) -> "EarlyLocalCall":
         assert await self.is_local(
@@ -1180,8 +1245,41 @@ class EarlyBatchAction(EarlyBatch):
         self,
         tasks: Mapping[str, "BaseEarlyTask"],
         config_loader: ConfigLoader,
+        action: ast.BatchAction,
     ):
         super().__init__(tasks, config_loader)
+        self._action = action
+
+    def _task_context_class(self) -> Type[Context]:
+        return BatchActionTaskContext
+
+    def _known_inputs(self) -> AbstractSet[str]:
+        return (self._action.inputs or {}).keys()
+
+    def validate_expressions(self) -> List[EvalError]:
+        from .expr_validation import validate_expr
+
+        errors = super().validate_expressions()
+        known_inputs = self._known_inputs()
+
+        if self._action.cache:
+            errors += validate_expr(
+                self._action.cache.life_span,
+                BatchActionContext,
+                known_inputs=known_inputs,
+            )
+        outputs = self._action.outputs
+
+        tasks_ids = self._tasks.keys()
+        if outputs and outputs.values:
+            for output in outputs.values.values():
+                errors += validate_expr(
+                    output.value,
+                    BatchActionOutputsContext,
+                    known_needs=tasks_ids,
+                    known_inputs=known_inputs,
+                )
+        return errors
 
 
 class RunningBatchBase(Generic[_T], EarlyBatch):
@@ -1291,7 +1389,7 @@ class RunningBatchBase(Generic[_T], EarlyBatch):
 
         workdir = (await prep_task.ast_task.workdir.eval(ctx)) or defaults.workdir
 
-        volumes: List[str] = []
+        volumes: List[str] = list(defaults.volumes)
         if prep_task.ast_task.volumes is not None:
             tmp_volumes = await prep_task.ast_task.volumes.eval(ctx)
             assert isinstance(tmp_volumes, list)
@@ -1463,6 +1561,9 @@ class RunningBatchFlow(RunningBatchBase[BatchContext]):
         return RunningBatchFlow(batch_ctx, tasks, config_loader, defaults, bake_id)
 
 
+EarlyBatchAction
+
+
 class RunningBatchActionFlow(RunningBatchBase[BatchActionContext]):
     def __init__(
         self,
@@ -1632,23 +1733,23 @@ class EarlyTask(BaseEarlyTask):
 
 
 @dataclass(frozen=True)
-class EarlyBatchCall(BaseEarlyTask):
+class BaseEarlyCall(BaseEarlyTask):
     call: ast.TaskActionCall
     action_name: str
+
+
+@dataclass(frozen=True)
+class EarlyBatchCall(BaseEarlyCall):
     action: ast.BatchAction
 
 
 @dataclass(frozen=True)
-class EarlyLocalCall(BaseEarlyTask):
-    call: ast.TaskActionCall
-    action_name: str
+class EarlyLocalCall(BaseEarlyCall):
     action: ast.LocalAction
 
 
 @dataclass(frozen=True)
-class EarlyStatefulCall(EarlyTask):
-    call: ast.TaskActionCall
-    action_name: str
+class EarlyStatefulCall(EarlyTask, BaseEarlyCall):
     action: ast.StatefulAction
 
 

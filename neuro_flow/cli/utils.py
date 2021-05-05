@@ -1,9 +1,24 @@
 import click
 import functools
+import sys
 from asyncio import iscoroutinefunction
 from click.types import convert_type
+from contextlib import contextmanager
 from neuro_cli.asyncio_utils import Runner
-from typing import Any, Awaitable, Callable, TypeVar
+from typing import Any, Awaitable, Callable, Iterator, TypeVar
+
+
+@contextmanager
+def _runner() -> Iterator[Runner]:
+    # Suppress prints unhandled exceptions
+    # on event loop closing to overcome aiohttp bug
+    # Check https://github.com/aio-libs/aiohttp/issues/4324
+    try:
+        with Runner() as runner:
+            yield runner
+            sys.stderr = None  # type: ignore
+    finally:
+        sys.stderr = sys.__stderr__
 
 
 _T = TypeVar("_T")
@@ -17,7 +32,7 @@ def wrap_async(
 
         @functools.wraps(callback)
         def wrapper(*args: Any, **kwargs: Any) -> _T:
-            with Runner() as runner:
+            with _runner() as runner:
                 return runner.run(callback(*args, **kwargs))
 
         if pass_obj:

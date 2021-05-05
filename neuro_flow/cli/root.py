@@ -9,3 +9,5 @@ from neuro_flow.parser import ConfigDir
 class Root:
     config_dir: ConfigDir
     console: Console
+    verbosity: int
+    show_traceback: bool

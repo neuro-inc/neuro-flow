@@ -47,10 +47,18 @@ from .context import (
     RunningBatchFlow,
     setup_project_ctx,
 )
+from .expr import EvalError, MultiEvalError
 from .parser import ConfigDir
 from .storage import Attempt, Bake, FinishedTask, Storage
 from .types import FullID, LocalPath, TaskStatus
-from .utils import TERMINATED_TASK_STATUSES, fmt_datetime, fmt_timedelta, run_subproc
+from .utils import (
+    TERMINATED_TASK_STATUSES,
+    GlobalOptions,
+    encode_global_options,
+    fmt_datetime,
+    fmt_timedelta,
+    make_cmd_exec,
+)
 
 
 EXECUTOR_IMAGE = f"neuromation/neuro-flow:{neuro_flow.__version__}"
@@ -62,6 +70,7 @@ GRAPH_COLORS = {
     TaskStatus.SUCCEEDED: "limegreen",
     TaskStatus.CANCELLED: "orange",
     TaskStatus.SKIPPED: "magenta",
+    TaskStatus.CACHED: "yellowgreen",
     TaskStatus.FAILED: "orangered",
     TaskStatus.UNKNOWN: "crimson",
 }
@@ -74,6 +83,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         console: Console,
         client: Client,
         storage: Storage,
+        global_options: GlobalOptions,
     ) -> None:
         self._config_dir = config_dir
         self._console = console
@@ -81,6 +91,10 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         self._storage = storage
         self._config_loader: Optional[BatchLocalCL] = None
         self._project: Optional[ProjectCtx] = None
+        self._run_neuro_cli = make_cmd_exec(
+            "neuro", global_options=encode_global_options(global_options)
+        )
+        self._global_options = global_options
 
     @property
     def project_id(self) -> str:
@@ -138,6 +152,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
 
         await self._check_no_cycles(flow)
         await self._check_local_deps(flow)
+        await self._check_expressions(flow)
         graphs = await self._build_graphs(flow)
 
         self._console.log(
@@ -250,6 +265,17 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
 
         await self._run_for_each_flow(top_flow, _check_locals)
 
+    async def _check_expressions(self, top_flow: RunningBatchFlow) -> None:
+        errors: List[EvalError] = []
+
+        async def check_expressions(_: FullID, flow: EarlyBatch) -> None:
+            nonlocal errors
+            errors += flow.validate_expressions()
+
+        await self._run_for_each_flow(top_flow, check_expressions)
+        if errors:
+            raise MultiEvalError(errors)
+
     async def _build_graphs(
         self, top_flow: RunningBatchFlow
     ) -> Mapping[FullID, Mapping[FullID, AbstractSet[FullID]]]:
@@ -292,7 +318,10 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         await self._run_bake(data, flow, local_executor)
 
     async def _run_bake(
-        self, data: ExecutorData, flow: RunningBatchFlow, local_executor: bool
+        self,
+        data: ExecutorData,
+        flow: RunningBatchFlow,
+        local_executor: bool,
     ) -> None:
         self._console.rule("Run local actions")
         locals_result = await self._run_locals(data)
@@ -324,11 +353,12 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             run_args += [
                 EXECUTOR_IMAGE,
                 "neuro-flow",
+                *encode_global_options(self._global_options),
                 "--fake-workspace",
                 "execute",
                 param,
             ]
-            await run_subproc("neuro", *run_args)
+            await self._run_neuro_cli(*run_args)
 
     async def process(
         self,
@@ -397,7 +427,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         except ResourceNotFound:
             self._console.print("[yellow]Bake not found")
             self._console.print(
-                "Please make sure that the bake [b]{bake_id}[/b] and "
+                f"Please make sure that the bake [b]{bake_id}[/b] and "
                 f"project [b]{self.project_id}[/b] are correct."
             )
             exit(1)
@@ -480,9 +510,9 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
 
             if task_id in finished:
                 status = finished[task_id].status
-                color = GRAPH_COLORS[status]
+                color = GRAPH_COLORS.get(status)
             elif task_id in statuses:
-                color = GRAPH_COLORS[statuses[task_id]]
+                color = GRAPH_COLORS.get(statuses[task_id])
             else:
                 color = None
 

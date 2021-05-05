@@ -2,7 +2,8 @@ import asyncio
 import datetime
 import humanize
 from neuro_sdk import JobStatus
-from typing import Optional, Union, cast
+from typing import Iterable, List, Optional, Union, cast
+from typing_extensions import Protocol
 
 from .types import COLORS, FullID, TaskStatus
 
@@ -89,3 +90,37 @@ async def run_subproc(exe: str, *args: str) -> None:
             # (e.g. if KeyboardInterrupt or cancellation was received)
             proc.kill()
             await proc.wait()
+
+
+class GlobalOptions(Protocol):
+    @property
+    def verbosity(self) -> int:
+        ...
+
+    @property
+    def show_traceback(self) -> bool:
+        ...
+
+
+def encode_global_options(options: GlobalOptions) -> List[str]:
+    global_options = []
+    verbosity_abs = abs(options.verbosity)
+    if options.verbosity < 0:
+        global_options += ["-q"] * verbosity_abs
+    if options.verbosity > 0:
+        global_options += ["-v"] * verbosity_abs
+    if options.show_traceback:
+        global_options += ["--show-traceback"]
+    return global_options
+
+
+class CommandRunner(Protocol):
+    async def __call__(self, *args: str) -> None:
+        ...
+
+
+def make_cmd_exec(exe: str, *, global_options: Iterable[str] = ()) -> CommandRunner:
+    async def _runner(*args: str) -> None:
+        await run_subproc(exe, *global_options, *args)
+
+    return _runner

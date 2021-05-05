@@ -35,6 +35,7 @@ from typing import (
     ClassVar,
     Dict,
     Generic,
+    Iterable,
     Iterator,
     List,
     Mapping,
@@ -119,6 +120,14 @@ class EvalError(Exception):
         return str(self.args[0]) + f'\n  in "{filename}", line {line}, column {col}'
 
 
+class MultiEvalError(Exception):
+    def __init__(self, errors: Sequence[EvalError]):
+        self.errors = errors
+
+    def __str__(self) -> str:
+        return "\n".join(str(error) for error in self.errors)
+
+
 def parse_literal(arg: str, err_msg: str) -> LiteralT:
     try:
         return cast(LiteralT, literal_eval(arg))
@@ -162,6 +171,13 @@ async def akeys(ctx: CallCtx, arg: TypeT) -> TypeT:
     if not isinstance(arg, Mapping):
         raise TypeError(f"keys() requires a mapping, got {arg!r}")
     return list(arg)  # type: ignore  # List[...] is implicitly converted to SequenceT
+
+
+async def values(ctx: CallCtx, arg: TypeT) -> TypeT:
+    # Trampoline for mapping.values, async is required for the sake of uniformness.
+    if not isinstance(arg, Mapping):
+        raise TypeError(f"values() requires a mapping, got {arg!r}")
+    return list(arg.values())  # type: ignore  # implicitly converted to SequenceT
 
 
 async def fmt(ctx: CallCtx, spec: str, *args: TypeT) -> str:
@@ -261,6 +277,38 @@ async def aupper(ctx: CallCtx, arg: TypeT) -> str:
     if not isinstance(arg, str):
         raise TypeError(f"upper() requires a str, got {arg!r}")
     return arg.upper()
+
+
+async def astr(ctx: CallCtx, arg: TypeT) -> str:
+    # Async version of str(), async is required for the sake of uniformness.
+    return str(arg)
+
+
+async def replace(ctx: CallCtx, arg: TypeT, old: TypeT, new: TypeT) -> str:
+    # We need a trampoline since expression syntax doesn't support classes
+    if not isinstance(arg, str):
+        raise TypeError(f"replace() first argument should be a str, got {arg!r}")
+    if not isinstance(old, str):
+        raise TypeError(f"replace() second argument should be a str, got {old!r}")
+    if not isinstance(new, str):
+        raise TypeError(f"replace() third argument should be a str, got {new!r}")
+    return arg.replace(old, new)
+
+
+async def join(ctx: CallCtx, sep: TypeT, array: TypeT) -> str:
+    # We need a trampoline since expression syntax doesn't support classes
+    if not isinstance(sep, str):
+        raise TypeError(f"join() first argument should be a str, got {sep!r}")
+    if not isinstance(array, SequenceT):
+        raise TypeError(
+            f"replace() second argument should be a sequence, got {array!r}"
+        )
+    str_array = []
+    for idx, item in enumerate(array):
+        if not isinstance(item, str):
+            raise TypeError(f"join() array item {idx} should be a str, got {item!r}")
+        str_array.append(item)
+    return sep.join(str_array)
 
 
 async def parse_volume(ctx: CallCtx, arg: TypeT) -> ContainerT:
@@ -384,7 +432,11 @@ FUNCTIONS = _build_signatures(
     len=alen,
     nothing=nothing,
     fmt=fmt,
+    str=astr,
+    replace=replace,
+    join=join,
     keys=akeys,
+    values=values,
     to_json=to_json,
     from_json=from_json,
     success=success,
@@ -409,6 +461,9 @@ class Item(Entity):
     @abc.abstractmethod
     async def eval(self, root: RootABC) -> TypeT:
         pass
+
+    def child_items(self) -> Iterable["Item"]:
+        return []
 
 
 @dataclasses.dataclass(frozen=True)
@@ -493,6 +548,11 @@ class Lookup(Item):
             ret = await op.eval(root, ret, start)
         return ret
 
+    def child_items(self) -> Iterable["Item"]:
+        for getter in self.trailer:
+            if isinstance(getter, ItemGetter):
+                yield getter.key
+
 
 def make_lookup(arg: Tuple[Token, List[Getter]]) -> Lookup:
     name, trailer = arg
@@ -529,6 +589,12 @@ class Call(Item):
         for op in self.trailer:
             ret = await op.eval(root, ret, start)
         return ret
+
+    def child_items(self) -> Iterable["Item"]:
+        yield from self.args
+        for getter in self.trailer:
+            if isinstance(getter, ItemGetter):
+                yield getter.key
 
 
 def make_call(arg: Tuple[Token, List[Item], Sequence[Getter]]) -> Call:
@@ -570,6 +636,9 @@ class BinOp(Item):
         left_val = await self.left.eval(root)
         right_val = await self.right.eval(root)
         return self.op(left_val, right_val)  # type: ignore
+
+    def child_items(self) -> Iterable["Item"]:
+        return [self.left, self.right]
 
 
 def or_(arg1: Any, arg2: Any) -> Any:
@@ -643,6 +712,9 @@ class UnaryOp(Item):
         operand_val = await self.operand.eval(root)
         return self.op(operand_val)  # type: ignore
 
+    def child_items(self) -> Iterable["Item"]:
+        return [self.operand]
+
 
 def _unary_plus(arg: Any) -> Any:
     return +arg
@@ -674,6 +746,9 @@ class ListMaker(Item):
     async def eval(self, root: RootABC) -> SequenceT:
         return [await item.eval(root) for item in self.items]  # type: ignore
 
+    def child_items(self) -> Iterable["Item"]:
+        return self.items
+
 
 def make_list(args: Tuple[Item, List[Item]]) -> ListMaker:
     lst = [args[0]] + args[1]
@@ -695,6 +770,11 @@ class DictMaker(Item):
             v = await value.eval(root)
             ret[k] = v
         return ret  # type: ignore
+
+    def child_items(self) -> Iterable["Item"]:
+        for entry in self.items:
+            yield entry[0]
+            yield entry[1]
 
 
 def make_dict(args: Tuple[Item, Item, List[Tuple[Item, Item]]]) -> DictMaker:

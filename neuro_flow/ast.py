@@ -198,6 +198,7 @@ class FlowDefaults(Base):
     tags: Optional[BaseExpr[SequenceT]] = field(metadata={"allow_none": True})
 
     env: Optional[BaseExpr[MappingT]] = field(metadata={"allow_none": True})
+    volumes: Optional[BaseExpr[SequenceT]] = field(metadata={"allow_none": True})
     workdir: OptRemotePathExpr
 
     life_span: OptTimeDeltaExpr
