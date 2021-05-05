@@ -563,7 +563,7 @@ class BatchExecutor:
         else:
             # Looks like this is some bug in our code, so we should print stacktrace
             # for easier debug
-            self._progress.console.print_exception()
+            self._progress.console.print_exception(show_locals=True)
             self._progress.log(
                 "[red][b]ERROR:[/b] Some unknown error happened. Please report "
                 "an issue to https://github.com/neuro-inc/neuro-flow/issues/new "
