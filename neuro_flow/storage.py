@@ -1705,7 +1705,7 @@ def _bake_from_json(data: Dict[str, Any]) -> Bake:
         suffix=data["suffix"],
         graphs=graphs,
         params=data["params"],
-        tags=data["tags"],
+        tags=data.get("tags", []),
     )
 
 
