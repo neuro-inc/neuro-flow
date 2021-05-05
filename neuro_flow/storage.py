@@ -106,6 +106,7 @@ class Attempt:
     when: datetime.datetime
     number: int
     result: TaskStatus
+    executor_id: Optional[str]
 
     def __str__(self) -> str:
         folder = "_".join([self.bake.batch, _dt2str(self.bake.when), self.bake.suffix])
@@ -222,6 +223,10 @@ class Storage(abc.ABC):
     async def fetch_attempt(
         self, attempt: Attempt
     ) -> Tuple[Dict[FullID, StartedTask], Dict[FullID, FinishedTask]]:
+        pass
+
+    @abc.abstractmethod
+    async def store_executor_id(self, attempt: Attempt, executor_id: str) -> None:
         pass
 
     @abc.abstractmethod
@@ -662,7 +667,11 @@ class FSStorage(Storage):
         pre = "0".zfill(DIGITS)
         when = _now()
         ret = Attempt(
-            bake=bake, when=when, number=attempt_no, result=TaskStatus.PENDING
+            bake=bake,
+            when=when,
+            number=attempt_no,
+            result=TaskStatus.PENDING,
+            executor_id=None,
         )
         await self._write_json(attempt_uri / f"{pre}.init.json", _attempt_to_json(ret))
         return ret
@@ -750,6 +759,9 @@ class FSStorage(Storage):
             raise ValueError(f"Unexpected name {attempt_url / fname}")
         assert finished.keys() <= started.keys()
         return started, finished
+
+    async def store_executor_id(self, attempt: Attempt, executor_id: str) -> None:
+        pass  # Noop for FS based storage
 
     async def finish_attempt(self, attempt: Attempt, result: TaskStatus) -> None:
         bake_uri = _mk_bake_uri(self._fs, attempt.bake)
@@ -1116,17 +1128,18 @@ class APIStorage(Storage):
         self, project: str, batch: str, when: datetime.datetime, suffix: str
     ) -> Bake:
         prj = await self._get_project(project)
+        rounded_when = _dt2str(when)
         for bake_data in self._bakes_cache.values():
             rounded = _dt2str(datetime.datetime.fromisoformat(bake_data["created_at"]))
             if (
                 bake_data["project_id"] == project
                 and bake_data["batch"] == batch
-                and rounded == _dt2str(when)
+                and rounded == rounded_when
             ):
                 return _bake_from_api_json(prj, bake_data)
 
         async for bake in self.list_bakes(project):
-            if bake.batch == batch and bake.when == when:
+            if bake.batch == batch and _dt2str(bake.when) == rounded_when:
                 return bake
 
         raise ResourceNotFound
@@ -1325,24 +1338,39 @@ class APIStorage(Storage):
         assert finished.keys() <= started.keys()
         return started, finished
 
+    async def store_executor_id(self, attempt: Attempt, executor_id: str) -> None:
+        attempt_data = await self._find_attempt_data(attempt.bake, attempt.number)
+        auth = await self._config._api_auth()
+        url = self._base_url / "api/v1/flow/attempts/replace"
+
+        attempt_id = attempt_data.pop("id")
+        attempt_data["executor_id"] = executor_id
+
+        async with self._core.request(
+            "PUT",
+            url,
+            json=attempt_data,
+            auth=auth,
+        ) as resp:
+            await resp.json()
+            self._attempts_cache[attempt_id]["executor_id"] = executor_id
+
     async def finish_attempt(self, attempt: Attempt, result: TaskStatus) -> None:
         attempt_data = await self._find_attempt_data(attempt.bake, attempt.number)
         auth = await self._config._api_auth()
         url = self._base_url / "api/v1/flow/attempts/replace"
 
+        attempt_id = attempt_data.pop("id")
+        attempt_data["result"] = result.value
+
         async with self._core.request(
             "PUT",
             url,
-            json={
-                "bake_id": attempt_data["bake_id"],
-                "number": attempt_data["number"],
-                "result": result.value,
-                "configs_meta": attempt_data["configs_meta"],
-            },
+            json=attempt_data,
             auth=auth,
         ) as resp:
             await resp.json()
-            self._attempts_cache[attempt_data["id"]]["result"] = result.value
+            self._attempts_cache[attempt_id]["result"] = result.value
 
         bake_uri = _mk_bake_uri(self._fs, attempt.bake)
         attempt_url = bake_uri / f"{attempt.number:02d}.attempt"
@@ -1740,6 +1768,7 @@ def _attempt_from_json(
         when=datetime.datetime.fromisoformat(init_data["when"]),
         number=init_data["number"],
         result=result,
+        executor_id=None,
     )
 
 
@@ -1749,6 +1778,7 @@ def _attempt_from_api_json(bake: Bake, data: Dict[str, Any]) -> Attempt:
         when=datetime.datetime.fromisoformat(data["created_at"]),
         number=data["number"],
         result=TaskStatus(data["result"]),
+        executor_id=data.get("executor_id"),
     )
 
 
