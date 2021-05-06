@@ -1571,31 +1571,9 @@ class APIStorage(Storage):
 
         await self._fs.rm(_mk_cache_uri2(self._fs, project, batch), recursive=True)
 
-    async def _read_file(self, url: URL) -> str:
-        ret = []
-        async for chunk in self._fs.open(url):
-            ret.append(chunk)
-        return b"".join(ret).decode("utf-8")
-
-    async def _read_json(self, url: URL) -> Any:
-        data = await self._read_file(url)
-        return json.loads(data)
-
     async def _write_file(
         self, url: URL, body: str, *, overwrite: bool = False
     ) -> None:
-        # TODO: Prevent overriding the target on the storage.
-        #
-        # It might require platform_storage_api change.
-        #
-        # There is no clean understanding if the storage can support this strong
-        # guarantee at all.
-        if not overwrite:
-            files = set()
-            async for fi in self._fs.ls(url.parent):
-                files.add(fi.name)
-            if url.name in files:
-                raise ValueError(f"File {url} already exists")
         await self._fs.create(url, body.encode("utf-8"))
 
     async def _write_config(self, bake_id: str, filename: str, body: str) -> str:
