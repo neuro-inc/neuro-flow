@@ -238,7 +238,7 @@ class Storage(abc.ABC):
         ret = StartedTask(
             attempt=attempt,
             id=task_id,
-            raw_id=descr.id,
+            raw_id=descr.id or "",
             when=datetime.datetime.now(datetime.timezone.utc),
             created_at=descr.history.created_at,
         )
@@ -278,7 +278,7 @@ class Storage(abc.ABC):
         ret = FinishedTask(
             attempt=attempt,
             id=task.id,
-            raw_id=task.raw_id,
+            raw_id=task.raw_id or "",
             when=datetime.datetime.now(datetime.timezone.utc),
             status=TaskStatus(descr.history.status),
             created_at=descr.history.created_at,
@@ -724,7 +724,7 @@ class FSStorage(Storage):
                 started[full_id] = StartedTask(
                     attempt=attempt,
                     id=full_id,
-                    raw_id=data["raw_id"],
+                    raw_id=data["raw_id"] or "",
                     created_at=datetime.datetime.fromisoformat(data["created_at"]),
                     when=datetime.datetime.fromisoformat(data["when"]),
                 )
@@ -737,7 +737,7 @@ class FSStorage(Storage):
                 finished[full_id] = FinishedTask(
                     attempt=attempt,
                     id=full_id,
-                    raw_id=data["raw_id"],
+                    raw_id=data["raw_id"] or "",
                     when=datetime.datetime.fromisoformat(data["when"]),
                     status=TaskStatus(data["status"]),
                     created_at=datetime.datetime.fromisoformat(data["created_at"]),
@@ -764,7 +764,7 @@ class FSStorage(Storage):
 
         data = {
             "id": _id_to_json(st.id),
-            "raw_id": st.raw_id,
+            "raw_id": st.raw_id or "",
             "when": st.when.isoformat(),
             "created_at": st.created_at.isoformat(),
         }
@@ -775,7 +775,7 @@ class FSStorage(Storage):
         attempt_url = bake_uri / f"{ft.attempt.number:02d}.attempt"
         data = {
             "id": _id_to_json(ft.id),
-            "raw_id": ft.raw_id,
+            "raw_id": ft.raw_id or "",
             "when": ft.when.isoformat(),
             "status": ft.status.value,
             "exit_code": None,
@@ -816,7 +816,7 @@ class FSStorage(Storage):
             st = StartedTask(
                 attempt=attempt,
                 id=task_id,
-                raw_id=data["raw_id"],
+                raw_id=data["raw_id"] or "",
                 when=datetime.datetime.fromisoformat(data["when"]),
                 created_at=datetime.datetime.fromisoformat(data["created_at"]),
             )
@@ -824,7 +824,7 @@ class FSStorage(Storage):
             ft = FinishedTask(
                 attempt=attempt,
                 id=task_id,
-                raw_id=data["raw_id"],
+                raw_id=data["raw_id"] or "",
                 when=datetime.datetime.fromisoformat(data["when"]),
                 status=TaskStatus.CACHED,
                 created_at=datetime.datetime.fromisoformat(data["created_at"]),
@@ -852,7 +852,7 @@ class FSStorage(Storage):
         data = {
             "when": ft.when.isoformat(),
             "caching_key": caching_key,
-            "raw_id": ft.raw_id,
+            "raw_id": ft.raw_id or "",
             "status": ft.status.value,
             "exit_code": None,
             "created_at": ft.created_at.isoformat(),
@@ -1305,7 +1305,7 @@ class APIStorage(Storage):
                 started[full_id] = StartedTask(
                     attempt=attempt,
                     id=full_id,
-                    raw_id=task_data["raw_id"],
+                    raw_id=task_data["raw_id"] or "",
                     created_at=statuses[0]["created_at"],
                     when=statuses[-1]["created_at"],
                 )
@@ -1313,7 +1313,7 @@ class APIStorage(Storage):
                     finished[full_id] = FinishedTask(
                         attempt=attempt,
                         id=full_id,
-                        raw_id=task_data["raw_id"],
+                        raw_id=task_data["raw_id"] or "",
                         when=statuses[-1]["created_at"],
                         status=status,
                         created_at=statuses[0]["created_at"],
@@ -1359,7 +1359,7 @@ class APIStorage(Storage):
             json={
                 "yaml_id": _id_to_json(st.id),
                 "attempt_id": attempt_data["id"],
-                "raw_id": None,
+                "raw_id": "",
                 "outputs": {},
                 "state": {},
                 "statuses": [
@@ -1375,7 +1375,7 @@ class APIStorage(Storage):
 
         data = {
             "id": _id_to_json(st.id),
-            "raw_id": st.raw_id,
+            "raw_id": st.raw_id or "",
             "when": st.when.isoformat(),
             "created_at": st.created_at.isoformat(),
         }
@@ -1407,7 +1407,7 @@ class APIStorage(Storage):
         task_data = {
             "yaml_id": _id_to_json(ft.id),
             "attempt_id": attempt_data["id"],
-            "raw_id": ft.raw_id,
+            "raw_id": ft.raw_id or "",
             "outputs": ft.outputs,
             "state": ft.state,
             "statuses": statuses,
@@ -1436,7 +1436,7 @@ class APIStorage(Storage):
         attempt_url = bake_uri / f"{ft.attempt.number:02d}.attempt"
         data = {
             "id": _id_to_json(ft.id),
-            "raw_id": ft.raw_id,
+            "raw_id": ft.raw_id or "",
             "when": ft.when.isoformat(),
             "status": ft.status.value,
             "exit_code": None,
@@ -1537,7 +1537,7 @@ class APIStorage(Storage):
         data = {
             "when": ft.when.isoformat(),
             "caching_key": caching_key,
-            "raw_id": ft.raw_id,
+            "raw_id": ft.raw_id or "",
             "status": ft.status.value,
             "exit_code": None,
             "created_at": ft.created_at.isoformat(),
@@ -1571,31 +1571,9 @@ class APIStorage(Storage):
 
         await self._fs.rm(_mk_cache_uri2(self._fs, project, batch), recursive=True)
 
-    async def _read_file(self, url: URL) -> str:
-        ret = []
-        async for chunk in self._fs.open(url):
-            ret.append(chunk)
-        return b"".join(ret).decode("utf-8")
-
-    async def _read_json(self, url: URL) -> Any:
-        data = await self._read_file(url)
-        return json.loads(data)
-
     async def _write_file(
         self, url: URL, body: str, *, overwrite: bool = False
     ) -> None:
-        # TODO: Prevent overriding the target on the storage.
-        #
-        # It might require platform_storage_api change.
-        #
-        # There is no clean understanding if the storage can support this strong
-        # guarantee at all.
-        if not overwrite:
-            files = set()
-            async for fi in self._fs.ls(url.parent):
-                files.add(fi.name)
-            if url.name in files:
-                raise ValueError(f"File {url} already exists")
         await self._fs.create(url, body.encode("utf-8"))
 
     async def _write_config(self, bake_id: str, filename: str, body: str) -> str:
