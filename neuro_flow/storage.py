@@ -1342,35 +1342,39 @@ class APIStorage(Storage):
         attempt_data = await self._find_attempt_data(attempt.bake, attempt.number)
         auth = await self._config._api_auth()
         url = self._base_url / "api/v1/flow/attempts/replace"
-
-        attempt_id = attempt_data.pop("id")
-        attempt_data["executor_id"] = executor_id
-
         async with self._core.request(
             "PUT",
             url,
-            json=attempt_data,
+            json={
+                "bake_id": attempt_data["bake_id"],
+                "number": attempt_data["number"],
+                "result": attempt_data["result"],
+                "configs_meta": attempt_data["configs_meta"],
+                "executor_id": executor_id,
+            },
             auth=auth,
         ) as resp:
             await resp.json()
-            self._attempts_cache[attempt_id]["executor_id"] = executor_id
+            self._attempts_cache[attempt_data["id"]]["executor_id"] = executor_id
 
     async def finish_attempt(self, attempt: Attempt, result: TaskStatus) -> None:
         attempt_data = await self._find_attempt_data(attempt.bake, attempt.number)
         auth = await self._config._api_auth()
         url = self._base_url / "api/v1/flow/attempts/replace"
-
-        attempt_id = attempt_data.pop("id")
-        attempt_data["result"] = result.value
-
         async with self._core.request(
             "PUT",
             url,
-            json=attempt_data,
+            json={
+                "bake_id": attempt_data["bake_id"],
+                "number": attempt_data["number"],
+                "result": result.value,
+                "configs_meta": attempt_data["configs_meta"],
+                "executor_id": attempt_data["executor_id"],
+            },
             auth=auth,
         ) as resp:
             await resp.json()
-            self._attempts_cache[attempt_id]["result"] = result.value
+            self._attempts_cache[attempt_data["id"]]["result"] = result.value
 
         bake_uri = _mk_bake_uri(self._fs, attempt.bake)
         attempt_url = bake_uri / f"{attempt.number:02d}.attempt"
