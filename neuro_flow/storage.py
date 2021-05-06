@@ -1042,6 +1042,8 @@ class APIStorage(Storage):
         configs: Sequence[ConfigFile],
         graphs: Mapping[FullID, Mapping[FullID, AbstractSet[FullID]]],
         params: Optional[Mapping[str, str]],
+        *,
+        when: Optional[datetime.datetime] = None,
     ) -> Bake:
         prj = await self._get_project(project)
         gr = {}
@@ -1051,15 +1053,20 @@ class APIStorage(Storage):
                 subgr[_id_to_json(k2)] = [_id_to_json(it) for it in v2]
             gr[_id_to_json(k1)] = subgr
         auth = await self._config._api_auth()
+
+        bake_payload = {
+            "project_id": prj.id,
+            "batch": batch,
+            "graphs": gr,
+            "params": params,
+        }
+        if when is not None:
+            bake_payload["created_at"] = _dt2str(when)
+
         async with self._core.request(
             "POST",
             url=self._base_url / "api/v1/flow/bakes",
-            json={
-                "project_id": prj.id,
-                "batch": batch,
-                "graphs": gr,
-                "params": params,
-            },
+            json=bake_payload,
             auth=auth,
         ) as resp:
             bake_data = await resp.json()
@@ -1109,7 +1116,7 @@ class APIStorage(Storage):
                         break
 
         await self._write_json(bake_uri / "00.init.json", _bake_to_json(bake))
-        await self._create_attempt(bake, 1, real_meta)
+        await self._create_attempt(bake, 1, real_meta, when)
         return bake
 
     async def fetch_bake(
@@ -1198,22 +1205,31 @@ class APIStorage(Storage):
         return str(ret["content"])
 
     async def _create_attempt(
-        self, bake: Bake, attempt_no: int, configs_meta: Mapping[str, Any]
+        self,
+        bake: Bake,
+        attempt_no: int,
+        configs_meta: Mapping[str, Any],
+        when: Optional[datetime.datetime] = None,
     ) -> Attempt:
         bake_data = await self._find_bake_data(bake)
 
         assert 0 < attempt_no < 100, attempt_no
         url = self._base_url / "api/v1/flow/attempts"
         auth = await self._config._api_auth()
+
+        attempt_data = {
+            "bake_id": bake_data["id"],
+            "number": attempt_no,
+            "result": "pending",
+            "configs_meta": configs_meta,
+        }
+        if when is not None:
+            attempt_data["created_at"] = _dt2str(when)
+
         async with self._core.request(
             "POST",
             url,
-            json={
-                "bake_id": bake_data["id"],
-                "number": attempt_no,
-                "result": "pending",
-                "configs_meta": configs_meta,
-            },
+            json=attempt_data,
             auth=auth,
         ) as resp:
             attempt_data = await resp.json()
@@ -1228,7 +1244,13 @@ class APIStorage(Storage):
         await self._write_json(attempt_uri / f"{pre}.init.json", _attempt_to_json(ret))
         return ret
 
-    async def create_attempt(self, bake: Bake, attempt_no: int) -> Attempt:
+    async def create_attempt(
+        self,
+        bake: Bake,
+        attempt_no: int,
+        *,
+        when: Optional[datetime.datetime] = None,
+    ) -> Attempt:
         bake_data = await self._find_bake_data(bake)
         assert attempt_no > 1
         url = self._base_url / "api/v1/flow/attempts/by_number"
@@ -1244,7 +1266,7 @@ class APIStorage(Storage):
         ) as resp:
             prev_attempt_data = await resp.json()
         return await self._create_attempt(
-            bake, attempt_no, prev_attempt_data["configs_meta"]
+            bake, attempt_no, prev_attempt_data["configs_meta"], when
         )
 
     async def _find_attempt_data(
@@ -1271,7 +1293,9 @@ class APIStorage(Storage):
             },
             auth=auth,
         ) as resp:
-            return cast(Dict[str, Any], await resp.json())
+            attempt_data = await resp.json()
+            self._attempts_cache[attempt_data["id"]] = attempt_data
+            return attempt_data
 
     async def find_attempt(self, bake: Bake, attempt_no: int = -1) -> Attempt:
         attempt_data = await self._find_attempt_data(bake, attempt_no)
