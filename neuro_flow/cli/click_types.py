@@ -290,6 +290,8 @@ class BakeType(AsyncType[str]):
             try:
                 async for bake in runner.get_bakes():
                     variants.append(bake.bake_id)
+                    if bake.name is not None:
+                        variants.append(bake.name)
             except ValueError:
                 pass
         return [(bake, None) for bake in variants if bake.startswith(incomplete)]
