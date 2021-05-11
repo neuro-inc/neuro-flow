@@ -121,6 +121,7 @@ neuro-flow bake [OPTIONS] BATCH
 | _--local-executor_ | Run primary job locally |
 | _--param &lt;TEXT TEXT&gt;..._ | Set params of the batch config |
 | _--meta-from-file FILE_ | File with params for batch. |
+| _-t, --tag TAG_ | Optional bake tag, multiple values allowed |
 | _--help_ | Show this message and exit. |
 
 ### neuro-flow bakes
@@ -137,6 +138,7 @@ neuro-flow bakes [OPTIONS]
 
 | Name | Description |
 | :--- | :--- |
+| _-t, --tag TAG_ | Filter out bakes by tag \(multiple option\) |
 | _--help_ | Show this message and exit. |
 
 ### neuro-flow build

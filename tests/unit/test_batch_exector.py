@@ -412,6 +412,7 @@ def _executor_data_to_bake_id(data: ExecutorData) -> str:
         suffix=data.suffix,
         graphs={},  # not needed for bake_id calculation
         params={},
+        tags=(),
     ).bake_id
 
 

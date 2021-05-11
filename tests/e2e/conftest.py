@@ -91,12 +91,12 @@ def _run_cli(
 
 @pytest.fixture
 def run_cli(_run_cli: RunCLI) -> RunCLI:
-    return lambda args: _run_cli(["neuro-flow"] + args)
+    return lambda args: _run_cli(["neuro-flow", "--show-traceback"] + args)
 
 
 @pytest.fixture
 def run_neuro_cli(_run_cli: RunCLI) -> RunCLI:
-    return lambda args: _run_cli(["neuro"] + args)
+    return lambda args: _run_cli(["neuro", "--show-traceback"] + args)
 
 
 IMAGE_DATETIME_FORMAT = "%Y%m%d%H%M"
