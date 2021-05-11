@@ -243,7 +243,7 @@ class Storage(abc.ABC):
         ret = StartedTask(
             attempt=attempt,
             id=task_id,
-            raw_id=descr.id,
+            raw_id=descr.id or "",
             when=datetime.datetime.now(datetime.timezone.utc),
             created_at=descr.history.created_at,
         )
@@ -283,7 +283,7 @@ class Storage(abc.ABC):
         ret = FinishedTask(
             attempt=attempt,
             id=task.id,
-            raw_id=task.raw_id,
+            raw_id=task.raw_id or "",
             when=datetime.datetime.now(datetime.timezone.utc),
             status=TaskStatus(descr.history.status),
             created_at=descr.history.created_at,
@@ -733,7 +733,7 @@ class FSStorage(Storage):
                 started[full_id] = StartedTask(
                     attempt=attempt,
                     id=full_id,
-                    raw_id=data["raw_id"],
+                    raw_id=data["raw_id"] or "",
                     created_at=datetime.datetime.fromisoformat(data["created_at"]),
                     when=datetime.datetime.fromisoformat(data["when"]),
                 )
@@ -746,7 +746,7 @@ class FSStorage(Storage):
                 finished[full_id] = FinishedTask(
                     attempt=attempt,
                     id=full_id,
-                    raw_id=data["raw_id"],
+                    raw_id=data["raw_id"] or "",
                     when=datetime.datetime.fromisoformat(data["when"]),
                     status=TaskStatus(data["status"]),
                     created_at=datetime.datetime.fromisoformat(data["created_at"]),
@@ -776,7 +776,7 @@ class FSStorage(Storage):
 
         data = {
             "id": _id_to_json(st.id),
-            "raw_id": st.raw_id,
+            "raw_id": st.raw_id or "",
             "when": st.when.isoformat(),
             "created_at": st.created_at.isoformat(),
         }
@@ -787,7 +787,7 @@ class FSStorage(Storage):
         attempt_url = bake_uri / f"{ft.attempt.number:02d}.attempt"
         data = {
             "id": _id_to_json(ft.id),
-            "raw_id": ft.raw_id,
+            "raw_id": ft.raw_id or "",
             "when": ft.when.isoformat(),
             "status": ft.status.value,
             "exit_code": None,
@@ -828,7 +828,7 @@ class FSStorage(Storage):
             st = StartedTask(
                 attempt=attempt,
                 id=task_id,
-                raw_id=data["raw_id"],
+                raw_id=data["raw_id"] or "",
                 when=datetime.datetime.fromisoformat(data["when"]),
                 created_at=datetime.datetime.fromisoformat(data["created_at"]),
             )
@@ -836,7 +836,7 @@ class FSStorage(Storage):
             ft = FinishedTask(
                 attempt=attempt,
                 id=task_id,
-                raw_id=data["raw_id"],
+                raw_id=data["raw_id"] or "",
                 when=datetime.datetime.fromisoformat(data["when"]),
                 status=TaskStatus.CACHED,
                 created_at=datetime.datetime.fromisoformat(data["created_at"]),
@@ -864,7 +864,7 @@ class FSStorage(Storage):
         data = {
             "when": ft.when.isoformat(),
             "caching_key": caching_key,
-            "raw_id": ft.raw_id,
+            "raw_id": ft.raw_id or "",
             "status": ft.status.value,
             "exit_code": None,
             "created_at": ft.created_at.isoformat(),
@@ -1054,6 +1054,8 @@ class APIStorage(Storage):
         configs: Sequence[ConfigFile],
         graphs: Mapping[FullID, Mapping[FullID, AbstractSet[FullID]]],
         params: Optional[Mapping[str, str]],
+        *,
+        when: Optional[datetime.datetime] = None,
     ) -> Bake:
         prj = await self._get_project(project)
         gr = {}
@@ -1063,15 +1065,20 @@ class APIStorage(Storage):
                 subgr[_id_to_json(k2)] = [_id_to_json(it) for it in v2]
             gr[_id_to_json(k1)] = subgr
         auth = await self._config._api_auth()
+
+        bake_payload = {
+            "project_id": prj.id,
+            "batch": batch,
+            "graphs": gr,
+            "params": params,
+        }
+        if when is not None:
+            bake_payload["created_at"] = _dt2str(when)
+
         async with self._core.request(
             "POST",
             url=self._base_url / "api/v1/flow/bakes",
-            json={
-                "project_id": prj.id,
-                "batch": batch,
-                "graphs": gr,
-                "params": params,
-            },
+            json=bake_payload,
             auth=auth,
         ) as resp:
             bake_data = await resp.json()
@@ -1121,7 +1128,7 @@ class APIStorage(Storage):
                         break
 
         await self._write_json(bake_uri / "00.init.json", _bake_to_json(bake))
-        await self._create_attempt(bake, 1, real_meta)
+        await self._create_attempt(bake, 1, real_meta, when)
         return bake
 
     async def fetch_bake(
@@ -1211,22 +1218,31 @@ class APIStorage(Storage):
         return str(ret["content"])
 
     async def _create_attempt(
-        self, bake: Bake, attempt_no: int, configs_meta: Mapping[str, Any]
+        self,
+        bake: Bake,
+        attempt_no: int,
+        configs_meta: Mapping[str, Any],
+        when: Optional[datetime.datetime] = None,
     ) -> Attempt:
         bake_data = await self._find_bake_data(bake)
 
         assert 0 < attempt_no < 100, attempt_no
         url = self._base_url / "api/v1/flow/attempts"
         auth = await self._config._api_auth()
+
+        attempt_data = {
+            "bake_id": bake_data["id"],
+            "number": attempt_no,
+            "result": "pending",
+            "configs_meta": configs_meta,
+        }
+        if when is not None:
+            attempt_data["created_at"] = _dt2str(when)
+
         async with self._core.request(
             "POST",
             url,
-            json={
-                "bake_id": bake_data["id"],
-                "number": attempt_no,
-                "result": "pending",
-                "configs_meta": configs_meta,
-            },
+            json=attempt_data,
             auth=auth,
         ) as resp:
             attempt_data = await resp.json()
@@ -1241,7 +1257,13 @@ class APIStorage(Storage):
         await self._write_json(attempt_uri / f"{pre}.init.json", _attempt_to_json(ret))
         return ret
 
-    async def create_attempt(self, bake: Bake, attempt_no: int) -> Attempt:
+    async def create_attempt(
+        self,
+        bake: Bake,
+        attempt_no: int,
+        *,
+        when: Optional[datetime.datetime] = None,
+    ) -> Attempt:
         bake_data = await self._find_bake_data(bake)
         assert attempt_no > 1
         url = self._base_url / "api/v1/flow/attempts/by_number"
@@ -1257,7 +1279,7 @@ class APIStorage(Storage):
         ) as resp:
             prev_attempt_data = await resp.json()
         return await self._create_attempt(
-            bake, attempt_no, prev_attempt_data["configs_meta"]
+            bake, attempt_no, prev_attempt_data["configs_meta"], when
         )
 
     async def _find_attempt_data(
@@ -1284,7 +1306,9 @@ class APIStorage(Storage):
             },
             auth=auth,
         ) as resp:
-            return cast(Dict[str, Any], await resp.json())
+            attempt_data = await resp.json()
+            self._attempts_cache[attempt_data["id"]] = attempt_data
+            return attempt_data
 
     async def find_attempt(self, bake: Bake, attempt_no: int = -1) -> Attempt:
         attempt_data = await self._find_attempt_data(bake, attempt_no)
@@ -1318,7 +1342,7 @@ class APIStorage(Storage):
                 started[full_id] = StartedTask(
                     attempt=attempt,
                     id=full_id,
-                    raw_id=task_data["raw_id"],
+                    raw_id=task_data["raw_id"] or "",
                     created_at=statuses[0]["created_at"],
                     when=statuses[-1]["created_at"],
                 )
@@ -1326,7 +1350,7 @@ class APIStorage(Storage):
                     finished[full_id] = FinishedTask(
                         attempt=attempt,
                         id=full_id,
-                        raw_id=task_data["raw_id"],
+                        raw_id=task_data["raw_id"] or "",
                         when=statuses[-1]["created_at"],
                         status=status,
                         created_at=statuses[0]["created_at"],
@@ -1391,7 +1415,7 @@ class APIStorage(Storage):
             json={
                 "yaml_id": _id_to_json(st.id),
                 "attempt_id": attempt_data["id"],
-                "raw_id": st.raw_id,
+                "raw_id": "",
                 "outputs": {},
                 "state": {},
                 "statuses": [
@@ -1407,7 +1431,7 @@ class APIStorage(Storage):
 
         data = {
             "id": _id_to_json(st.id),
-            "raw_id": st.raw_id,
+            "raw_id": st.raw_id or "",
             "when": st.when.isoformat(),
             "created_at": st.created_at.isoformat(),
         }
@@ -1439,7 +1463,7 @@ class APIStorage(Storage):
         task_data = {
             "yaml_id": _id_to_json(ft.id),
             "attempt_id": attempt_data["id"],
-            "raw_id": ft.raw_id,
+            "raw_id": ft.raw_id or "",
             "outputs": ft.outputs,
             "state": ft.state,
             "statuses": statuses,
@@ -1468,7 +1492,7 @@ class APIStorage(Storage):
         attempt_url = bake_uri / f"{ft.attempt.number:02d}.attempt"
         data = {
             "id": _id_to_json(ft.id),
-            "raw_id": ft.raw_id,
+            "raw_id": ft.raw_id or "",
             "when": ft.when.isoformat(),
             "status": ft.status.value,
             "exit_code": None,
@@ -1569,7 +1593,7 @@ class APIStorage(Storage):
         data = {
             "when": ft.when.isoformat(),
             "caching_key": caching_key,
-            "raw_id": ft.raw_id,
+            "raw_id": ft.raw_id or "",
             "status": ft.status.value,
             "exit_code": None,
             "created_at": ft.created_at.isoformat(),
@@ -1603,31 +1627,9 @@ class APIStorage(Storage):
 
         await self._fs.rm(_mk_cache_uri2(self._fs, project, batch), recursive=True)
 
-    async def _read_file(self, url: URL) -> str:
-        ret = []
-        async for chunk in self._fs.open(url):
-            ret.append(chunk)
-        return b"".join(ret).decode("utf-8")
-
-    async def _read_json(self, url: URL) -> Any:
-        data = await self._read_file(url)
-        return json.loads(data)
-
     async def _write_file(
         self, url: URL, body: str, *, overwrite: bool = False
     ) -> None:
-        # TODO: Prevent overriding the target on the storage.
-        #
-        # It might require platform_storage_api change.
-        #
-        # There is no clean understanding if the storage can support this strong
-        # guarantee at all.
-        if not overwrite:
-            files = set()
-            async for fi in self._fs.ls(url.parent):
-                files.add(fi.name)
-            if url.name in files:
-                raise ValueError(f"File {url} already exists")
         await self._fs.create(url, body.encode("utf-8"))
 
     async def _write_config(self, bake_id: str, filename: str, body: str) -> str:
