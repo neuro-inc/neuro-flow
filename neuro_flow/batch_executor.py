@@ -4,6 +4,7 @@ import asyncio
 import base64
 import datetime
 import json
+import os
 import sys
 from collections import defaultdict
 from neuro_sdk import Client, HTTPPort, JobStatus, ResourceNotFound
@@ -572,6 +573,11 @@ class BatchExecutor:
 
     async def _run(self) -> TaskStatus:
         await self._load_previous_run()
+
+        job_id = os.environ.get("NEURO_JOB_ID")
+        if job_id:
+            # store job id as executor id
+            await self._storage.store_executor_id(self._attempt, job_id)
 
         if self._attempt.result in TERMINATED_TASK_STATUSES:
             # If attempt is already terminated, just clean up tasks

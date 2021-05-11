@@ -372,10 +372,11 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         table = Table(box=box.MINIMAL_HEAVY_HEAD)
         table.add_column("ID", style="bold")
         table.add_column("NAME")
+        table.add_column("EXECUTOR")
         table.add_column("STATUS")
         table.add_column("WHEN")
 
-        rows: List[Tuple[str, str, TaskStatus, datetime.datetime]] = []
+        rows: List[Tuple[str, str, str, TaskStatus, datetime.datetime]] = []
         async for bake in self._storage.list_bakes(self.project, tags):
             try:
                 attempt = await self._storage.find_attempt(bake)
@@ -385,15 +386,21 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                 )
             else:
                 rows.append(
-                    (bake.bake_id, bake.name or "", attempt.result, attempt.when)
+                    (
+                        bake.bake_id,
+                        bake.name or "",
+                        attempt.executor_id or "",
+                        attempt.result,
+                        attempt.when,
+                    )
                 )
 
         # sort by date, ascending order (last is bottommost)
-        rows.sort(key=itemgetter(3))
+        rows.sort(key=itemgetter(4))
 
         for row in rows:
-            bake_id, name, result, when = row
-            table.add_row(bake_id, name, result, fmt_datetime(when))
+            bake_id, name, executor_id, result, when = row
+            table.add_row(bake_id, name, executor_id, result, fmt_datetime(when))
         self._console.print(table)
 
     async def inspect(
@@ -426,6 +433,11 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         attempt = await self._storage.find_attempt(bake, attempt_no)
 
         self._console.print(f"[b]Attempt #{attempt.number}[/b]", attempt.result)
+        if attempt.executor_id:
+            info = await self._client.jobs.status(attempt.executor_id)
+            self._console.print(
+                f"[b]Executor {attempt.executor_id}[/b]", TaskStatus(info.status)
+            )
 
         started, finished = await self._storage.fetch_attempt(attempt)
         statuses = {}
