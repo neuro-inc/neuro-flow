@@ -413,6 +413,7 @@ def _executor_data_to_bake_id(data: ExecutorData) -> str:
         graphs={},  # not needed for bake_id calculation
         params={},
         name=None,
+        tags=(),
     ).bake_id
 
 

@@ -92,6 +92,8 @@ class Bake:
     params: Optional[Mapping[str, str]]
     name: Optional[str]
 
+    tags: Sequence[str]
+
     def __str__(self) -> str:
         folder = "_".join([self.batch, _dt2str(self.when), self.suffix])
         return f"{self.project}/{folder}"
@@ -169,7 +171,9 @@ class Storage(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def list_bakes(self, project: str) -> AsyncIterator[Bake]:
+    async def list_bakes(
+        self, project: str, tags: Optional[AbstractSet[str]] = None
+    ) -> AsyncIterator[Bake]:
         # This is here to make this real aiter for type checker
         bake = Bake(
             project="project",
@@ -179,6 +183,7 @@ class Storage(abc.ABC):
             graphs={},
             params={},
             name=None,
+            tags=(),
         )
         yield bake
 
@@ -192,6 +197,7 @@ class Storage(abc.ABC):
         graphs: Mapping[FullID, Mapping[FullID, AbstractSet[FullID]]],
         params: Optional[Mapping[str, str]],
         name: Optional[str],
+        tags: Sequence[str] = (),
     ) -> Bake:
         pass
 
@@ -575,7 +581,9 @@ class FSStorage(Storage):
         await self._write_json(url, _live_to_json(live), overwrite=True)
         return live
 
-    async def list_bakes(self, project: str) -> AsyncIterator[Bake]:
+    async def list_bakes(
+        self, project: str, tags: Optional[AbstractSet[str]] = None
+    ) -> AsyncIterator[Bake]:
         url = self._fs.root / project
         try:
             fs = await self._fs.stat(url)
@@ -594,7 +602,10 @@ class FSStorage(Storage):
                 continue
             try:
                 data = await self._read_json(url / name / "00.init.json")
-                yield _bake_from_json(data)
+                bake = _bake_from_json(data)
+                if tags is not None and not set(bake.tags).issuperset(tags):
+                    continue
+                yield bake
             except (ValueError, LookupError):
                 # Not a bake folder, happens by incident
                 log.warning("Invalid record %s", url / fs.name)
@@ -609,6 +620,7 @@ class FSStorage(Storage):
         graphs: Mapping[FullID, Mapping[FullID, AbstractSet[FullID]]],
         params: Optional[Mapping[str, str]],
         name: Optional[str],
+        tags: Sequence[str] = (),
     ) -> Bake:
         when = _now()
         bake = Bake(
@@ -619,6 +631,7 @@ class FSStorage(Storage):
             graphs=graphs,
             params=params,
             name=name,
+            tags=tags,
         )
         bake_uri = _mk_bake_uri(self._fs, bake)
         await self._fs.mkdir(bake_uri, parents=True)
@@ -1034,15 +1047,21 @@ class APIStorage(Storage):
         await self._write_json(url, _live_to_json(live), overwrite=True)
         return live
 
-    async def list_bakes(self, project: str) -> AsyncIterator[Bake]:
+    async def list_bakes(
+        self, project: str, tags: Optional[AbstractSet[str]] = None
+    ) -> AsyncIterator[Bake]:
         prj = await self._get_project(project)
         url = self._base_url / "api/v1/flow/bakes"
         auth = await self._config._api_auth()
 
+        params = [("project_id", prj.id)]
+        if tags is not None:
+            params += [("tags", tag) for tag in tags]
+
         async with self._core.request(
             "GET",
             url,
-            params={"project_id": prj.id},
+            params=params,
             headers={
                 "Accept": "application/x-ndjson",
             },
@@ -1063,6 +1082,7 @@ class APIStorage(Storage):
         graphs: Mapping[FullID, Mapping[FullID, AbstractSet[FullID]]],
         params: Optional[Mapping[str, str]],
         name: Optional[str],
+        tags: Sequence[str] = (),
         *,
         when: Optional[datetime.datetime] = None,
     ) -> Bake:
@@ -1081,6 +1101,7 @@ class APIStorage(Storage):
             "graphs": gr,
             "params": params,
             "name": name,
+            "tags": tags,
         }
         if when is not None:
             bake_payload["created_at"] = _dt2str(when)
@@ -1421,7 +1442,7 @@ class APIStorage(Storage):
             json={
                 "yaml_id": _id_to_json(st.id),
                 "attempt_id": attempt_data["id"],
-                "raw_id": "",
+                "raw_id": st.raw_id or "",
                 "outputs": {},
                 "state": {},
                 "statuses": [
@@ -1707,6 +1728,7 @@ def _bake_to_json(bake: Bake) -> Dict[str, Any]:
         "graphs": graphs,
         "params": bake.params,
         "name": bake.name,
+        "tags": bake.tags,
     }
 
 
@@ -1725,6 +1747,7 @@ def _bake_from_json(data: Dict[str, Any]) -> Bake:
         graphs=graphs,
         params=data["params"],
         name=data.get("name"),
+        tags=data.get("tags", []),
     )
 
 
@@ -1749,6 +1772,7 @@ def _bake_from_api_json(project: Project, data: Dict[str, Any]) -> Bake:
         graphs=graphs,
         params=data["params"],
         name=data["name"],
+        tags=data["tags"],
     )
 
 

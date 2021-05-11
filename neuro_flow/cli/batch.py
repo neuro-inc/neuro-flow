@@ -2,7 +2,7 @@ import click
 import neuro_sdk
 import signal
 import sys
-from typing import List, Optional, Tuple
+from typing import List, Optional, Sequence, Tuple
 
 from neuro_flow.batch_executor import ExecutorData
 from neuro_flow.batch_runner import BatchRunner
@@ -44,6 +44,14 @@ else:
     type=click.Path(exists=True, file_okay=True, dir_okay=False, readable=True),
     help="File with params for batch.",
 )
+@click.option(
+    "-t",
+    "--tag",
+    metavar="TAG",
+    type=str,
+    help="Optional bake tag, multiple values allowed",
+    multiple=True,
+)
 @argument("batch", type=BATCH)
 @wrap_async()
 async def bake(
@@ -53,6 +61,7 @@ async def bake(
     meta_from_file: Optional[str],
     param: List[Tuple[str, str]],
     name: Optional[str],
+    tag: Sequence[str],
 ) -> None:
     """Start a batch.
 
@@ -75,6 +84,7 @@ async def bake(
             local_executor=local_executor,
             params=params,
             name=name,
+            tags=tag,
         )
 
 
@@ -116,9 +126,18 @@ async def execute(
 
 
 @click.command()
+@click.option(
+    "-t",
+    "--tag",
+    metavar="TAG",
+    type=str,
+    help="Filter out bakes by tag (multiple option)",
+    multiple=True,
+)
 @wrap_async()
 async def bakes(
     root: Root,
+    tag: Sequence[str],
 ) -> None:
     """List existing bakes."""
     async with AsyncExitStack() as stack:
@@ -129,7 +148,7 @@ async def bakes(
         runner = await stack.enter_async_context(
             BatchRunner(root.config_dir, root.console, client, storage, root)
         )
-        await runner.list_bakes()
+        await runner.list_bakes(set(tag))
 
 
 @click.command()
