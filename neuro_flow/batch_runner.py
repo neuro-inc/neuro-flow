@@ -432,6 +432,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
 
         attempt = await self._storage.find_attempt(bake, attempt_no)
 
+        self._console.print(f"[b]Bake id: {bake_id}[/b]")
         self._console.print(f"[b]Attempt #{attempt.number}[/b]", attempt.result)
         if attempt.executor_id:
             info = await self._client.jobs.status(attempt.executor_id)
