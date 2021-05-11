@@ -18,7 +18,8 @@ def api_config(tmp_path_factory: Any) -> Iterator[pathlib.Path]:
     if e2e_test_token:
         tmp_path = tmp_path_factory.mktemp("config")
         config_path = tmp_path / "conftest"
-        asyncio.run(
+        loop = asyncio.new_event_loop()
+        loop.run_until_complete(
             login_with_token(
                 e2e_test_token,
                 url=URL("https://dev.neu.ro/api/v1"),
