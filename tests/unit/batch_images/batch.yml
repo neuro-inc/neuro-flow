@@ -1,0 +1,12 @@
+kind: batch
+images:
+  image1:
+    ref: image:main
+    context: dir
+    dockerfile: dir/Dockerfile
+tasks:
+- id: test
+  action: ws:action
+  args:
+    arg1: val1
+    arg2: val2

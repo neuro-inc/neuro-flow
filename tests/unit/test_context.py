@@ -840,3 +840,29 @@ async def test_pipeline_life_span(
         batch_config_loader, "batch-life-span", "bake-id"
     )
     assert flow.life_span == timedelta(days=30)
+
+
+async def test_early_images(assets: pathlib.Path, client: Client) -> None:
+    ws = assets / "batch_images"
+    config_dir = ConfigDir(
+        workspace=ws,
+        config_dir=ws,
+    )
+    cl = BatchLocalCL(config_dir, client)
+    try:
+        flow = await RunningBatchFlow.create(cl, "batch", "bake-id")
+        assert flow.early_images["image1"].ref == "image:main"
+        assert flow.early_images["image1"].context == ws / "dir"
+        assert flow.early_images["image1"].dockerfile == ws / "dir/Dockerfile"
+
+        action = await flow.get_action_early("test")
+
+        assert action.early_images["image_early"].ref == "image:banana1"
+        assert action.early_images["image_early"].context == ws / "dir"
+        assert action.early_images["image_early"].dockerfile == ws / "dir/Dockerfile"
+
+        assert action.early_images["image_late"].ref == "image:banana2"
+        assert action.early_images["image_late"].context is None
+        assert action.early_images["image_late"].dockerfile is None
+    finally:
+        await cl.close()
