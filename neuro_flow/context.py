@@ -12,6 +12,7 @@ from abc import abstractmethod
 from datetime import timedelta
 from functools import lru_cache
 from neuro_sdk import Client
+from neuro_sdk.url_utils import uri_from_cli
 from typing import (
     AbstractSet,
     Any,
@@ -41,6 +42,7 @@ from neuro_flow.expr import (
     Expr,
     IdExpr,
     LiteralT,
+    OptStrExpr,
     RootABC,
     TypeT,
 )
@@ -135,10 +137,9 @@ class VolumeCtx:
 class ImageCtx:
     id: str
     ref: str
-    context: Optional[LocalPath]
-    full_context_path: Optional[LocalPath]
-    dockerfile: Optional[LocalPath]
-    full_dockerfile_path: Optional[LocalPath]
+    context: Optional[Union[URL, LocalPath]]
+    dockerfile: Optional[Union[URL, LocalPath]]
+    dockerfile_rel: Optional[Union[LocalPath, RemotePath]]
     build_args: Sequence[str]
     env: Mapping[str, str]
     volumes: Sequence[str]
@@ -668,6 +669,27 @@ async def setup_volumes_ctx(
     return volumes
 
 
+async def setup_local_or_storage_path(
+    str_expr: OptStrExpr, ctx: WithFlowContext
+) -> Optional[Union[URL, LocalPath]]:
+    path_str = await str_expr.eval(ctx)
+    if path_str is None:
+        return None
+    async with ctx.client() as client:
+        username = client.config.username
+        cluster_name = client.config.cluster_name
+    if path_str.startswith("storage"):
+        try:
+            return uri_from_cli(path_str, username, cluster_name)
+        except ValueError as e:
+            raise EvalError(str(e), str_expr.start, str_expr.end)
+    try:
+        path = LocalPath(path_str)
+    except ValueError as e:
+        raise EvalError(str(e), str_expr.start, str_expr.end)
+    return _calc_full_path(ctx, path)
+
+
 async def setup_images_ctx(
     ctx: WithFlowContext,
     ast_images: Optional[Mapping[str, ast.Image]],
@@ -675,8 +697,33 @@ async def setup_images_ctx(
     images = {}
     if ast_images is not None:
         for k, i in ast_images.items():
-            context_path = await i.context.eval(ctx)
-            dockerfile_path = await i.dockerfile.eval(ctx)
+            context = await setup_local_or_storage_path(i.context, ctx)
+            dockerfile = await setup_local_or_storage_path(i.dockerfile, ctx)
+            dockerfile_rel: Optional[Union[LocalPath, RemotePath]] = None
+
+            if context is not None and dockerfile is not None:
+                if isinstance(context, LocalPath) and isinstance(dockerfile, LocalPath):
+                    try:
+                        dockerfile_rel = dockerfile.relative_to(context)
+                    except ValueError as e:
+                        raise EvalError(str(e), i.dockerfile.start, i.dockerfile.end)
+                elif isinstance(context, URL) and isinstance(dockerfile, URL):
+                    try:
+                        dockerfile_rel = RemotePath(dockerfile.path).relative_to(
+                            RemotePath(context.path)
+                        )
+                    except ValueError as e:
+                        raise EvalError(str(e), i.dockerfile.start, i.dockerfile.end)
+                else:
+                    raise EvalError(
+                        "Mixed local/storage context is not supported: "
+                        f"context is "
+                        f"{'local' if isinstance(context, LocalPath) else 'on storage'},"  # noqa: E501
+                        f" but dockerfile is "
+                        f"{'local' if isinstance(dockerfile, LocalPath) else 'on storage'}",  # noqa: E501
+                        i._start,
+                        i._end,
+                    )
             build_args: List[str] = []
             if i.build_args is not None:
                 tmp_build_args = await i.build_args.eval(ctx)
@@ -700,10 +747,9 @@ async def setup_images_ctx(
             images[k] = ImageCtx(
                 id=k,
                 ref=await i.ref.eval(ctx),
-                context=context_path,
-                full_context_path=_calc_full_path(ctx, context_path),
-                dockerfile=dockerfile_path,
-                full_dockerfile_path=_calc_full_path(ctx, dockerfile_path),
+                context=context,
+                dockerfile=dockerfile,
+                dockerfile_rel=dockerfile_rel,
                 build_args=build_args,
                 env=image_env,
                 volumes=image_volumes,
