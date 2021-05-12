@@ -5,6 +5,7 @@ from neuro_flow import ast
 from neuro_flow.ast import BatchActionOutputs
 from neuro_flow.expr import (
     EnableExpr,
+    MappingItemsExpr,
     OptBashExpr,
     OptBoolExpr,
     OptIdExpr,
@@ -12,6 +13,7 @@ from neuro_flow.expr import (
     OptRemotePathExpr,
     OptStrExpr,
     OptTimeDeltaExpr,
+    SequenceItemsExpr,
     SimpleOptBoolExpr,
     SimpleOptIdExpr,
     SimpleOptStrExpr,
@@ -119,11 +121,11 @@ def test_params_forbidden_in_live_action(assets: LocalPath) -> None:
 
 
 def test_parse_batch_action(assets: LocalPath) -> None:
-    config_file = assets / "batch-action.yml"
+    config_file = assets / "batch-action-with-image.yml"
     action = parse_action(config_file)
     assert action == ast.BatchAction(
         Pos(0, 0, config_file),
-        Pos(29, 0, config_file),
+        Pos(44, 0, config_file),
         kind=ast.ActionKind.BATCH,
         name=SimpleOptStrExpr(
             Pos(0, 0, config_file),
@@ -204,13 +206,62 @@ def test_parse_batch_action(assets: LocalPath) -> None:
                 Pos(0, 0, config_file), Pos(0, 0, config_file), "30m"
             ),
         ),
+        images={
+            "image_a": ast.Image(
+                _start=Pos(23, 4, config_file),
+                _end=Pos(35, 0, config_file),
+                ref=StrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "image:banana"
+                ),
+                context=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "dir"
+                ),
+                dockerfile=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "dir/Dockerfile"
+                ),
+                build_args=SequenceItemsExpr(
+                    [
+                        StrExpr(
+                            Pos(0, 0, config_file), Pos(0, 0, config_file), "--arg1"
+                        ),
+                        StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "val1"),
+                        StrExpr(
+                            Pos(0, 0, config_file),
+                            Pos(0, 0, config_file),
+                            "--arg2=val2",
+                        ),
+                    ]
+                ),
+                env=MappingItemsExpr(
+                    {
+                        "SECRET_ENV": StrExpr(
+                            Pos(0, 0, config_file), Pos(0, 0, config_file), "secret:key"
+                        ),
+                    }
+                ),
+                volumes=SequenceItemsExpr(
+                    [
+                        OptStrExpr(
+                            Pos(0, 0, config_file),
+                            Pos(0, 0, config_file),
+                            "secret:key:/var/secret/key.txt",
+                        ),
+                    ]
+                ),
+                build_preset=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "gpu-small"
+                ),
+            )
+        },
         tasks=[
             ast.Task(
-                Pos(22, 2, config_file),
-                Pos(26, 0, config_file),
+                Pos(36, 2, config_file),
+                Pos(40, 0, config_file),
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
-                image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
+                image=StrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "image:banana"
+                ),
                 preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 schedule_timeout=OptTimeDeltaExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
@@ -252,8 +303,8 @@ def test_parse_batch_action(assets: LocalPath) -> None:
                 ),
             ),
             ast.Task(
-                Pos(26, 2, config_file),
-                Pos(29, 0, config_file),
+                Pos(40, 2, config_file),
+                Pos(44, 0, config_file),
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),

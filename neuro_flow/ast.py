@@ -289,6 +289,7 @@ class BatchActionOutputs(Base):
 class BatchAction(BaseAction):
     outputs: Optional[BatchActionOutputs] = field(metadata={"allow_none": True})
     cache: Optional[Cache] = field(metadata={"allow_none": True})
+    images: Optional[Mapping[str, Image]] = field(metadata={"allow_none": True})
 
     tasks: Sequence[Task]
 
