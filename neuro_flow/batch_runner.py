@@ -3,6 +3,7 @@ import dataclasses
 import click
 import datetime
 import neuro_extras
+import uuid
 from graphviz import Digraph
 from neuro_cli import __version__ as cli_version
 from neuro_sdk import Client, ResourceNotFound, __version__ as sdk_version
@@ -28,6 +29,7 @@ from typing import (
     cast,
 )
 from typing_extensions import AsyncContextManager, AsyncIterator
+from yarl import URL
 
 import neuro_flow
 
@@ -43,7 +45,7 @@ from .config_loader import BatchLocalCL
 from .context import EMPTY_ROOT, EarlyBatch, EarlyLocalCall, RunningBatchFlow
 from .expr import EvalError, MultiEvalError
 from .parser import ConfigDir
-from .storage import Attempt, Bake, FinishedTask, Storage
+from .storage import Attempt, Bake, BakeImage, FinishedTask, Storage
 from .types import FullID, LocalPath, TaskStatus
 from .utils import (
     TERMINATED_TASK_STATUSES,
@@ -52,6 +54,7 @@ from .utils import (
     fmt_datetime,
     fmt_timedelta,
     make_cmd_exec,
+    run_subproc,
 )
 
 
@@ -147,6 +150,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         await self._check_no_cycles(flow)
         await self._check_local_deps(flow)
         await self._check_expressions(flow)
+        await self._check_image_refs_unique(flow)
         graphs = await self._build_graphs(flow)
 
         self._console.log(
@@ -169,6 +173,8 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         self._console.log(
             f"Bake [b]{bake.bake_id}[/b] of project [b]{bake.project}[/b] is created"
         )
+        self._console.log("Uploading image contexts/dockerfiles...")
+        await self._upload_image_data(flow, bake)
 
         return (
             ExecutorData(
@@ -272,6 +278,19 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         if errors:
             raise MultiEvalError(errors)
 
+    async def _check_image_refs_unique(self, top_flow: RunningBatchFlow) -> None:
+        refs: Set[str] = set()
+
+        async def _check(_: FullID, flow: EarlyBatch) -> None:
+            for image in flow.early_images.values():
+                if image.ref.startswith("image:"):
+                    if image.ref in refs:
+                        # TODO: add more descriptive error here
+                        raise Exception(f"Image ref '{image.ref}' is duplicated")
+                    refs.add(image.ref)
+
+        await self._run_for_each_flow(top_flow, _check)
+
     async def _build_graphs(
         self, top_flow: RunningBatchFlow
     ) -> Mapping[FullID, Mapping[FullID, AbstractSet[FullID]]]:
@@ -285,6 +304,47 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
 
         await self._run_for_each_flow(top_flow, _make_graph)
         return graphs
+
+    async def _upload_image_data(
+        self, top_flow: RunningBatchFlow, bake: Bake
+    ) -> List[BakeImage]:
+        images: List[BakeImage] = []
+
+        async def _upload(prefix: FullID, flow: EarlyBatch) -> None:
+            for image in flow.early_images.values():
+                if isinstance(image.context, LocalPath):
+                    # TODO: use hash of data instead of random value for storage path
+                    storage_context_dir: Optional[URL] = URL(
+                        f"storage:.flow/image-contexts/{uuid.uuid4()}"
+                    )
+                    await run_subproc(
+                        "neuro",
+                        "cp",
+                        "--recursive",
+                        "--update",
+                        "--no-target-directory",
+                        str(image.context),
+                        str(storage_context_dir),
+                    )
+                else:
+                    storage_context_dir = image.context
+
+                dockerfile_rel = None
+                if image.dockerfile_rel:
+                    dockerfile_rel = str(image.dockerfile_rel.as_posix())
+
+                bake_image = await self._storage.create_bake_image(
+                    bake,
+                    yaml_id=image.id,
+                    prefix=prefix,
+                    ref=image.ref,
+                    context_on_storage=storage_context_dir,
+                    dockefile_rel=dockerfile_rel,
+                )
+                images.append(bake_image)
+
+        await self._run_for_each_flow(top_flow, _upload)
+        return images
 
     # Next function is also used in tests:
     async def _run_locals(

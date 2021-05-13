@@ -263,6 +263,7 @@ class EarlyImage:
     ref: str
     context: Optional[Union[URL, LocalPath]]
     dockerfile: Optional[Union[URL, LocalPath]]
+    dockerfile_rel: Optional[Union[LocalPath, RemotePath]]
 
 
 # ...Context classes, used to complete container of what is available
@@ -698,6 +699,42 @@ async def setup_local_or_storage_path(
     return _calc_full_path(ctx, path)
 
 
+def _get_dockerfile_rel(
+    image: ast.Image,
+    context: Optional[Union[LocalPath, URL]],
+    dockerfile: Optional[Union[LocalPath, URL]],
+) -> Optional[Union[LocalPath, RemotePath]]:
+    if context is not None and dockerfile is None:
+        return None
+    if context is not None and dockerfile is None:
+        raise EvalError(
+            "Partially defined image: either both context and "
+            "dockerfile should be set or not set",
+            image._start,
+            image._end,
+        )
+    if isinstance(context, LocalPath) and isinstance(dockerfile, LocalPath):
+        try:
+            return dockerfile.relative_to(context)
+        except ValueError as e:
+            raise EvalError(str(e), image.dockerfile.start, image.dockerfile.end)
+    elif isinstance(context, URL) and isinstance(dockerfile, URL):
+        try:
+            return RemotePath(dockerfile.path).relative_to(RemotePath(context.path))
+        except ValueError as e:
+            raise EvalError(str(e), image.dockerfile.start, image.dockerfile.end)
+    else:
+        raise EvalError(
+            "Mixed local/storage context is not supported: "
+            f"context is "
+            f"{'local' if isinstance(context, LocalPath) else 'on storage'},"  # noqa: E501
+            f" but dockerfile is "
+            f"{'local' if isinstance(dockerfile, LocalPath) else 'on storage'}",  # noqa: E501
+            image._start,
+            image._end,
+        )
+
+
 async def setup_images_early(
     ctx: WithFlowContext,
     ast_images: Optional[Mapping[str, ast.Image]],
@@ -713,27 +750,14 @@ async def setup_images_early(
                 # During early evaluation, some contexts maybe be missing
                 if not isinstance(e.__cause__, NotAvailable):
                     raise
-
-            if (
-                context is not None
-                and dockerfile is not None
-                and type(context) != type(dockerfile)
-            ):
-                raise EvalError(
-                    "Mixed local/storage context is not supported: "
-                    f"context is "
-                    f"{'local' if isinstance(context, LocalPath) else 'on storage'},"  # noqa: E501
-                    f" but dockerfile is "
-                    f"{'local' if isinstance(dockerfile, LocalPath) else 'on storage'}",  # noqa: E501
-                    i._start,
-                    i._end,
-                )
+            dockerfile_rel = _get_dockerfile_rel(i, context, dockerfile)
 
             images[k] = EarlyImage(
                 id=k,
                 ref=await i.ref.eval(ctx),
                 context=context,
                 dockerfile=dockerfile,
+                dockerfile_rel=dockerfile_rel,
             )
     return images
 
@@ -747,31 +771,8 @@ async def setup_images_ctx(
         for k, i in ast_images.items():
             context = await setup_local_or_storage_path(i.context, ctx)
             dockerfile = await setup_local_or_storage_path(i.dockerfile, ctx)
-            dockerfile_rel: Optional[Union[LocalPath, RemotePath]] = None
+            dockerfile_rel = _get_dockerfile_rel(i, context, dockerfile)
 
-            if context is not None and dockerfile is not None:
-                if isinstance(context, LocalPath) and isinstance(dockerfile, LocalPath):
-                    try:
-                        dockerfile_rel = dockerfile.relative_to(context)
-                    except ValueError as e:
-                        raise EvalError(str(e), i.dockerfile.start, i.dockerfile.end)
-                elif isinstance(context, URL) and isinstance(dockerfile, URL):
-                    try:
-                        dockerfile_rel = RemotePath(dockerfile.path).relative_to(
-                            RemotePath(context.path)
-                        )
-                    except ValueError as e:
-                        raise EvalError(str(e), i.dockerfile.start, i.dockerfile.end)
-                else:
-                    raise EvalError(
-                        "Mixed local/storage context is not supported: "
-                        f"context is "
-                        f"{'local' if isinstance(context, LocalPath) else 'on storage'},"  # noqa: E501
-                        f" but dockerfile is "
-                        f"{'local' if isinstance(dockerfile, LocalPath) else 'on storage'}",  # noqa: E501
-                        i._start,
-                        i._end,
-                    )
             build_args: List[str] = []
             if i.build_args is not None:
                 tmp_build_args = await i.build_args.eval(ctx)
