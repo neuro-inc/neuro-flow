@@ -493,7 +493,6 @@ class BatchExecutor:
         st = await self._storage.start_action(self._attempt, full_id)
         self._mark_started(st)
         await self._embed_action(full_id)
-        await self._setup_images(full_id)
         self._progress.log(f"Action", fmt_id(st.id), "is", TaskStatus.PENDING)
 
     async def _process_task(self, full_id: FullID) -> None:
@@ -628,8 +627,6 @@ class BatchExecutor:
             # and exit
             await self._cancel_unfinished()
             return self._attempt.result
-
-        await self._setup_images(())
 
         while await self._should_continue():
             for full_id, flow in self._graphs.get_ready_with_meta():
@@ -787,18 +784,6 @@ class BatchExecutor:
 
         return TaskStatus.SUCCEEDED
 
-    async def _setup_images(self, full_id: FullID) -> None:
-        action = await self._get_action(full_id)
-        for image in action.images.values():
-            await self._storage.update_bake_image(
-                bake=self._attempt.bake,
-                ref=image.ref,
-                build_args=image.build_args,
-                env=image.env,
-                volumes=image.volumes,
-                build_preset=image.build_preset,
-            )
-
     async def _start_task(self, full_id: FullID, task: Task) -> Optional[StartedTask]:
         remote_image = self._client.parse.remote_image(task.image)
         if remote_image.cluster_name is None:  # Not a neuro registry iamge
@@ -862,18 +847,21 @@ class BatchExecutor:
         return await self._storage.start_task(self._attempt, full_id, job)
 
     async def _start_image_build(self, bake_image: BakeImage) -> None:
+        flow = self._graphs.get_meta(bake_image.prefix)
+        image_ctx = flow.images[bake_image.yaml_id]
+
         cmd = []
         assert bake_image.dockerfile_rel is not None
         assert bake_image.context_on_storage is not None
         cmd.append(f"--file={bake_image.dockerfile_rel.as_posix()}")
-        for arg in bake_image.build_args:
+        for arg in image_ctx.build_args:
             cmd.append(f"--build-arg={arg}")
-        for vol in bake_image.volumes:
+        for vol in image_ctx.volumes:
             cmd.append(f"--volume={vol}")
-        for k, v in bake_image.env.items():
+        for k, v in image_ctx.env.items():
             cmd.append(f"--env={k}={v}")
-        if bake_image.build_preset is not None:
-            cmd.append(f"--preset={bake_image.build_preset}")
+        if image_ctx.build_preset is not None:
+            cmd.append(f"--preset={image_ctx.build_preset}")
         cmd.append(str(bake_image.context_on_storage))
         cmd.append(str(bake_image.ref))
 

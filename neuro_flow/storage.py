@@ -157,11 +157,6 @@ class BakeImage:
     context_on_storage: Optional[URL]
     dockerfile_rel: Optional[RemotePath]
 
-    build_args: Sequence[str]
-    env: Mapping[str, str]
-    volumes: Sequence[str]
-    build_preset: Optional[str]
-
     status: ImageStatus
     builder_job_id: Optional[str]
 
@@ -175,10 +170,6 @@ class BakeImage:
             if self.context_on_storage
             else None,
             "dockerfile_rel": str(self.dockerfile_rel),
-            "build_args": list(self.build_args),
-            "env": dict(self.env),
-            "volumes": list(self.volumes),
-            "build_preset": self.build_preset,
             "status": self.status,
             "builder_job_id": self.builder_job_id,
         }
@@ -196,10 +187,6 @@ class BakeImage:
             dockerfile_rel=RemotePath(data["dockerfile_rel"])
             if "dockerfile_rel" in data
             else None,
-            build_args=data["build_args"],
-            env=data["env"],
-            volumes=data["volumes"],
-            build_preset=data["build_preset"],
             status=data["status"],
             builder_job_id=data["builder_job_id"],
         )
@@ -498,10 +485,6 @@ class Storage(abc.ABC):
         self,
         bake: Bake,
         ref: str,
-        build_args: Union[Sequence[str], Type[_Unset]] = _Unset,
-        env: Union[Mapping[str, str], Type[_Unset]] = _Unset,
-        volumes: Union[Sequence[str], Type[_Unset]] = _Unset,
-        build_preset: Union[Optional[str], Type[_Unset]] = _Unset,
         status: Union[ImageStatus, Type[_Unset]] = _Unset,
         builder_job_id: Union[Optional[str], Type[_Unset]] = _Unset,
     ) -> BakeImage:
@@ -1042,10 +1025,6 @@ class FSStorage(Storage):
         self,
         bake: Bake,
         ref: str,
-        build_args: Union[Sequence[str], Type[_Unset]] = _Unset,
-        env: Union[Mapping[str, str], Type[_Unset]] = _Unset,
-        volumes: Union[Sequence[str], Type[_Unset]] = _Unset,
-        build_preset: Union[Optional[str], Type[_Unset]] = _Unset,
         status: Union[ImageStatus, Type[_Unset]] = _Unset,
         builder_job_id: Union[Optional[str], Type[_Unset]] = _Unset,
     ) -> BakeImage:
@@ -1901,10 +1880,6 @@ class APIStorage(Storage):
         self,
         bake: Bake,
         ref: str,
-        build_args: Union[Sequence[str], Type[_Unset]] = _Unset,
-        env: Union[Mapping[str, str], Type[_Unset]] = _Unset,
-        volumes: Union[Sequence[str], Type[_Unset]] = _Unset,
-        build_preset: Union[Optional[str], Type[_Unset]] = _Unset,
         status: Union[ImageStatus, Type[_Unset]] = _Unset,
         builder_job_id: Union[Optional[str], Type[_Unset]] = _Unset,
     ) -> BakeImage:
