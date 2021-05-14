@@ -33,6 +33,7 @@ from typing import (
     Sequence,
     Tuple,
     Type,
+    Union,
     cast,
 )
 from typing_extensions import Final, TypedDict
@@ -155,6 +156,12 @@ class BakeImage:
     ref: str
     context_on_storage: Optional[URL]
     dockerfile_rel: Optional[RemotePath]
+
+    build_args: Sequence[str]
+    env: Mapping[str, str]
+    volumes: Sequence[str]
+    build_preset: Optional[str]
+
     status: ImageStatus
     builder_job_id: Optional[str]
 
@@ -168,6 +175,10 @@ class BakeImage:
             if self.context_on_storage
             else None,
             "dockerfile_rel": str(self.dockerfile_rel),
+            "build_args": list(self.build_args),
+            "env": dict(self.env),
+            "volumes": list(self.volumes),
+            "build_preset": self.build_preset,
             "status": self.status,
             "builder_job_id": self.builder_job_id,
         }
@@ -185,6 +196,10 @@ class BakeImage:
             dockerfile_rel=RemotePath(data["dockerfile_rel"])
             if "dockerfile_rel" in data
             else None,
+            build_args=data["build_args"],
+            env=data["env"],
+            volumes=data["volumes"],
+            build_preset=data["build_preset"],
             status=data["status"],
             builder_job_id=data["builder_job_id"],
         )
@@ -193,6 +208,10 @@ class BakeImage:
 # A storage abstraction
 #
 # There is a possibility to add Postgres storage class later, for example
+
+
+class _Unset:
+    pass
 
 
 class Storage(abc.ABC):
@@ -468,6 +487,24 @@ class Storage(abc.ABC):
 
     @abc.abstractmethod
     def list_bake_images(self, bake: Bake) -> AsyncIterator[BakeImage]:
+        pass
+
+    @abc.abstractmethod
+    async def get_bake_image(self, bake: Bake, ref: str) -> BakeImage:
+        pass
+
+    @abc.abstractmethod
+    async def update_bake_image(
+        self,
+        bake: Bake,
+        ref: str,
+        build_args: Union[Sequence[str], Type[_Unset]] = _Unset,
+        env: Union[Mapping[str, str], Type[_Unset]] = _Unset,
+        volumes: Union[Sequence[str], Type[_Unset]] = _Unset,
+        build_preset: Union[Optional[str], Type[_Unset]] = _Unset,
+        status: Union[ImageStatus, Type[_Unset]] = _Unset,
+        builder_job_id: Union[Optional[str], Type[_Unset]] = _Unset,
+    ) -> BakeImage:
         pass
 
 
@@ -996,6 +1033,22 @@ class FSStorage(Storage):
         raise NotImplementedError("FS storage doesn't support remote images")
 
     def list_bake_images(self, bake: Bake) -> AsyncIterator[BakeImage]:
+        raise NotImplementedError("FS storage doesn't support remote images")
+
+    async def get_bake_image(self, bake: Bake, ref: str) -> BakeImage:
+        raise NotImplementedError("FS storage doesn't support remote images")
+
+    async def update_bake_image(
+        self,
+        bake: Bake,
+        ref: str,
+        build_args: Union[Sequence[str], Type[_Unset]] = _Unset,
+        env: Union[Mapping[str, str], Type[_Unset]] = _Unset,
+        volumes: Union[Sequence[str], Type[_Unset]] = _Unset,
+        build_preset: Union[Optional[str], Type[_Unset]] = _Unset,
+        status: Union[ImageStatus, Type[_Unset]] = _Unset,
+        builder_job_id: Union[Optional[str], Type[_Unset]] = _Unset,
+    ) -> BakeImage:
         raise NotImplementedError("FS storage doesn't support remote images")
 
     async def _read_file(self, url: URL) -> str:
@@ -1823,6 +1876,39 @@ class APIStorage(Storage):
             async for line in resp.content:
                 image_data = json.loads(line)
                 yield BakeImage.from_primitive(image_data)
+
+    async def get_bake_image(self, bake: Bake, ref: str) -> BakeImage:
+        bake_data = await self._find_bake_data(bake)
+
+        url = self._base_url / "api/v1/flow/images/by_ref"
+        auth = await self._config._api_auth()
+
+        async with self._core.request(
+            "GET",
+            url,
+            params={
+                "bake_id": bake_data["id"],
+                "ref": ref,
+            },
+            headers={
+                "Accept": "application/x-ndjson",
+            },
+            auth=auth,
+        ) as resp:
+            return BakeImage.from_primitive(await resp.json())
+
+    async def update_bake_image(
+        self,
+        bake: Bake,
+        ref: str,
+        build_args: Union[Sequence[str], Type[_Unset]] = _Unset,
+        env: Union[Mapping[str, str], Type[_Unset]] = _Unset,
+        volumes: Union[Sequence[str], Type[_Unset]] = _Unset,
+        build_preset: Union[Optional[str], Type[_Unset]] = _Unset,
+        status: Union[ImageStatus, Type[_Unset]] = _Unset,
+        builder_job_id: Union[Optional[str], Type[_Unset]] = _Unset,
+    ) -> BakeImage:
+        raise NotImplementedError("FS storage doesn't support remote images")
 
     async def _write_file(
         self, url: URL, body: str, *, overwrite: bool = False

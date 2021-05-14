@@ -43,7 +43,16 @@ from .context import (
     TaskMeta,
 )
 from .expr import EvalError
-from .storage import Attempt, Bake, FinishedTask, StartedTask, Storage, _dt2str
+from .storage import (
+    Attempt,
+    Bake,
+    BakeImage,
+    FinishedTask,
+    ImageStatus,
+    StartedTask,
+    Storage,
+    _dt2str,
+)
 from .types import AlwaysT, FullID, TaskStatus
 from .utils import (
     TERMINATED_JOB_STATUSES,
@@ -484,6 +493,7 @@ class BatchExecutor:
         st = await self._storage.start_action(self._attempt, full_id)
         self._mark_started(st)
         await self._embed_action(full_id)
+        await self._setup_images(full_id)
         self._progress.log(f"Action", fmt_id(st.id), "is", TaskStatus.PENDING)
 
     async def _process_task(self, full_id: FullID) -> None:
@@ -517,10 +527,15 @@ class BatchExecutor:
             self._mark_finished(ft, advance=3)
         else:
             st = await self._start_task(full_id, task)
-            self._mark_started(st)
-            self._progress.log(
-                "Task", fmt_id(st.id), fmt_raw_id(st.raw_id), "is", TaskStatus.PENDING
-            )
+            if st:
+                self._mark_started(st)
+                self._progress.log(
+                    "Task",
+                    fmt_id(st.id),
+                    fmt_raw_id(st.raw_id),
+                    "is",
+                    TaskStatus.PENDING,
+                )
 
     async def _load_previous_run(self) -> None:
         # Loads tasks that previous executor run processed.
@@ -614,6 +629,8 @@ class BatchExecutor:
             await self._cancel_unfinished()
             return self._attempt.result
 
+        await self._setup_images(())
+
         while await self._should_continue():
             for full_id, flow in self._graphs.get_ready_with_meta():
                 tid = full_id[-1]
@@ -634,6 +651,7 @@ class BatchExecutor:
                     await self._process_task(full_id)
 
             ok = await self._process_started()
+            await self._process_running_builds()
 
             # Check for cancellation
             if not self._is_cancelling:
@@ -769,8 +787,42 @@ class BatchExecutor:
 
         return TaskStatus.SUCCEEDED
 
-    async def _start_task(self, full_id: FullID, task: Task) -> StartedTask:
+    async def _setup_images(self, full_id: FullID) -> None:
+        action = await self._get_action(full_id)
+        for image in action.images.values():
+            await self._storage.update_bake_image(
+                bake=self._attempt.bake,
+                ref=image.ref,
+                build_args=image.build_args,
+                env=image.env,
+                volumes=image.volumes,
+                build_preset=image.build_preset,
+            )
 
+    async def _start_task(self, full_id: FullID, task: Task) -> Optional[StartedTask]:
+        remote_image = self._client.parse.remote_image(task.image)
+        if remote_image.cluster_name is None:  # Not a neuro registry iamge
+            return await self._run_task(full_id, task)
+        try:
+            await self._client.images.tag_info(remote_image)
+        except ResourceNotFound:
+            present_in_registry = False
+        else:
+            present_in_registry = False
+        if present_in_registry:
+            return await self._run_task(full_id, task)
+        bake_image = await self._storage.get_bake_image(self._attempt.bake, task.image)
+
+        if bake_image.status == ImageStatus.PENDING:
+            await self._start_image_build(bake_image)
+            return None  # wait for next pulling interval
+        elif bake_image.status == ImageStatus.BUILDING:
+            return None  # wait for next pulling interval
+        else:
+            # Image is already build (maybe with an error, just try to run a job)
+            return await self._run_task(full_id, task)
+
+    async def _run_task(self, full_id: FullID, task: Task) -> StartedTask:
         preset_name = task.preset
         if preset_name is None:
             preset_name = next(iter(self._client.config.presets))
@@ -808,6 +860,65 @@ class BatchExecutor:
             pass_config=bool(task.pass_config),
         )
         return await self._storage.start_task(self._attempt, full_id, job)
+
+    async def _start_image_build(self, bake_image: BakeImage) -> None:
+        cmd = []
+        assert bake_image.dockerfile_rel is not None
+        assert bake_image.context_on_storage is not None
+        cmd.append(f"--file={bake_image.dockerfile_rel.as_posix()}")
+        for arg in bake_image.build_args:
+            cmd.append(f"--build-arg={arg}")
+        for vol in bake_image.volumes:
+            cmd.append(f"--volume={vol}")
+        for k, v in bake_image.env.items():
+            cmd.append(f"--env={k}={v}")
+        if bake_image.build_preset is not None:
+            cmd.append(f"--preset={bake_image.build_preset}")
+        cmd.append(str(bake_image.context_on_storage))
+        cmd.append(str(bake_image.ref))
+
+        subprocess = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        while True:
+            assert subprocess.stdout
+            line = (await subprocess.stdout.readline()).decode()
+            if line.startswith("Job ID: "):
+                builder_job_id = line[len("Job ID: ") :]
+                break
+        # Job is running, we can freely kill neuro-cli
+        subprocess.terminate()
+        await self._storage.update_bake_image(
+            self._attempt.bake,
+            bake_image.ref,
+            builder_job_id=builder_job_id,
+            status=ImageStatus.BUILDING,
+        )
+        self._progress.log("Image", bake_image.ref, "is", ImageStatus.BUILDING)
+
+    async def _process_running_builds(self) -> None:
+        async for image in self._storage.list_bake_images(self._attempt.bake):
+            if image.status == ImageStatus.BUILDING:
+                assert image.builder_job_id
+                descr = await self._client.jobs.status(image.builder_job_id)
+                if descr.status == JobStatus.SUCCEEDED:
+                    await self._storage.update_bake_image(
+                        self._attempt.bake,
+                        image.ref,
+                        status=ImageStatus.BUILT,
+                    )
+                    self._progress.log("Image", image.ref, "is", ImageStatus.BUILT)
+                elif descr.status in TERMINATED_JOB_STATUSES:
+                    await self._storage.update_bake_image(
+                        self._attempt.bake,
+                        image.ref,
+                        status=ImageStatus.BUILD_FAILED,
+                    )
+                    self._progress.log(
+                        "Image", image.ref, "is", ImageStatus.BUILD_FAILED
+                    )
 
 
 class LocalsBatchExecutor(BatchExecutor):
