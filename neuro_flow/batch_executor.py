@@ -31,6 +31,8 @@ from .config_loader import BatchRemoteCL
 from .context import (
     BaseBatchContext,
     DepCtx,
+    EarlyImageCtx,
+    LocallyPreparedInfo,
     LocalTask,
     NeedsCtx,
     RunningBatchActionFlow,
@@ -96,11 +98,38 @@ async def get_running_flow(
         load_from_storage=lambda name: storage.fetch_config(bake, name),
         client=client,
     )
+    local_info = LocallyPreparedInfo(
+        children_info={},
+        early_images={},
+    )
+    async for image in storage.list_bake_images(bake):
+        sub = local_info
+        for part in image.prefix:
+            if part not in sub.children_info:
+                new_sub = LocallyPreparedInfo(
+                    children_info={},
+                    early_images={},
+                )
+                assert isinstance(sub.children_info, dict)
+                sub.children_info[part] = new_sub
+            sub = sub.children_info[part]
+        assert isinstance(sub.early_images, dict)
+        dockerfile = None
+        if image.context_on_storage and image.dockerfile_rel:
+            dockerfile = image.context_on_storage / str(image.dockerfile_rel)
+        sub.early_images[image.yaml_id] = EarlyImageCtx(
+            id=image.yaml_id,
+            ref=image.ref,
+            context=image.context_on_storage,
+            dockerfile=dockerfile,
+            dockerfile_rel=image.dockerfile_rel,
+        )
     return await RunningBatchFlow.create(
         config_loader=config_loader,
         batch=bake.batch,
         bake_id=bake.bake_id,
         params=bake.params,
+        local_info=local_info,
     )
 
 

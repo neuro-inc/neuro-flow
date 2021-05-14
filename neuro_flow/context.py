@@ -134,12 +134,35 @@ class VolumeCtx:
 
 
 @dataclass(frozen=True)
-class ImageCtx:
+class EarlyImageCtx:
     id: str
     ref: str
     context: Optional[Union[URL, LocalPath]]
     dockerfile: Optional[Union[URL, LocalPath]]
     dockerfile_rel: Optional[Union[LocalPath, RemotePath]]
+
+    def to_image_ctx(
+        self,
+        build_args: Sequence[str],
+        env: Mapping[str, str],
+        volumes: Sequence[str],
+        build_preset: Optional[str],
+    ) -> "ImageCtx":
+        return ImageCtx(
+            id=self.id,
+            ref=self.ref,
+            context=self.context,
+            dockerfile=self.dockerfile,
+            dockerfile_rel=self.dockerfile_rel,
+            build_args=build_args,
+            env=env,
+            volumes=volumes,
+            build_preset=build_preset,
+        )
+
+
+@dataclass(frozen=True)
+class ImageCtx(EarlyImageCtx):
     build_args: Sequence[str]
     env: Mapping[str, str]
     volumes: Sequence[str]
@@ -258,12 +281,12 @@ class JobMeta:
 
 
 @dataclass(frozen=True)
-class EarlyImage:
-    id: str
-    ref: str
-    context: Optional[Union[URL, LocalPath]]
-    dockerfile: Optional[Union[URL, LocalPath]]
-    dockerfile_rel: Optional[Union[LocalPath, RemotePath]]
+class LocallyPreparedInfo:
+    """Tree-like structure that stores locally prepared info for a the batch flow."""
+
+    children_info: Mapping[str, "LocallyPreparedInfo"]
+
+    early_images: Mapping[str, EarlyImageCtx]
 
 
 # ...Context classes, used to complete container of what is available
@@ -419,6 +442,7 @@ class BatchContextStep2(WithEnvContext, BatchContextStep1):
 
 class BaseBatchContext(Context):
     strategy: StrategyCtx
+    images: ImagesCtx
 
     @abstractmethod
     def to_matrix_ctx(
@@ -493,15 +517,29 @@ class BatchTaskContext(BaseTaskContext, BatchMatrixContext):
 
 
 @dataclass(frozen=True)
-class BatchActionContext(BaseBatchContext):
+class BatchActionContextStep1(Context):
     inputs: InputsCtx
     strategy: StrategyCtx
+
+    def to_action_ctx(self, images: ImagesCtx) -> "BatchActionContext":
+        return BatchActionContext(
+            inputs=self.inputs,
+            strategy=self.strategy,
+            images=images,
+            _client=self._client,
+        )
+
+
+@dataclass(frozen=True)
+class BatchActionContext(BatchActionContextStep1, BaseBatchContext):
+    images: ImagesCtx
 
     def to_matrix_ctx(
         self, strategy: StrategyCtx, matrix: MatrixCtx
     ) -> "BatchActionMatrixContext":
         return BatchActionMatrixContext(
             inputs=self.inputs,
+            images=self.images,
             matrix=matrix,
             strategy=strategy,
             _client=self._client,
@@ -511,6 +549,7 @@ class BatchActionContext(BaseBatchContext):
         return BatchActionOutputsContext(
             strategy=self.strategy,
             inputs=self.inputs,
+            images=self.images,
             needs=needs,
             _client=self._client,
         )
@@ -531,6 +570,7 @@ class BatchActionMatrixContext(BaseMatrixContext, BatchActionContext):
             inputs=self.inputs,
             matrix=self.matrix,
             strategy=self.strategy,
+            images=self.images,
             needs=needs,
             state=state,
             _client=self._client,
@@ -679,7 +719,9 @@ async def setup_volumes_ctx(
 
 
 async def setup_local_or_storage_path(
-    str_expr: OptStrExpr, ctx: WithFlowContext
+    str_expr: OptStrExpr,
+    ctx: RootABC,
+    flow_ctx: WithFlowContext,
 ) -> Optional[Union[URL, LocalPath]]:
     path_str = await str_expr.eval(ctx)
     if path_str is None:
@@ -696,7 +738,7 @@ async def setup_local_or_storage_path(
         path = LocalPath(path_str)
     except ValueError as e:
         raise EvalError(str(e), str_expr.start, str_expr.end)
-    return _calc_full_path(ctx, path)
+    return _calc_full_path(flow_ctx, path)
 
 
 def _get_dockerfile_rel(
@@ -736,23 +778,26 @@ def _get_dockerfile_rel(
 
 
 async def setup_images_early(
-    ctx: WithFlowContext,
+    ctx: RootABC,
+    flow_ctx: WithFlowContext,
     ast_images: Optional[Mapping[str, ast.Image]],
-) -> Mapping[str, EarlyImage]:
+) -> Mapping[str, EarlyImageCtx]:
     images = {}
     if ast_images is not None:
         for k, i in ast_images.items():
-            context = dockerfile = None
             try:
-                context = await setup_local_or_storage_path(i.context, ctx)
-                dockerfile = await setup_local_or_storage_path(i.dockerfile, ctx)
+                context = await setup_local_or_storage_path(i.context, ctx, flow_ctx)
+                dockerfile = await setup_local_or_storage_path(
+                    i.dockerfile, ctx, flow_ctx
+                )
             except EvalError as e:
                 # During early evaluation, some contexts maybe be missing
                 if not isinstance(e.__cause__, NotAvailable):
                     raise
+                context = dockerfile = None
             dockerfile_rel = _get_dockerfile_rel(i, context, dockerfile)
 
-            images[k] = EarlyImage(
+            images[k] = EarlyImageCtx(
                 id=k,
                 ref=await i.ref.eval(ctx),
                 context=context,
@@ -763,16 +808,16 @@ async def setup_images_early(
 
 
 async def setup_images_ctx(
-    ctx: WithFlowContext,
+    ctx: RootABC,
+    flow_ctx: WithFlowContext,
     ast_images: Optional[Mapping[str, ast.Image]],
+    early_images: Optional[Mapping[str, EarlyImageCtx]] = None,
 ) -> ImagesCtx:
+    early_images = early_images or await setup_images_early(ctx, flow_ctx, ast_images)
+    assert early_images is not None
     images = {}
     if ast_images is not None:
         for k, i in ast_images.items():
-            context = await setup_local_or_storage_path(i.context, ctx)
-            dockerfile = await setup_local_or_storage_path(i.dockerfile, ctx)
-            dockerfile_rel = _get_dockerfile_rel(i, context, dockerfile)
-
             build_args: List[str] = []
             if i.build_args is not None:
                 tmp_build_args = await i.build_args.eval(ctx)
@@ -793,17 +838,24 @@ async def setup_images_ctx(
                     if volume:
                         image_volumes.append(volume)
 
-            images[k] = ImageCtx(
-                id=k,
-                ref=await i.ref.eval(ctx),
-                context=context,
-                dockerfile=dockerfile,
-                dockerfile_rel=dockerfile_rel,
+            image_ctx = early_images[k].to_image_ctx(
                 build_args=build_args,
                 env=image_env,
                 volumes=image_volumes,
                 build_preset=await i.build_preset.eval(ctx),
             )
+            if image_ctx.context is None:  # if true, dockerfile is None also
+                # Context was not computed during early evaluation,
+                # either it is missing at all or it uses non-locally
+                # available context. It is safe to recompute it.
+                image_ctx = replace(
+                    image_ctx,
+                    context=await setup_local_or_storage_path(i.context, ctx, flow_ctx),
+                    dockerfile=await setup_local_or_storage_path(
+                        i.context, ctx, flow_ctx
+                    ),
+                )
+            images[k] = image_ctx
     return images
 
 
@@ -1189,7 +1241,7 @@ class RunningLiveFlow:
             env=env,
             tags=tags,
             volumes=await setup_volumes_ctx(step_1_ctx, ast_flow.volumes),
-            images=await setup_images_ctx(step_1_ctx, ast_flow.images),
+            images=await setup_images_ctx(step_1_ctx, step_1_ctx, ast_flow.images),
         )
 
         return cls(ast_flow, live_ctx, config_loader, defaults)
@@ -1203,21 +1255,20 @@ class EarlyBatch:
         self,
         ctx: WithFlowContext,
         tasks: Mapping[str, "BaseEarlyTask"],
-        early_images: Mapping[str, EarlyImage],
         config_loader: ConfigLoader,
     ):
         self._flow_ctx = ctx
         self._cl = config_loader
         self._tasks = tasks
-        self._early_images = early_images
 
     @property
     def graph(self) -> Mapping[str, Mapping[str, ast.NeedsLevel]]:
         return self._graph()
 
     @property
-    def early_images(self) -> Mapping[str, EarlyImage]:
-        return self._early_images
+    @abstractmethod
+    def early_images(self) -> Mapping[str, EarlyImageCtx]:
+        pass
 
     @lru_cache()
     def _graph(self) -> Mapping[str, Mapping[str, ast.NeedsLevel]]:
@@ -1297,7 +1348,9 @@ class EarlyBatch:
 
         await validate_action_call(prep_task.call, prep_task.action.inputs)
         tasks = await EarlyTaskGraphBuilder(self._cl, prep_task.action.tasks).build()
-        early_images = await setup_images_early(self._flow_ctx, prep_task.action.images)
+        early_images = await setup_images_early(
+            self._flow_ctx, self._flow_ctx, prep_task.action.images
+        )
 
         return EarlyBatchAction(
             self._flow_ctx, tasks, early_images, self._cl, prep_task.action
@@ -1317,15 +1370,17 @@ class EarlyBatchAction(EarlyBatch):
         self,
         ctx: WithFlowContext,
         tasks: Mapping[str, "BaseEarlyTask"],
-        early_images: Mapping[str, EarlyImage],
+        early_images: Mapping[str, EarlyImageCtx],
         config_loader: ConfigLoader,
         action: ast.BatchAction,
     ):
-        super().__init__(ctx, tasks, early_images, config_loader)
+        super().__init__(ctx, tasks, config_loader)
         self._action = action
+        self._early_images = early_images
 
-    async def get_images_early(self) -> Mapping[str, EarlyImage]:
-        return await setup_images_early(self._flow_ctx, self._action.images)
+    @property
+    def early_images(self) -> Mapping[str, EarlyImageCtx]:
+        return self._early_images
 
     def _task_context_class(self) -> Type[Context]:
         return BatchActionTaskContext
@@ -1368,16 +1423,25 @@ class RunningBatchBase(Generic[_T], EarlyBatch):
         ctx: _T,
         default_tags: TagsCtx,
         tasks: Mapping[str, "BasePrepTask"],
-        early_images: Mapping[str, EarlyImage],
         config_loader: ConfigLoader,
         defaults: DefaultsConf,
         bake_id: str,
+        local_info: Optional[LocallyPreparedInfo],
     ):
-        super().__init__(flow_ctx, tasks, early_images, config_loader)
+        super().__init__(flow_ctx, tasks, config_loader)
         self._ctx = ctx
         self._default_tags = default_tags
         self._bake_id = bake_id
         self._defaults = defaults
+        self._local_info = local_info
+
+    @property
+    def early_images(self) -> Mapping[str, EarlyImageCtx]:
+        return self._ctx.images
+
+    @property
+    def images(self) -> Mapping[str, ImageCtx]:
+        return self._ctx.images
 
     def _get_prep(self, real_id: str) -> "BasePrepTask":
         prep_task = super()._get_prep(real_id)
@@ -1532,6 +1596,9 @@ class RunningBatchBase(Generic[_T], EarlyBatch):
             inputs=await setup_inputs_ctx(ctx, prep_task.call, prep_task.action.inputs),
             default_tags=self._default_tags,
             bake_id=self._bake_id,
+            local_info=self._local_info.children_info[real_id]
+            if self._local_info
+            else None,
             config_loader=self._cl,
         )
 
@@ -1560,13 +1627,13 @@ class RunningBatchFlow(RunningBatchBase[BatchContext]):
         self,
         ctx: BatchContext,
         tasks: Mapping[str, "BasePrepTask"],
-        early_images: Mapping[str, EarlyImage],
         config_loader: ConfigLoader,
         defaults: DefaultsConf,
         bake_id: str,
+        local_info: Optional[LocallyPreparedInfo],
     ):
         super().__init__(
-            ctx, ctx, ctx.tags, tasks, early_images, config_loader, defaults, bake_id
+            ctx, ctx, ctx.tags, tasks, config_loader, defaults, bake_id, local_info
         )
 
     @property
@@ -1576,10 +1643,6 @@ class RunningBatchFlow(RunningBatchBase[BatchContext]):
     @property
     def volumes(self) -> Mapping[str, VolumeCtx]:
         return self._ctx.volumes
-
-    @property
-    def images(self) -> Mapping[str, ImageCtx]:
-        return self._ctx.images
 
     @property
     def life_span(self) -> Optional[timedelta]:
@@ -1598,6 +1661,7 @@ class RunningBatchFlow(RunningBatchBase[BatchContext]):
         batch: str,
         bake_id: str,
         params: Optional[Mapping[str, str]] = None,
+        local_info: Optional[LocallyPreparedInfo] = None,
     ) -> "RunningBatchFlow":
         ast_flow = await config_loader.fetch_flow(batch)
 
@@ -1613,7 +1677,12 @@ class RunningBatchFlow(RunningBatchBase[BatchContext]):
             params=params_ctx,
             _client=config_loader.client,
         )
-        early_images = await setup_images_early(step_1_ctx, ast_flow.images)
+        if local_info is None:
+            early_images = await setup_images_early(
+                step_1_ctx, step_1_ctx, ast_flow.images
+            )
+        else:
+            early_images = local_info.early_images
 
         defaults, env, tags = await setup_defaults_env_tags_ctx(
             step_1_ctx, ast_flow.defaults
@@ -1623,7 +1692,9 @@ class RunningBatchFlow(RunningBatchBase[BatchContext]):
             env=env,
             tags=tags,
             volumes=await setup_volumes_ctx(step_1_ctx, ast_flow.volumes),
-            images=await setup_images_ctx(step_1_ctx, ast_flow.images),
+            images=await setup_images_ctx(
+                step_1_ctx, step_1_ctx, ast_flow.images, early_images
+            ),
         )
 
         if ast_flow.defaults:
@@ -1643,7 +1714,7 @@ class RunningBatchFlow(RunningBatchBase[BatchContext]):
         ).build()
 
         return RunningBatchFlow(
-            batch_ctx, tasks, early_images, config_loader, defaults, bake_id
+            batch_ctx, tasks, config_loader, defaults, bake_id, local_info
         )
 
 
@@ -1654,21 +1725,21 @@ class RunningBatchActionFlow(RunningBatchBase[BatchActionContext]):
         ctx: BatchActionContext,
         default_tags: TagsCtx,
         tasks: Mapping[str, "BasePrepTask"],
-        early_images: Mapping[str, EarlyImage],
         config_loader: ConfigLoader,
         defaults: DefaultsConf,
         action: ast.BatchAction,
         bake_id: str,
+        local_info: Optional[LocallyPreparedInfo],
     ):
         super().__init__(
             flow_ctx,
             ctx,
             default_tags,
             tasks,
-            early_images,
             config_loader,
             defaults,
             bake_id,
+            local_info,
         )
         self._action = action
 
@@ -1698,12 +1769,26 @@ class RunningBatchActionFlow(RunningBatchBase[BatchActionContext]):
         default_tags: TagsCtx,
         config_loader: ConfigLoader,
         bake_id: str,
+        local_info: Optional[LocallyPreparedInfo],
     ) -> "RunningBatchActionFlow":
-        action_context = BatchActionContext(
+        step_1_ctx = BatchActionContextStep1(
             inputs=inputs,
             strategy=base_strategy,
             _client=config_loader.client,
         )
+
+        if local_info is None:
+            early_images = await setup_images_early(
+                step_1_ctx, flow_ctx, ast_action.images
+            )
+        else:
+            early_images = local_info.early_images
+
+        images = await setup_images_ctx(
+            step_1_ctx, flow_ctx, ast_action.images, early_images
+        )
+
+        action_context = step_1_ctx.to_action_ctx(images=images)
 
         cache = await setup_cache(
             action_context, base_cache, ast_action.cache, ast.CacheStrategy.INHERIT
@@ -1712,18 +1797,17 @@ class RunningBatchActionFlow(RunningBatchBase[BatchActionContext]):
         tasks = await TaskGraphBuilder(
             action_context, config_loader, cache, ast_action.tasks
         ).build()
-        early_images = await setup_images_early(flow_ctx, ast_action.images)
 
         return RunningBatchActionFlow(
             flow_ctx,
             action_context,
             default_tags,
             tasks,
-            early_images,
             config_loader,
             DefaultsConf(),
             ast_action,
             bake_id,
+            local_info,
         )
 
 
