@@ -5,12 +5,14 @@
 
 [comment]: # (towncrier release notes start)
 
+
 Neuro_Flow 21.5.13 (2021-05-13)
 ===============================
 
 Features
 --------
 
+- Neuro Flow now uses the dedicated Platform API to store the flow database. The storage is still supported but will be removed in a few months.
 
 - Added new expressions functions:
   - `values(dict_instance)`: get values of dictionary (similar to python's `dict_instance.values()`)
@@ -53,6 +55,7 @@ Bugfixes
 
 - Fixed bug that led to crash in `neuro-flow inspect` when bake had cached task. ([#358](https://github.com/neuro-inc/neuro-flow/issues/358))
 
+- Support click 8.0 ([#407](https://github.com/neuro-inc/neuro-flow/issues/407))
 
 Neuro_Flow 21.4.5 (2021-04-05)
 ==============================
