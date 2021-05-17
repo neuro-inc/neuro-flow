@@ -9,7 +9,7 @@ from .root import Root
 
 
 CFG_FILE = {"bash": LocalPath("~/.bashrc"), "zsh": LocalPath("~/.zshrc")}
-SOURCE_CMD = {"bash": "source", "zsh": "source_zsh"}
+SOURCE_CMD = {"bash": "bash_source", "zsh": "zsh_source"}
 
 ACTIVATION_TEMPLATE = 'eval "$(_NEURO_FLOW_COMPLETE={cmd} {exe})"'
 
