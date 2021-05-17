@@ -6,6 +6,13 @@
 [comment]: # (towncrier release notes start)
 
 
+Bugfixes
+--------
+
+
+- Support click 8.0 ([#407](https://github.com/neuro-inc/neuro-flow/issues/407))
+
+
 Neuro_Flow 21.5.17 (2021-05-17)
 ===============================
 
