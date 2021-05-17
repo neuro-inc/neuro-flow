@@ -5,6 +5,55 @@
 
 [comment]: # (towncrier release notes start)
 
+Neuro_Flow 21.5.13 (2021-05-13)
+===============================
+
+Features
+--------
+
+
+- Added new expressions functions:
+  - `values(dict_instance)`: get values of dictionary (similar to python's `dict_instance.values()`)
+  - `str(any)`: convert any object to string
+  - `replace(string, old, new)`: replace all occurrences of `old` in `string` with `new`.
+  - `join(separator, array)`: concatenate array of strings inserting `separator` in between. ([#357](https://github.com/neuro-inc/neuro-flow/issues/357))
+
+- Added support of default volumes similar to default env: both in live and batch modes, you can
+  specify them under `defaults` section:
+  ```
+  defaults:
+    volumes:
+      - storage:some/dir:/mnt/some/dir
+      - storage:some/another/dir:/mnt/some/another/dir
+  ```
+  - In live mode such volumes will be added to all jobs.
+  - In batch mode such volumes will be added to all tasks.
+
+  Default volumes are not passed to actions (same as default env). ([#359](https://github.com/neuro-inc/neuro-flow/issues/359))
+
+- Added passing of global options (`-v`, `-q`, `--show-traceback`) to neuro cli and executor. ([#360](https://github.com/neuro-inc/neuro-flow/issues/360))
+
+- Added `--dry-run` flag for `neuro-flow run` that enables prints job command instead of running it. ([#362](https://github.com/neuro-inc/neuro-flow/issues/362))
+
+- Added support of tagging bakes.
+
+  To tag a bake:
+  ```
+  neuro bake --tag tag1 --tag tag2 batch_name
+  ```
+  To retrieve bakes by tags:
+  ```
+  neuro bakes --tag tag1
+  ``` ([#382](https://github.com/neuro-inc/neuro-flow/issues/382))
+
+
+Bugfixes
+--------
+
+
+- Fixed bug that led to crash in `neuro-flow inspect` when bake had cached task. ([#358](https://github.com/neuro-inc/neuro-flow/issues/358))
+
+
 Neuro_Flow 21.4.5 (2021-04-05)
 ==============================
 

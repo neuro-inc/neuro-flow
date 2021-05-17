@@ -4,6 +4,7 @@ import asyncio
 import base64
 import datetime
 import json
+import os
 import sys
 from collections import defaultdict
 from neuro_sdk import (
@@ -577,7 +578,7 @@ class BatchExecutor:
         else:
             # Looks like this is some bug in our code, so we should print stacktrace
             # for easier debug
-            self._progress.console.print_exception()
+            self._progress.console.print_exception(show_locals=True)
             self._progress.log(
                 "[red][b]ERROR:[/b] Some unknown error happened. Please report "
                 "an issue to https://github.com/neuro-inc/neuro-flow/issues/new "
@@ -586,6 +587,11 @@ class BatchExecutor:
 
     async def _run(self) -> TaskStatus:
         await self._load_previous_run()
+
+        job_id = os.environ.get("NEURO_JOB_ID")
+        if job_id:
+            # store job id as executor id
+            await self._storage.store_executor_id(self._attempt, job_id)
 
         if self._attempt.result in TERMINATED_TASK_STATUSES:
             # If attempt is already terminated, just clean up tasks

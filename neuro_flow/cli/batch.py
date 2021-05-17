@@ -2,7 +2,7 @@ import click
 import neuro_sdk
 import signal
 import sys
-from typing import List, Optional, Tuple
+from typing import List, Optional, Sequence, Tuple
 
 from neuro_flow.batch_executor import ExecutorData
 from neuro_flow.batch_runner import BatchRunner
@@ -12,7 +12,7 @@ from neuro_flow.cli.click_types import (
     BATCH_OR_ALL,
     FINISHED_TASK_AFTER_BAKE,
 )
-from neuro_flow.cli.utils import argument, option, wrap_async
+from neuro_flow.cli.utils import argument, option, resolve_bake, wrap_async
 from neuro_flow.storage import APIStorage, NeuroStorageFS, Storage
 from neuro_flow.types import LocalPath
 
@@ -32,9 +32,25 @@ else:
     "--param", type=(str, str), multiple=True, help="Set params of the batch config"
 )
 @click.option(
+    "-n",
+    "--name",
+    metavar="NAME",
+    type=str,
+    help="Optional bake name",
+    default=None,
+)
+@click.option(
     "--meta-from-file",
     type=click.Path(exists=True, file_okay=True, dir_okay=False, readable=True),
     help="File with params for batch.",
+)
+@click.option(
+    "-t",
+    "--tag",
+    metavar="TAG",
+    type=str,
+    help="Optional bake tag, multiple values allowed",
+    multiple=True,
 )
 @argument("batch", type=BATCH)
 @wrap_async()
@@ -44,6 +60,8 @@ async def bake(
     local_executor: bool,
     meta_from_file: Optional[str],
     param: List[Tuple[str, str]],
+    name: Optional[str],
+    tag: Sequence[str],
 ) -> None:
     """Start a batch.
 
@@ -65,6 +83,8 @@ async def bake(
             batch_name=batch,
             local_executor=local_executor,
             params=params,
+            name=name,
+            tags=tag,
         )
 
 
@@ -106,9 +126,18 @@ async def execute(
 
 
 @click.command()
+@click.option(
+    "-t",
+    "--tag",
+    metavar="TAG",
+    type=str,
+    help="Filter out bakes by tag (multiple option)",
+    multiple=True,
+)
 @wrap_async()
 async def bakes(
     root: Root,
+    tag: Sequence[str],
 ) -> None:
     """List existing bakes."""
     async with AsyncExitStack() as stack:
@@ -119,11 +148,11 @@ async def bakes(
         runner = await stack.enter_async_context(
             BatchRunner(root.config_dir, root.console, client, storage, root)
         )
-        await runner.list_bakes()
+        await runner.list_bakes(set(tag))
 
 
 @click.command()
-@argument("bake_id", type=BAKE)
+@argument("bake", type=BAKE)
 @option(
     "-a",
     "--attempt",
@@ -158,7 +187,7 @@ async def bakes(
 @wrap_async()
 async def inspect(
     root: Root,
-    bake_id: str,
+    bake: str,
     attempt: int,
     output_graph: Optional[str],
     dot: bool,
@@ -181,6 +210,8 @@ async def inspect(
             real_output: Optional[LocalPath] = LocalPath(output_graph)
         else:
             real_output = None
+        bake_id = await resolve_bake(bake, project=runner.project, storage=storage)
+
         await runner.inspect(
             bake_id,
             attempt_no=attempt,
@@ -192,7 +223,7 @@ async def inspect(
 
 
 @click.command()
-@argument("bake_id", type=BAKE)
+@argument("bake", type=BAKE)
 @argument("task_id", type=FINISHED_TASK_AFTER_BAKE)
 @click.option(
     "-a",
@@ -213,7 +244,7 @@ async def inspect(
 @wrap_async()
 async def show(
     root: Root,
-    bake_id: str,
+    bake: str,
     attempt: int,
     task_id: str,
     raw: bool,
@@ -230,11 +261,12 @@ async def show(
         runner = await stack.enter_async_context(
             BatchRunner(root.config_dir, root.console, client, storage, root)
         )
+        bake_id = await resolve_bake(bake, project=runner.project, storage=storage)
         await runner.logs(bake_id, task_id, attempt_no=attempt, raw=raw)
 
 
 @click.command()
-@argument("bake_id", type=BAKE)
+@argument("bake", type=BAKE)
 @click.option(
     "-a",
     "--attempt",
@@ -245,7 +277,7 @@ async def show(
 @wrap_async()
 async def cancel(
     root: Root,
-    bake_id: str,
+    bake: str,
     attempt: int,
 ) -> None:
     """Cancel a bake.
@@ -260,6 +292,7 @@ async def cancel(
         runner = await stack.enter_async_context(
             BatchRunner(root.config_dir, root.console, client, storage, root)
         )
+        bake_id = await resolve_bake(bake, project=runner.project, storage=storage)
         await runner.cancel(bake_id, attempt_no=attempt)
 
 
@@ -291,7 +324,7 @@ async def clear_cache(
 
 
 @click.command()
-@argument("bake_id", type=BAKE)
+@argument("bake", type=BAKE)
 @option(
     "-a",
     "--attempt",
@@ -309,7 +342,7 @@ async def clear_cache(
 @wrap_async()
 async def restart(
     root: Root,
-    bake_id: str,
+    bake: str,
     attempt: int,
     from_failed: bool,
     local_executor: bool,
@@ -326,6 +359,7 @@ async def restart(
         runner = await stack.enter_async_context(
             BatchRunner(root.config_dir, root.console, client, storage, root)
         )
+        bake_id = await resolve_bake(bake, project=runner.project, storage=storage)
         await runner.restart(
             bake_id,
             attempt_no=attempt,

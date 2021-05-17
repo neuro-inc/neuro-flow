@@ -21,6 +21,7 @@ from typing import (
     List,
     Mapping,
     Optional,
+    Sequence,
     Set,
     Tuple,
     Type,
@@ -130,7 +131,11 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
 
     # Next function is also used in tests:
     async def _setup_bake(
-        self, batch_name: str, params: Optional[Mapping[str, str]] = None
+        self,
+        batch_name: str,
+        params: Optional[Mapping[str, str]] = None,
+        name: Optional[str] = None,
+        tags: Sequence[str] = (),
     ) -> Tuple[ExecutorData, RunningBatchFlow]:
         # batch_name is a name of yaml config inside self._workspace / .neuro
         # folder without the file extension
@@ -169,6 +174,8 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             configs,
             graphs=graphs,
             params=params,
+            name=name,
+            tags=tags,
         )
         self._console.log(
             f"Bake [b]{bake.bake_id}[/b] of project [b]{bake.project}[/b] is created"
@@ -309,12 +316,14 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         batch_name: str,
         local_executor: bool = False,
         params: Optional[Mapping[str, str]] = None,
+        name: Optional[str] = None,
+        tags: Sequence[str] = (),
     ) -> None:
         self._console.print(
             Panel(f"[bright_blue]Bake [b]{batch_name}[/b]", padding=1),
             justify="center",
         )
-        data, flow = await self._setup_bake(batch_name, params)
+        data, flow = await self._setup_bake(batch_name, params, name, tags)
         await self._run_bake(data, flow, local_executor)
 
     async def _run_bake(
@@ -380,14 +389,16 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         bake = await self._storage.fetch_bake_by_id(self.project_id, bake_id)
         return await self._storage.find_attempt(bake, attempt_no)
 
-    async def list_bakes(self) -> None:
+    async def list_bakes(self, tags: AbstractSet[str] = frozenset()) -> None:
         table = Table(box=box.MINIMAL_HEAVY_HEAD)
         table.add_column("ID", style="bold")
+        table.add_column("NAME")
+        table.add_column("EXECUTOR")
         table.add_column("STATUS")
         table.add_column("WHEN")
 
-        rows: List[Tuple[str, TaskStatus, datetime.datetime]] = []
-        async for bake in self._storage.list_bakes(self.project_id):
+        rows: List[Tuple[str, str, str, TaskStatus, datetime.datetime]] = []
+        async for bake in self._storage.list_bakes(self.project_id, tags):
             try:
                 attempt = await self._storage.find_attempt(bake)
             except ValueError:
@@ -395,14 +406,22 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                     f"[yellow]Bake [b]{bake}[/b] is malformed, skipping"
                 )
             else:
-                rows.append((bake.bake_id, attempt.result, attempt.when))
+                rows.append(
+                    (
+                        bake.bake_id,
+                        bake.name or "",
+                        attempt.executor_id or "",
+                        attempt.result,
+                        attempt.when,
+                    )
+                )
 
         # sort by date, ascending order (last is bottommost)
-        rows.sort(key=itemgetter(2))
+        rows.sort(key=itemgetter(4))
 
         for row in rows:
-            bake_id, result, when = row
-            table.add_row(bake_id, result, fmt_datetime(when))
+            bake_id, name, executor_id, result, when = row
+            table.add_row(bake_id, name, executor_id, result, fmt_datetime(when))
         self._console.print(table)
 
     async def inspect(
@@ -435,6 +454,11 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         attempt = await self._storage.find_attempt(bake, attempt_no)
 
         self._console.print(f"[b]Attempt #{attempt.number}[/b]", attempt.result)
+        if attempt.executor_id:
+            info = await self._client.jobs.status(attempt.executor_id)
+            self._console.print(
+                f"[b]Executor {attempt.executor_id}[/b]", TaskStatus(info.status)
+            )
 
         started, finished = await self._storage.fetch_attempt(attempt)
         statuses = {}
