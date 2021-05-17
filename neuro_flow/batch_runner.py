@@ -319,6 +319,12 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                     )
                     await run_subproc(
                         "neuro",
+                        "mkdir",
+                        "--parents",
+                        str(storage_context_dir),
+                    )
+                    await run_subproc(
+                        "neuro",
                         "cp",
                         "--recursive",
                         "--update",
@@ -339,7 +345,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                     prefix=prefix,
                     ref=image.ref,
                     context_on_storage=storage_context_dir,
-                    dockefile_rel=dockerfile_rel,
+                    dockerfile_rel=dockerfile_rel,
                 )
                 images.append(bake_image)
 

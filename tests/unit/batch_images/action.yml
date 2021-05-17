@@ -17,5 +17,5 @@ images:
 tasks:
 - id: task_1
   needs: [ ]  # checks parser
-  image: image:banana
+  image: image:banana1
   bash: echo ::set-output name=task1::Task 1 ${{ inputs.arg1 }}

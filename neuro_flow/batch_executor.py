@@ -184,6 +184,10 @@ class Graph(Generic[_T]):
         for ready in set(self._ready):
             yield ready, self._metas[ready[:-1]]
 
+    def get_graph_data(self, node: FullID) -> _T:
+        assert node in self._topos, f"Graph {node} not found"
+        return self._metas[node]
+
     def get_meta(self, node: FullID) -> _T:
         prefix = node[:-1]
         assert prefix in self._topos, f"Parent graph for node {node} not found"
@@ -847,13 +851,13 @@ class BatchExecutor:
         return await self._storage.start_task(self._attempt, full_id, job)
 
     async def _start_image_build(self, bake_image: BakeImage) -> None:
-        flow = self._graphs.get_meta(bake_image.prefix)
+        flow = self._graphs.get_graph_data(bake_image.prefix)
         image_ctx = flow.images[bake_image.yaml_id]
 
-        cmd = []
+        cmd = ["neuro-extras", "image", "build"]
         assert bake_image.dockerfile_rel is not None
         assert bake_image.context_on_storage is not None
-        cmd.append(f"--file={bake_image.dockerfile_rel.as_posix()}")
+        cmd.append(f"--file={bake_image.dockerfile_rel}")
         for arg in image_ctx.build_args:
             cmd.append(f"--build-arg={arg}")
         for vol in image_ctx.volumes:
@@ -874,7 +878,8 @@ class BatchExecutor:
             assert subprocess.stdout
             line = (await subprocess.stdout.readline()).decode()
             if line.startswith("Job ID: "):
-                builder_job_id = line[len("Job ID: ") :]
+                builder_job_id = line[len("Job ID: ") :].strip()
+
                 break
         # Job is running, we can freely kill neuro-cli
         subprocess.terminate()

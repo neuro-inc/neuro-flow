@@ -4,6 +4,7 @@ import asyncio
 import pytest
 import shutil
 import sys
+from collections import defaultdict
 from datetime import datetime
 from neuro_sdk import (
     Client,
@@ -37,14 +38,25 @@ from typing import (
     Optional,
     Sequence,
     Tuple,
-    cast,
+    Type,
+    Union,
 )
 from yarl import URL
 
 from neuro_flow.batch_executor import BatchExecutor, ExecutorData, LocalsBatchExecutor
 from neuro_flow.batch_runner import BatchRunner
 from neuro_flow.parser import ConfigDir
-from neuro_flow.storage import Bake, FinishedTask, FSStorage, LocalFS, Storage
+from neuro_flow.storage import (
+    Bake,
+    BakeImage,
+    FileSystem,
+    FinishedTask,
+    FSStorage,
+    ImageStatus,
+    LocalFS,
+    Storage,
+    _Unset,
+)
 from neuro_flow.types import LocalPath, TaskStatus
 
 
@@ -276,11 +288,73 @@ class JobsMock:
         yield self._outputs.get(job_id, b"")
 
 
+class MockStorage(FSStorage):
+    def __init__(self, fs: FileSystem) -> None:
+        super().__init__(fs)
+        self._bake_images: Dict[str, List[BakeImage]] = defaultdict(list)
+        self._index = 0
+
+    async def create_bake_image(
+        self,
+        bake: Bake,
+        prefix: Tuple[str, ...],
+        yaml_id: str,
+        ref: str,
+        context_on_storage: Optional[URL],
+        dockerfile_rel: Optional[str],
+    ) -> BakeImage:
+        image = BakeImage(
+            id=f"image-{self._index}",
+            prefix=prefix,
+            ref=ref,
+            yaml_id=yaml_id,
+            context_on_storage=context_on_storage,
+            dockerfile_rel=dockerfile_rel,
+            status=ImageStatus.PENDING,
+            builder_job_id=None,
+        )
+        self._index += 1
+        self._bake_images[bake.bake_id].append(image)
+        return image
+
+    async def list_bake_images(self, bake: Bake) -> AsyncIterator[BakeImage]:
+        for image in self._bake_images[bake.bake_id]:
+            yield image
+
+    async def get_bake_image(self, bake: Bake, ref: str) -> BakeImage:
+        for image in self._bake_images[bake.bake_id]:
+            if image.ref == ref:
+                return image
+        raise ResourceNotFound
+
+    async def update_bake_image(
+        self,
+        bake: Bake,
+        ref: str,
+        status: Union[ImageStatus, Type[_Unset]] = _Unset,
+        builder_job_id: Union[Optional[str], Type[_Unset]] = _Unset,
+    ) -> BakeImage:
+        try:
+            index, image = next(
+                (index, image)
+                for index, image in enumerate(self._bake_images[bake.bake_id])
+                if image.ref == ref
+            )
+        except StopIteration:
+            raise ResourceNotFound
+        if status != _Unset:
+            image = replace(image, status=status)
+        if builder_job_id != _Unset:
+            image = replace(image, builder_job_id=builder_job_id)
+        self._bake_images[bake.bake_id][index] = image
+        return image
+
+
 @pytest.fixture()
 def batch_storage(loop: None) -> Iterator[Storage]:
     with TemporaryDirectory() as tmpdir:
         fs = LocalFS(Path(tmpdir))
-        yield FSStorage(fs)
+        yield MockStorage(fs)
 
 
 class FakeGlobalOptions:
@@ -290,7 +364,7 @@ class FakeGlobalOptions:
 
 @pytest.fixture()
 async def make_batch_runner(
-    batch_storage: Storage,
+    batch_storage: Storage, client: Client
 ) -> AsyncIterator[MakeBatchRunner]:
 
     runner: Optional[BatchRunner] = None
@@ -306,7 +380,7 @@ async def make_batch_runner(
         runner = BatchRunner(
             config_dir,
             get_console(),
-            cast(Client, None),
+            client,
             batch_storage,
             FakeGlobalOptions(),
         )
@@ -1327,3 +1401,15 @@ async def test_bake_marked_as_cancelled_on_task_cancelation(
     executor_task.cancel()
     _, status = await executor_task
     assert status == TaskStatus.CANCELLED
+
+
+async def test_image_builds(
+    jobs_mock: JobsMock,
+    assets: Path,
+    run_executor: Callable[[Path, str], Awaitable[None]],
+) -> None:
+    executor_task = asyncio.ensure_future(
+        run_executor(assets / "batch_images", "batch")
+    )
+
+    await executor_task

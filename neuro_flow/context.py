@@ -746,9 +746,9 @@ def _get_dockerfile_rel(
     context: Optional[Union[LocalPath, URL]],
     dockerfile: Optional[Union[LocalPath, URL]],
 ) -> Optional[Union[LocalPath, RemotePath]]:
-    if context is not None and dockerfile is None:
+    if context is None and dockerfile is None:
         return None
-    if context is not None and dockerfile is None:
+    if context is None or dockerfile is None:
         raise EvalError(
             "Partially defined image: either both context and "
             "dockerfile should be set or not set",

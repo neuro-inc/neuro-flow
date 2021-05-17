@@ -155,7 +155,7 @@ class BakeImage:
     yaml_id: str
     ref: str
     context_on_storage: Optional[URL]
-    dockerfile_rel: Optional[RemotePath]
+    dockerfile_rel: Optional[str]
 
     status: ImageStatus
     builder_job_id: Optional[str]
@@ -163,7 +163,7 @@ class BakeImage:
     def to_primitive(self) -> Mapping[str, Any]:
         return {
             "id": self.id,
-            "prefix": list(self.prefix),
+            "prefix": _id_to_json(self.prefix),
             "yaml_id": self.yaml_id,
             "ref": self.ref,
             "context_on_storage": str(self.context_on_storage)
@@ -178,7 +178,7 @@ class BakeImage:
     def from_primitive(cls, data: Mapping[str, Any]) -> "BakeImage":
         return cls(
             id=data["id"],
-            prefix=tuple(data["prefix"]),
+            prefix=_id_from_json(data["prefix"]),
             yaml_id=data["yaml_id"],
             ref=data["ref"],
             context_on_storage=URL(data["context_on_storage"])
@@ -468,7 +468,7 @@ class Storage(abc.ABC):
         yaml_id: str,
         ref: str,
         context_on_storage: Optional[URL],
-        dockefile_rel: Optional[str],
+        dockerfile_rel: Optional[str],
     ) -> BakeImage:
         pass
 
@@ -1011,7 +1011,7 @@ class FSStorage(Storage):
         yaml_id: str,
         ref: str,
         context_on_storage: Optional[URL],
-        dockefile_rel: Optional[str],
+        dockerfile_rel: Optional[str],
     ) -> BakeImage:
         raise NotImplementedError("FS storage doesn't support remote images")
 
@@ -1805,23 +1805,24 @@ class APIStorage(Storage):
         yaml_id: str,
         ref: str,
         context_on_storage: Optional[URL],
-        dockefile_rel: Optional[str],
+        dockerfile_rel: Optional[str],
     ) -> BakeImage:
         bake_data = await self._find_bake_data(bake)
 
-        url = self._base_url / "api/v1/flow/images"
+        url = self._base_url / "api/v1/flow/bake_images"
         auth = await self._config._api_auth()
 
         image_data = dict(
             {
                 "bake_id": bake_data["id"],
                 "yaml_id": yaml_id,
-                "prefix": list(prefix),
+                "prefix": _id_to_json(prefix),
                 "ref": ref,
                 "context_on_storage": str(context_on_storage)
                 if context_on_storage
                 else None,
-                "dockefile_rel": dockefile_rel,
+                "dockerfile_rel": dockerfile_rel,
+                "status": ImageStatus.PENDING.value,
             }
         )
 
@@ -1838,7 +1839,7 @@ class APIStorage(Storage):
     async def list_bake_images(self, bake: Bake) -> AsyncIterator[BakeImage]:
         bake_data = await self._find_bake_data(bake)
 
-        url = self._base_url / "api/v1/flow/images"
+        url = self._base_url / "api/v1/flow/bake_images"
         auth = await self._config._api_auth()
 
         async with self._core.request(
@@ -1859,7 +1860,7 @@ class APIStorage(Storage):
     async def get_bake_image(self, bake: Bake, ref: str) -> BakeImage:
         bake_data = await self._find_bake_data(bake)
 
-        url = self._base_url / "api/v1/flow/images/by_ref"
+        url = self._base_url / "api/v1/flow/bake_images/by_ref"
         auth = await self._config._api_auth()
 
         async with self._core.request(
@@ -1868,9 +1869,6 @@ class APIStorage(Storage):
             params={
                 "bake_id": bake_data["id"],
                 "ref": ref,
-            },
-            headers={
-                "Accept": "application/x-ndjson",
             },
             auth=auth,
         ) as resp:
@@ -1883,7 +1881,24 @@ class APIStorage(Storage):
         status: Union[ImageStatus, Type[_Unset]] = _Unset,
         builder_job_id: Union[Optional[str], Type[_Unset]] = _Unset,
     ) -> BakeImage:
-        raise NotImplementedError("FS storage doesn't support remote images")
+        image = await self.get_bake_image(bake, ref)
+
+        url = self._base_url / f"api/v1/flow/bake_images/{image.id}"
+        auth = await self._config._api_auth()
+
+        patch_data: Dict[str, Any] = {}
+        if status != _Unset:
+            patch_data["status"] = status
+        if builder_job_id != _Unset:
+            patch_data["builder_job_id"] = builder_job_id
+
+        async with self._core.request(
+            "PATCH",
+            url,
+            json=patch_data,
+            auth=auth,
+        ) as resp:
+            return BakeImage.from_primitive(await resp.json())
 
     async def _write_file(
         self, url: URL, body: str, *, overwrite: bool = False
