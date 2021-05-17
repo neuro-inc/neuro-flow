@@ -2,8 +2,7 @@
 
 ## _Live_ workflow
 
-The live workflow is always located at the `.neuro/live.yml` or `.neuro/live.yaml` file in the project's root. 
-The following YAML attributes are supported:
+The live workflow is always located at the `.neuro/live.yml` or `.neuro/live.yaml` file in the project's root. The following YAML attributes are supported:
 
 ## `kind`
 
@@ -15,7 +14,7 @@ The following YAML attributes are supported:
 
 Identifier of the workflow. By default, the `id` is `live`.
 
-**Expression contexts:** This attribute only allows expressions that don't access contexts. 
+**Expression contexts:** This attribute only allows expressions that don't access contexts.
 
 ## `title`
 
@@ -43,15 +42,14 @@ env:
 This attribute also supports dictionaries as values:
 
 ```yaml
-env: ${{ ['SERVER': 'production'] }}
+env: ${{ {'SERVER': 'production'} }}
 ```
 
 **Expression contexts:** [`flow` context](live-contexts.md#flow-context).
 
 ### `defaults.life_span`
 
-The default lifespan for jobs ran by the workflow. It can be overridden by [`jobs.<job-id>.life_span`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-life_span). If not set, the default job lifespan is 1 day. 
-The lifespan value can be one of the following:
+The default lifespan for jobs ran by the workflow. It can be overridden by [`jobs.<job-id>.life_span`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-life_span). If not set, the default job lifespan is 1 day. The lifespan value can be one of the following:
 
 * A `float` number representing the amount of seconds \(`3600` represents an hour\)
 * A string of the following format: `1d6h15m` \(1 day, 6 hours, 15 minutes\)
@@ -107,7 +105,7 @@ The attribute accepts the following values:
 
 * A `float` number representing the amount of seconds \(`3600` represents an hour\)
 * A string of the following format: `1d6h15m45s` \(1 day, 6 hours, 15 minutes, 45 seconds\)
- 
+
 The cluster-wide timeout is used if both `default.schedule_timeout` and `jobs.<job-id>.schedule_timeout` are omitted.
 
 **Example:**
@@ -130,7 +128,7 @@ defaults:
   tags: [tag-a, tag-b]
 ```
 
-This attribute supports lists and dictionaries as values.
+This attribute supports lists as values.
 
 **Expression contexts:** [`flow` context](live-contexts.md#flow-context).
 
@@ -291,7 +289,7 @@ This attribute also supports lists as values:
 ```yaml
 images:
   my_image:
-    volumes: ${{ ['ubuntu', volumes.volume_id.ref] }}
+    volumes: ${{ ['storage:folder1:/mnt/folder1:ro', volumes.volume_id.ref] }}
 ```
 
 **Expression contexts:** [`flow` context](live-contexts.md#flow-context).
@@ -305,7 +303,7 @@ Volumes can be synchronized between local and storage versions with the `neuro-f
 {% hint style="info" %}
 The `volumes` section is optional. A job can mount a volume by a direct reference string.
 
-However, this section is very handy to use in a bundle with `run`, `upload`, and `download` commands: define a volume once and refer to it everywhere by name instead of using full definition definition details.
+However, this section is very handy to use in a bundle with `run`, `upload`, and `download` commands: define a volume once and refer to it everywhere by name instead of using full definition details.
 {% endhint %}
 
 ### `volumes.<volume-id>`
@@ -645,7 +643,7 @@ The time period after which a job will be automatically killed.
 
 By default, jobs live 1 day. You may want to change this period by customizing the attribute.
 
-The value could be: 
+The value could be:
 
 * A float number representing an amount of seconds \(`3600` for an hour\) 
 * An expression in the following format: `1d6h15m` \(1 day, 6 hours, 15 minutes\) 
@@ -692,7 +690,7 @@ jobs:
     multi: true
 ```
 
-**Expression contexts:** This attribute only allows expressions that don't access contexts. 
+**Expression contexts:** This attribute only allows expressions that don't access contexts.
 
 ### `jobs.<job-id>.pass_config`
 
@@ -750,9 +748,9 @@ Use this attribute if you want to increase the _schedule timeout_. This will pre
 
 If the Neu.ro cluster has no resources to launch a job immediately, this job is pushed into the waiting queue. If the job is not started yet at the end of the _schedule timeout_, it will be failed.
 
-The default system-wide _schedule timeout_ is controlled by the cluster administrator and is usually about 5-10 minutes. 
+The default system-wide _schedule timeout_ is controlled by the cluster administrator and is usually about 5-10 minutes.
 
-The value of this attribute can be: 
+The value of this attribute can be:
 
 * A `float` number representing an amount of seconds 
 * A string in the following format: `1d6h15m45s` \(1 day, 6 hours, 15 minutes, 45 seconds\)
@@ -845,7 +843,7 @@ The attributes described in this section are only applicable to action calls. An
 
 ### `jobs.<job-id>.action`
 
-A URL that selects an action to run. It supports two schemes: 
+A URL that selects an action to run. It supports two schemes:
 
 * `workspace:` or `ws:` for action files that are stored locally
 * `github:` or `gh:` for actions that are bound to a Github repository

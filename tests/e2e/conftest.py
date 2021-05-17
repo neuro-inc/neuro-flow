@@ -7,8 +7,9 @@ import pytest
 import secrets
 import shutil
 import subprocess
+from datetime import datetime, timedelta
 from neuro_sdk import login_with_token
-from typing import Any, AsyncIterator, Callable, List, Optional
+from typing import Any, AsyncIterator, Callable, Dict, List, Optional
 from yarl import URL
 
 
@@ -22,7 +23,7 @@ def assets() -> pathlib.Path:
 
 @pytest.fixture
 def project_id() -> str:
-    return f"e2e_proj_{secrets.token_hex(10)}"
+    return f"e2e_proj_{make_image_date_flag()}_{secrets.token_hex(10)}"
 
 
 @pytest.fixture
@@ -60,14 +61,16 @@ RunCLI = Callable[[List[str]], SysCap]
 
 
 @pytest.fixture
-def run_cli(loop: None, ws: pathlib.Path, api_config: Optional[pathlib.Path]) -> RunCLI:
+def _run_cli(
+    loop: None, ws: pathlib.Path, api_config: Optional[pathlib.Path]
+) -> RunCLI:
     def _run(
         arguments: List[str],
     ) -> SysCap:
         if api_config:
             os.environ["NEUROMATION_CONFIG"] = str(api_config)
         proc = subprocess.run(
-            ["neuro-flow"] + arguments,
+            arguments,
             timeout=600,
             cwd=ws,
             encoding="utf8",
@@ -84,3 +87,51 @@ def run_cli(loop: None, ws: pathlib.Path, api_config: Optional[pathlib.Path]) ->
         return SysCap(out=proc.stdout.strip(), err=proc.stderr.strip())
 
     return _run
+
+
+@pytest.fixture
+def run_cli(_run_cli: RunCLI) -> RunCLI:
+    return lambda args: _run_cli(["neuro-flow", "--show-traceback"] + args)
+
+
+@pytest.fixture
+def run_neuro_cli(_run_cli: RunCLI) -> RunCLI:
+    return lambda args: _run_cli(["neuro", "--show-traceback"] + args)
+
+
+IMAGE_DATETIME_FORMAT = "%Y%m%d%H%M"
+IMAGE_DATETIME_SEP = "_date"
+
+
+def make_image_date_flag() -> str:
+    time_str = datetime.now().strftime(IMAGE_DATETIME_FORMAT)
+    return f"{IMAGE_DATETIME_SEP}{time_str}{IMAGE_DATETIME_SEP}"
+
+
+@pytest.fixture(scope="session")
+def _drop_once_flag() -> Dict[str, bool]:
+    return {}
+
+
+@pytest.fixture(autouse=True)
+def drop_old_test_images(
+    run_neuro_cli: RunCLI, _drop_once_flag: Dict[str, bool]
+) -> None:
+    if _drop_once_flag.get("cleaned"):
+        return
+
+    res: SysCap = run_neuro_cli(["-q", "image", "ls", "--full-uri"])
+    for image_str in res.out.splitlines():
+        image_str = image_str.strip()
+        image_url = URL(image_str)
+        image_name = image_url.parts[-1]
+        try:
+            _, time_str, _ = image_name.split(IMAGE_DATETIME_SEP)
+            image_time = datetime.strptime(time_str, IMAGE_DATETIME_FORMAT)
+            if datetime.now() - image_time < timedelta(days=1):
+                continue
+            run_neuro_cli(["image", "rm", image_str])
+        except Exception:
+            pass
+
+    _drop_once_flag["cleaned"] = True

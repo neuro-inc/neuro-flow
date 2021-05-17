@@ -204,10 +204,22 @@ async def test_concat_list(client: Client) -> None:
     assert [1, 2] == await expr.eval(DictContext({}, client))  # type: ignore
 
 
+async def test_concat_empty_list(client: Client) -> None:
+    pat = "${{ [1] + [] }}"
+    expr = SequenceExpr(START, Pos(0, len(pat), FNAME), pat, int)  # type: ignore
+    assert [1] == await expr.eval(DictContext({}, client))  # type: ignore
+
+
 async def test_concat_dict(client: Client) -> None:
     pat = "${{ {'a': 1} | {'b': 2} }}"
     expr = MappingExpr(START, Pos(0, len(pat), FNAME), pat, int)  # type: ignore
     assert {"a": 1, "b": 2} == await expr.eval(DictContext({}, client))  # type: ignore
+
+
+async def test_concat_empty_dict(client: Client) -> None:
+    pat = "${{ {'a': 1} | {} }}"
+    expr = MappingExpr(START, Pos(0, len(pat), FNAME), pat, int)  # type: ignore
+    assert {"a": 1} == await expr.eval(DictContext({}, client))  # type: ignore
 
 
 async def test_list_trailing_comm(client: Client) -> None:

@@ -4,16 +4,10 @@ import asyncio
 import base64
 import datetime
 import json
+import os
 import sys
 from collections import defaultdict
-from neuro_sdk import (
-    Client,
-    Container,
-    HTTPPort,
-    JobStatus,
-    ResourceNotFound,
-    Resources,
-)
+from neuro_sdk import Client, HTTPPort, JobStatus, ResourceNotFound
 from rich.console import Console
 from rich.panel import Panel
 from rich.progress import BarColumn, Progress, TaskID, TextColumn
@@ -46,7 +40,8 @@ from .context import (
     Task,
     TaskMeta,
 )
-from .storage import Attempt, FinishedTask, StartedTask, Storage
+from .expr import EvalError
+from .storage import Attempt, Bake, FinishedTask, StartedTask, Storage, _dt2str
 from .types import AlwaysT, FullID, TaskStatus
 from .utils import (
     TERMINATED_JOB_STATUSES,
@@ -85,6 +80,28 @@ class ExecutorData:
         data = json.loads(raw_json)
         data["when"] = datetime.datetime.fromisoformat(data["when"])
         return cls(**data)
+
+    def get_bake_id(self) -> str:
+        # Todo: this is duplication with code in storage.py,
+        # remove when platform service will be added
+        return "_".join([self.batch, _dt2str(self.when), self.suffix])
+
+
+async def get_running_flow(
+    bake: Bake, client: Client, storage: Storage
+) -> RunningBatchFlow:
+    meta = await storage.fetch_configs_meta(bake)
+    config_loader = BatchRemoteCL(
+        meta,
+        load_from_storage=lambda name: storage.fetch_config(bake, name),
+        client=client,
+    )
+    return await RunningBatchFlow.create(
+        config_loader=config_loader,
+        batch=bake.batch,
+        bake_id=bake.bake_id,
+        params=bake.params,
+    )
 
 
 _T = TypeVar("_T")
@@ -242,7 +259,10 @@ class BakeTasksManager:
             dep = self._finished.get(full_id)
             if dep is None:
                 raise NotFinished(full_id)
-            needs[dep_id] = DepCtx(TaskStatus(dep.status), dep.outputs)
+            status = TaskStatus(dep.status)
+            if status == TaskStatus.CACHED:
+                status = TaskStatus.SUCCEEDED
+            needs[dep_id] = DepCtx(status, dep.outputs)
         return needs
 
     def build_state(self, prefix: FullID, state_from: Optional[str]) -> StateCtx:
@@ -315,13 +335,7 @@ class BatchExecutor:
         )
 
         console.log("Fetch configs metadata")
-        meta = await storage.fetch_configs_meta(bake)
-        config_loader = BatchRemoteCL(
-            meta,
-            load_from_storage=lambda name: storage.fetch_config(bake, name),
-            client=client,
-        )
-        flow = await RunningBatchFlow.create(config_loader, bake.batch, bake.params)
+        flow = await get_running_flow(bake, client, storage)
 
         console.log("Find last attempt")
         attempt = await storage.find_attempt(bake)
@@ -343,10 +357,10 @@ class BatchExecutor:
             ret._stop()
 
     def _start(self) -> None:
-        self._progress.start()
+        pass
 
     def _stop(self) -> None:
-        self._progress.stop()
+        pass
 
     async def _refresh_attempt(self) -> None:
         self._attempt = await self._storage.find_attempt(
@@ -387,7 +401,6 @@ class BatchExecutor:
         needs = self._tasks_mgr.build_needs(
             prefix, self._only_completed_needs(flow.graph[tid])
         )
-        assert isinstance(flow, RunningBatchFlow)
         return await flow.get_local(tid, needs=needs)
 
     async def _get_action(self, full_id: FullID) -> RunningBatchActionFlow:
@@ -471,7 +484,7 @@ class BatchExecutor:
             self._progress.log(
                 "Task", fmt_id(ft.id), fmt_raw_id(ft.raw_id), "is", TaskStatus.CACHED
             )
-            assert ft.status == TaskStatus.SUCCEEDED
+            assert ft.status == TaskStatus.CACHED
             self._mark_finished(ft, advance=3)
         else:
             st = await self._start_task(full_id, task)
@@ -523,7 +536,7 @@ class BatchExecutor:
                     if full_id in finished:
                         self._mark_finished(finished[full_id])
             for full_id in self._graphs.get_ready_to_mark_running_embeds():
-                self._mark_running(running[full_id])
+                self._mark_running(started[full_id])
             for full_id in self._graphs.get_ready_to_mark_done_embeds():
                 if full_id in finished:
                     self._mark_finished(finished[full_id])
@@ -531,8 +544,46 @@ class BatchExecutor:
     async def _should_continue(self) -> bool:
         return self._graphs.is_active
 
-    async def run(self) -> None:
+    async def run(self) -> TaskStatus:
+        with self._progress:
+            try:
+                result = await self._run()
+            except (KeyboardInterrupt, asyncio.CancelledError):
+                await self._cancel_unfinished()
+                result = TaskStatus.CANCELLED
+            except Exception as exp:
+                await self.log_error(exp)
+                await self._cancel_unfinished()
+                result = TaskStatus.FAILED
+        await self._finish_run(result)
+        return result
+
+    async def log_error(self, exp: Exception) -> None:
+        if isinstance(exp, EvalError):
+            self._progress.log(f"[red][b]ERROR:[/b] {exp}[/red]")
+        else:
+            # Looks like this is some bug in our code, so we should print stacktrace
+            # for easier debug
+            self._progress.console.print_exception(show_locals=True)
+            self._progress.log(
+                "[red][b]ERROR:[/b] Some unknown error happened. Please report "
+                "an issue to https://github.com/neuro-inc/neuro-flow/issues/new "
+                "with traceback printed above.[/red]"
+            )
+
+    async def _run(self) -> TaskStatus:
         await self._load_previous_run()
+
+        job_id = os.environ.get("NEURO_JOB_ID")
+        if job_id:
+            # store job id as executor id
+            await self._storage.store_executor_id(self._attempt, job_id)
+
+        if self._attempt.result in TERMINATED_TASK_STATUSES:
+            # If attempt is already terminated, just clean up tasks
+            # and exit
+            await self._cancel_unfinished()
+            return self._attempt.result
 
         while await self._should_continue():
             for full_id, flow in self._graphs.get_ready_with_meta():
@@ -560,15 +611,13 @@ class BatchExecutor:
                 await self._refresh_attempt()
 
                 if not ok or self._attempt.result == TaskStatus.CANCELLED:
-                    self._is_cancelling = True
-                    await self._stop_unfinished()
+                    await self._cancel_unfinished()
 
             await asyncio.sleep(self._polling_timeout)
 
-        await self._finish_run()
+        return self._accumulate_result()
 
-    async def _finish_run(self) -> None:
-        attempt_status = self._accumulate_result()
+    async def _finish_run(self, attempt_status: TaskStatus) -> None:
         if self._attempt.result not in TERMINATED_TASK_STATUSES:
             await self._storage.finish_attempt(self._attempt, attempt_status)
         self._progress.print(
@@ -578,7 +627,8 @@ class BatchExecutor:
             justify="center",
         )
 
-    async def _stop_unfinished(self) -> None:
+    async def _cancel_unfinished(self) -> None:
+        self._is_cancelling = True
         for full_id, st in self._tasks_mgr.unfinished_tasks.items():
             task = await self._get_task(full_id)
             if task.enable is not AlwaysT():
@@ -644,7 +694,7 @@ class BatchExecutor:
             st = self._tasks_mgr.started[full_id]
             self._mark_running(st)
             self._progress.log(
-                "Task",
+                "Action",
                 fmt_id(st.id),
                 fmt_raw_id(st.raw_id),
                 "is",
@@ -655,8 +705,8 @@ class BatchExecutor:
             # done action, make it finished
             ctx = await self._get_action(full_id)
 
-            needs = self._tasks_mgr.build_needs(full_id, await ctx.get_output_needs())
-            outputs = await ctx.calc_outputs(needs, is_cancelling=self._is_cancelling)
+            results = self._tasks_mgr.build_needs(full_id, ctx.graph.keys())
+            outputs = await ctx.calc_outputs(results)
 
             ft = await self._storage.finish_action(
                 self._attempt,
@@ -695,20 +745,11 @@ class BatchExecutor:
         preset_name = task.preset
         if preset_name is None:
             preset_name = next(iter(self._client.config.presets))
-        preset = self._client.config.presets[preset_name]
 
         env_dict, secret_env_dict = self._client.parse.env(
             [f"{k}={v}" for k, v in task.env.items()]
         )
-        resources = Resources(
-            memory_mb=preset.memory_mb,
-            cpu=preset.cpu,
-            gpu=preset.gpu,
-            gpu_model=preset.gpu_model,
-            shm=True,
-            tpu_type=preset.tpu_type,
-            tpu_software_version=preset.tpu_software_version,
-        )
+
         volumes_parsed = self._client.parse.volumes(task.volumes)
         volumes = list(volumes_parsed.volumes)
 
@@ -716,23 +757,20 @@ class BatchExecutor:
         if http_auth is None:
             http_auth = HTTPPort.requires_auth
 
-        container = Container(
+        job = await self._client.jobs.start(
+            shm=True,
+            tty=False,
             image=self._client.parse.remote_image(task.image),
+            preset_name=preset_name,
             entrypoint=task.entrypoint,
             command=task.cmd,
             http=HTTPPort(task.http_port, http_auth) if task.http_port else None,
-            resources=resources,
             env=env_dict,
             secret_env=secret_env_dict,
             volumes=volumes,
             working_dir=str(task.workdir) if task.workdir else None,
             secret_files=list(volumes_parsed.secret_files),
             disk_volumes=list(volumes_parsed.disk_volumes),
-            tty=False,
-        )
-        job = await self._client.jobs.run(
-            container,
-            scheduler_enabled=preset.scheduler_enabled,
             name=task.name,
             tags=list(task.tags),
             description=task.title,
@@ -773,18 +811,20 @@ class LocalsBatchExecutor(BatchExecutor):
         st = await self._storage.start_action(self._attempt, full_id)
         self._mark_started(st)
         self._progress.log(f"Local action {fmt_id(st.id)} is", TaskStatus.PENDING)
-
         subprocess = await asyncio.create_subprocess_shell(
             local.cmd,
             stdout=asyncio.subprocess.PIPE,
-            cwd=local.workdir,
+            stderr=asyncio.subprocess.PIPE,
+            cwd=self._top_flow.workspace,
         )
         (stdout_data, stderr_data) = await subprocess.communicate()
         async with CmdProcessor() as proc:
             async for line in proc.feed_chunk(stdout_data):
-                self._progress.log(line)
+                self._progress.log(line.decode())
             async for line in proc.feed_eof():
-                self._progress.log(line)
+                self._progress.log(line.decode())
+        if stderr_data:
+            self._progress.log(stderr_data.decode())
         if subprocess.returncode == 0:
             result_status = TaskStatus.SUCCEEDED
         else:
@@ -807,17 +847,21 @@ class LocalsBatchExecutor(BatchExecutor):
         for key, value in ft.outputs.items():
             self._progress.log(f"  {key}: {value}")
 
-    async def _process_action(self, full_id: FullID) -> None:
-        pass  # Skip for local
-
     async def _process_task(self, full_id: FullID) -> None:
         pass  # Skip for local
 
     async def _should_continue(self) -> bool:
         for full_id, flow in self._graphs.get_ready_with_meta():
             if await flow.is_local(full_id[-1]):
-                return True
+                return True  # Has local action
+            if (
+                await flow.is_action(full_id[-1])
+                and full_id not in self._tasks_mgr.started
+            ):
+                return True  # Has unchecked batch action
         return False
 
-    async def _finish_run(self) -> None:
-        pass  # Do nothing for locals run
+    async def _finish_run(self, attempt_status: TaskStatus) -> None:
+        # Only process failures during local run
+        if attempt_status != TaskStatus.SUCCEEDED:
+            await super()._finish_run(attempt_status)

@@ -24,8 +24,6 @@ The `env` context syntax allows you to use the value of an environment variable 
 | :--- | :--- | :--- |
 | `env.<env-name>` | `str` | The value of a specific environment variable. |
 
-This context also allows using dictionaries to specify multiple variables at once.
-
 ### `flow` context
 
 The `flow` context contains information about the workflow: its id, title, etc.
@@ -71,7 +69,8 @@ Contains information about images defined in the [`images` section](live-workflo
       </td>
       <td style="text-align:left">
         <p>The context directory used for building the image or <code>None</code> if
-          the context is not set. The path is relative to the project's root (<code>flow.workspace</code> property).</p>
+          the context is not set. The path is relative to the project&apos;s root
+          (<code>flow.workspace</code> property).</p>
         <p>For more information, see <a href="live-workflow-syntax.md#images-less-than-image-id-greater-than-context"><code>images.&lt;image-id&gt;.context</code> attribute</a>.</p>
       </td>
     </tr>
@@ -187,8 +186,6 @@ Tags are combined from system tags \(`project:<project-id>`, `job:<job-id>`\), f
 | :--- | :--- | :--- |
 | `tags` | `set[str]` | This context changes for each job. You can access this context from any job. |
 
-This context also allows using lists to specify multiple tags at once.
-
 ### `volumes` context
 
 Contains information about volumes defined in the [`volumes` section ](live-workflow-syntax.md#volumes) of a _live_ workflow.
@@ -243,8 +240,8 @@ Contains information about volumes defined in the [`volumes` section ](live-work
       <td style="text-align:left"><code>LocalPath</code>or <code>None</code>
       </td>
       <td style="text-align:left">
-        <p>A path in the workspace folder to synchronize with remote Neu.ro storage or <code>None</code> if
-          not set.</p>
+        <p>A path in the workspace folder to synchronize with remote Neu.ro storage
+          or <code>None</code> if not set.</p>
         <p>For more information, see <a href="live-workflow-syntax.md#volumes-less-than-volume-id-greater-than-local"><code>volumes.&lt;volume-id&gt;.local</code> attribute</a>.</p>
       </td>
     </tr>

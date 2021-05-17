@@ -1,5 +1,6 @@
 import pathlib
 import pytest
+from datetime import timedelta
 from neuro_sdk import Client
 from textwrap import dedent
 from typing import Mapping, Optional
@@ -159,7 +160,11 @@ async def test_job(live_config_loader: ConfigLoader) -> None:
     assert job.entrypoint == "bash"
     assert job.cmd == "echo abc"
     assert job.workdir == RemotePath("/local/dir")
-    assert job.volumes == ["storage:dir:/var/dir:ro", "storage:dir:/var/dir:ro"]
+    assert job.volumes == [
+        "storage:common:/mnt/common:rw",
+        "storage:dir:/var/dir:ro",
+        "storage:dir:/var/dir:ro",
+    ]
     assert job.tags == {
         "tag-1",
         "tag-2",
@@ -182,15 +187,18 @@ async def test_bad_expr_type_after_eval(live_config_loader: ConfigLoader) -> Non
 
     with pytest.raises(EvalError) as cm:
         await flow.get_job("test", {})
+    config_file = live_config_loader.workspace / "live-bad-expr-type-after-eval.yml"
     assert str(cm.value) == dedent(
-        """\
+        f"""\
         invalid literal for int() with base 10: 'abc def'
-          in line 5, column 19"""
+          in "{config_file}", line 6, column 20"""
     )
 
 
 async def test_pipeline_minimal_ctx(batch_config_loader: ConfigLoader) -> None:
-    flow = await RunningBatchFlow.create(batch_config_loader, "batch-minimal")
+    flow = await RunningBatchFlow.create(
+        batch_config_loader, "batch-minimal", "bake-id"
+    )
     task = await flow.get_task((), "test_a", needs={}, state={})
     assert task.id == "test_a"
     assert task.title == "Batch title"
@@ -202,7 +210,11 @@ async def test_pipeline_minimal_ctx(batch_config_loader: ConfigLoader) -> None:
     assert task.entrypoint == "bash"
     assert task.cmd == "echo abc"
     assert task.workdir == RemotePath("/local/dir")
-    assert task.volumes == ["storage:dir:/var/dir:ro", "storage:dir:/var/dir:ro"]
+    assert task.volumes == [
+        "storage:common:/mnt/common:rw",
+        "storage:dir:/var/dir:ro",
+        "storage:dir:/var/dir:ro",
+    ]
     assert task.tags == {
         "tag-1",
         "tag-2",
@@ -211,6 +223,7 @@ async def test_pipeline_minimal_ctx(batch_config_loader: ConfigLoader) -> None:
         "task:test-a",
         "project:unit",
         "flow:batch-minimal",
+        "bake_id:bake-id",
     }
     assert task.life_span == 10500.0
     assert task.strategy.max_parallel == 10
@@ -220,7 +233,7 @@ async def test_pipeline_minimal_ctx(batch_config_loader: ConfigLoader) -> None:
 
 
 async def test_pipeline_seq(batch_config_loader: ConfigLoader) -> None:
-    flow = await RunningBatchFlow.create(batch_config_loader, "batch-seq")
+    flow = await RunningBatchFlow.create(batch_config_loader, "batch-seq", "bake-id")
 
     task = await flow.get_task(
         (), "task-2", needs={"task-1": DepCtx(TaskStatus.SUCCEEDED, {})}, state={}
@@ -236,7 +249,13 @@ async def test_pipeline_seq(batch_config_loader: ConfigLoader) -> None:
     assert task.cmd == "bash -euo pipefail -c 'echo def'"
     assert task.workdir is None
     assert task.volumes == []
-    assert task.tags == {"project:unit", "flow:batch-seq", "task:task-2"}
+    assert task.tags == {
+        "project:unit",
+        "flow:batch-seq",
+        "task:task-2",
+        "bake_id:bake-id",
+        "bake_id:bake-id",
+    }
     assert task.life_span is None
     assert task.strategy.max_parallel == 10
     assert task.strategy.fail_fast
@@ -245,7 +264,7 @@ async def test_pipeline_seq(batch_config_loader: ConfigLoader) -> None:
 
 
 async def test_pipeline_needs(batch_config_loader: ConfigLoader) -> None:
-    flow = await RunningBatchFlow.create(batch_config_loader, "batch-needs")
+    flow = await RunningBatchFlow.create(batch_config_loader, "batch-needs", "bake-id")
 
     task = await flow.get_task(
         (), "task-2", needs={"task_a": DepCtx(TaskStatus.SUCCEEDED, {})}, state={}
@@ -261,7 +280,12 @@ async def test_pipeline_needs(batch_config_loader: ConfigLoader) -> None:
     assert task.cmd == "bash -euo pipefail -c 'echo def'"
     assert task.workdir is None
     assert task.volumes == []
-    assert task.tags == {"project:unit", "flow:batch-needs", "task:task-2"}
+    assert task.tags == {
+        "project:unit",
+        "flow:batch-needs",
+        "task:task-2",
+        "bake_id:bake-id",
+    }
     assert task.life_span is None
     assert task.strategy.max_parallel == 10
     assert task.strategy.fail_fast
@@ -270,7 +294,7 @@ async def test_pipeline_needs(batch_config_loader: ConfigLoader) -> None:
 
 
 async def test_pipeline_matrix(batch_config_loader: ConfigLoader) -> None:
-    flow = await RunningBatchFlow.create(batch_config_loader, "batch-matrix")
+    flow = await RunningBatchFlow.create(batch_config_loader, "batch-matrix", "bake-id")
 
     assert flow.graph == {
         "task-1-o3-t3": {},
@@ -298,7 +322,12 @@ async def test_pipeline_matrix(batch_config_loader: ConfigLoader) -> None:
         assert task.cmd == "echo abc"
         assert task.workdir is None
         assert task.volumes == []
-        assert task.tags == {"project:unit", "flow:batch-matrix", f"task:{task_id}"}
+        assert task.tags == {
+            "project:unit",
+            "flow:batch-matrix",
+            f"task:{task_id}",
+            "bake_id:bake-id",
+        }
         assert task.life_span is None
         assert task.strategy.max_parallel == 10
         assert task.strategy.fail_fast
@@ -306,7 +335,7 @@ async def test_pipeline_matrix(batch_config_loader: ConfigLoader) -> None:
 
 async def test_pipeline_matrix_with_strategy(batch_config_loader: ConfigLoader) -> None:
     flow = await RunningBatchFlow.create(
-        batch_config_loader, "batch-matrix-with-strategy"
+        batch_config_loader, "batch-matrix-with-strategy", "bake-id"
     )
 
     assert flow.graph == {
@@ -354,6 +383,7 @@ async def test_pipeline_matrix_with_strategy(batch_config_loader: ConfigLoader) 
         "project:unit",
         "flow:batch-matrix-with-strategy",
         "task:task-1-o3-t3",
+        "bake_id:bake-id",
     }
     assert task.life_span is None
 
@@ -366,7 +396,9 @@ async def test_pipeline_matrix_with_strategy(batch_config_loader: ConfigLoader) 
 
 
 async def test_pipeline_matrix_2(batch_config_loader: ConfigLoader) -> None:
-    flow = await RunningBatchFlow.create(batch_config_loader, "batch-matrix-with-deps")
+    flow = await RunningBatchFlow.create(
+        batch_config_loader, "batch-matrix-with-deps", "bake-id"
+    )
 
     assert flow.graph == {
         "task-2-a-1": {"task_a": ast.NeedsLevel.COMPLETED},
@@ -405,6 +437,7 @@ async def test_pipeline_matrix_2(batch_config_loader: ConfigLoader) -> None:
         "project:unit",
         "flow:batch-matrix-with-deps",
         "task:task-2-a-1",
+        "bake_id:bake-id",
     }
     assert task.life_span is None
 
@@ -412,6 +445,19 @@ async def test_pipeline_matrix_2(batch_config_loader: ConfigLoader) -> None:
         strategy=ast.CacheStrategy.DEFAULT,
         life_span=1209600,
     )
+
+
+async def test_pipeline_matrix_with_doubles(batch_config_loader: ConfigLoader) -> None:
+    flow = await RunningBatchFlow.create(
+        batch_config_loader, "batch-matrix-doubles", "bake-id"
+    )
+
+    assert flow.graph == {
+        "task_0_1__0_3": {},
+        "task_0_1__0_5": {},
+        "task_0_2__0_3": {},
+        "task_0_2__0_5": {},
+    }
 
 
 async def test_pipeline_matrix_incomplete_include(
@@ -423,12 +469,12 @@ async def test_pipeline_matrix_incomplete_include(
         r"are not the same as matrix keys: missing keys: param2",
     ):
         await RunningBatchFlow.create(
-            batch_config_loader, "batch-matrix-incomplete-include"
+            batch_config_loader, "batch-matrix-incomplete-include", "bake-id"
         )
 
 
 async def test_pipeline_args_defautls_only(batch_config_loader: ConfigLoader) -> None:
-    flow = await RunningBatchFlow.create(batch_config_loader, "batch-params")
+    flow = await RunningBatchFlow.create(batch_config_loader, "batch-params", "bake-id")
     ctx = flow._ctx
 
     assert ctx.params == {"arg1": "val1", "arg2": "val2"}
@@ -436,7 +482,7 @@ async def test_pipeline_args_defautls_only(batch_config_loader: ConfigLoader) ->
 
 async def test_pipeline_args_replaced(batch_config_loader: ConfigLoader) -> None:
     flow = await RunningBatchFlow.create(
-        batch_config_loader, "batch-params", {"arg1": "new-val"}
+        batch_config_loader, "batch-params", "bake-id", {"arg1": "new-val"}
     )
     ctx = flow._ctx
 
@@ -446,7 +492,7 @@ async def test_pipeline_args_replaced(batch_config_loader: ConfigLoader) -> None
 async def test_pipeline_args_extra(batch_config_loader: ConfigLoader) -> None:
     with pytest.raises(ValueError, match=r"Unsupported arg\(s\): arg3"):
         await RunningBatchFlow.create(
-            batch_config_loader, "batch-params", {"arg3": "new-val"}
+            batch_config_loader, "batch-params", "bake-id", {"arg3": "new-val"}
         )
 
 
@@ -456,12 +502,14 @@ async def test_pipeline_args_missing_required(
     with pytest.raises(
         EvalError, match=r"Param arg2 is not initialized and has no default value"
     ):
-        await RunningBatchFlow.create(batch_config_loader, "batch-params-required", {})
+        await RunningBatchFlow.create(
+            batch_config_loader, "batch-params-required", "bake-id", {}
+        )
 
 
 async def test_pipeline_args_required_set(batch_config_loader: ConfigLoader) -> None:
     flow = await RunningBatchFlow.create(
-        batch_config_loader, "batch-params-required", {"arg2": "val2"}
+        batch_config_loader, "batch-params-required", "bake-id", {"arg2": "val2"}
     )
     ctx = flow._ctx
 
@@ -469,7 +517,9 @@ async def test_pipeline_args_required_set(batch_config_loader: ConfigLoader) -> 
 
 
 async def test_batch_action_default(batch_config_loader: ConfigLoader) -> None:
-    flow = await RunningBatchFlow.create(batch_config_loader, "batch-action-call")
+    flow = await RunningBatchFlow.create(
+        batch_config_loader, "batch-action-call", "bake-id"
+    )
     flow2 = await flow.get_action("test", needs={})
     ctx = flow2._ctx
     assert ctx.inputs == {"arg1": "val 1", "arg2": "value 2"}
@@ -516,7 +566,7 @@ async def test_setup_inputs_ctx(
     batch_config_loader: ConfigLoader,
 ) -> None:
 
-    with pytest.raises(EvalError, match=r"Unsupported input\(s\): other,unknown"):
+    with pytest.raises(EvalError, match=r"Required input\(s\): expected"):
         await setup_inputs_ctx(
             EMPTY_ROOT,
             _make_ast_call({"other": "1", "unknown": "2"}),
@@ -583,7 +633,7 @@ async def test_local_call_with_cache_invalid(
         match=r"Specifying cache in action call to the action "
         r"ws:cp of kind local is not supported.",
     ):
-        await RunningBatchFlow.create(cl, "bad-call-with-cache", {})
+        await RunningBatchFlow.create(cl, "bad-call-with-cache", "bake-id", {})
 
 
 async def test_stateful_call_with_cache_invalid(
@@ -601,7 +651,7 @@ async def test_stateful_call_with_cache_invalid(
         match=r"Specifying cache in action call to the action "
         r"ws:with-state of kind stateful is not supported.",
     ):
-        await RunningBatchFlow.create(cl, "bad-call-with-cache", {})
+        await RunningBatchFlow.create(cl, "bad-call-with-cache", "bake-id", {})
 
 
 async def test_job_with_live_action(live_config_loader: ConfigLoader) -> None:
@@ -659,7 +709,7 @@ async def test_job_with_params(live_config_loader: ConfigLoader) -> None:
 async def test_pipeline_enable_default_no_needs(
     batch_config_loader: ConfigLoader,
 ) -> None:
-    flow = await RunningBatchFlow.create(batch_config_loader, "batch-enable")
+    flow = await RunningBatchFlow.create(batch_config_loader, "batch-enable", "bake-id")
     meta = await flow.get_meta("task_a", needs={}, state={})
 
     assert meta.enable
@@ -668,21 +718,21 @@ async def test_pipeline_enable_default_no_needs(
 async def test_pipeline_enable_default_with_needs(
     batch_config_loader: ConfigLoader,
 ) -> None:
-    flow = await RunningBatchFlow.create(batch_config_loader, "batch-needs")
+    flow = await RunningBatchFlow.create(batch_config_loader, "batch-needs", "bake-id")
     meta = await flow.get_meta(
         "task-2", needs={"task_a": DepCtx(TaskStatus.FAILED, {})}, state={}
     )
 
     assert not meta.enable
 
-    flow = await RunningBatchFlow.create(batch_config_loader, "batch-needs")
+    flow = await RunningBatchFlow.create(batch_config_loader, "batch-needs", "bake-id")
     meta = await flow.get_meta(
         "task-2", needs={"task_a": DepCtx(TaskStatus.SKIPPED, {})}, state={}
     )
 
     assert not meta.enable
 
-    flow = await RunningBatchFlow.create(batch_config_loader, "batch-needs")
+    flow = await RunningBatchFlow.create(batch_config_loader, "batch-needs", "bake-id")
     meta = await flow.get_meta(
         "task-2", needs={"task_a": DepCtx(TaskStatus.SUCCEEDED, {})}, state={}
     )
@@ -691,21 +741,21 @@ async def test_pipeline_enable_default_with_needs(
 
 
 async def test_pipeline_enable_success(batch_config_loader: ConfigLoader) -> None:
-    flow = await RunningBatchFlow.create(batch_config_loader, "batch-enable")
+    flow = await RunningBatchFlow.create(batch_config_loader, "batch-enable", "bake-id")
     meta = await flow.get_meta(
         "task-2", needs={"task_a": DepCtx(TaskStatus.FAILED, {})}, state={}
     )
 
     assert not meta.enable
 
-    flow = await RunningBatchFlow.create(batch_config_loader, "batch-enable")
+    flow = await RunningBatchFlow.create(batch_config_loader, "batch-enable", "bake-id")
     meta = await flow.get_meta(
         "task-2", needs={"task_a": DepCtx(TaskStatus.SKIPPED, {})}, state={}
     )
 
     assert not meta.enable
 
-    flow = await RunningBatchFlow.create(batch_config_loader, "batch-enable")
+    flow = await RunningBatchFlow.create(batch_config_loader, "batch-enable", "bake-id")
     meta = await flow.get_meta(
         "task-2", needs={"task_a": DepCtx(TaskStatus.SUCCEEDED, {})}, state={}
     )
@@ -715,7 +765,9 @@ async def test_pipeline_enable_success(batch_config_loader: ConfigLoader) -> Non
 
 async def test_pipeline_with_batch_action(batch_config_loader: ConfigLoader) -> None:
 
-    flow = await RunningBatchFlow.create(batch_config_loader, "batch-action-call")
+    flow = await RunningBatchFlow.create(
+        batch_config_loader, "batch-action-call", "bake-id"
+    )
 
     assert await flow.is_action("test")
     flow2 = await flow.get_action("test", needs={})
@@ -734,7 +786,12 @@ async def test_pipeline_with_batch_action(batch_config_loader: ConfigLoader) -> 
     )
     assert task.workdir is None
     assert task.volumes == []
-    assert task.tags == {"project:unit", "flow:batch-action-call", "task:test.task-1"}
+    assert task.tags == {
+        "project:unit",
+        "flow:batch-action-call",
+        "task:test.task-1",
+        "bake_id:bake-id",
+    }
     assert task.life_span is None
     assert task.strategy.max_parallel == 10
     assert task.strategy.fail_fast
@@ -745,14 +802,22 @@ async def test_pipeline_with_batch_action(batch_config_loader: ConfigLoader) -> 
     }
 
 
-async def test_pipeline_with_batch_action_bad_output_needs(
+async def test_wrong_needs(
+    batch_config_loader: ConfigLoader,
+) -> None:
+    with pytest.raises(
+        EvalError,
+        match=r"Task task-2 needs unknown task something_wrong.*",
+    ):
+        await RunningBatchFlow.create(
+            batch_config_loader, "batch-wrong-need", "bake-id"
+        )
+
+
+async def test_pipeline_life_span(
     batch_config_loader: ConfigLoader,
 ) -> None:
     flow = await RunningBatchFlow.create(
-        batch_config_loader, "batch-action-call-bad-output-needs"
+        batch_config_loader, "batch-life-span", "bake-id"
     )
-    with pytest.raises(
-        EvalError, match=r"Action does not contain task 'task_2_bad_suffix'"
-    ):
-        assert await flow.is_action("test")
-        await flow.get_action_early("test")
+    assert flow.life_span == timedelta(days=30)

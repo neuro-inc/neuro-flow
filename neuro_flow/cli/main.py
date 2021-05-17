@@ -11,6 +11,7 @@ from neuro_flow.cli import batch, completion, images, live, storage
 from neuro_flow.parser import ConfigDir, find_workspace
 from neuro_flow.types import LocalPath
 
+from ..expr import MultiEvalError
 from .root import Root
 
 
@@ -46,10 +47,10 @@ def setup_logging(color: bool, verbosity: int) -> None:
     handler.setLevel(loglevel)
 
 
-class MainGroup(click.Group):
+class MainGroup(click.Group):  # type: ignore
     def _process_args(
         self,
-        ctx: click.Context,
+        ctx: click.Context,  # type: ignore
         config: Optional[str],
         fake_workspace: bool,
         verbose: int,
@@ -66,21 +67,27 @@ class MainGroup(click.Group):
 
         console = Console(highlight=False, log_path=False)
 
-        setup_logging(color=bool(console.color_system), verbosity=verbose - quiet)
+        verbosity = verbose - quiet
+        setup_logging(color=bool(console.color_system), verbosity=verbosity)
 
         global LOG_ERROR
         if show_traceback:
             LOG_ERROR = log.exception
 
-        ctx.obj = Root(config_dir=config_dir, console=console)
+        ctx.obj = Root(
+            config_dir=config_dir,
+            console=console,
+            verbosity=verbosity,
+            show_traceback=show_traceback,
+        )
 
     def make_context(
         self,
         info_name: str,
         args: List[str],
-        parent: Optional[click.Context] = None,
+        parent: Optional[click.Context] = None,  # type: ignore
         **extra: Any,
-    ) -> click.Context:
+    ) -> click.Context:  # type: ignore
         ctx = super().make_context(info_name, args, parent, **extra)
         kwargs = {}
         for param in self.params:
@@ -96,10 +103,10 @@ class MainGroup(click.Group):
         return ctx
 
 
-@click.group(cls=MainGroup)
-@click.option(
+@click.group(cls=MainGroup)  # type: ignore
+@click.option(  # type: ignore
     "--config",
-    type=click.Path(dir_okay=True, file_okay=False),
+    type=click.Path(dir_okay=True, file_okay=False),  # type: ignore
     required=False,
     help=(
         "Path to a directory with .neuro folder inside, "
@@ -108,7 +115,7 @@ class MainGroup(click.Group):
     default=None,
     metavar="PATH",
 )
-@click.option(
+@click.option(  # type: ignore
     "-v",
     "--verbose",
     count=True,
@@ -116,7 +123,7 @@ class MainGroup(click.Group):
     default=0,
     help="Give more output. Option is additive, and can be used up to 2 times.",
 )
-@click.option(
+@click.option(  # type: ignore
     "-q",
     "--quiet",
     count=True,
@@ -124,19 +131,19 @@ class MainGroup(click.Group):
     default=0,
     help="Give less output. Option is additive, and can be used up to 2 times.",
 )
-@click.option(
+@click.option(  # type: ignore
     "--show-traceback",
     is_flag=True,
     help="Show python traceback on error, useful for debugging the tool.",
 )
-@click.option(
+@click.option(  # type: ignore
     "--fake-workspace",
     hidden=True,
     is_flag=True,
     default=False,
     required=False,
 )
-@click.version_option(
+@click.version_option(  # type: ignore
     version=neuro_flow.__version__, message="neuro-flow package version: %(version)s"
 )
 def cli(
@@ -185,14 +192,19 @@ def main(args: Optional[List[str]] = None) -> None:
     except ClickAbort:
         LOG_ERROR("Aborting.")
         sys.exit(130)
-    except click.ClickException as e:
+    except click.ClickException as e:  # type: ignore
         e.show()
         sys.exit(e.exit_code)
     except ClickExit as e:
-        sys.exit(e.exit_code)  # type: ignore
+        sys.exit(e.exit_code)
 
     except SystemExit:
         raise
+
+    except MultiEvalError as e:
+        for error in e.errors:
+            LOG_ERROR(f"{error}")
+        sys.exit(1)
 
     except Exception as e:
         LOG_ERROR(f"{e}")

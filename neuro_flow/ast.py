@@ -196,6 +196,7 @@ class FlowDefaults(Base):
     tags: Optional[BaseExpr[SequenceT]] = field(metadata={"allow_none": True})
 
     env: Optional[BaseExpr[MappingT]] = field(metadata={"allow_none": True})
+    volumes: Optional[BaseExpr[SequenceT]] = field(metadata={"allow_none": True})
     workdir: OptRemotePathExpr
 
     life_span: OptTimeDeltaExpr
@@ -232,6 +233,7 @@ class LiveFlow(BaseFlow):
 @dataclass(frozen=True)
 class BatchFlow(BaseFlow):
     # self.kind == Kind.Batch
+    life_span: OptTimeDeltaExpr = field(metadata={"allow_none": True})
     params: Optional[Mapping[str, Param]] = field(metadata={"allow_none": True})
     tasks: Sequence[Union[Task, TaskActionCall]]
 
@@ -280,7 +282,6 @@ class LiveAction(BaseAction):
 class BatchActionOutputs(Base):
     # AST class is slightly different from YAML representation,
     # in YAML `values` mapping is embedded into the outputs itself.
-    needs: Sequence[IdExpr]
     values: Optional[Mapping[str, Output]] = field(metadata={"allow_none": True})
 
 

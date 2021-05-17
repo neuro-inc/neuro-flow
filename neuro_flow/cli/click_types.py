@@ -9,7 +9,7 @@ from typing import Callable, Generic, List, Optional, Sequence, Tuple, TypeVar, 
 from neuro_flow.batch_runner import BatchRunner
 from neuro_flow.cli.root import Root
 from neuro_flow.live_runner import LiveRunner
-from neuro_flow.storage import FSStorage, NeuroStorageFS, Storage
+from neuro_flow.storage import APIStorage, NeuroStorageFS, Storage
 
 
 if sys.version_info >= (3, 7):
@@ -20,9 +20,12 @@ else:
 _T = TypeVar("_T")
 
 
-class AsyncType(click.ParamType, Generic[_T], abc.ABC):
+class AsyncType(click.ParamType, Generic[_T], abc.ABC):  # type: ignore
     def convert(
-        self, value: str, param: Optional[click.Parameter], ctx: Optional[click.Context]
+        self,
+        value: str,
+        param: Optional[click.Parameter],  # type: ignore
+        ctx: Optional[click.Context],  # type: ignore
     ) -> _T:
         assert ctx is not None
         root = cast(Root, ctx.obj)
@@ -34,13 +37,13 @@ class AsyncType(click.ParamType, Generic[_T], abc.ABC):
         self,
         root: Root,
         value: str,
-        param: Optional[click.Parameter],
-        ctx: Optional[click.Context],
+        param: Optional[click.Parameter],  # type: ignore
+        ctx: Optional[click.Context],  # type: ignore
     ) -> _T:
         pass
 
     def complete(
-        self, ctx: click.Context, args: Sequence[str], incomplete: str
+        self, ctx: click.Context, args: Sequence[str], incomplete: str  # type: ignore
     ) -> List[Tuple[str, Optional[str]]]:
         root = cast(Root, ctx.obj)
         with Runner() as runner:
@@ -48,7 +51,11 @@ class AsyncType(click.ParamType, Generic[_T], abc.ABC):
 
     @abc.abstractmethod
     async def async_complete(
-        self, root: Root, ctx: click.Context, args: Sequence[str], incomplete: str
+        self,
+        root: Root,
+        ctx: click.Context,  # type: ignore
+        args: Sequence[str],
+        incomplete: str,
     ) -> List[Tuple[str, Optional[str]]]:
         pass
 
@@ -63,25 +70,25 @@ class LiveJobType(AsyncType[str]):
         self,
         root: Root,
         value: str,
-        param: Optional[click.Parameter],
-        ctx: Optional[click.Context],
+        param: Optional[click.Parameter],  # type: ignore
+        ctx: Optional[click.Context],  # type: ignore
     ) -> str:
         return value
 
     async def async_complete(  # type: ignore[return]
         self,
         root: Root,
-        ctx: click.Context,
+        ctx: click.Context,  # type: ignore
         args: Sequence[str],
         incomplete: str,
     ) -> List[Tuple[str, Optional[str]]]:
         async with AsyncExitStack() as stack:
             client = await stack.enter_async_context(neuro_sdk.get())
             storage: Storage = await stack.enter_async_context(
-                FSStorage(NeuroStorageFS(client))
+                APIStorage(client, NeuroStorageFS(client))
             )
             runner = await stack.enter_async_context(
-                LiveRunner(root.config_dir, root.console, client, storage)
+                LiveRunner(root.config_dir, root.console, client, storage, root)
             )
             variants = list(runner.flow.job_ids)
             if self._allow_all:
@@ -105,15 +112,15 @@ class LiveJobSuffixType(AsyncType[str]):
         self,
         root: Root,
         value: str,
-        param: Optional[click.Parameter],
-        ctx: Optional[click.Context],
+        param: Optional[click.Parameter],  # type: ignore
+        ctx: Optional[click.Context],  # type: ignore
     ) -> str:
         return value
 
     async def async_complete(  # type: ignore[return]
         self,
         root: Root,
-        ctx: click.Context,
+        ctx: click.Context,  # type: ignore
         args: Sequence[str],
         incomplete: str,
     ) -> List[Tuple[str, Optional[str]]]:
@@ -121,10 +128,10 @@ class LiveJobSuffixType(AsyncType[str]):
         async with AsyncExitStack() as stack:
             client = await stack.enter_async_context(neuro_sdk.get())
             storage: Storage = await stack.enter_async_context(
-                FSStorage(NeuroStorageFS(client))
+                APIStorage(client, NeuroStorageFS(client))
             )
             runner = await stack.enter_async_context(
-                LiveRunner(root.config_dir, root.console, client, storage)
+                LiveRunner(root.config_dir, root.console, client, storage, root)
             )
             return [
                 (suffix, None)
@@ -146,25 +153,25 @@ class LiveImageType(AsyncType[str]):
         self,
         root: Root,
         value: str,
-        param: Optional[click.Parameter],
-        ctx: Optional[click.Context],
+        param: Optional[click.Parameter],  # type: ignore
+        ctx: Optional[click.Context],  # type: ignore
     ) -> str:
         return value
 
     async def async_complete(  # type: ignore[return]
         self,
         root: Root,
-        ctx: click.Context,
+        ctx: click.Context,  # type: ignore
         args: Sequence[str],
         incomplete: str,
     ) -> List[Tuple[str, Optional[str]]]:
         async with AsyncExitStack() as stack:
             client = await stack.enter_async_context(neuro_sdk.get())
             storage: Storage = await stack.enter_async_context(
-                FSStorage(NeuroStorageFS(client))
+                APIStorage(client, NeuroStorageFS(client))
             )
             runner = await stack.enter_async_context(
-                LiveRunner(root.config_dir, root.console, client, storage)
+                LiveRunner(root.config_dir, root.console, client, storage, root)
             )
             variants = [
                 image
@@ -189,25 +196,25 @@ class LiveVolumeType(AsyncType[str]):
         self,
         root: Root,
         value: str,
-        param: Optional[click.Parameter],
-        ctx: Optional[click.Context],
+        param: Optional[click.Parameter],  # type: ignore
+        ctx: Optional[click.Context],  # type: ignore
     ) -> str:
         return value
 
     async def async_complete(  # type: ignore[return]
         self,
         root: Root,
-        ctx: click.Context,
+        ctx: click.Context,  # type: ignore
         args: Sequence[str],
         incomplete: str,
     ) -> List[Tuple[str, Optional[str]]]:
         async with AsyncExitStack() as stack:
             client = await stack.enter_async_context(neuro_sdk.get())
             storage: Storage = await stack.enter_async_context(
-                FSStorage(NeuroStorageFS(client))
+                APIStorage(client, NeuroStorageFS(client))
             )
             runner = await stack.enter_async_context(
-                LiveRunner(root.config_dir, root.console, client, storage)
+                LiveRunner(root.config_dir, root.console, client, storage, root)
             )
             variants = [
                 volume.id
@@ -232,15 +239,15 @@ class BatchType(AsyncType[str]):
         self,
         root: Root,
         value: str,
-        param: Optional[click.Parameter],
-        ctx: Optional[click.Context],
+        param: Optional[click.Parameter],  # type: ignore
+        ctx: Optional[click.Context],  # type: ignore
     ) -> str:
         return value
 
     async def async_complete(
         self,
         root: Root,
-        ctx: click.Context,
+        ctx: click.Context,  # type: ignore
         args: Sequence[str],
         incomplete: str,
     ) -> List[Tuple[str, Optional[str]]]:
@@ -266,15 +273,15 @@ class BakeType(AsyncType[str]):
         self,
         root: Root,
         value: str,
-        param: Optional[click.Parameter],
-        ctx: Optional[click.Context],
+        param: Optional[click.Parameter],  # type: ignore
+        ctx: Optional[click.Context],  # type: ignore
     ) -> str:
         return value
 
     async def async_complete(
         self,
         root: Root,
-        ctx: click.Context,
+        ctx: click.Context,  # type: ignore
         args: Sequence[str],
         incomplete: str,
     ) -> List[Tuple[str, Optional[str]]]:
@@ -282,14 +289,16 @@ class BakeType(AsyncType[str]):
         async with AsyncExitStack() as stack:
             client = await stack.enter_async_context(neuro_sdk.get())
             storage: Storage = await stack.enter_async_context(
-                FSStorage(NeuroStorageFS(client))
+                APIStorage(client, NeuroStorageFS(client))
             )
             runner: BatchRunner = await stack.enter_async_context(
-                BatchRunner(root.config_dir, root.console, client, storage)
+                BatchRunner(root.config_dir, root.console, client, storage, root)
             )
             try:
                 async for bake in runner.get_bakes():
                     variants.append(bake.bake_id)
+                    if bake.name is not None:
+                        variants.append(bake.name)
             except ValueError:
                 pass
         return [(bake, None) for bake in variants if bake.startswith(incomplete)]
@@ -318,15 +327,15 @@ class BakeTaskType(AsyncType[str]):
         self,
         root: Root,
         value: str,
-        param: Optional[click.Parameter],
-        ctx: Optional[click.Context],
+        param: Optional[click.Parameter],  # type: ignore
+        ctx: Optional[click.Context],  # type: ignore
     ) -> str:
         return value
 
     async def async_complete(
         self,
         root: Root,
-        ctx: click.Context,
+        ctx: click.Context,  # type: ignore
         args: Sequence[str],
         incomplete: str,
     ) -> List[Tuple[str, Optional[str]]]:
@@ -336,10 +345,10 @@ class BakeTaskType(AsyncType[str]):
         async with AsyncExitStack() as stack:
             client = await stack.enter_async_context(neuro_sdk.get())
             storage: Storage = await stack.enter_async_context(
-                FSStorage(NeuroStorageFS(client))
+                APIStorage(client, NeuroStorageFS(client))
             )
             runner: BatchRunner = await stack.enter_async_context(
-                BatchRunner(root.config_dir, root.console, client, storage)
+                BatchRunner(root.config_dir, root.console, client, storage, root)
             )
             attempt = await runner.get_bake_attempt(bake_id, attempt_no=attempt_no)
             started, finished = await storage.fetch_attempt(attempt)

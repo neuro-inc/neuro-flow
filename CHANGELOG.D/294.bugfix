@@ -1,1 +1,0 @@
-Added proper error message for the hosted on GitHub actions, which reference is wrong (URL leads to 404).

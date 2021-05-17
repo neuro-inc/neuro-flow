@@ -9,6 +9,7 @@ import dataclasses
 
 import abc
 import enum
+import logging
 import yaml
 from typing import (
     Any,
@@ -33,7 +34,7 @@ from yaml.resolver import Resolver as BaseResolver
 from yaml.scanner import Scanner
 
 from . import ast
-from .ast import BatchActionOutputs, NeedsLevel
+from .ast import NeedsLevel
 from .expr import (
     BaseExpr,
     EnableExpr,
@@ -68,6 +69,9 @@ from .expr import (
 )
 from .tokenizer import Pos
 from .types import LocalPath
+
+
+log = logging.getLogger(__name__)
 
 
 _T = TypeVar("_T", bound=TypeT)
@@ -775,7 +779,7 @@ def parse_job(
             ctor,
             node,
             JOB_OR_ACTION,
-            ast.Base,
+            ast.JobBase,
             preprocess=select_job_or_action,
             find_res_type=find_job_type,
         ),
@@ -876,6 +880,7 @@ def parse_flow_defaults(ctor: FlowLoader, node: yaml.MappingNode) -> ast.FlowDef
             {
                 "tags": ExprOrSeq(StrExpr, type2str),
                 "env": ExprOrMapping(StrExpr, type2str),
+                "volumes": ExprOrSeq(OptStrExpr, type2str),
                 "workdir": OptRemotePathExpr,
                 "life_span": OptTimeDeltaExpr,
                 "preset": OptStrExpr,
@@ -890,6 +895,7 @@ def parse_flow_defaults(ctor: FlowLoader, node: yaml.MappingNode) -> ast.FlowDef
             {
                 "tags": ExprOrSeq(StrExpr, type2str),
                 "env": ExprOrMapping(StrExpr, type2str),
+                "volumes": ExprOrSeq(OptStrExpr, type2str),
                 "workdir": OptRemotePathExpr,
                 "life_span": OptTimeDeltaExpr,
                 "preset": OptStrExpr,
@@ -915,6 +921,7 @@ FLOW = {
     "kind": ast.FlowKind,
     "id": SimpleOptIdExpr,
     "title": SimpleOptStrExpr,
+    "life_span": OptTimeDeltaExpr,
     "images": None,
     "volumes": None,
     "defaults": None,
@@ -1252,6 +1259,18 @@ ACTION = {
 }
 
 
+def _deep_get(node: yaml.Node, path: Sequence[str]) -> Optional[yaml.Node]:
+    if not path:
+        return node
+    if not isinstance(node, yaml.MappingNode):
+        return None
+    key, *subpath = path
+    for k, v in node.value:
+        if k.value == key:
+            return _deep_get(v, subpath)
+    return None
+
+
 def select_action(
     ctor: BaseConstructor, node: yaml.MappingNode, dct: Dict[str, Any]
 ) -> Dict[str, Any]:
@@ -1280,24 +1299,26 @@ def select_action(
                 node.start_mark,
             )
 
-    outputs_tmp: Optional[BatchActionOutputs] = dct.get("outputs")
+    outputs_tmp: Optional[ParsedActionOutputs] = dct.get("outputs")
+    needs_list_node = _deep_get(node, ("outputs", "needs"))
+
     if outputs_tmp and kind != ast.ActionKind.BATCH:
         if outputs_tmp.needs is not None:
             raise ConnectionError(
-                f"outputs.needs list is not supported " f"for {kind.value} action kind",
-                node.start_mark,
+                f"outputs.needs list is not supported for {kind.value} action kind",
+                (needs_list_node or node).start_mark,
             )
         ret["outputs"] = outputs_tmp.values
     elif outputs_tmp:
-        if outputs_tmp.needs is None:
-            raise ConnectionError(
-                f"outputs.needs list is required " f"for {kind.value} action kind",
-                node.start_mark,
+        if outputs_tmp.needs is not None:
+            log.warning(
+                "outputs.needs is deprecated and will have no effect. "
+                "All action tasks are available in actions outputs expressions."
+                f"\n{(needs_list_node or node).start_mark}"
             )
         ret["outputs"] = ast.BatchActionOutputs(
             _start=outputs_tmp._start,
             _end=outputs_tmp._end,
-            needs=outputs_tmp.needs,
             values=outputs_tmp.values,
         )
     return ret
@@ -1353,6 +1374,39 @@ ActionLoader.add_path_resolver("action:main", [])  # type: ignore
 ActionLoader.add_constructor("action:main", parse_action_main)  # type: ignore
 
 
+# #### Action parser ####
+
+
+class BakeMetaLoader(Reader, Scanner, Parser, Composer, BaseConstructor, BaseResolver):
+    def __init__(self, stream: TextIO) -> None:
+        Reader.__init__(self, stream)
+        Scanner.__init__(self)
+        Parser.__init__(self)
+        Composer.__init__(self)
+        BaseConstructor.__init__(self)
+        BaseResolver.__init__(self)
+
+
+def parse_meta_main(ctor: BaseConstructor, node: yaml.MappingNode) -> Mapping[str, str]:
+    if not isinstance(node, yaml.MappingNode):
+        raise ConstructorError(
+            None,
+            None,
+            f"expected a mapping node, but found {node.id}",
+            node.start_mark,
+        )
+    ret = {}
+    for k, v in node.value:
+        key = str(ctor.construct_scalar(k))  # type: ignore[no-untyped-call]
+        value = str(ctor.construct_scalar(v))  # type: ignore[no-untyped-call]
+        ret[key] = value
+    return ret
+
+
+BakeMetaLoader.add_path_resolver("bake_meta:main", [])  # type: ignore
+BakeMetaLoader.add_constructor("bake_meta:main", parse_meta_main)  # type: ignore
+
+
 def parse_action_stream(stream: TextIO) -> ast.BaseAction:
     ret: ast.Project
     loader = ActionLoader(stream)
@@ -1368,3 +1422,10 @@ def parse_action(action_file: LocalPath) -> ast.BaseAction:
     # Parse project config file
     with action_file.open() as f:
         return parse_action_stream(f)
+
+
+def parse_bake_meta(meta_file: LocalPath) -> Mapping[str, str]:
+    with meta_file.open() as f:
+        result = BakeMetaLoader(f).get_single_data()  # type: ignore[no-untyped-call]
+        assert isinstance(result, dict)
+        return result

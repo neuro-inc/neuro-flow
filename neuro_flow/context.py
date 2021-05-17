@@ -9,6 +9,7 @@ import json
 import shlex
 import sys
 from abc import abstractmethod
+from datetime import timedelta
 from functools import lru_cache
 from neuro_sdk import Client
 from typing import (
@@ -24,15 +25,25 @@ from typing import (
     Sequence,
     Set,
     Tuple,
+    Type,
     TypeVar,
     Union,
     cast,
 )
+from typing_extensions import Annotated
 from yarl import URL
 
 from neuro_flow import ast
 from neuro_flow.config_loader import ConfigLoader
-from neuro_flow.expr import EnableExpr, EvalError, LiteralT, RootABC, TypeT
+from neuro_flow.expr import (
+    EnableExpr,
+    EvalError,
+    Expr,
+    IdExpr,
+    LiteralT,
+    RootABC,
+    TypeT,
+)
 from neuro_flow.types import AlwaysT, FullID, LocalPath, RemotePath, TaskStatus
 
 
@@ -59,16 +70,17 @@ class UnknownTask(KeyError):
 
 # ...Ctx types, they define parts that can be available in expressions
 
-EnvCtx = Mapping[str, str]
-TagsCtx = AbstractSet[str]
-VolumesCtx = Mapping[str, "VolumeCtx"]
-ImagesCtx = Mapping[str, "ImageCtx"]
-InputsCtx = Mapping[str, str]
-ParamsCtx = Mapping[str, str]
 
-NeedsCtx = Mapping[str, "DepCtx"]
-StateCtx = Mapping[str, str]
-MatrixCtx = Mapping[str, LiteralT]
+EnvCtx = Annotated[Mapping[str, str], "EnvCtx"]
+TagsCtx = Annotated[AbstractSet[str], "TagsCtx"]
+VolumesCtx = Annotated[Mapping[str, "VolumeCtx"], "VolumesCtx"]
+ImagesCtx = Annotated[Mapping[str, "ImageCtx"], "ImagesCtx"]
+InputsCtx = Annotated[Mapping[str, str], "InputsCtx"]
+ParamsCtx = Annotated[Mapping[str, str], "ParamsCtx"]
+
+NeedsCtx = Annotated[Mapping[str, "DepCtx"], "NeedsCtx"]
+StateCtx = Annotated[Mapping[str, str], "StateCtx"]
+MatrixCtx = Annotated[Mapping[str, LiteralT], "MatrixCtx"]
 
 
 @dataclass(frozen=True)
@@ -84,11 +96,16 @@ class FlowCtx:
         # line numbers instead of bare printing
         import click
 
-        click.secho(
+        click.echo(  # type: ignore
             "flow.id attribute is deprecated, use flow.flow_id instead",
             fg="yellow",
         )
         return self.flow_id
+
+
+@dataclass(frozen=True)
+class BatchFlowCtx(FlowCtx):
+    life_span: Optional[float]
 
 
 @dataclass(frozen=True)
@@ -145,6 +162,11 @@ class DepCtx:
     result: TaskStatus
     outputs: Mapping[str, str]
 
+    def __post_init__(self) -> None:
+        assert (
+            self.result != TaskStatus.CACHED
+        ), "CACHED status should replaced with SUCCEEDED for expressions"
+
 
 # Confs (similar to ..Ctx, but not available to expressions, only used
 # during evaluation)
@@ -158,6 +180,7 @@ class CacheConf:
 
 @dataclass(frozen=True)
 class DefaultsConf:
+    volumes: Sequence[str] = ()
     workdir: Optional[RemotePath] = None
     life_span: Optional[float] = None
     schedule_timeout: Optional[float] = None
@@ -214,7 +237,6 @@ class Task(ExecUnit):
 class LocalTask:
     # executed task
     id: Optional[str]
-    workdir: LocalPath
     cmd: str
 
 
@@ -346,6 +368,7 @@ class LiveActionContext(Context):
 
 @dataclass(frozen=True)
 class BatchContextStep1(WithFlowContext, Context):
+    flow: BatchFlowCtx
     params: ParamsCtx
 
     def to_step_2(
@@ -542,12 +565,30 @@ async def setup_flow_ctx(
     )
 
 
+async def setup_batch_flow_ctx(
+    ctx: RootABC,
+    ast_flow: ast.BatchFlow,
+    config_name: str,
+    config_loader: ConfigLoader,
+) -> BatchFlowCtx:
+    base_flow = await setup_flow_ctx(ctx, ast_flow, config_name, config_loader)
+    life_span = await ast_flow.life_span.eval(ctx)
+    return BatchFlowCtx(
+        flow_id=base_flow.flow_id,
+        project_id=base_flow.project_id,
+        workspace=base_flow.workspace,
+        title=base_flow.title,
+        life_span=life_span,
+    )
+
+
 async def setup_defaults_env_tags_ctx(
     ctx: WithFlowContext,
     ast_defaults: Optional[ast.FlowDefaults],
 ) -> Tuple[DefaultsConf, EnvCtx, TagsCtx]:
     env: EnvCtx
     tags: TagsCtx
+    volumes: List[str]
     if ast_defaults is not None:
         if ast_defaults.env is not None:
             tmp_env = await ast_defaults.env.eval(ctx)
@@ -562,6 +603,16 @@ async def setup_defaults_env_tags_ctx(
             tags = set(tmp_tags)
         else:
             tags = set()
+
+        if ast_defaults.volumes:
+            tmp_volumes = await ast_defaults.volumes.eval(ctx)
+            assert isinstance(tmp_volumes, list)
+            volumes = []
+            for volume in tmp_volumes:
+                if volume:
+                    volumes.append(volume)
+        else:
+            volumes = []
         workdir = await ast_defaults.workdir.eval(ctx)
         life_span = await ast_defaults.life_span.eval(ctx)
         preset = await ast_defaults.preset.eval(ctx)
@@ -569,6 +620,7 @@ async def setup_defaults_env_tags_ctx(
     else:
         env = {}
         tags = set()
+        volumes = []
         workdir = None
         life_span = None
         preset = None
@@ -578,6 +630,7 @@ async def setup_defaults_env_tags_ctx(
     tags.add(f"flow:{_id2tag(ctx.flow.flow_id)}")
 
     defaults = DefaultsConf(
+        volumes=volumes,
         workdir=workdir,
         life_span=life_span,
         preset=preset,
@@ -659,49 +712,57 @@ async def setup_images_ctx(
     return images
 
 
-async def setup_inputs_ctx(
-    ctx: RootABC,
-    call_ast: ast.BaseActionCall,  # Only used to generate errors
+async def validate_action_call(
+    call_ast: ast.BaseActionCall,
     ast_inputs: Optional[Mapping[str, ast.Input]],
-) -> InputsCtx:
-    if call_ast.args:
-        inputs = {k: await v.eval(ctx) for k, v in call_ast.args.items()}
+) -> None:
+    if ast_inputs:
+        supported_inputs = ast_inputs.keys()
+        required_inputs = {
+            input_name
+            for input_name, input_ast in ast_inputs.items()
+            if input_ast.default.pattern is None
+        }
     else:
-        inputs = {}
-
-    if ast_inputs is None:
-        if inputs:
-            raise EvalError(
-                f"Unsupported input(s): {','.join(sorted(inputs))}",
-                call_ast._start,
-                call_ast._end,
-            )
-        else:
-            return {}
-
-    new_inputs = dict(inputs)
-    for name, inp in ast_inputs.items():
-        if name not in new_inputs and inp.default.pattern is not None:
-            val = await inp.default.eval(EMPTY_ROOT)
-            # inputs doesn't support expressions,
-            # non-none pattern means non-none input
-            assert val is not None
-            new_inputs[name] = val
-    extra = new_inputs.keys() - ast_inputs.keys()
-    if extra:
-        raise EvalError(
-            f"Unsupported input(s): {','.join(sorted(extra))}",
-            call_ast._start,
-            call_ast._end,
-        )
-    missing = ast_inputs.keys() - new_inputs.keys()
+        supported_inputs = set()
+        required_inputs = set()
+    if call_ast.args:
+        supplied_inputs = call_ast.args.keys()
+    else:
+        supplied_inputs = set()
+    missing = required_inputs - supplied_inputs
     if missing:
         raise EvalError(
             f"Required input(s): {','.join(sorted(missing))}",
             call_ast._start,
             call_ast._end,
         )
-    return new_inputs
+    extra = supplied_inputs - supported_inputs
+    if extra:
+        raise EvalError(
+            f"Unsupported input(s): {','.join(sorted(extra))}",
+            call_ast._start,
+            call_ast._end,
+        )
+
+
+async def setup_inputs_ctx(
+    ctx: RootABC,
+    call_ast: ast.BaseActionCall,  # Only used to generate errors
+    ast_inputs: Optional[Mapping[str, ast.Input]],
+) -> InputsCtx:
+    await validate_action_call(call_ast, ast_inputs)
+    if call_ast.args is None or ast_inputs is None:
+        return {}
+    inputs = {k: await v.eval(ctx) for k, v in call_ast.args.items()}
+    for name, inp in ast_inputs.items():
+        if name not in inputs and inp.default.pattern is not None:
+            val = await inp.default.eval(EMPTY_ROOT)
+            # inputs doesn't support expressions,
+            # non-none pattern means non-none input
+            assert val is not None
+            inputs[name] = val
+    return inputs
 
 
 async def setup_params_ctx(
@@ -798,23 +859,6 @@ async def setup_matrix(ast_matrix: Optional[ast.Matrix]) -> Sequence[MatrixCtx]:
             )
         matrices.append({k: await v.eval(EMPTY_ROOT) for k, v in inc_spec.items()})
     return matrices
-
-
-async def setup_output_needs(
-    outputs: Optional[ast.BatchActionOutputs], known_tasks: AbstractSet[str]
-) -> AbstractSet[str]:
-    output_needs = set()
-    if outputs:
-        for need_expr in outputs.needs:
-            task_id = await need_expr.eval(EMPTY_ROOT)
-            if task_id not in known_tasks:
-                raise EvalError(
-                    f"Action does not contain task '{task_id}'",
-                    outputs._start,
-                    outputs._end,
-                )
-            output_needs.add(task_id)
-    return output_needs
 
 
 async def setup_cache(
@@ -985,7 +1029,7 @@ class RunningLiveFlow:
 
         workdir = (await job.workdir.eval(ctx)) or defaults.workdir
 
-        volumes: List[str] = []
+        volumes: List[str] = list(defaults.volumes)
         if job.volumes is not None:
             tmp_volumes = await job.volumes.eval(ctx)
             assert isinstance(tmp_volumes, list)
@@ -1099,18 +1143,65 @@ class EarlyBatch:
             return prep_task.state_from
         return None
 
+    def _task_context_class(self) -> Type[Context]:
+        return BatchTaskContext
+
+    def _known_inputs(self) -> AbstractSet[str]:
+        return set()
+
+    def validate_expressions(self) -> List[EvalError]:
+        from .expr_validation import validate_expr
+
+        errors: List[EvalError] = []
+        for task in self._tasks.values():
+            ctx_cls = self._task_context_class()
+            known_needs = task.needs.keys()
+            known_inputs = self._known_inputs()
+            errors += validate_expr(task.enable, ctx_cls, known_needs, known_inputs)
+            if isinstance(task, EarlyTask):
+                _ctx_cls = ctx_cls
+                if isinstance(task, EarlyStatefulCall):
+                    _ctx_cls = StatefulActionContext
+                    known_inputs = (task.action.inputs or {}).keys()
+                ast_task = task.ast_task
+                for field in fields(ast.ExecUnit):
+                    field_value = getattr(ast_task, field.name)
+                    if field_value is not None and isinstance(field_value, Expr):
+                        errors += validate_expr(
+                            field_value, _ctx_cls, known_needs, known_inputs
+                        )
+            if isinstance(task, BaseEarlyCall):
+                args = task.call.args or {}
+                for arg_expr in args.values():
+                    errors += validate_expr(
+                        arg_expr, ctx_cls, known_needs, known_inputs
+                    )
+            if isinstance(task, EarlyLocalCall):
+                known_inputs = (task.action.inputs or {}).keys()
+                errors += validate_expr(
+                    task.action.cmd, LocalActionContext, known_inputs=known_inputs
+                )
+        return errors
+
     async def get_action_early(self, real_id: str) -> "EarlyBatch":
         assert await self.is_action(
             real_id
-        ), f"get_task() cannot used for action call {real_id}"
+        ), f"get_action_early() cannot used for action call {real_id}"
         prep_task = self._get_prep(real_id)
         assert isinstance(prep_task, EarlyBatchCall)  # Already checked
 
+        await validate_action_call(prep_task.call, prep_task.action.inputs)
         tasks = await EarlyTaskGraphBuilder(self._cl, prep_task.action.tasks).build()
 
-        output_needs = await setup_output_needs(prep_task.action.outputs, tasks.keys())
+        return EarlyBatchAction(tasks, self._cl, prep_task.action)
 
-        return EarlyBatchAction(tasks, self._cl, output_needs)
+    async def get_local_early(self, real_id: str) -> "EarlyLocalCall":
+        assert await self.is_local(
+            real_id
+        ), f"get_local_early() cannot used for action call {real_id}"
+        prep_task = self._get_prep(real_id)
+        assert isinstance(prep_task, EarlyLocalCall)  # Already checked
+        return prep_task
 
 
 class EarlyBatchAction(EarlyBatch):
@@ -1118,13 +1209,41 @@ class EarlyBatchAction(EarlyBatch):
         self,
         tasks: Mapping[str, "BaseEarlyTask"],
         config_loader: ConfigLoader,
-        output_needs: AbstractSet[str],
+        action: ast.BatchAction,
     ):
         super().__init__(tasks, config_loader)
-        self._output_needs = output_needs
+        self._action = action
 
-    async def get_output_needs(self) -> AbstractSet[str]:
-        return self._output_needs
+    def _task_context_class(self) -> Type[Context]:
+        return BatchActionTaskContext
+
+    def _known_inputs(self) -> AbstractSet[str]:
+        return (self._action.inputs or {}).keys()
+
+    def validate_expressions(self) -> List[EvalError]:
+        from .expr_validation import validate_expr
+
+        errors = super().validate_expressions()
+        known_inputs = self._known_inputs()
+
+        if self._action.cache:
+            errors += validate_expr(
+                self._action.cache.life_span,
+                BatchActionContext,
+                known_inputs=known_inputs,
+            )
+        outputs = self._action.outputs
+
+        tasks_ids = self._tasks.keys()
+        if outputs and outputs.values:
+            for output in outputs.values.values():
+                errors += validate_expr(
+                    output.value,
+                    BatchActionOutputsContext,
+                    known_needs=tasks_ids,
+                    known_inputs=known_inputs,
+                )
+        return errors
 
 
 class RunningBatchBase(Generic[_T], EarlyBatch):
@@ -1137,10 +1256,12 @@ class RunningBatchBase(Generic[_T], EarlyBatch):
         tasks: Mapping[str, "BasePrepTask"],
         config_loader: ConfigLoader,
         defaults: DefaultsConf,
+        bake_id: str,
     ):
         super().__init__(tasks, config_loader)
         self._ctx = ctx
         self._default_tags = default_tags
+        self._bake_id = bake_id
         self._defaults = defaults
 
     def _get_prep(self, real_id: str) -> "BasePrepTask":
@@ -1232,7 +1353,7 @@ class RunningBatchBase(Generic[_T], EarlyBatch):
 
         workdir = (await prep_task.ast_task.workdir.eval(ctx)) or defaults.workdir
 
-        volumes: List[str] = []
+        volumes: List[str] = list(defaults.volumes)
         if prep_task.ast_task.volumes is not None:
             tmp_volumes = await prep_task.ast_task.volumes.eval(ctx)
             assert isinstance(tmp_volumes, list)
@@ -1271,7 +1392,11 @@ class RunningBatchBase(Generic[_T], EarlyBatch):
             env=env,
             caching_key="",
         )
-        return replace(task, caching_key=_hash(dict(task=task, ctx=ctx)))
+        return replace(
+            task,
+            tags=task.tags | {f"bake_id:{self._bake_id}"},
+            caching_key=_hash(dict(task=task, ctx=ctx)),
+        )
 
     async def get_action(
         self, real_id: str, needs: NeedsCtx
@@ -1285,36 +1410,15 @@ class RunningBatchBase(Generic[_T], EarlyBatch):
         ctx = self._task_context(real_id, needs, {})
 
         return await RunningBatchActionFlow.create(
+            action_name=prep_task.action_name,
             ast_action=prep_task.action,
             base_cache=prep_task.cache,
             base_strategy=prep_task.strategy,
             inputs=await setup_inputs_ctx(ctx, prep_task.call, prep_task.action.inputs),
             default_tags=self._default_tags,
+            bake_id=self._bake_id,
             config_loader=self._cl,
         )
-
-
-class RunningBatchFlow(RunningBatchBase[BatchContext]):
-    def __init__(
-        self,
-        ctx: BatchContext,
-        tasks: Mapping[str, "BasePrepTask"],
-        config_loader: ConfigLoader,
-        defaults: DefaultsConf,
-    ):
-        super().__init__(ctx, ctx.tags, tasks, config_loader, defaults)
-
-    @property
-    def project_id(self) -> str:
-        return self._ctx.flow.project_id
-
-    @property
-    def volumes(self) -> Mapping[str, VolumeCtx]:
-        return self._ctx.volumes
-
-    @property
-    def images(self) -> Mapping[str, ImageCtx]:
-        return self._ctx.images
 
     async def get_local(self, real_id: str, needs: NeedsCtx) -> LocalTask:
         assert await self.is_local(
@@ -1332,22 +1436,58 @@ class RunningBatchFlow(RunningBatchBase[BatchContext]):
 
         return LocalTask(
             id=prep_task.id,
-            workdir=self._ctx.flow.workspace,
             cmd=await prep_task.action.cmd.eval(action_ctx),
         )
+
+
+class RunningBatchFlow(RunningBatchBase[BatchContext]):
+    def __init__(
+        self,
+        ctx: BatchContext,
+        tasks: Mapping[str, "BasePrepTask"],
+        config_loader: ConfigLoader,
+        defaults: DefaultsConf,
+        bake_id: str,
+    ):
+        super().__init__(ctx, ctx.tags, tasks, config_loader, defaults, bake_id)
+
+    @property
+    def project_id(self) -> str:
+        return self._ctx.flow.project_id
+
+    @property
+    def volumes(self) -> Mapping[str, VolumeCtx]:
+        return self._ctx.volumes
+
+    @property
+    def images(self) -> Mapping[str, ImageCtx]:
+        return self._ctx.images
+
+    @property
+    def life_span(self) -> Optional[timedelta]:
+        if self._ctx.flow.life_span:
+            return timedelta(seconds=self._ctx.flow.life_span)
+        return None
+
+    @property
+    def workspace(self) -> LocalPath:
+        return self._ctx.flow.workspace
 
     @classmethod
     async def create(
         cls,
         config_loader: ConfigLoader,
         batch: str,
+        bake_id: str,
         params: Optional[Mapping[str, str]] = None,
     ) -> "RunningBatchFlow":
         ast_flow = await config_loader.fetch_flow(batch)
 
         assert isinstance(ast_flow, ast.BatchFlow)
 
-        flow_ctx = await setup_flow_ctx(EMPTY_ROOT, ast_flow, batch, config_loader)
+        flow_ctx = await setup_batch_flow_ctx(
+            EMPTY_ROOT, ast_flow, batch, config_loader
+        )
         params_ctx = await setup_params_ctx(EMPTY_ROOT, params, ast_flow.params)
         step_1_ctx = BatchContextStep1(
             flow=flow_ctx,
@@ -1382,7 +1522,10 @@ class RunningBatchFlow(RunningBatchBase[BatchContext]):
             batch_ctx, config_loader, cache_conf, ast_flow.tasks
         ).build()
 
-        return RunningBatchFlow(batch_ctx, tasks, config_loader, defaults)
+        return RunningBatchFlow(batch_ctx, tasks, config_loader, defaults, bake_id)
+
+
+EarlyBatchAction
 
 
 class RunningBatchActionFlow(RunningBatchBase[BatchActionContext]):
@@ -1394,33 +1537,18 @@ class RunningBatchActionFlow(RunningBatchBase[BatchActionContext]):
         config_loader: ConfigLoader,
         defaults: DefaultsConf,
         action: ast.BatchAction,
-        output_needs: AbstractSet[str],
+        bake_id: str,
     ):
-        super().__init__(ctx, default_tags, tasks, config_loader, defaults)
+        super().__init__(ctx, default_tags, tasks, config_loader, defaults, bake_id)
         self._action = action
-        self._output_needs = output_needs
 
-    async def get_output_needs(self) -> AbstractSet[str]:
-        return self._output_needs
-
-    async def calc_outputs(self, needs: NeedsCtx, *, is_cancelling: bool) -> DepCtx:
-        if any(i.result == TaskStatus.FAILED for i in needs.values()):
+    async def calc_outputs(self, task_results: NeedsCtx) -> DepCtx:
+        if any(i.result == TaskStatus.FAILED for i in task_results.values()):
             return DepCtx(TaskStatus.FAILED, {})
-        elif any(i.result == TaskStatus.CANCELLED for i in needs.values()):
+        elif any(i.result == TaskStatus.CANCELLED for i in task_results.values()):
             return DepCtx(TaskStatus.CANCELLED, {})
-        elif any(i.result == TaskStatus.SKIPPED for i in needs.values()):
-            # If some of our needs are disabled, then either
-            # action is misconfigured (and so it is failed)
-            # or cancellation is in progress.
-            # We cannot return DISABLED here, because it means
-            # that task did not start at all but this action
-            # is in progress when we are here.
-            if is_cancelling:
-                return DepCtx(TaskStatus.CANCELLED, {})
-            else:
-                return DepCtx(TaskStatus.FAILED, {})
         else:
-            ctx = self._ctx.to_outputs_ctx(needs)
+            ctx = self._ctx.to_outputs_ctx(task_results)
             ret = {}
             if self._action.outputs and self._action.outputs.values is not None:
                 for name, descr in self._action.outputs.values.items():
@@ -1432,12 +1560,14 @@ class RunningBatchActionFlow(RunningBatchBase[BatchActionContext]):
     @classmethod
     async def create(
         cls,
+        action_name: str,
         ast_action: ast.BatchAction,
         base_cache: CacheConf,
         base_strategy: StrategyCtx,
         inputs: InputsCtx,
         default_tags: TagsCtx,
         config_loader: ConfigLoader,
+        bake_id: str,
     ) -> "RunningBatchActionFlow":
         action_context = BatchActionContext(
             inputs=inputs,
@@ -1453,8 +1583,6 @@ class RunningBatchActionFlow(RunningBatchBase[BatchActionContext]):
             action_context, config_loader, cache, ast_action.tasks
         ).build()
 
-        output_needs = await setup_output_needs(ast_action.outputs, tasks.keys())
-
         return RunningBatchActionFlow(
             action_context,
             default_tags,
@@ -1462,7 +1590,7 @@ class RunningBatchActionFlow(RunningBatchBase[BatchActionContext]):
             config_loader,
             DefaultsConf(),
             ast_action,
-            output_needs,
+            bake_id,
         )
 
 
@@ -1490,6 +1618,7 @@ class BaseEarlyTask:
 
     def to_batch_call(
         self,
+        action_name: str,
         action: ast.BatchAction,
         call: ast.TaskActionCall,
     ) -> "EarlyBatchCall":
@@ -1499,12 +1628,14 @@ class BaseEarlyTask:
             needs=self.needs,
             matrix=self.matrix,
             enable=self.enable,
+            action_name=action_name,
             action=action,
             call=call,
         )
 
     def to_local_call(
         self,
+        action_name: str,
         action: ast.LocalAction,
         call: ast.TaskActionCall,
     ) -> "EarlyLocalCall":
@@ -1514,12 +1645,14 @@ class BaseEarlyTask:
             needs=self.needs,
             matrix=self.matrix,
             enable=self.enable,
+            action_name=action_name,
             action=action,
             call=call,
         )
 
     def to_stateful_call(
         self,
+        action_name: str,
         action: ast.StatefulAction,
         call: ast.TaskActionCall,
     ) -> "EarlyStatefulCall":
@@ -1530,6 +1663,7 @@ class BaseEarlyTask:
             matrix=self.matrix,
             ast_task=action.main,
             enable=self.enable,
+            action_name=action_name,
             action=action,
             call=call,
         )
@@ -1563,20 +1697,23 @@ class EarlyTask(BaseEarlyTask):
 
 
 @dataclass(frozen=True)
-class EarlyBatchCall(BaseEarlyTask):
+class BaseEarlyCall(BaseEarlyTask):
     call: ast.TaskActionCall
+    action_name: str
+
+
+@dataclass(frozen=True)
+class EarlyBatchCall(BaseEarlyCall):
     action: ast.BatchAction
 
 
 @dataclass(frozen=True)
-class EarlyLocalCall(BaseEarlyTask):
-    call: ast.TaskActionCall
+class EarlyLocalCall(BaseEarlyCall):
     action: ast.LocalAction
 
 
 @dataclass(frozen=True)
-class EarlyStatefulCall(EarlyTask):
-    call: ast.TaskActionCall
+class EarlyStatefulCall(EarlyTask, BaseEarlyCall):
     action: ast.StatefulAction
 
 
@@ -1604,6 +1741,7 @@ class BasePrepTask(BaseEarlyTask):
 
     def to_batch_call(
         self,
+        action_name: str,
         action: ast.BatchAction,
         call: ast.TaskActionCall,
     ) -> "PrepBatchCall":
@@ -1615,12 +1753,14 @@ class BasePrepTask(BaseEarlyTask):
             strategy=self.strategy,
             cache=self.cache,
             enable=self.enable,
+            action_name=action_name,
             action=action,
             call=call,
         )
 
     def to_local_call(
         self,
+        action_name: str,
         action: ast.LocalAction,
         call: ast.TaskActionCall,
     ) -> "PrepLocalCall":
@@ -1632,12 +1772,14 @@ class BasePrepTask(BaseEarlyTask):
             strategy=self.strategy,
             cache=CacheConf(strategy=ast.CacheStrategy.NONE),
             enable=self.enable,
+            action_name=action_name,
             action=action,
             call=call,
         )
 
     def to_stateful_call(
         self,
+        action_name: str,
         action: ast.StatefulAction,
         call: ast.TaskActionCall,
     ) -> "PrepStatefulCall":
@@ -1649,6 +1791,7 @@ class BasePrepTask(BaseEarlyTask):
             strategy=self.strategy,
             cache=CacheConf(strategy=ast.CacheStrategy.NONE),
             enable=self.enable,
+            action_name=action_name,
             ast_task=action.main,
             action=action,
             call=call,
@@ -1713,6 +1856,10 @@ class EarlyTaskGraphBuilder:
         post_tasks: List[List[EarlyPostTask]] = []
         prep_tasks: Dict[str, BaseEarlyTask] = {}
         last_needs: Set[str] = set()
+
+        # Only used for sanity checks
+        real_id_to_need_to_expr: Dict[str, Mapping[str, IdExpr]] = {}
+
         for num, ast_task in enumerate(self._ast_tasks, 1):
             assert isinstance(ast_task, (ast.Task, ast.TaskActionCall))
 
@@ -1737,7 +1884,10 @@ class EarlyTaskGraphBuilder:
                 )
 
                 task_id, real_id = await self._setup_ids(matrix_ctx, num, ast_task)
-                needs = await self._setup_needs(matrix_ctx, last_needs, ast_task)
+                needs, need_to_expr = await self._setup_needs(
+                    matrix_ctx, last_needs, ast_task
+                )
+                real_id_to_need_to_expr[real_id] = need_to_expr
 
                 base = BaseEarlyTask(
                     id=task_id,
@@ -1763,9 +1913,13 @@ class EarlyTaskGraphBuilder:
                             ast_task._end,
                         )
                     if isinstance(action, ast.BatchAction):
-                        prep_tasks[real_id] = base.to_batch_call(action, ast_task)
+                        prep_tasks[real_id] = base.to_batch_call(
+                            action_name, action, ast_task
+                        )
                     elif isinstance(action, ast.LocalAction):
-                        prep_tasks[real_id] = base.to_local_call(action, ast_task)
+                        prep_tasks[real_id] = base.to_local_call(
+                            action_name, action, ast_task
+                        )
                     elif isinstance(action, ast.StatefulAction):
                         if action.post:
                             post_tasks_group.append(
@@ -1777,7 +1931,9 @@ class EarlyTaskGraphBuilder:
                                     enable=action.post_if,
                                 ).to_post_task(action.post, real_id),
                             )
-                        prep_tasks[real_id] = base.to_stateful_call(action, ast_task)
+                        prep_tasks[real_id] = base.to_stateful_call(
+                            action_name, action, ast_task
+                        )
 
                     else:
                         raise ValueError(
@@ -1801,6 +1957,16 @@ class EarlyTaskGraphBuilder:
                 real_ids.add(task.real_id)
             last_needs = real_ids
 
+        # Check needs sanity
+        for prep_task in prep_tasks.values():
+            for need_id in prep_task.needs.keys():
+                if need_id not in prep_tasks:
+                    id_expr = real_id_to_need_to_expr[prep_task.real_id][need_id]
+                    raise EvalError(
+                        f"Task {prep_task.real_id} needs unknown task {need_id}",
+                        id_expr.start,
+                        id_expr.end,
+                    )
         return prep_tasks
 
     async def _setup_ids(
@@ -1818,12 +1984,15 @@ class EarlyTaskGraphBuilder:
 
     async def _setup_needs(
         self, ctx: RootABC, default_needs: AbstractSet[str], ast_task: ast.TaskBase
-    ) -> Mapping[str, ast.NeedsLevel]:
+    ) -> Tuple[Mapping[str, ast.NeedsLevel], Mapping[str, IdExpr]]:
         if ast_task.needs is not None:
-            return {
-                await need.eval(ctx): level for need, level in ast_task.needs.items()
-            }
-        return {need: ast.NeedsLevel.COMPLETED for need in default_needs}
+            needs, to_expr_map = {}, {}
+            for need, level in ast_task.needs.items():
+                need_id = await need.eval(ctx)
+                needs[need_id] = level
+                to_expr_map[need_id] = need
+            return needs, to_expr_map
+        return {need: ast.NeedsLevel.COMPLETED for need in default_needs}, {}
 
 
 class TaskGraphBuilder(EarlyTaskGraphBuilder):

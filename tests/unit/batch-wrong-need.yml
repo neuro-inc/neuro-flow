@@ -1,0 +1,10 @@
+kind: batch
+tasks:
+  - id: task_a
+    image: ubuntu
+    preset: cpu-micro
+    bash: echo abc
+  - needs: [something_wrong]
+    image: ubuntu
+    preset: cpu-micro
+    bash: echo def

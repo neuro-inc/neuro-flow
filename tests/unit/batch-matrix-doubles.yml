@@ -1,0 +1,9 @@
+kind: batch
+tasks:
+  - id: task_${{ replace(join('__', values(matrix)), '.', '_') }}
+    strategy:
+      matrix:
+        x: [0.1, 0.2]
+        y: [0.3, 0.5]
+    image: ubuntu
+    python: print(${{matrix.x}} + ${{matrix.y}})
