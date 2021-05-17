@@ -20,9 +20,12 @@ else:
 _T = TypeVar("_T")
 
 
-class AsyncType(click.ParamType, Generic[_T], abc.ABC):
+class AsyncType(click.ParamType, Generic[_T], abc.ABC):  # type: ignore
     def convert(
-        self, value: str, param: Optional[click.Parameter], ctx: Optional[click.Context]
+        self,
+        value: str,
+        param: Optional[click.Parameter],  # type: ignore
+        ctx: Optional[click.Context],  # type: ignore
     ) -> _T:
         assert ctx is not None
         root = cast(Root, ctx.obj)
@@ -34,13 +37,13 @@ class AsyncType(click.ParamType, Generic[_T], abc.ABC):
         self,
         root: Root,
         value: str,
-        param: Optional[click.Parameter],
-        ctx: Optional[click.Context],
+        param: Optional[click.Parameter],  # type: ignore
+        ctx: Optional[click.Context],  # type: ignore
     ) -> _T:
         pass
 
     def complete(
-        self, ctx: click.Context, args: Sequence[str], incomplete: str
+        self, ctx: click.Context, args: Sequence[str], incomplete: str  # type: ignore
     ) -> List[Tuple[str, Optional[str]]]:
         root = cast(Root, ctx.obj)
         with Runner() as runner:
@@ -48,7 +51,11 @@ class AsyncType(click.ParamType, Generic[_T], abc.ABC):
 
     @abc.abstractmethod
     async def async_complete(
-        self, root: Root, ctx: click.Context, args: Sequence[str], incomplete: str
+        self,
+        root: Root,
+        ctx: click.Context,  # type: ignore
+        args: Sequence[str],
+        incomplete: str,
     ) -> List[Tuple[str, Optional[str]]]:
         pass
 
@@ -63,15 +70,15 @@ class LiveJobType(AsyncType[str]):
         self,
         root: Root,
         value: str,
-        param: Optional[click.Parameter],
-        ctx: Optional[click.Context],
+        param: Optional[click.Parameter],  # type: ignore
+        ctx: Optional[click.Context],  # type: ignore
     ) -> str:
         return value
 
     async def async_complete(  # type: ignore[return]
         self,
         root: Root,
-        ctx: click.Context,
+        ctx: click.Context,  # type: ignore
         args: Sequence[str],
         incomplete: str,
     ) -> List[Tuple[str, Optional[str]]]:
@@ -105,15 +112,15 @@ class LiveJobSuffixType(AsyncType[str]):
         self,
         root: Root,
         value: str,
-        param: Optional[click.Parameter],
-        ctx: Optional[click.Context],
+        param: Optional[click.Parameter],  # type: ignore
+        ctx: Optional[click.Context],  # type: ignore
     ) -> str:
         return value
 
     async def async_complete(  # type: ignore[return]
         self,
         root: Root,
-        ctx: click.Context,
+        ctx: click.Context,  # type: ignore
         args: Sequence[str],
         incomplete: str,
     ) -> List[Tuple[str, Optional[str]]]:
@@ -146,15 +153,15 @@ class LiveImageType(AsyncType[str]):
         self,
         root: Root,
         value: str,
-        param: Optional[click.Parameter],
-        ctx: Optional[click.Context],
+        param: Optional[click.Parameter],  # type: ignore
+        ctx: Optional[click.Context],  # type: ignore
     ) -> str:
         return value
 
     async def async_complete(  # type: ignore[return]
         self,
         root: Root,
-        ctx: click.Context,
+        ctx: click.Context,  # type: ignore
         args: Sequence[str],
         incomplete: str,
     ) -> List[Tuple[str, Optional[str]]]:
@@ -189,15 +196,15 @@ class LiveVolumeType(AsyncType[str]):
         self,
         root: Root,
         value: str,
-        param: Optional[click.Parameter],
-        ctx: Optional[click.Context],
+        param: Optional[click.Parameter],  # type: ignore
+        ctx: Optional[click.Context],  # type: ignore
     ) -> str:
         return value
 
     async def async_complete(  # type: ignore[return]
         self,
         root: Root,
-        ctx: click.Context,
+        ctx: click.Context,  # type: ignore
         args: Sequence[str],
         incomplete: str,
     ) -> List[Tuple[str, Optional[str]]]:
@@ -232,15 +239,15 @@ class BatchType(AsyncType[str]):
         self,
         root: Root,
         value: str,
-        param: Optional[click.Parameter],
-        ctx: Optional[click.Context],
+        param: Optional[click.Parameter],  # type: ignore
+        ctx: Optional[click.Context],  # type: ignore
     ) -> str:
         return value
 
     async def async_complete(
         self,
         root: Root,
-        ctx: click.Context,
+        ctx: click.Context,  # type: ignore
         args: Sequence[str],
         incomplete: str,
     ) -> List[Tuple[str, Optional[str]]]:
@@ -266,15 +273,15 @@ class BakeType(AsyncType[str]):
         self,
         root: Root,
         value: str,
-        param: Optional[click.Parameter],
-        ctx: Optional[click.Context],
+        param: Optional[click.Parameter],  # type: ignore
+        ctx: Optional[click.Context],  # type: ignore
     ) -> str:
         return value
 
     async def async_complete(
         self,
         root: Root,
-        ctx: click.Context,
+        ctx: click.Context,  # type: ignore
         args: Sequence[str],
         incomplete: str,
     ) -> List[Tuple[str, Optional[str]]]:
@@ -320,15 +327,15 @@ class BakeTaskType(AsyncType[str]):
         self,
         root: Root,
         value: str,
-        param: Optional[click.Parameter],
-        ctx: Optional[click.Context],
+        param: Optional[click.Parameter],  # type: ignore
+        ctx: Optional[click.Context],  # type: ignore
     ) -> str:
         return value
 
     async def async_complete(
         self,
         root: Root,
-        ctx: click.Context,
+        ctx: click.Context,  # type: ignore
         args: Sequence[str],
         incomplete: str,
     ) -> List[Tuple[str, Optional[str]]]:

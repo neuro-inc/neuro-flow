@@ -17,7 +17,7 @@ else:
     from async_exit_stack import AsyncExitStack
 
 
-@click.command()
+@click.command()  # type: ignore
 @wrap_async()
 async def ps(
     root: Root,
@@ -34,7 +34,7 @@ async def ps(
         await runner.ps()
 
 
-@click.command()
+@click.command()  # type: ignore
 @option("-s", "--suffix", help="Optional suffix for multi-jobs")
 @option(
     "--param", type=(str, str), multiple=True, help="Set params of the batch config"
@@ -83,7 +83,7 @@ async def run(
         )
 
 
-@click.command()
+@click.command()  # type: ignore
 @argument("job-id", type=LIVE_JOB)
 @argument("suffix", required=False, type=SUFFIX_AFTER_LIVE_JOB)
 @wrap_async()
@@ -107,7 +107,7 @@ async def logs(
         await runner.logs(job_id, suffix)
 
 
-@click.command()
+@click.command()  # type: ignore
 @argument("job-id", type=LIVE_JOB)
 @argument("suffix", required=False, type=SUFFIX_AFTER_LIVE_JOB)
 @wrap_async()
@@ -131,7 +131,7 @@ async def status(
         await runner.status(job_id, suffix)
 
 
-@click.command()
+@click.command()  # type: ignore
 @argument("job-id", type=LIVE_JOB_OR_ALL)
 @argument("suffix", required=False, type=SUFFIX_AFTER_LIVE_JOB)
 @wrap_async()
@@ -155,7 +155,7 @@ async def kill(
             await runner.kill(job_id, suffix)
         else:
             if suffix is not None:
-                raise click.BadArgumentUsage(
+                raise click.BadArgumentUsage(  # type: ignore
                     "Suffix is not supported when killing ALL jobs"
                 )
             await runner.kill_all()
