@@ -123,6 +123,20 @@ env:
 | `and` | And |
 | `or` | Or |
 
+## Lists and dictionaries
+
+You can use lists and dictionaries in expressions.
+
+**Example**
+
+```text
+env:
+  list: ${{ [ value1, value2, value3 ] }}
+  emptyList: ${{ [] }}
+  dict: ${{ { "key1": "value1", "key2": "value2" } }}
+  emptyDict: ${{ {} }}
+```
+
 ## Functions
 
 To allow some operations in expressions, Neu.ro provides a set of built-in functions. The function call syntax is the following:
