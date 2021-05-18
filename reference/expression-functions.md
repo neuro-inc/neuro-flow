@@ -15,7 +15,11 @@ All expressions \(`${{ <expression }}`\) support a set of pre-built functions:
 | [from\_json\(\)](expression-functions.md#from_json-json_string) | Convert a JSON string to an object. |
 | [upload\(\)](expression-functions.md#upload-volume_ctx) | Upload a volume to the Neu.ro storage. |
 | [parse\_volume\(\)](expression-functions.md#parse_volume-string) | Parse a volume reference string to an object. |
-| [hash\_files\(\)](expression-functions.md#hash_files-pattern) | Calculate a SHA256 hash of given files |
+| [hash\_files\(\)](expression-functions.md#hash_files-pattern) | Calculate a SHA256 hash of given files. |
+| [values\(\)](expression-functions.md#values-dict_instance) | Get values from a dictionary. |
+| [str\(\)](expression-functions.md#str-any) | Convert any object to a string. |
+| [replace\(\)](expression-functions.md#replace-string-old-new) | Replace all occurrences of a symbol sequence in a string with a new one. |
+| [join\(\)](expression-functions.md#join-separator-array) | Concatenate an array of strings by inserting a separator between them |
 
 ### `len(s)`
 
@@ -156,6 +160,46 @@ Fetch info about a [job](live-workflow-syntax.md#jobs-job-id-env) in live mode. 
 
 ```yaml
 ${{ inspect_job('test_job').http_url }}
+```
+
+### `values(dict_instance)`
+
+Get values from a dictionary. This is similar to Python's `dict_instance.values()`.
+
+**Example:**
+
+```yaml
+${{ values(dictionary) }}
+```
+
+### `str(any)`
+
+Convert any object to a string.
+
+**Example:**
+
+```yaml
+${{ str(list_of_values) }}
+```
+
+### `replace(string, old, new)`
+
+Replace all occurrences of `old` in `string` with `new`.
+
+**Example:**
+
+```yaml
+${{ replace("5tring 5tring 5tring", "5", "S") }}
+```
+
+### `join(separator, array)`
+
+Concatenate an array of strings by inserting a separator between them.
+
+**Example:**
+
+```yaml
+${{ join(", ", ["1", "2", "3"] }}
 ```
 
 ## Task status check functions
