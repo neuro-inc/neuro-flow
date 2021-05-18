@@ -123,12 +123,12 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
             if meta.multi:
                 if suffix is None:
                     if not skip_check:
-                        raise click.BadArgumentUsage(
+                        raise click.BadArgumentUsage(  # type: ignore
                             f"Please provide a suffix for multi-job {fmt_id(job_id)}"
                         )
             else:
                 if suffix is not None:
-                    raise click.BadArgumentUsage(
+                    raise click.BadArgumentUsage(  # type: ignore
                         f"Suffix is not allowed for non-multijob {fmt_id(job_id)}"
                     )
             return meta
@@ -261,7 +261,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
                     jobs.append(descr)
                 if len(jobs) > 1:
                     # Should never happen, but just in case
-                    raise click.ClickException(
+                    raise click.ClickException(  # type: ignore
                         f"Found multiple running jobs for id {job_id} and"
                         f" suffix {suffix}:\n"
                         "\n".join(job.id for job in jobs)
@@ -269,7 +269,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
                 assert len(jobs) == 1
                 descr = jobs[0]
                 if is_multi and args:
-                    raise click.ClickException(
+                    raise click.ClickException(  # type: ignore
                         "Multi job with such suffix is already running."
                     )
                 if descr.status == JobStatus.PENDING:
@@ -312,7 +312,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
         is_multi = meta_ctx.multi
 
         if not is_multi and args:
-            raise click.BadArgumentUsage(
+            raise click.BadArgumentUsage(  # type: ignore
                 "Additional job arguments are supported by multi-jobs only"
             )
 

@@ -9,20 +9,20 @@ from .root import Root
 
 
 CFG_FILE = {"bash": LocalPath("~/.bashrc"), "zsh": LocalPath("~/.zshrc")}
-SOURCE_CMD = {"bash": "source", "zsh": "source_zsh"}
+SOURCE_CMD = {"bash": "bash_source", "zsh": "zsh_source"}
 
 ACTIVATION_TEMPLATE = 'eval "$(_NEURO_FLOW_COMPLETE={cmd} {exe})"'
 
 
-@click.group()
+@click.group()  # type: ignore
 def completion() -> None:
     """
     Output shell completion code.
     """
 
 
-@completion.command()
-@click.argument("shell", type=click.Choice(["bash", "zsh"]))
+@completion.command()  # type: ignore
+@click.argument("shell", type=click.Choice(["bash", "zsh"]))  # type: ignore
 @wrap_async()
 async def generate(root: Root, shell: str) -> None:
     """
@@ -34,8 +34,8 @@ async def generate(root: Root, shell: str) -> None:
     )
 
 
-@completion.command()
-@click.argument("shell", type=click.Choice(["bash", "zsh"]))
+@completion.command()  # type: ignore
+@click.argument("shell", type=click.Choice(["bash", "zsh"]))  # type: ignore
 @wrap_async(pass_obj=False)
 async def patch(shell: str) -> None:
     """
@@ -68,7 +68,7 @@ async def patch(shell: str) -> None:
     if start != -1:
         end = content.find(GENERATED_END)
         if end == -1:
-            raise click.ClickException(
+            raise click.ClickException(  # type: ignore
                 f"Malformed guarding comments. Please edit {profile_file} manually"
             )
         content = content[:start] + code + content[end + len(GENERATED_END) :]

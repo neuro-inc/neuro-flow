@@ -80,6 +80,21 @@ defaults:
   preset: gpu-small
 ```
 
+### `defaults.volumes`
+
+Volumes that will be mounted to all jobs by default.
+
+**Example:**
+
+```yaml
+defaults:
+  volumes: 
+    - storage:some/dir:/mnt/some/dir
+    - storage:some/another/dir:/mnt/some/another/dir
+```
+
+Default volumes are not passed to actions.
+
 **Expression contexts:** [`flow` context](live-contexts.md#flow-context).
 
 ### `defaults.schedule_timeout`
