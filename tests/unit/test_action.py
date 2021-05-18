@@ -125,7 +125,7 @@ def test_parse_batch_action(assets: LocalPath) -> None:
     action = parse_action(config_file)
     assert action == ast.BatchAction(
         Pos(0, 0, config_file),
-        Pos(44, 0, config_file),
+        Pos(43, 0, config_file),
         kind=ast.ActionKind.BATCH,
         name=SimpleOptStrExpr(
             Pos(0, 0, config_file),
@@ -304,7 +304,7 @@ def test_parse_batch_action(assets: LocalPath) -> None:
             ),
             ast.Task(
                 Pos(40, 2, config_file),
-                Pos(44, 0, config_file),
+                Pos(43, 0, config_file),
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),

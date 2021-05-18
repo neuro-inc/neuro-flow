@@ -50,12 +50,11 @@ from .storage import (
     Bake,
     BakeImage,
     FinishedTask,
-    ImageStatus,
     StartedTask,
     Storage,
     _dt2str,
 )
-from .types import AlwaysT, FullID, RemotePath, TaskStatus
+from .types import AlwaysT, FullID, ImageStatus, RemotePath, TaskStatus
 from .utils import (
     TERMINATED_JOB_STATUSES,
     TERMINATED_TASK_STATUSES,

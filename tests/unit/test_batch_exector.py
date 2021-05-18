@@ -53,12 +53,11 @@ from neuro_flow.storage import (
     FileSystem,
     FinishedTask,
     FSStorage,
-    ImageStatus,
     LocalFS,
     Storage,
     _Unset,
 )
-from neuro_flow.types import LocalPath, TaskStatus
+from neuro_flow.types import ImageStatus, LocalPath, TaskStatus
 
 
 MakeBatchRunner = Callable[[Path], Awaitable[BatchRunner]]
@@ -297,7 +296,7 @@ class JobsMock:
 
 
 class ImagesMock:
-    def __init__(self):
+    def __init__(self) -> None:
         self.known_images: Dict[str, Tag] = {}
 
     async def tag_info(self, remote: RemoteImage) -> Tag:
@@ -306,7 +305,7 @@ class ImagesMock:
             return tag
         raise ResourceNotFound
 
-    async def _close(self):
+    async def _close(self) -> None:
         pass
 
 
@@ -385,8 +384,8 @@ class FakeGlobalOptions:
 
 
 class MockCliRunner:
-    def __init__(self):
-        self.runs: List[Tuple[str]] = []
+    def __init__(self) -> None:
+        self.runs: List[Tuple[str, ...]] = []
 
     async def run(self, *args: str) -> None:
         self.runs.append(args)
@@ -398,8 +397,8 @@ async def mock_neuro_cli_runner() -> MockCliRunner:
 
 
 class MockBuilder:
-    def __init__(self, jobs_mock: JobsMock):
-        self.runs: List[Tuple[str]] = []
+    def __init__(self, jobs_mock: JobsMock) -> None:
+        self.runs: List[Tuple[str, ...]] = []
         self.jobs = jobs_mock
         self.ref2job: Dict[str, str] = {}
 
@@ -475,7 +474,7 @@ async def patched_client(
 ) -> AsyncIterator[Client]:
     async with api_get(path=api_config) as client:
         client._jobs = jobs_mock
-        client._images = images_mock
+        client._images = images_mock  # type: ignore
         yield client
 
 
@@ -1393,7 +1392,7 @@ async def test_image_builds(
     )
 
     async def _wait_for_build(ref: str) -> str:
-        async def _waiter():
+        async def _waiter() -> None:
             while ref not in mock_builder.ref2job:
                 await asyncio.sleep(0.1)
 

@@ -1600,7 +1600,7 @@ class RunningBatchBase(Generic[_T], EarlyBatch):
             inputs=await setup_inputs_ctx(ctx, prep_task.call, prep_task.action.inputs),
             default_tags=self._default_tags,
             bake_id=self._bake_id,
-            local_info=self._local_info.children_info[real_id]
+            local_info=self._local_info.children_info.get(real_id)
             if self._local_info
             else None,
             config_loader=self._cl,
