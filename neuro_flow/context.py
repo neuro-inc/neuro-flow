@@ -848,12 +848,16 @@ async def setup_images_ctx(
                 # Context was not computed during early evaluation,
                 # either it is missing at all or it uses non-locally
                 # available context. It is safe to recompute it.
+                context = await setup_local_or_storage_path(i.context, ctx, flow_ctx)
+                dockerfile = await setup_local_or_storage_path(
+                    i.dockerfile, ctx, flow_ctx
+                )
+                dockerfile_rel = _get_dockerfile_rel(i, context, dockerfile)
                 image_ctx = replace(
                     image_ctx,
-                    context=await setup_local_or_storage_path(i.context, ctx, flow_ctx),
-                    dockerfile=await setup_local_or_storage_path(
-                        i.context, ctx, flow_ctx
-                    ),
+                    context=context,
+                    dockerfile=dockerfile,
+                    dockerfile_rel=dockerfile_rel,
                 )
             images[k] = image_ctx
     return images

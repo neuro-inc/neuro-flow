@@ -235,6 +235,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         client: Client,
         storage: Storage,
         global_options: GlobalOptions,
+        run_neuro_cli: Optional[CommandRunner] = None,
     ) -> None:
         self._config_dir = config_dir
         self._console = console
@@ -242,7 +243,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         self._storage = storage
         self._config_loader: Optional[BatchLocalCL] = None
         self._project: Optional[str] = None
-        self._run_neuro_cli = make_cmd_exec(
+        self._run_neuro_cli = run_neuro_cli or make_cmd_exec(
             "neuro", global_options=encode_global_options(global_options)
         )
         self._global_options = global_options

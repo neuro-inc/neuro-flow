@@ -5,8 +5,11 @@ images:
     context: dir
     dockerfile: dir/Dockerfile
 tasks:
-- id: test
+- id: action
   action: ws:action
   args:
     arg1: val1
     arg2: val2
+- id: task
+  image: image:main
+  bash: echo OK

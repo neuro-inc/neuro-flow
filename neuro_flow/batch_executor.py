@@ -14,6 +14,8 @@ from rich.progress import BarColumn, Progress, TaskID, TextColumn
 from typing import (
     AbstractSet,
     AsyncIterator,
+    Awaitable,
+    Callable,
     Dict,
     Generic,
     Iterable,
@@ -319,6 +321,21 @@ class BakeTasksManager:
         return dep.state
 
 
+async def start_image_build(*cmd: str) -> str:
+    subprocess = await asyncio.create_subprocess_exec(
+        *cmd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    while True:
+        assert subprocess.stdout
+        line = (await subprocess.stdout.readline()).decode()
+        if line.startswith("Job ID: "):
+            # Job is running, we can freely kill neuro-cli
+            subprocess.terminate()
+            return line[len("Job ID: ") :].strip()
+
+
 class BatchExecutor:
     def __init__(
         self,
@@ -330,6 +347,7 @@ class BatchExecutor:
         *,
         polling_timeout: float = 1,
         transient_progress: bool = False,
+        run_builder_job: Callable[..., Awaitable[str]] = start_image_build,
     ) -> None:
         self._progress = Progress(
             TextColumn("[progress.description]{task.description}"),
@@ -350,6 +368,8 @@ class BatchExecutor:
         self._tasks_mgr = BakeTasksManager()
         self._is_cancelling = False
 
+        self._run_builder_job = run_builder_job
+
         # A note about default value:
         # AS: I have no idea what timeout is better;
         # too short value bombards servers,
@@ -369,6 +389,7 @@ class BatchExecutor:
         *,
         polling_timeout: float = 1,
         transient_progress: bool = False,
+        run_builder_job: Callable[..., Awaitable[str]] = start_image_build,
     ) -> AsyncIterator["BatchExecutor"]:
         console.log("Fetch bake data")
         bake = await storage.fetch_bake(
@@ -393,6 +414,7 @@ class BatchExecutor:
             storage,
             polling_timeout=polling_timeout,
             transient_progress=transient_progress,
+            run_builder_job=run_builder_job,
         )
         ret._start()
         try:
@@ -792,14 +814,14 @@ class BatchExecutor:
 
     async def _start_task(self, full_id: FullID, task: Task) -> Optional[StartedTask]:
         remote_image = self._client.parse.remote_image(task.image)
-        if remote_image.cluster_name is None:  # Not a neuro registry iamge
+        if remote_image.cluster_name is None:  # Not a neuro registry image
             return await self._run_task(full_id, task)
         try:
             await self._client.images.tag_info(remote_image)
         except ResourceNotFound:
             present_in_registry = False
         else:
-            present_in_registry = False
+            present_in_registry = True
         if present_in_registry:
             return await self._run_task(full_id, task)
         bake_image = await self._storage.get_bake_image(self._attempt.bake, task.image)
@@ -855,11 +877,20 @@ class BatchExecutor:
     async def _start_image_build(self, bake_image: BakeImage) -> None:
         flow = self._graphs.get_graph_data(bake_image.prefix)
         image_ctx = flow.images[bake_image.yaml_id]
+        context = bake_image.context_on_storage or image_ctx.context
+        dockerfile_rel = bake_image.dockerfile_rel or image_ctx.dockerfile_rel
+
+        if context is None or dockerfile_rel is None:
+            if context is None and dockerfile_rel is None:
+                error = "context and dockerfile not specified"
+            elif context is None and dockerfile_rel is not None:
+                error = "context not specified"
+            else:
+                error = "dockerfile not specified"
+            raise Exception(f"Failed to build image '{bake_image.ref}': {error}")
 
         cmd = ["neuro-extras", "image", "build"]
-        assert bake_image.dockerfile_rel is not None
-        assert bake_image.context_on_storage is not None
-        cmd.append(f"--file={bake_image.dockerfile_rel}")
+        cmd.append(f"--file={dockerfile_rel}")
         for arg in image_ctx.build_args:
             cmd.append(f"--build-arg={arg}")
         for vol in image_ctx.volumes:
@@ -868,23 +899,10 @@ class BatchExecutor:
             cmd.append(f"--env={k}={v}")
         if image_ctx.build_preset is not None:
             cmd.append(f"--preset={image_ctx.build_preset}")
-        cmd.append(str(bake_image.context_on_storage))
+        cmd.append(str(context))
         cmd.append(str(bake_image.ref))
 
-        subprocess = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        while True:
-            assert subprocess.stdout
-            line = (await subprocess.stdout.readline()).decode()
-            if line.startswith("Job ID: "):
-                builder_job_id = line[len("Job ID: ") :].strip()
-
-                break
-        # Job is running, we can freely kill neuro-cli
-        subprocess.terminate()
+        builder_job_id = await self._run_builder_job(*cmd)
         await self._storage.update_bake_image(
             self._attempt.bake,
             bake_image.ref,

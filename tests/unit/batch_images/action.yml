@@ -12,10 +12,12 @@ images:
     dockerfile: dir/Dockerfile
   image_late:
     ref: image:banana2
-    context: storage:${{ inputs.arg1 }}
-    dockerfile: storage:${{ inputs.arg2 }}
+    context: storage://default/foo/${{ inputs.arg1 }}
+    dockerfile: storage://default/foo/${{ inputs.arg1 }}/Dockerfile
 tasks:
 - id: task_1
-  needs: [ ]  # checks parser
   image: image:banana1
+  bash: echo ::set-output name=task1::Task 1 ${{ inputs.arg1 }}
+- id: task_2
+  image: image:banana2
   bash: echo ::set-output name=task1::Task 1 ${{ inputs.arg1 }}
