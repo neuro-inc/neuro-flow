@@ -78,6 +78,21 @@ defaults:
   preset: gpu-small
 ```
 
+### `defaults.volumes`
+
+Volumes that will be mounted to all tasks by default.
+
+**Example:**
+
+```yaml
+defaults:
+  volumes: 
+    - storage:some/dir:/mnt/some/dir
+    - storage:some/another/dir:/mnt/some/another/dir
+```
+
+Default volumes are not passed to actions.
+
 **Expression contexts:** [`flow` context](batch-contexts.md#flow-context), [`params` context](batch-contexts.md#params-context).
 
 ### `defaults.schedule_timeout`

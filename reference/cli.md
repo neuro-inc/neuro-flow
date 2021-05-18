@@ -77,7 +77,7 @@ Provide instruction for shell completion generation.
 **Usage:**
 
 ```bash
-neuro-flow completion generate [OPTIONS] [bash|zsh]
+neuro-flow completion generate [OPTIONS] {bash|zsh}
 ```
 
 **Options:**
@@ -93,7 +93,7 @@ Automatically patch shell configuration profile to enable completion
 **Usage:**
 
 ```bash
-neuro-flow completion patch [OPTIONS] [bash|zsh]
+neuro-flow completion patch [OPTIONS] {bash|zsh}
 ```
 
 **Options:**

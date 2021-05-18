@@ -15,7 +15,7 @@ else:
     from async_exit_stack import AsyncExitStack
 
 
-@click.command()
+@click.command()  # type: ignore
 @option(
     "-F",
     "--force-overwrite",
