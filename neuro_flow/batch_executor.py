@@ -330,7 +330,7 @@ async def start_image_build(*cmd: str) -> str:
         assert subprocess.stdout
         line = (await subprocess.stdout.readline()).decode()
         if line.startswith("Job ID: "):
-            # Job is running, we can freely kill neuro-cli
+            # Job is started, we can freely kill neuro-cli
             subprocess.terminate()
             return line[len("Job ID: ") :].strip()
 
@@ -823,7 +823,13 @@ class BatchExecutor:
             present_in_registry = True
         if present_in_registry:
             return await self._run_task(full_id, task)
-        bake_image = await self._storage.get_bake_image(self._attempt.bake, task.image)
+        try:
+            bake_image = await self._storage.get_bake_image(
+                self._attempt.bake, task.image
+            )
+        except ResourceNotFound:
+            # Not defined in the bake
+            return await self._run_task(full_id, task)
 
         if bake_image.status == ImageStatus.PENDING:
             await self._start_image_build(bake_image)
