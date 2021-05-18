@@ -210,7 +210,7 @@ async def inspect(
             real_output: Optional[LocalPath] = LocalPath(output_graph)
         else:
             real_output = None
-        bake_id = await resolve_bake(bake, project=runner.project, storage=storage)
+        bake_id = await resolve_bake(bake, project=runner.project_id, storage=storage)
 
         await runner.inspect(
             bake_id,
@@ -261,7 +261,7 @@ async def show(
         runner = await stack.enter_async_context(
             BatchRunner(root.config_dir, root.console, client, storage, root)
         )
-        bake_id = await resolve_bake(bake, project=runner.project, storage=storage)
+        bake_id = await resolve_bake(bake, project=runner.project_id, storage=storage)
         await runner.logs(bake_id, task_id, attempt_no=attempt, raw=raw)
 
 
@@ -292,7 +292,7 @@ async def cancel(
         runner = await stack.enter_async_context(
             BatchRunner(root.config_dir, root.console, client, storage, root)
         )
-        bake_id = await resolve_bake(bake, project=runner.project, storage=storage)
+        bake_id = await resolve_bake(bake, project=runner.project_id, storage=storage)
         await runner.cancel(bake_id, attempt_no=attempt)
 
 
@@ -359,7 +359,7 @@ async def restart(
         runner = await stack.enter_async_context(
             BatchRunner(root.config_dir, root.console, client, storage, root)
         )
-        bake_id = await resolve_bake(bake, project=runner.project, storage=storage)
+        bake_id = await resolve_bake(bake, project=runner.project_id, storage=storage)
         await runner.restart(
             bake_id,
             attempt_no=attempt,

@@ -159,13 +159,14 @@ async def live_context_factory(assets: pathlib.Path) -> LiveContextFactory:
     def _factory(client: Client, tags: TagsCtx = frozenset()) -> LiveContext:
         return LiveContext(
             _client=client,
+            project=ProjectCtx(
+                id="test",
+                owner=None,
+                role=None,
+            ),
             flow=FlowCtx(
                 flow_id="live",
-                project=ProjectCtx(
-                    project_id="test",
-                    owner=None,
-                    role=None,
-                ),
+                project_id="test",
                 workspace=assets,
                 title="unit test flow",
             ),

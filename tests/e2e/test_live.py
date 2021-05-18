@@ -32,13 +32,14 @@ def test_live_context(
     result = json.loads(json_str)
     job_id = result.pop("job-id")
     assert result == {
+        "project": {
+            "id": project_id,
+            "owner": username,
+            "role": project_role,
+        },
         "flow": {
             "flow_id": "live",
-            "project": {
-                "project_id": project_id,
-                "owner": username,
-                "role": project_role,
-            },
+            "project_id": project_id,
             "workspace": str(ws),
             "title": "Test live config",
         },

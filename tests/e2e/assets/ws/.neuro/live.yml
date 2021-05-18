@@ -37,6 +37,7 @@ jobs:
     bash: |
       echo DUMP_START
       echo {
+      echo '"project": ${{ to_json(project) }},'
       echo '"flow": ${{ to_json(flow) }},'
       echo '"env": ${{ to_json(env) }},'
       echo '"tags": ${{ to_json(tags) }},'

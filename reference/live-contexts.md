@@ -8,6 +8,7 @@ This page describes the contexts a [live workflow](live-workflow-syntax.md#live-
 | :--- | :--- |
 | `env` | Contains environment variables set in a workflow or a job. For more information, see [`env` context](live-contexts.md#env-context) . |
 | `flow` | Information about the main workflow settings, defaults, etc. See [`flow` context](live-contexts.md#flow-context) for details. |
+| `project` | Information about the project. See [`project` context](live-contexts.md#project-context) for details. |
 | `images` | Contains a mapping of images on the Neu.ro registry. See [`images` context](live-contexts.md#images-context) for details. |
 | `multi` | Multi-job context. For more information, see [`multi` context](live-contexts.md#multi-context). |
 | `params` | A mapping of global workflow parameters. For more information, see [`params` context](live-contexts.md#params-context). |
@@ -34,6 +35,16 @@ The `flow` context contains information about the workflow: its id, title, etc.
 | `flow.project_id` | `str` | The project's ID. See also: [Project configuration syntax](project-configuration-syntax.md#id). |
 | `flow.workspace` | `LocalPath` | A path to the workspace \(the root folder of the project\). |
 | `flow.title` | `str` | The workflow title. Set the [`flow.title`](live-workflow-syntax.md#title) attribute to override the auto-generated value. |
+
+### `project` context
+
+The `project`context contains information about the project: its ID, owner, etc.
+
+| Property name | Type | Description |
+| :--- | :--- | :--- |
+| `project.id` | `str` | The project's ID. See also: [the project configuration](project-configuration-syntax.md#id). |
+| `project.owner` | `str` | The project's owner. See also: [the project configuration](project-configuration-syntax.md#owner). |
+| `project.role` | `str` | The project's role. Set the [`project.role`](project-configuration-syntax.md#role) attribute to override the auto-calculated value. |
 
 ### `images` context
 

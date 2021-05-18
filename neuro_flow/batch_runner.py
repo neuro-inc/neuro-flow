@@ -100,7 +100,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
     @property
     def project_id(self) -> str:
         assert self._project is not None
-        return self._project.project_id
+        return self._project.id
 
     @property
     def project_role(self) -> Optional[str]:

@@ -34,16 +34,7 @@ from typing_extensions import AsyncContextManager
 from yarl import URL
 
 from .config_loader import LiveLocalCL
-from .context import (
-    EMPTY_ROOT,
-    ImageCtx,
-    JobMeta,
-    ProjectCtx,
-    RunningLiveFlow,
-    UnknownJob,
-    VolumeCtx,
-    setup_project_ctx,
-)
+from .context import ImageCtx, JobMeta, RunningLiveFlow, UnknownJob, VolumeCtx
 from .parser import ConfigDir
 from .storage import Storage
 from .types import TaskStatus
@@ -82,7 +73,6 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
         self._flow: Optional[RunningLiveFlow] = None
         self._client = client
         self._storage = storage
-        self._project: Optional[ProjectCtx] = None
         self._is_projet_role_created = False
         self._run_neuro_cli = make_cmd_exec(
             "neuro", global_options=encode_global_options(global_options)
@@ -93,7 +83,6 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
         if self._flow is not None:
             return
         self._config_loader = LiveLocalCL(self._config_dir, self._client)
-        self._project = await setup_project_ctx(EMPTY_ROOT, self._config_loader)
         try:
             self._flow = await RunningLiveFlow.create(self._config_loader)
         except Exception:
@@ -374,8 +363,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
         if job.pass_config:
             run_args.append(f"--pass-config")
         assert self._flow is not None
-        assert self._project is not None
-        project_role = self._project.role
+        project_role = self._flow.project.role
         if project_role is not None:
             await self._create_project_role(project_role)
             run_args.append(f"--share={project_role}")
@@ -610,8 +598,8 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
         )
 
     async def _add_resource(self, uri: URL) -> None:
-        assert self._project is not None
-        project_role = self._project.role
+        assert self._flow is not None
+        project_role = self._flow.project.role
         if project_role is None:
             return
         await self._create_project_role(project_role)
