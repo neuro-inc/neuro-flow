@@ -909,7 +909,8 @@ class BatchExecutor:
             builder_job_id=builder_job_id,
             status=ImageStatus.BUILDING,
         )
-        self._progress.log("Image", bake_image.ref, "is", ImageStatus.BUILDING)
+        self._progress.log("Image", fmt_id(bake_image.ref), "is", ImageStatus.BUILDING)
+        self._progress.log("  builder job:", fmt_raw_id(builder_job_id))
 
     async def _process_running_builds(self) -> None:
         async for image in self._storage.list_bake_images(self._attempt.bake):
@@ -922,7 +923,9 @@ class BatchExecutor:
                         image.ref,
                         status=ImageStatus.BUILT,
                     )
-                    self._progress.log("Image", image.ref, "is", ImageStatus.BUILT)
+                    self._progress.log(
+                        "Image", fmt_id(image.ref), "is", ImageStatus.BUILT
+                    )
                 elif descr.status in TERMINATED_JOB_STATUSES:
                     await self._storage.update_bake_image(
                         self._attempt.bake,
@@ -930,7 +933,7 @@ class BatchExecutor:
                         status=ImageStatus.BUILD_FAILED,
                     )
                     self._progress.log(
-                        "Image", image.ref, "is", ImageStatus.BUILD_FAILED
+                        "Image", fmt_id(image.ref), "is", ImageStatus.BUILD_FAILED
                     )
 
 

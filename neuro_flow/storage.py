@@ -2,7 +2,6 @@ import dataclasses
 
 import abc
 import datetime
-import enum
 import hashlib
 import json
 import logging
@@ -39,7 +38,7 @@ from typing import (
 from typing_extensions import Final, TypedDict
 from yarl import URL
 
-from neuro_flow.types import LocalPath
+from neuro_flow.types import ImageStatus, LocalPath
 
 from .config_loader import ConfigFile
 from .context import DepCtx, JobMeta
@@ -139,13 +138,6 @@ class FinishedTask:
     finished_at: datetime.datetime
     outputs: Mapping[str, str]
     state: Mapping[str, str]
-
-
-class ImageStatus(str, enum.Enum):
-    PENDING = "pending"
-    BUILDING = "building"
-    BUILT = "built"
-    BUILD_FAILED = "build_failed"
 
 
 @dataclasses.dataclass
