@@ -53,7 +53,7 @@ from .storage import (
     Storage,
     _dt2str,
 )
-from .types import AlwaysT, FullID, TaskStatus
+from .types import AlwaysT, FullID, RemotePath, TaskStatus
 from .utils import (
     TERMINATED_JOB_STATUSES,
     TERMINATED_TASK_STATUSES,
@@ -131,7 +131,9 @@ async def get_running_flow(
             ref=image.ref,
             context=image.context_on_storage,
             dockerfile=dockerfile,
-            dockerfile_rel=image.dockerfile_rel,
+            dockerfile_rel=RemotePath(image.dockerfile_rel)
+            if image.dockerfile_rel
+            else None,
         )
     return await RunningBatchFlow.create(
         config_loader=config_loader,

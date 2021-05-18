@@ -39,7 +39,7 @@ from typing import (
 from typing_extensions import Final, TypedDict
 from yarl import URL
 
-from neuro_flow.types import LocalPath, RemotePath
+from neuro_flow.types import LocalPath
 
 from .config_loader import ConfigFile
 from .context import DepCtx, JobMeta
@@ -184,9 +184,7 @@ class BakeImage:
             context_on_storage=URL(data["context_on_storage"])
             if "context_on_storage" in data
             else None,
-            dockerfile_rel=RemotePath(data["dockerfile_rel"])
-            if "dockerfile_rel" in data
-            else None,
+            dockerfile_rel=data["dockerfile_rel"] if "dockerfile_rel" in data else None,
             status=data["status"],
             builder_job_id=data["builder_job_id"],
         )

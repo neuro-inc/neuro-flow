@@ -15,8 +15,6 @@ from rich.table import Table
 from types import TracebackType
 from typing import (
     AbstractSet,
-    Awaitable,
-    Callable,
     Dict,
     Iterable,
     List,
@@ -49,12 +47,12 @@ from .storage import Attempt, Bake, BakeImage, FinishedTask, Storage
 from .types import FullID, LocalPath, TaskStatus
 from .utils import (
     TERMINATED_TASK_STATUSES,
+    CommandRunner,
     GlobalOptions,
     encode_global_options,
     fmt_datetime,
     fmt_timedelta,
     make_cmd_exec,
-    run_subproc,
 )
 
 
@@ -71,6 +69,162 @@ GRAPH_COLORS = {
     TaskStatus.FAILED: "orangered",
     TaskStatus.UNKNOWN: "crimson",
 }
+
+
+async def iter_flows(top_flow: EarlyBatch) -> AsyncIterator[Tuple[FullID, EarlyBatch]]:
+    to_check: List[Tuple[FullID, EarlyBatch]] = [((), top_flow)]
+    while to_check:
+        prefix, flow = to_check.pop(0)
+        yield prefix, flow
+        for tid in flow.graph:
+            if await flow.is_action(tid):
+                sub_flow = await flow.get_action_early(tid)
+                to_check.append((prefix + (tid,), sub_flow))
+
+
+async def check_no_cycles(top_flow: EarlyBatch) -> None:
+    async for _, flow in iter_flows(top_flow):
+        ColoredTopoSorter(flow.graph)
+
+
+async def check_local_deps(top_flow: EarlyBatch) -> None:
+    # This methods works in O(kn^3), where:
+    # - n is number of tasks in the flow
+    # - k is maximal depths of actions
+    # This complexity is because:
+    # For each task (n) for task's each dependency (n) and for each remote task (n)
+    # do prefix check (k). Note that task are ofter have a few dependencies,
+    # so in real cases one of those n effectively const.
+    #
+    # If performance becomes a problem, it can be replaced
+    # with Trie (prefix tree) to reduce time complexity to O(kn^2)
+    # (for each task (n) for each task's dependency (n) do Trie check (k))
+
+    runs_on_remote: Set[FullID] = set()
+
+    async for prefix, flow in iter_flows(top_flow):
+        runs_on_remote.update(
+            {prefix + (tid,) for tid in flow.graph if await flow.is_task(tid)}
+        )
+
+    def _is_prefix(item: FullID, prefix: FullID) -> bool:
+        if len(item) < len(prefix):
+            return False
+        return all(x == y for (x, y) in zip(item, prefix))
+
+    def _remote_deps(prefix: FullID, deps: Iterable[str]) -> Iterable[FullID]:
+        return (
+            remote
+            for dep in deps
+            for remote in runs_on_remote
+            if _is_prefix(remote, prefix + (dep,))
+        )
+
+    async for prefix, flow in iter_flows(top_flow):
+        early_locals = cast(
+            AsyncIterator[EarlyLocalCall],
+            (
+                await flow.get_local_early(tid)
+                for tid in flow.graph
+                if await flow.is_local(tid)
+            ),
+        )
+        with_bad_deps = (
+            (early_local, remote)
+            async for early_local in early_locals
+            for remote in _remote_deps(prefix, early_local.needs)
+        )
+        async for early_local, remote in with_bad_deps:
+            early_local_str = ".".join(prefix + (early_local.real_id,))
+            remote_str = ".".join(remote)
+            raise Exception(
+                f"Local action '{early_local_str}' depends on remote "
+                f"task '{remote_str}'. This is not supported because "
+                "all local action should succeed before "
+                "remote executor starts."
+            )
+
+
+async def check_expressions(top_flow: RunningBatchFlow) -> None:
+    errors: List[EvalError] = []
+    async for _, flow in iter_flows(top_flow):
+        errors += flow.validate_expressions()
+    if errors:
+        raise MultiEvalError(errors)
+
+
+async def check_image_refs_unique(top_flow: RunningBatchFlow) -> None:
+    refs: Set[str] = set()
+
+    async for _, flow in iter_flows(top_flow):
+        for image in flow.early_images.values():
+            if image.ref.startswith("image:"):
+                if image.ref in refs:
+                    # TODO: add more descriptive error here
+                    raise Exception(f"Image ref '{image.ref}' is duplicated")
+                refs.add(image.ref)
+
+
+async def build_graphs(
+    top_flow: RunningBatchFlow,
+) -> Mapping[FullID, Mapping[FullID, AbstractSet[FullID]]]:
+    graphs = {}
+
+    async for prefix, flow in iter_flows(top_flow):
+        graphs[prefix] = {
+            prefix + (key,): {prefix + (node,) for node in nodes}
+            for key, nodes in flow.graph.items()
+        }
+
+    return graphs
+
+
+async def upload_image_data(
+    top_flow: RunningBatchFlow,
+    bake: Bake,
+    neuro_runner: CommandRunner,
+    storage: Storage,
+) -> List[BakeImage]:
+    images: List[BakeImage] = []
+
+    async for prefix, flow in iter_flows(top_flow):
+        for image in flow.early_images.values():
+            if isinstance(image.context, LocalPath):
+                # TODO: use hash of data instead of random value for storage path
+                storage_context_dir: Optional[URL] = URL(
+                    f"storage:.flow/image-contexts/{uuid.uuid4()}"
+                )
+                await neuro_runner(
+                    "mkdir",
+                    "--parents",
+                    str(storage_context_dir),
+                )
+                await neuro_runner(
+                    "cp",
+                    "--recursive",
+                    "--update",
+                    "--no-target-directory",
+                    str(image.context),
+                    str(storage_context_dir),
+                )
+            else:
+                storage_context_dir = image.context
+
+            dockerfile_rel = None
+            if image.dockerfile_rel:
+                dockerfile_rel = str(image.dockerfile_rel.as_posix())
+
+            bake_image = await storage.create_bake_image(
+                bake,
+                yaml_id=image.id,
+                prefix=prefix,
+                ref=image.ref,
+                context_on_storage=storage_context_dir,
+                dockerfile_rel=dockerfile_rel,
+            )
+            images.append(bake_image)
+
+    return images
 
 
 class BatchRunner(AsyncContextManager["BatchRunner"]):
@@ -147,11 +301,11 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                 # TODO: sync volumes if needed
                 raise NotImplementedError("Volumes sync is not supported")
 
-        await self._check_no_cycles(flow)
-        await self._check_local_deps(flow)
-        await self._check_expressions(flow)
-        await self._check_image_refs_unique(flow)
-        graphs = await self._build_graphs(flow)
+        await check_no_cycles(flow)
+        await check_local_deps(flow)
+        await check_expressions(flow)
+        await check_image_refs_unique(flow)
+        graphs = await build_graphs(flow)
 
         self._console.log(
             "Check config... [green]ok[/green]",
@@ -174,7 +328,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             f"Bake [b]{bake.bake_id}[/b] of project [b]{bake.project}[/b] is created"
         )
         self._console.log("Uploading image contexts/dockerfiles...")
-        await self._upload_image_data(flow, bake)
+        await upload_image_data(flow, bake, self._run_neuro_cli, self._storage)
 
         return (
             ExecutorData(
@@ -185,172 +339,6 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             ),
             flow,
         )
-
-    async def _run_for_each_flow(
-        self,
-        flow: EarlyBatch,
-        callback: Callable[[FullID, EarlyBatch], Awaitable[None]],
-    ) -> None:
-        to_check: List[Tuple[FullID, EarlyBatch]] = [((), flow)]
-        while to_check:
-            prefix, flow = to_check.pop(0)
-            await callback(prefix, flow)
-            for tid in flow.graph:
-                if await flow.is_action(tid):
-                    sub_flow = await flow.get_action_early(tid)
-                    to_check.append((prefix + (tid,), sub_flow))
-
-    async def _check_no_cycles(self, top_flow: RunningBatchFlow) -> None:
-        async def check_cycle(_: FullID, flow: EarlyBatch) -> None:
-            ColoredTopoSorter(flow.graph)
-
-        await self._run_for_each_flow(top_flow, check_cycle)
-
-    async def _check_local_deps(self, top_flow: RunningBatchFlow) -> None:
-        # This methods works in O(kn^3), where:
-        # - n is number of tasks in the flow
-        # - k is maximal depths of actions
-        # This complexity is because:
-        # For each task (n) for task's each dependency (n) and for each remote task (n)
-        # do prefix check (k). Note that task are ofter have a few dependencies,
-        # so in real cases one of those n effectively const.
-        #
-        # If performance becomes a problem, it can be replaced
-        # with Trie (prefix tree) to reduce time complexity to O(kn^2)
-        # (for each task (n) for each task's dependency (n) do Trie check (k))
-
-        runs_on_remote: Set[FullID] = set()
-
-        def _is_prefix(item: FullID, prefix: FullID) -> bool:
-            if len(item) < len(prefix):
-                return False
-            return all(x == y for (x, y) in zip(item, prefix))
-
-        def _remote_deps(prefix: FullID, deps: Iterable[str]) -> Iterable[FullID]:
-            return (
-                remote
-                for dep in deps
-                for remote in runs_on_remote
-                if _is_prefix(remote, prefix + (dep,))
-            )
-
-        async def _collect_remotes(prefix: FullID, flow: EarlyBatch) -> None:
-            runs_on_remote.update(
-                {prefix + (tid,) for tid in flow.graph if await flow.is_task(tid)}
-            )
-
-        await self._run_for_each_flow(top_flow, _collect_remotes)
-
-        async def _check_locals(prefix: FullID, flow: EarlyBatch) -> None:
-            early_locals = cast(
-                AsyncIterator[EarlyLocalCall],
-                (
-                    await flow.get_local_early(tid)
-                    for tid in flow.graph
-                    if await flow.is_local(tid)
-                ),
-            )
-            with_bad_deps = (
-                (early_local, remote)
-                async for early_local in early_locals
-                for remote in _remote_deps(prefix, early_local.needs)
-            )
-            async for early_local, remote in with_bad_deps:
-                early_local_str = ".".join(prefix + (early_local.real_id,))
-                remote_str = ".".join(remote)
-                raise Exception(
-                    f"Local action '{early_local_str}' depends on remote "
-                    f"task '{remote_str}'. This is not supported because "
-                    "all local action should succeed before "
-                    "remote executor starts."
-                )
-
-        await self._run_for_each_flow(top_flow, _check_locals)
-
-    async def _check_expressions(self, top_flow: RunningBatchFlow) -> None:
-        errors: List[EvalError] = []
-
-        async def check_expressions(_: FullID, flow: EarlyBatch) -> None:
-            nonlocal errors
-            errors += flow.validate_expressions()
-
-        await self._run_for_each_flow(top_flow, check_expressions)
-        if errors:
-            raise MultiEvalError(errors)
-
-    async def _check_image_refs_unique(self, top_flow: RunningBatchFlow) -> None:
-        refs: Set[str] = set()
-
-        async def _check(_: FullID, flow: EarlyBatch) -> None:
-            for image in flow.early_images.values():
-                if image.ref.startswith("image:"):
-                    if image.ref in refs:
-                        # TODO: add more descriptive error here
-                        raise Exception(f"Image ref '{image.ref}' is duplicated")
-                    refs.add(image.ref)
-
-        await self._run_for_each_flow(top_flow, _check)
-
-    async def _build_graphs(
-        self, top_flow: RunningBatchFlow
-    ) -> Mapping[FullID, Mapping[FullID, AbstractSet[FullID]]]:
-        graphs = {}
-
-        async def _make_graph(prefix: FullID, flow: EarlyBatch) -> None:
-            graphs[prefix] = {
-                prefix + (key,): {prefix + (node,) for node in nodes}
-                for key, nodes in flow.graph.items()
-            }
-
-        await self._run_for_each_flow(top_flow, _make_graph)
-        return graphs
-
-    async def _upload_image_data(
-        self, top_flow: RunningBatchFlow, bake: Bake
-    ) -> List[BakeImage]:
-        images: List[BakeImage] = []
-
-        async def _upload(prefix: FullID, flow: EarlyBatch) -> None:
-            for image in flow.early_images.values():
-                if isinstance(image.context, LocalPath):
-                    # TODO: use hash of data instead of random value for storage path
-                    storage_context_dir: Optional[URL] = URL(
-                        f"storage:.flow/image-contexts/{uuid.uuid4()}"
-                    )
-                    await run_subproc(
-                        "neuro",
-                        "mkdir",
-                        "--parents",
-                        str(storage_context_dir),
-                    )
-                    await run_subproc(
-                        "neuro",
-                        "cp",
-                        "--recursive",
-                        "--update",
-                        "--no-target-directory",
-                        str(image.context),
-                        str(storage_context_dir),
-                    )
-                else:
-                    storage_context_dir = image.context
-
-                dockerfile_rel = None
-                if image.dockerfile_rel:
-                    dockerfile_rel = str(image.dockerfile_rel.as_posix())
-
-                bake_image = await self._storage.create_bake_image(
-                    bake,
-                    yaml_id=image.id,
-                    prefix=prefix,
-                    ref=image.ref,
-                    context_on_storage=storage_context_dir,
-                    dockerfile_rel=dockerfile_rel,
-                )
-                images.append(bake_image)
-
-        await self._run_for_each_flow(top_flow, _upload)
-        return images
 
     # Next function is also used in tests:
     async def _run_locals(

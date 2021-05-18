@@ -1339,7 +1339,7 @@ class EarlyBatch:
                 )
         return errors
 
-    async def get_action_early(self, real_id: str) -> "EarlyBatch":
+    async def get_action_early(self, real_id: str) -> "EarlyBatchAction":
         assert await self.is_action(
             real_id
         ), f"get_action_early() cannot used for action call {real_id}"

@@ -876,67 +876,6 @@ async def test_volumes_parsing(
     await executor_task
 
 
-async def test_graphs(
-    batch_storage: Storage,
-    batch_runner: BatchRunner,
-) -> None:
-    data, _ = await batch_runner._setup_bake("batch-action-call")
-    bake = await batch_storage.fetch_bake(
-        data.project, data.batch, data.when, data.suffix
-    )
-    assert bake.graphs == {
-        (): {("test",): set()},
-        ("test",): {
-            ("test", "task_1"): set(),
-            ("test", "task_2"): {("test", "task_1")},
-        },
-    }
-
-
-async def test_early_graph(
-    batch_storage: Storage,
-    make_batch_runner: MakeBatchRunner,
-    assets: Path,
-) -> None:
-    batch_runner = await make_batch_runner(assets / "early_graph")
-    data, _ = await batch_runner._setup_bake("batch")
-    bake = await batch_storage.fetch_bake(
-        data.project, data.batch, data.when, data.suffix
-    )
-    assert bake.graphs == {
-        (): {
-            ("first_ac",): set(),
-            ("second",): {("first_ac",)},
-            ("third",): {("first_ac",)},
-        },
-        ("first_ac",): {("first_ac", "task_2"): set()},
-        ("second",): {
-            ("second", "task-1-o3-t3"): set(),
-            ("second", "task-1-o1-t1"): set(),
-            ("second", "task-1-o2-t1"): set(),
-            ("second", "task-1-o2-t2"): set(),
-            ("second", "task_2"): {
-                ("second", "task-1-o3-t3"),
-                ("second", "task-1-o1-t1"),
-                ("second", "task-1-o2-t1"),
-                ("second", "task-1-o2-t2"),
-            },
-        },
-        ("third",): {
-            ("third", "task-1-o3-t3"): set(),
-            ("third", "task-1-o1-t1"): set(),
-            ("third", "task-1-o2-t1"): set(),
-            ("third", "task-1-o2-t2"): set(),
-            ("third", "task_2"): {
-                ("third", "task-1-o3-t3"),
-                ("third", "task-1-o1-t1"),
-                ("third", "task-1-o2-t1"),
-                ("third", "task-1-o2-t2"),
-            },
-        },
-    }
-
-
 async def test_always_after_disabled(
     jobs_mock: JobsMock,
     assets: Path,
@@ -1018,34 +957,6 @@ async def test_action_with_local_action(
         await jobs_mock.mark_done("call_action.remote-task")
 
         await executor_task
-
-
-async def test_local_deps_on_remote_1(
-    jobs_mock: JobsMock,
-    assets: Path,
-    make_batch_runner: MakeBatchRunner,
-    run_executor: Callable[[Path, str], Awaitable[None]],
-) -> None:
-    batch_runner = await make_batch_runner(assets / "local_actions")
-    with pytest.raises(
-        Exception, match=r"Local action 'local' depends on remote task 'remote'"
-    ):
-        await batch_runner._setup_bake("bad-order")
-
-
-async def test_local_deps_on_remote_2(
-    jobs_mock: JobsMock,
-    assets: Path,
-    make_batch_runner: MakeBatchRunner,
-    run_executor: Callable[[Path, str], Awaitable[None]],
-) -> None:
-    batch_runner = await make_batch_runner(assets / "local_actions")
-    with pytest.raises(
-        Exception,
-        match=r"Local action 'local' depends on "
-        r"remote task 'call_action.remote_task'",
-    ):
-        await batch_runner._setup_bake("bad-order-through-action")
 
 
 async def test_stateful_no_post(
