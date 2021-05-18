@@ -177,7 +177,7 @@ class BakeImage:
             if "context_on_storage" in data
             else None,
             dockerfile_rel=data["dockerfile_rel"] if "dockerfile_rel" in data else None,
-            status=data["status"],
+            status=ImageStatus(data["status"]),
             builder_job_id=data["builder_job_id"],
         )
 

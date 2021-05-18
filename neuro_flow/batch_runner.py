@@ -468,12 +468,6 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         save_pdf: bool = False,
         view_pdf: bool = False,
     ) -> None:
-        table = Table(box=box.MINIMAL_HEAVY_HEAD)
-        table.add_column("ID", style="bold")
-        table.add_column("STATUS")
-        table.add_column("RAW ID", style="bright_black")
-        table.add_column("STARTED")
-        table.add_column("FINISHED")
 
         try:
             bake = await self._storage.fetch_bake_by_id(self.project, bake_id)
@@ -494,6 +488,13 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                 f"[b]Executor {attempt.executor_id}[/b]", TaskStatus(info.status)
             )
 
+        task_table = Table(box=box.MINIMAL_HEAVY_HEAD)
+        task_table.add_column("ID", style="bold")
+        task_table.add_column("STATUS")
+        task_table.add_column("RAW ID", style="bright_black")
+        task_table.add_column("STARTED")
+        task_table.add_column("FINISHED")
+
         started, finished = await self._storage.fetch_attempt(attempt)
         statuses = {}
         for task in sorted(started.values(), key=attrgetter("when")):
@@ -501,7 +502,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             raw_id = task.raw_id
             finished_task = finished.get(task_id)
             if finished_task:
-                table.add_row(
+                task_table.add_row(
                     ".".join(task_id),
                     finished_task.status,
                     raw_id,
@@ -514,7 +515,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                     statuses[task_id] = TaskStatus(info.status)
                 else:
                     statuses[task_id] = TaskStatus.RUNNING
-                table.add_row(
+                task_table.add_row(
                     ".".join(task_id),
                     statuses[task_id],
                     raw_id,
@@ -522,7 +523,22 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                     fmt_datetime(None),
                 )
 
-        self._console.print(table)
+        self._console.print("Tasks:")
+        self._console.print(task_table)
+
+        image_table = Table(box=box.MINIMAL_HEAVY_HEAD)
+        image_table.add_column("REF", style="bold")
+        image_table.add_column("STATUS")
+        image_table.add_column("BUILDER ID", style="bright_black")
+        async for image in self._storage.list_bake_images(bake):
+            image_table.add_row(
+                image.ref,
+                image.status,
+                image.builder_job_id or "",
+            )
+        if image_table.rows:
+            self._console.print("Images:")
+            self._console.print(image_table)
 
         if output is None:
             output = LocalPath(f"{bake.bake_id}_{attempt.number}").with_suffix(".gv")
