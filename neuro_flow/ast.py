@@ -53,6 +53,8 @@ class Cache(Base):
 @dataclass(frozen=True)
 class Project(Base):
     id: SimpleIdExpr
+    owner: SimpleOptStrExpr  # user name can contain "-"
+    role: SimpleOptStrExpr
 
 
 # There are 'batch' for pipelined mode and 'live' for interactive one

@@ -7,7 +7,15 @@ import json
 import os
 import sys
 from collections import defaultdict
-from neuro_sdk import Client, HTTPPort, JobStatus, ResourceNotFound
+from neuro_sdk import (
+    Action,
+    Client,
+    HTTPPort,
+    IllegalArgumentError,
+    JobStatus,
+    Permission,
+    ResourceNotFound,
+)
 from rich.console import Console
 from rich.panel import Panel
 from rich.progress import BarColumn, Progress, TaskID, TextColumn
@@ -23,6 +31,7 @@ from typing import (
     Tuple,
     TypeVar,
 )
+from yarl import URL
 
 from . import ast
 from .colored_topo_sorter import ColoredTopoSorter
@@ -286,6 +295,7 @@ class BatchExecutor:
         *,
         polling_timeout: float = 1,
         transient_progress: bool = False,
+        project_role: Optional[str] = None,
     ) -> None:
         self._progress = Progress(
             TextColumn("[progress.description]{task.description}"),
@@ -305,6 +315,8 @@ class BatchExecutor:
         )
         self._tasks_mgr = BakeTasksManager()
         self._is_cancelling = False
+        self._project_role = project_role
+        self._is_projet_role_created = False
 
         # A note about default value:
         # AS: I have no idea what timeout is better;
@@ -325,6 +337,7 @@ class BatchExecutor:
         *,
         polling_timeout: float = 1,
         transient_progress: bool = False,
+        project_role: Optional[str] = None,
     ) -> AsyncIterator["BatchExecutor"]:
         console.log("Fetch bake data")
         bake = await storage.fetch_bake(
@@ -349,6 +362,7 @@ class BatchExecutor:
             storage,
             polling_timeout=polling_timeout,
             transient_progress=transient_progress,
+            project_role=project_role,
         )
         ret._start()
         try:
@@ -778,7 +792,29 @@ class BatchExecutor:
             schedule_timeout=task.schedule_timeout,
             pass_config=bool(task.pass_config),
         )
+        await self._add_resource(job.uri)
         return await self._storage.start_task(self._attempt, full_id, job)
+
+    async def _create_project_role(self, project_role: str) -> None:
+        if self._is_projet_role_created:
+            return
+        try:
+            await self._client.users.add(project_role)
+        except IllegalArgumentError as e:
+            if "already exists" not in str(e):
+                raise
+        self._is_projet_role_created = True
+
+    async def _add_resource(self, uri: URL) -> None:
+        project_role = self._project_role
+        if project_role is None:
+            return
+        await self._create_project_role(project_role)
+        permission = Permission(uri, Action.WRITE)
+        try:
+            await self._client.users.share(project_role, permission)
+        except ValueError:
+            self._progress.log(f"[red]Cannot share [b]{uri!s}[/b]")
 
 
 class LocalsBatchExecutor(BatchExecutor):
@@ -792,6 +828,7 @@ class LocalsBatchExecutor(BatchExecutor):
         storage: Storage,
         *,
         polling_timeout: Optional[float] = None,
+        project_role: Optional[str] = None,
     ) -> AsyncIterator["BatchExecutor"]:
         assert (
             polling_timeout is None
@@ -803,6 +840,7 @@ class LocalsBatchExecutor(BatchExecutor):
             storage,
             polling_timeout=0,
             transient_progress=True,
+            project_role=project_role,
         ) as ret:
             yield ret
 

@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 
+import aiohttp
 import logging
 import os
 import pathlib
@@ -8,10 +9,16 @@ import secrets
 import shutil
 import subprocess
 from datetime import datetime, timedelta
-from neuro_sdk import login_with_token
+from neuro_sdk import Config, get as api_get, login_with_token
+from pathlib import Path
 from typing import Any, AsyncIterator, Callable, Dict, List, Optional
 from yarl import URL
 
+from neuro_flow.context import sanitize_name
+
+
+NETWORK_TIMEOUT = 3 * 60.0
+CLIENT_TIMEOUT = aiohttp.ClientTimeout(None, None, NETWORK_TIMEOUT, NETWORK_TIMEOUT)
 
 log = logging.getLogger(__name__)
 
@@ -26,12 +33,52 @@ def project_id() -> str:
     return f"e2e_proj_{make_image_date_flag()}_{secrets.token_hex(10)}"
 
 
+async def get_config(nmrc_path: Optional[Path]) -> Config:
+    __tracebackhide__ = True
+    async with api_get(timeout=CLIENT_TIMEOUT, path=nmrc_path) as client:
+        return client.config
+
+
 @pytest.fixture
-def ws(assets: pathlib.Path, tmp_path_factory: Any, project_id: str) -> pathlib.Path:
+async def api_config_data(api_config: Optional[pathlib.Path]) -> Config:
+    return await get_config(api_config)
+
+
+@pytest.fixture
+def username(api_config_data: Config) -> str:
+    return api_config_data.username
+
+
+@pytest.fixture
+def cluster_name(api_config_data: Config) -> str:
+    return api_config_data.cluster_name
+
+
+@pytest.fixture
+async def project_role(
+    project_id: str, username: str, run_neuro_cli: "RunCLI"
+) -> AsyncIterator[str]:
+    project_role = f"{username}/projects/{sanitize_name(project_id)}"
+    try:
+        yield project_role
+    finally:
+        run_neuro_cli(["acl", "remove-role", project_role])
+
+
+@pytest.fixture
+def ws(
+    assets: pathlib.Path,
+    tmp_path_factory: Any,
+    project_id: str,
+    username: str,
+) -> pathlib.Path:
     tmp_dir: pathlib.Path = tmp_path_factory.mktemp("proj-dir-parent")
     ws_dir = tmp_dir / project_id
     shutil.copytree(assets / "ws", ws_dir)
-    (ws_dir / "project.yml").write_text(f"id: {project_id}")
+    project_data = f"id: {project_id}"
+    if username:
+        project_data += f'\nowner: "{username}"'
+    (ws_dir / "project.yml").write_text(project_data)
     return ws_dir
 
 

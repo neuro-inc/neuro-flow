@@ -16,6 +16,7 @@ from neuro_flow.context import (
     NotAvailable,
     RunningBatchFlow,
     RunningLiveFlow,
+    sanitize_name,
     setup_inputs_ctx,
 )
 from neuro_flow.expr import EvalError, SimpleOptStrExpr, SimpleStrExpr, StrExpr
@@ -821,3 +822,14 @@ async def test_pipeline_life_span(
         batch_config_loader, "batch-life-span", "bake-id"
     )
     assert flow.life_span == timedelta(days=30)
+
+
+def test_sanitize_name() -> None:
+    assert sanitize_name("myproject") == "myproject"
+    assert sanitize_name("проект") == "проект"
+    assert sanitize_name("my project") == "my_project"
+    assert sanitize_name("my:project") == "my_project"
+    assert sanitize_name("my/project") == "my/project"
+    assert sanitize_name("my//project") == "my/project"
+    assert sanitize_name("/my/project/") == "my/project"
+    assert sanitize_name("") == "_"

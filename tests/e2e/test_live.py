@@ -1,11 +1,20 @@
 import json
 import pathlib
 import secrets
+from yarl import URL
 
 from tests.e2e.conftest import RunCLI
 
 
-def test_live_context(ws: pathlib.Path, run_cli: RunCLI, project_id: str) -> None:
+def test_live_context(
+    ws: pathlib.Path,
+    run_cli: RunCLI,
+    run_neuro_cli: RunCLI,
+    project_id: str,
+    username: str,
+    project_role: str,
+    cluster_name: str,
+) -> None:
     captured = run_cli(["run", "job_ctx_full", "--param", "arg1", "cli-value"])
 
     DUMP_START_MARK = "DUMP_START"
@@ -20,8 +29,14 @@ def test_live_context(ws: pathlib.Path, run_cli: RunCLI, project_id: str) -> Non
             break
         elif mark_found:
             json_str += line
-
-    assert json.loads(json_str) == {
+    result = json.loads(json_str)
+    job_id = result.pop("job-id")
+    assert result == {
+        "project": {
+            "id": project_id,
+            "owner": username,
+            "role": project_role,
+        },
         "flow": {
             "flow_id": "live",
             "project_id": project_id,
@@ -65,9 +80,32 @@ def test_live_context(ws: pathlib.Path, run_cli: RunCLI, project_id: str) -> Non
         "params": {"arg1": "cli-value", "arg2": "val2"},
     }
 
+    job_uri = URL.build(scheme="job", host=cluster_name) / username / job_id
+    captured = run_neuro_cli(["acl", "list", "--shared", str(job_uri)])
+    assert sorted(line.split() for line in captured.out.splitlines()) == [
+        [f"job:{job_id}", "write", project_role],
+    ]
 
-def test_volumes(ws: pathlib.Path, run_cli: RunCLI) -> None:
+
+def test_volumes(
+    ws: pathlib.Path,
+    run_cli: RunCLI,
+    run_neuro_cli: RunCLI,
+    project_id: str,
+    username: str,
+    project_role: str,
+    cluster_name: str,
+) -> None:
     run_cli(["mkvolumes"])
+
+    storage_uri = URL.build(scheme="storage", host=cluster_name)
+    storage_uri = storage_uri / username / "neuro-flow-e2e" / project_id
+    captured = run_neuro_cli(["acl", "list", "--shared", str(storage_uri)])
+    assert sorted(line.split() for line in captured.out.splitlines()) == [
+        [f"storage:neuro-flow-e2e/{project_id}/ro_dir", "write", project_role],
+        [f"storage:neuro-flow-e2e/{project_id}/rw_dir", "write", project_role],
+    ]
+
     run_cli(["upload", "ALL"])
     random_text = secrets.token_hex(20)
     (ws / "ro_dir/updated_file").write_text(random_text)
@@ -76,14 +114,28 @@ def test_volumes(ws: pathlib.Path, run_cli: RunCLI) -> None:
     assert random_text in captured.out
 
 
-def test_image_build(run_cli: RunCLI, run_neuro_cli: RunCLI, project_id: str) -> None:
+def test_image_build(
+    run_cli: RunCLI,
+    run_neuro_cli: RunCLI,
+    project_id: str,
+    username: str,
+    project_role: str,
+    cluster_name: str,
+) -> None:
+    image_uri = URL.build(scheme="image", host=cluster_name)
+    image_uri = image_uri / username / "neuro-flow-e2e" / project_id
     try:
         run_cli(["build", "img"])
+
+        captured = run_neuro_cli(["acl", "list", "--shared", str(image_uri)])
+        assert sorted(line.split() for line in captured.out.splitlines()) == [
+            [f"image:neuro-flow-e2e/{project_id}", "write", project_role],
+        ]
+
         random_text = secrets.token_hex(20)
         captured = run_cli(
             ["run", "image_py", "--param", "py_script", f"print('{random_text}')"]
         )
         assert random_text in captured.out
     finally:
-        image_uri = f"image:neuro-flow-e2e/{project_id}"
-        run_neuro_cli(["image", "rm", image_uri])
+        run_neuro_cli(["image", "rm", str(image_uri)])
