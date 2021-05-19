@@ -554,12 +554,9 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
     async def build(self, image: str, force_overwrite: bool) -> None:
         image_ctx = await self.find_image(image)
         cmd = []
-        assert image_ctx.full_dockerfile_path is not None
-        assert image_ctx.full_context_path is not None
-        rel_dockerfile_path = image_ctx.full_dockerfile_path.relative_to(
-            image_ctx.full_context_path
-        )
-        cmd.append(f"--file={rel_dockerfile_path}")
+        assert image_ctx.dockerfile_rel is not None
+        assert image_ctx.context is not None
+        cmd.append(f"--file={image_ctx.dockerfile_rel.as_posix()}")
         for arg in image_ctx.build_args:
             cmd.append(f"--build-arg={arg}")
         for vol in image_ctx.volumes:
@@ -570,7 +567,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
             cmd.append("--force-overwrite")
         if image_ctx.build_preset is not None:
             cmd.append(f"--preset={image_ctx.build_preset}")
-        cmd.append(str(image_ctx.full_context_path))
+        cmd.append(str(image_ctx.context))
         cmd.append(str(image_ctx.ref))
         await self._run_extras_cli("image", "build", *cmd)
         image_ref = self._client.parse.remote_image(image_ctx.ref)

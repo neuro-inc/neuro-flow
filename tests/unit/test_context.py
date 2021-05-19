@@ -122,19 +122,38 @@ async def test_images(live_config_loader: ConfigLoader) -> None:
 
     assert ctx.images["image_a"].id == "image_a"
     assert ctx.images["image_a"].ref == "image:banana"
-    assert ctx.images["image_a"].context == LocalPath("dir")
+    assert ctx.images["image_a"].context == live_config_loader.workspace / "dir"
     assert (
-        ctx.images["image_a"].full_context_path == live_config_loader.workspace / "dir"
-    )
-    assert ctx.images["image_a"].dockerfile == LocalPath("dir/Dockerfile")
-    assert (
-        ctx.images["image_a"].full_dockerfile_path
+        ctx.images["image_a"].dockerfile
         == live_config_loader.workspace / "dir/Dockerfile"
     )
     assert ctx.images["image_a"].build_args == ["--arg1", "val1", "--arg2=val2"]
     assert ctx.images["image_a"].env == {"SECRET_ENV": "secret:key"}
     assert ctx.images["image_a"].volumes == ["secret:key:/var/secret/key.txt"]
     assert ctx.images["image_a"].build_preset == "gpu-small"
+
+
+async def test_local_remote_path_images(
+    client: Client, live_config_loader: ConfigLoader
+) -> None:
+    flow = await RunningLiveFlow.create(live_config_loader, "live-different-images")
+    ctx = flow._ctx
+    assert ctx.images.keys() == {"image_local", "image_remote"}
+
+    assert ctx.images["image_local"].context == live_config_loader.workspace / "dir"
+    assert (
+        ctx.images["image_local"].dockerfile
+        == live_config_loader.workspace / "dir/Dockerfile"
+    )
+    assert ctx.images["image_local"].dockerfile_rel == LocalPath("Dockerfile")
+
+    assert ctx.images["image_remote"].context == URL(
+        f"storage://{client.cluster_name}/{client.username}/dir"
+    )
+    assert ctx.images["image_remote"].dockerfile == URL(
+        f"storage://{client.cluster_name}/{client.username}/dir/Dockerfile"
+    )
+    assert ctx.images["image_remote"].dockerfile_rel == RemotePath("Dockerfile")
 
 
 async def test_defaults(live_config_loader: ConfigLoader) -> None:

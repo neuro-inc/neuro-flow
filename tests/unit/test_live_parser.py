@@ -224,10 +224,10 @@ def test_parse_full(assets: pathlib.Path) -> None:
                 ref=StrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "image:banana"
                 ),
-                context=OptLocalPathExpr(
+                context=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "dir"
                 ),
-                dockerfile=OptLocalPathExpr(
+                dockerfile=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "dir/Dockerfile"
                 ),
                 build_args=SequenceItemsExpr(
@@ -472,10 +472,10 @@ def test_parse_full_exprs(assets: pathlib.Path) -> None:
                 ref=StrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "image:banana"
                 ),
-                context=OptLocalPathExpr(
+                context=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "dir"
                 ),
-                dockerfile=OptLocalPathExpr(
+                dockerfile=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "dir/Dockerfile"
                 ),
                 build_args=SequenceExpr(
