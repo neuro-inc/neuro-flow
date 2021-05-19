@@ -1043,7 +1043,7 @@ class Expr(BaseExpr[_T]):
                 except EvalError:
                     raise
                 except Exception as exc:
-                    raise EvalError(str(exc), part.start, part.end)
+                    raise EvalError(str(exc), part.start, part.end) from exc
                 # TODO: add str() function, raise an explicit error if
                 # an expresion evaluates non-str type
                 # assert isinstance(val, str), repr(val)
