@@ -308,7 +308,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
     ) -> None:
         """Run a named job"""
 
-        meta_ctx = await self._ensure_meta(job_id, suffix)
+        meta_ctx = await self._ensure_meta(job_id, suffix, skip_check=True)
         is_multi = meta_ctx.multi
 
         if not is_multi and args:
