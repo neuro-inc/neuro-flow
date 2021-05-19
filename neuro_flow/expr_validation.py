@@ -44,7 +44,13 @@ def iter_lookups(expr: Expr[Any]) -> Iterable[Lookup]:
 
 
 def _get_dataclass_field_type(dataclass: Any, attr: str) -> Optional[Any]:
-    return get_hints(dataclass).get(attr)
+    res = get_hints(dataclass).get(attr)
+    if res is None:
+        # Maybe this is a property?
+        class_attr = getattr(dataclass, attr, None)
+        if hasattr(class_attr, "fget"):
+            res = get_hints(class_attr.fget).get("return")
+    return res
 
 
 class GetterVisitor(abc.ABC):
