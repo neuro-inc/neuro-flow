@@ -7,6 +7,7 @@ This page describes contexts the [Batch workflow](batch-workflow-syntax.md) can 
 | Context name | Description |
 | :--- | :--- |
 | `flow` | Information about the main workflow settings, defaults, etc. See [`flow` context](batch-contexts.md#flow-context) for details. |
+| `project` | Information about the project. See [`project` context](batch-contexts.md#project-context) for details. |
 | `params` | A mapping of global workflow parameters. For more information, see [`params` context.](batch-contexts.md#params-context) |
 | `env` | Contains environment variables set in workflow defaults. For more information, see [`env` context](batch-contexts.md#env-context) . |
 | `tags` | A set of job tags set in workflow defaults. See [`tags` context](batch-contexts.md#tags-context) for details. |
@@ -23,9 +24,19 @@ The `flow`context contains information about the workflow: its ID, title, etc.
 | Property name | Type | Description |
 | :--- | :--- | :--- |
 | `flow.flow_id` | `str` | The workflow's ID. It is automatically generated based on the workflow's YAML filename with a dropped suffix. You can override the property by setting the [`flow.id`](batch-workflow-syntax.md#id) attribute. |
-| `flow.project_id` | `str` | The project's ID'. See also: [the project configuration](project-configuration-syntax.md#id). |
+| `flow.project_id` | `str` | The project's ID.  |
 | `flow.workspace` | `LocalPath` | A path to the workspace \(the root folder of the project\). |
 | `flow.title` | `str` | The workflow's title. Set the [`flow.title`](batch-workflow-syntax.md#title) attribute to override the auto-calculated value. |
+
+### `project` context
+
+The `project`context contains information about the project: its ID, owner, etc.
+
+| Property name | Type | Description |
+| :--- | :--- | :--- |
+| `project.id` | `str` | The project's ID. See also: [the project configuration](project-configuration-syntax.md#id). |
+| `project.owner` | `str` | The project's owner. See also: [the project configuration](project-configuration-syntax.md#owner). |
+| `project.role` | `str` | The project's role. Set the [`project.role`](project-configuration-syntax.md#role) attribute to override the auto-calculated value. |
 
 ### `params` context
 

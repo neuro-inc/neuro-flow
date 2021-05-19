@@ -6,6 +6,7 @@ import enum
 import hashlib
 import itertools
 import json
+import re
 import shlex
 import sys
 from abc import abstractmethod
@@ -83,6 +84,13 @@ ParamsCtx = Annotated[Mapping[str, str], "ParamsCtx"]
 NeedsCtx = Annotated[Mapping[str, "DepCtx"], "NeedsCtx"]
 StateCtx = Annotated[Mapping[str, str], "StateCtx"]
 MatrixCtx = Annotated[Mapping[str, LiteralT], "MatrixCtx"]
+
+
+@dataclass(frozen=True)
+class ProjectCtx:
+    id: str
+    owner: Optional[str] = None
+    role: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -328,6 +336,7 @@ class Context(RootABC):
 
 @dataclass(frozen=True)
 class WithFlowContext(Context):
+    project: ProjectCtx
     flow: FlowCtx
 
 
@@ -342,6 +351,7 @@ class LiveContextStep1(WithFlowContext, Context):
         self, env: EnvCtx, tags: TagsCtx, volumes: VolumesCtx, images: ImagesCtx
     ) -> "LiveContext":
         return LiveContext(
+            project=self.project,
             flow=self.flow,
             env=env,
             tags=tags,
@@ -359,6 +369,7 @@ class LiveContext(WithEnvContext, LiveContextStep1):
 
     def to_job_ctx(self, params: ParamsCtx) -> "LiveJobContext":
         return LiveJobContext(
+            project=self.project,
             flow=self.flow,
             env=self.env,
             tags=self.tags,
@@ -372,6 +383,7 @@ class LiveContext(WithEnvContext, LiveContextStep1):
         self, multi: MultiCtx, params: ParamsCtx
     ) -> "LiveMultiJobContext":
         return LiveMultiJobContext(
+            project=self.project,
             flow=self.flow,
             env=self.env,
             tags=self.tags,
@@ -408,6 +420,7 @@ class BatchContextStep1(WithFlowContext, Context):
         self, env: EnvCtx, tags: TagsCtx, volumes: VolumesCtx, images: ImagesCtx
     ) -> "BatchContextStep2":
         return BatchContextStep2(
+            project=self.project,
             flow=self.flow,
             params=self.params,
             env=env,
@@ -429,6 +442,7 @@ class BatchContextStep2(WithEnvContext, BatchContextStep1):
         strategy: StrategyCtx,
     ) -> "BatchContext":
         return BatchContext(
+            project=self.project,
             flow=self.flow,
             params=self.params,
             env=self.env,
@@ -478,6 +492,7 @@ class BatchContext(BaseBatchContext, BatchContextStep2):
         self, strategy: StrategyCtx, matrix: MatrixCtx
     ) -> "BatchMatrixContext":
         return BatchMatrixContext(
+            project=self.project,
             flow=self.flow,
             params=self.params,
             env=self.env,
@@ -496,6 +511,7 @@ class BatchMatrixContext(BaseMatrixContext, BatchContext):
 
     def to_task_ctx(self, needs: NeedsCtx, state: StateCtx) -> "BatchTaskContext":
         return BatchTaskContext(
+            project=self.project,
             flow=self.flow,
             params=self.params,
             env=self.env,
@@ -593,23 +609,47 @@ class LocalActionContext(Context):
     inputs: InputsCtx
 
 
+def sanitize_name(name: str) -> str:
+    # replace non-printable characters with "_"
+    if not name.isprintable():
+        name = "".join(c if c.isprintable() else "_" for c in name)
+    # ":" is special in role name, replace it with "_"
+    name = name.replace(":", "_")
+    name = name.replace(" ", "_")  # replace space for readability
+    name = re.sub(r"//+", "/", name)  # collapse repeated "/"
+    name = name.strip("/")  # remove initial and and trailing "/"
+    name = name or "_"  # name should be non-empty
+    return name
+
+
+async def setup_project_ctx(
+    ctx: RootABC,
+    config_loader: ConfigLoader,
+) -> ProjectCtx:
+    ast_project = await config_loader.fetch_project()
+    project_id = await ast_project.id.eval(ctx)
+    project_owner = await ast_project.owner.eval(ctx)
+    project_role = await ast_project.role.eval(ctx)
+    if project_role is None and project_owner is not None:
+        project_role = f"{project_owner}/projects/{sanitize_name(project_id)}"
+    return ProjectCtx(id=project_id, owner=project_owner, role=project_role)
+
+
 async def setup_flow_ctx(
     ctx: RootABC,
     ast_flow: ast.BaseFlow,
     config_name: str,
     config_loader: ConfigLoader,
+    project: ProjectCtx,
 ) -> FlowCtx:
     flow_id = await ast_flow.id.eval(ctx)
     if flow_id is None:
         flow_id = config_name.replace("-", "_")
-
-    project = await config_loader.fetch_project()
-    project_id = await project.id.eval(ctx)
     flow_title = await ast_flow.title.eval(ctx)
 
     return FlowCtx(
         flow_id=flow_id,
-        project_id=project_id,
+        project_id=project.id,
         workspace=config_loader.workspace,
         title=flow_title or flow_id,
     )
@@ -620,8 +660,9 @@ async def setup_batch_flow_ctx(
     ast_flow: ast.BatchFlow,
     config_name: str,
     config_loader: ConfigLoader,
+    project: ProjectCtx,
 ) -> BatchFlowCtx:
-    base_flow = await setup_flow_ctx(ctx, ast_flow, config_name, config_loader)
+    base_flow = await setup_flow_ctx(ctx, ast_flow, config_name, config_loader, project)
     life_span = await ast_flow.life_span.eval(ctx)
     return BatchFlowCtx(
         flow_id=base_flow.flow_id,
@@ -1057,6 +1098,10 @@ class RunningLiveFlow:
         return sorted(self._ast_flow.jobs)
 
     @property
+    def project(self) -> ProjectCtx:
+        return self._ctx.project
+
+    @property
     def flow(self) -> FlowCtx:
         return self._ctx.flow
 
@@ -1231,11 +1276,14 @@ class RunningLiveFlow:
 
         assert isinstance(ast_flow, ast.LiveFlow)
 
+        project_ctx = await setup_project_ctx(EMPTY_ROOT, config_loader)
         flow_ctx = await setup_flow_ctx(
-            EMPTY_ROOT, ast_flow, config_name, config_loader
+            EMPTY_ROOT, ast_flow, config_name, config_loader, project_ctx
         )
 
-        step_1_ctx = LiveContextStep1(flow=flow_ctx, _client=config_loader.client)
+        step_1_ctx = LiveContextStep1(
+            project=project_ctx, flow=flow_ctx, _client=config_loader.client
+        )
 
         defaults, env, tags = await setup_defaults_env_tags_ctx(
             step_1_ctx, ast_flow.defaults
@@ -1671,12 +1719,14 @@ class RunningBatchFlow(RunningBatchBase[BatchContext]):
 
         assert isinstance(ast_flow, ast.BatchFlow)
 
+        project_ctx = await setup_project_ctx(EMPTY_ROOT, config_loader)
         flow_ctx = await setup_batch_flow_ctx(
-            EMPTY_ROOT, ast_flow, batch, config_loader
+            EMPTY_ROOT, ast_flow, batch, config_loader, project_ctx
         )
 
         params_ctx = await setup_params_ctx(EMPTY_ROOT, params, ast_flow.params)
         step_1_ctx = BatchContextStep1(
+            project=project_ctx,
             flow=flow_ctx,
             params=params_ctx,
             _client=config_loader.client,

@@ -6,14 +6,19 @@ Name autogeneration will only work if the folder's name starts with a letter or 
 
 To override this, you can put the `project.yml`\(or `project.yaml`\) file into the `.neuro` configuration folder.
 
-This file only contains the `id` attribute by default, but the format can be expanded later.
-
 ## id
 
-Project `id` available as a `${{ flow.project_id }}` context.
+Project `id` available as a `${{ project.id }}` or `${{ flow.project_id }}` context.
+
+## owner
+
+Optional owner name available as a `${{ project.owner }}` context.  Shared projects require `owner` or `role`.
+
+## role
+
+Optional project role name available as a `${{ project.role }}` context.  By default the `role` is `{owner}/projects/{id}` if `owner` is defined.  Shared projects require `owner` or `role`.
 
 See also:
 
-* [live contexts: `flow`](live-contexts.md#flow-context)
-* [batch contexts: `flow`](batch-contexts.md#flow-context)
-
+* [live contexts: `flow`](live-contexts.md#project-context)
+* [batch contexts: `flow`](batch-contexts.md#project-context)

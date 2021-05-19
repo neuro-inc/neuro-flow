@@ -111,6 +111,8 @@ async def process_bake(fs: FSStorage, api: APIStorage, bake: Bake) -> None:
                 bake.graphs,
                 bake.params,
                 when=bake.when,
+                name=None,
+                tags=(),
             )
         except IllegalArgumentError:
             print("Cannot migrate bake", str(bake))

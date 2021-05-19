@@ -37,12 +37,14 @@ jobs:
     bash: |
       echo DUMP_START
       echo {
+      echo '"project": ${{ to_json(project) }},'
       echo '"flow": ${{ to_json(flow) }},'
       echo '"env": ${{ to_json(env) }},'
       echo '"tags": ${{ to_json(tags) }},'
       echo '"volumes": ${{ to_json(volumes) }},'
       echo '"images": ${{ to_json(images) }},'
-      echo '"params": ${{ to_json(params) }}'
+      echo '"params": ${{ to_json(params) }},'
+      echo '"job-id": "'$NEURO_JOB_ID'"'
       echo }
       echo DUMP_END
 
