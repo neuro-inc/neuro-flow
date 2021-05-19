@@ -1890,7 +1890,7 @@ def _find_started_at(statuses: List[_StatusItem]) -> datetime.datetime:
         if item["status"] == TaskStatus.PENDING:
             return item["created_at"]
     else:
-        raise ValueError("Task is not started")
+        raise ValueError(f"Task is not started, the history is {statuses}")
 
 
 def _find_finished_at(statuses: List[_StatusItem]) -> datetime.datetime:
@@ -1900,7 +1900,8 @@ def _find_finished_at(statuses: List[_StatusItem]) -> datetime.datetime:
             TaskStatus.CANCELLED,
             TaskStatus.FAILED,
             TaskStatus.SUCCEEDED,
+            TaskStatus.SKIPPED,
         ):
             return item["created_at"]
     else:
-        raise ValueError("Task is not finished")
+        raise ValueError(f"Task is not finished, the history is {statuses}")

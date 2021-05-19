@@ -5,6 +5,14 @@
 
 [comment]: # (towncrier release notes start)
 
+Neuro_Flow 21.5.19 (2021-05-19)
+===============================
+
+Bugfixes
+--------
+
+- Fix a bug with processing SKIPPED task
+
 
 Neuro_Flow 21.5.17 (2021-05-17)
 ===============================
