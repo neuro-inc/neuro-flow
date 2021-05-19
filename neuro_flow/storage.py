@@ -152,20 +152,6 @@ class BakeImage:
     status: ImageStatus
     builder_job_id: Optional[str]
 
-    def to_primitive(self) -> Mapping[str, Any]:
-        return {
-            "id": self.id,
-            "prefix": _id_to_json(self.prefix),
-            "yaml_id": self.yaml_id,
-            "ref": self.ref,
-            "context_on_storage": str(self.context_on_storage)
-            if self.context_on_storage
-            else None,
-            "dockerfile_rel": str(self.dockerfile_rel),
-            "status": self.status,
-            "builder_job_id": self.builder_job_id,
-        }
-
     @classmethod
     def from_primitive(cls, data: Mapping[str, Any]) -> "BakeImage":
         return cls(
