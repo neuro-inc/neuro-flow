@@ -14,6 +14,7 @@ from neuro_sdk import (
     IllegalArgumentError,
     JobStatus,
     Permission,
+    RemoteImage,
     ResourceNotFound,
 )
 from rich.console import Console
@@ -43,6 +44,7 @@ from .context import (
     BaseBatchContext,
     DepCtx,
     EarlyImageCtx,
+    ImageCtx,
     LocallyPreparedInfo,
     LocalTask,
     NeedsCtx,
@@ -490,6 +492,10 @@ class BatchExecutor:
         )
         return await flow.get_action(tid, needs=needs)
 
+    async def _get_image(self, prefix: FullID, image_id: str) -> ImageCtx:
+        flow = self._graphs.get_graph_data(prefix)
+        return flow.images[image_id]
+
     # Graph helpers
 
     async def _embed_action(self, full_id: FullID) -> None:
@@ -825,17 +831,16 @@ class BatchExecutor:
 
         return TaskStatus.SUCCEEDED
 
-    async def _start_task(self, full_id: FullID, task: Task) -> Optional[StartedTask]:
-        remote_image = self._client.parse.remote_image(task.image)
-        if remote_image.cluster_name is None:  # Not a neuro registry image
-            return await self._run_task(full_id, task)
+    async def _is_image_in_registry(self, remote_image: RemoteImage) -> bool:
         try:
             await self._client.images.tag_info(remote_image)
         except ResourceNotFound:
-            present_in_registry = False
-        else:
-            present_in_registry = True
-        if present_in_registry:
+            return False
+        return True
+
+    async def _start_task(self, full_id: FullID, task: Task) -> Optional[StartedTask]:
+        remote_image = self._client.parse.remote_image(task.image)
+        if remote_image.cluster_name is None:  # Not a neuro registry image
             return await self._run_task(full_id, task)
         try:
             bake_image = await self._storage.get_bake_image(
@@ -843,6 +848,13 @@ class BatchExecutor:
             )
         except ResourceNotFound:
             # Not defined in the bake
+            return await self._run_task(full_id, task)
+
+        image_ctx = await self._get_image(bake_image.prefix, bake_image.yaml_id)
+
+        if not image_ctx.force_rebuild and await self._is_image_in_registry(
+            remote_image
+        ):
             return await self._run_task(full_id, task)
 
         if bake_image.status == ImageStatus.PENDING:
@@ -895,8 +907,7 @@ class BatchExecutor:
         return await self._storage.start_task(self._attempt, full_id, job)
 
     async def _start_image_build(self, bake_image: BakeImage) -> None:
-        flow = self._graphs.get_graph_data(bake_image.prefix)
-        image_ctx = flow.images[bake_image.yaml_id]
+        image_ctx = await self._get_image(bake_image.prefix, bake_image.yaml_id)
         context = bake_image.context_on_storage or image_ctx.context
         dockerfile_rel = bake_image.dockerfile_rel or image_ctx.dockerfile_rel
 
