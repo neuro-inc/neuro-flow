@@ -1481,3 +1481,34 @@ async def test_image_builds_skip_if_present(
     await jobs_mock.mark_done("task")
 
     await asyncio.wait_for(executor_task, timeout=1)
+
+
+async def test_image_builds_cancel(
+    jobs_mock: JobsMock,
+    make_batch_runner: MakeBatchRunner,
+    assets: Path,
+    run_executor: Callable[[Path, str], Awaitable[None]],
+    mock_builder: MockBuilder,
+    batch_storage: Storage,
+) -> None:
+    executor_task = asyncio.ensure_future(
+        run_executor(assets / "batch_images", "batch")
+    )
+    batch_runner = await make_batch_runner(assets / "batch_images")
+
+    async def _wait_for_build(ref: str) -> str:
+        async def _waiter() -> None:
+            while ref not in mock_builder.ref2job:
+                await asyncio.sleep(0.1)
+
+        await asyncio.wait_for(_waiter(), timeout=1)
+        return mock_builder.ref2job[ref]
+
+    job_id = await _wait_for_build("image:banana1")
+    bake = [bake async for bake in batch_storage.list_bakes("batch_images")][0]
+    await batch_runner.cancel(bake.bake_id)
+
+    await asyncio.wait_for(executor_task, timeout=1)
+
+    descr = await jobs_mock.get_task(job_id)
+    assert descr.status == JobStatus.CANCELLED
