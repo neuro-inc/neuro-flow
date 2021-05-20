@@ -251,6 +251,9 @@ def test_parse_batch_action(assets: LocalPath) -> None:
                 build_preset=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "gpu-small"
                 ),
+                force_rebuild=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
             )
         },
         tasks=[

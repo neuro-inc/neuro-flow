@@ -553,6 +553,7 @@ def parse_image(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Image:
             "env": ExprOrMapping(StrExpr, type2str),
             "volumes": ExprOrSeq(OptStrExpr, type2str),
             "build_preset": OptStrExpr,
+            "force_rebuild": OptBoolExpr,
         },
         ast.Image,
     )

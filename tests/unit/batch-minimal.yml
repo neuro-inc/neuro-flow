@@ -9,6 +9,7 @@ images:
     - --arg1
     - val1
     - --arg2=val2
+    force_rebuild: True
 volumes:
   volume_a:
     remote: storage:dir
