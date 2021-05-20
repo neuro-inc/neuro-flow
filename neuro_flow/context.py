@@ -156,6 +156,7 @@ class EarlyImageCtx:
         env: Mapping[str, str],
         volumes: Sequence[str],
         build_preset: Optional[str],
+        force_rebuild: bool,
     ) -> "ImageCtx":
         return ImageCtx(
             id=self.id,
@@ -167,6 +168,7 @@ class EarlyImageCtx:
             env=env,
             volumes=volumes,
             build_preset=build_preset,
+            force_rebuild=force_rebuild,
         )
 
 
@@ -176,6 +178,7 @@ class ImageCtx(EarlyImageCtx):
     env: Mapping[str, str]
     volumes: Sequence[str]
     build_preset: Optional[str]
+    force_rebuild: bool
 
 
 @dataclass(frozen=True)
@@ -885,6 +888,7 @@ async def setup_images_ctx(
                 env=image_env,
                 volumes=image_volumes,
                 build_preset=await i.build_preset.eval(ctx),
+                force_rebuild=await i.force_rebuild.eval(ctx) or False,
             )
             if image_ctx.context is None:  # if true, dockerfile is None also
                 # Context was not computed during early evaluation,

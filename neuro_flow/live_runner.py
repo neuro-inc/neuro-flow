@@ -568,7 +568,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
             cmd.append(f"--volume={vol}")
         for k, v in image_ctx.env.items():
             cmd.append(f"--env={k}={v}")
-        if force_overwrite:
+        if force_overwrite or image_ctx.force_rebuild:
             cmd.append("--force-overwrite")
         if image_ctx.build_preset is not None:
             cmd.append(f"--preset={image_ctx.build_preset}")
