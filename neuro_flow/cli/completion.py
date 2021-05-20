@@ -14,15 +14,15 @@ SOURCE_CMD = {"bash": "bash_source", "zsh": "zsh_source"}
 ACTIVATION_TEMPLATE = 'eval "$(_NEURO_FLOW_COMPLETE={cmd} {exe})"'
 
 
-@click.group()  # type: ignore
+@click.group()
 def completion() -> None:
     """
     Output shell completion code.
     """
 
 
-@completion.command()  # type: ignore
-@click.argument("shell", type=click.Choice(["bash", "zsh"]))  # type: ignore
+@completion.command()
+@click.argument("shell", type=click.Choice(["bash", "zsh"]))
 @wrap_async()
 async def generate(root: Root, shell: str) -> None:
     """
@@ -34,8 +34,8 @@ async def generate(root: Root, shell: str) -> None:
     )
 
 
-@completion.command()  # type: ignore
-@click.argument("shell", type=click.Choice(["bash", "zsh"]))  # type: ignore
+@completion.command()
+@click.argument("shell", type=click.Choice(["bash", "zsh"]))
 @wrap_async(pass_obj=False)
 async def patch(shell: str) -> None:
     """
@@ -68,7 +68,7 @@ async def patch(shell: str) -> None:
     if start != -1:
         end = content.find(GENERATED_END)
         if end == -1:
-            raise click.ClickException(  # type: ignore
+            raise click.ClickException(
                 f"Malformed guarding comments. Please edit {profile_file} manually"
             )
         content = content[:start] + code + content[end + len(GENERATED_END) :]

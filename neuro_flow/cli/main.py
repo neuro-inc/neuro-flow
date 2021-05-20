@@ -47,10 +47,10 @@ def setup_logging(color: bool, verbosity: int) -> None:
     handler.setLevel(loglevel)
 
 
-class MainGroup(click.Group):  # type: ignore
+class MainGroup(click.Group):
     def _process_args(
         self,
-        ctx: click.Context,  # type: ignore
+        ctx: click.Context,
         config: Optional[str],
         fake_workspace: bool,
         verbose: int,
@@ -83,15 +83,15 @@ class MainGroup(click.Group):  # type: ignore
 
     def make_context(
         self,
-        info_name: str,
+        info_name: Optional[str],
         args: List[str],
-        parent: Optional[click.Context] = None,  # type: ignore
+        parent: Optional[click.Context] = None,
         **extra: Any,
-    ) -> click.Context:  # type: ignore
+    ) -> click.Context:
         ctx = super().make_context(info_name, args, parent, **extra)
         kwargs = {}
         for param in self.params:
-            if param.expose_value:
+            if param.expose_value and param.name:
                 val = ctx.params.get(param.name)
                 if val is not None:
                     kwargs[param.name] = val
@@ -103,10 +103,10 @@ class MainGroup(click.Group):  # type: ignore
         return ctx
 
 
-@click.group(cls=MainGroup)  # type: ignore
-@click.option(  # type: ignore
+@click.group(cls=MainGroup)
+@click.option(
     "--config",
-    type=click.Path(dir_okay=True, file_okay=False),  # type: ignore
+    type=click.Path(dir_okay=True, file_okay=False),
     required=False,
     help=(
         "Path to a directory with .neuro folder inside, "
@@ -115,7 +115,7 @@ class MainGroup(click.Group):  # type: ignore
     default=None,
     metavar="PATH",
 )
-@click.option(  # type: ignore
+@click.option(
     "-v",
     "--verbose",
     count=True,
@@ -123,7 +123,7 @@ class MainGroup(click.Group):  # type: ignore
     default=0,
     help="Give more output. Option is additive, and can be used up to 2 times.",
 )
-@click.option(  # type: ignore
+@click.option(
     "-q",
     "--quiet",
     count=True,
@@ -131,19 +131,19 @@ class MainGroup(click.Group):  # type: ignore
     default=0,
     help="Give less output. Option is additive, and can be used up to 2 times.",
 )
-@click.option(  # type: ignore
+@click.option(
     "--show-traceback",
     is_flag=True,
     help="Show python traceback on error, useful for debugging the tool.",
 )
-@click.option(  # type: ignore
+@click.option(
     "--fake-workspace",
     hidden=True,
     is_flag=True,
     default=False,
     required=False,
 )
-@click.version_option(  # type: ignore
+@click.version_option(
     version=neuro_flow.__version__, message="neuro-flow package version: %(version)s"
 )
 def cli(
@@ -192,7 +192,7 @@ def main(args: Optional[List[str]] = None) -> None:
     except ClickAbort:
         LOG_ERROR("Aborting.")
         sys.exit(130)
-    except click.ClickException as e:  # type: ignore
+    except click.ClickException as e:
         e.show()
         sys.exit(e.exit_code)
     except ClickExit as e:
