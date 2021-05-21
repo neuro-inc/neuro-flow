@@ -107,8 +107,9 @@ class FlowCtx:
         import click
 
         click.echo(  # type: ignore
-            "flow.id attribute is deprecated, use flow.flow_id instead",
-            fg="yellow",
+            click.style(  # type: ignore
+                "flow.id attribute is deprecated, use flow.flow_id instead", fg="yellow"
+            )
         )
         return self.flow_id
 
