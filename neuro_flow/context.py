@@ -106,8 +106,8 @@ class FlowCtx:
         # line numbers instead of bare printing
         import click
 
-        click.echo(  # type: ignore
-            click.style(  # type: ignore
+        click.echo(
+            click.style(
                 "flow.id attribute is deprecated, use flow.flow_id instead", fg="yellow"
             )
         )
