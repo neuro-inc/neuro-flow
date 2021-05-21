@@ -107,8 +107,9 @@ class FlowCtx:
         import click
 
         click.echo(  # type: ignore
-            "flow.id attribute is deprecated, use flow.flow_id instead",
-            fg="yellow",
+            click.style(  # type: ignore
+                "flow.id attribute is deprecated, use flow.flow_id instead", fg="yellow"
+            )
         )
         return self.flow_id
 
@@ -967,7 +968,9 @@ async def setup_params_ctx(
     new_params = {}
     if ast_params is not None:
         for k, v in ast_params.items():
-            value = params.get(k) or await v.default.eval(ctx)
+            value = params.get(k)
+            if value is None:
+                value = await v.default.eval(ctx)
             if value is None:
                 raise EvalError(
                     f"Param {k} is not initialized and has no default value",

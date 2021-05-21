@@ -123,12 +123,12 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
             if meta.multi:
                 if suffix is None:
                     if not skip_check:
-                        raise click.BadArgumentUsage(  # type: ignore
+                        raise click.BadArgumentUsage(
                             f"Please provide a suffix for multi-job {fmt_id(job_id)}"
                         )
             else:
                 if suffix is not None:
-                    raise click.BadArgumentUsage(  # type: ignore
+                    raise click.BadArgumentUsage(
                         f"Suffix is not allowed for non-multijob {fmt_id(job_id)}"
                     )
             return meta
@@ -261,7 +261,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
                     jobs.append(descr)
                 if len(jobs) > 1:
                     # Should never happen, but just in case
-                    raise click.ClickException(  # type: ignore
+                    raise click.ClickException(
                         f"Found multiple running jobs for id {job_id} and"
                         f" suffix {suffix}:\n"
                         "\n".join(job.id for job in jobs)
@@ -269,7 +269,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
                 assert len(jobs) == 1
                 descr = jobs[0]
                 if is_multi and args:
-                    raise click.ClickException(  # type: ignore
+                    raise click.ClickException(
                         "Multi job with such suffix is already running."
                     )
                 if descr.status == JobStatus.PENDING:
@@ -308,11 +308,11 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
     ) -> None:
         """Run a named job"""
 
-        meta_ctx = await self._ensure_meta(job_id, suffix)
+        meta_ctx = await self._ensure_meta(job_id, suffix, skip_check=True)
         is_multi = meta_ctx.multi
 
         if not is_multi and args:
-            raise click.BadArgumentUsage(  # type: ignore
+            raise click.BadArgumentUsage(
                 "Additional job arguments are supported by multi-jobs only"
             )
 
@@ -475,6 +475,12 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
 
     async def upload(self, volume: str) -> None:
         volume_ctx = await self.find_volume(volume)
+        await self._run_neuro_cli(
+            "neuro",
+            "mkdir",
+            "--parents",
+            str(volume_ctx.remote.parent),
+        )
         await self._run_neuro_cli(
             "cp",
             "--recursive",

@@ -15,7 +15,7 @@ else:
     from async_exit_stack import AsyncExitStack
 
 
-@click.command()  # type: ignore
+@click.command()
 @argument("volume", type=LIVE_VOLUME_OR_ALL)
 @wrap_async()
 async def upload(
@@ -40,7 +40,7 @@ async def upload(
             await runner.upload_all()
 
 
-@click.command()  # type: ignore
+@click.command()
 @argument("volume", type=LIVE_VOLUME_OR_ALL)
 @wrap_async()
 async def download(
@@ -65,7 +65,7 @@ async def download(
             await runner.download_all()
 
 
-@click.command()  # type: ignore
+@click.command()
 @argument("volume", type=LIVE_VOLUME_OR_ALL)
 @wrap_async()
 async def clean(
@@ -90,7 +90,7 @@ async def clean(
             await runner.clean_all()
 
 
-@click.command()  # type: ignore
+@click.command()
 @wrap_async()
 async def mkvolumes(
     root: Root,

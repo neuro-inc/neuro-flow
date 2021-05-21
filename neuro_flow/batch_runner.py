@@ -650,11 +650,9 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         full_id = tuple(task_id.split("."))
         if full_id not in finished:
             if full_id not in started:
-                raise click.BadArgumentUsage(f"Unknown task {task_id}")  # type: ignore
+                raise click.BadArgumentUsage(f"Unknown task {task_id}")
             else:
-                raise click.BadArgumentUsage(  # type: ignore
-                    f"Task {task_id} is not finished"
-                )
+                raise click.BadArgumentUsage(f"Task {task_id} is not finished")
         else:
             task = finished[full_id]
 
@@ -679,7 +677,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         bake = await self._storage.fetch_bake_by_id(self.project_id, bake_id)
         attempt = await self._storage.find_attempt(bake, attempt_no)
         if attempt.result in TERMINATED_TASK_STATUSES:
-            raise click.BadArgumentUsage(  # type: ignore
+            raise click.BadArgumentUsage(
                 f"Attempt #{attempt.number} of {bake.bake_id} is already stopped."
             )
         await self._storage.finish_attempt(attempt, TaskStatus.CANCELLED)
@@ -715,18 +713,18 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         last_attempt = await self._storage.find_attempt(bake, -1)
         attempt = await self._storage.find_attempt(bake, attempt_no)
         if attempt.result not in TERMINATED_TASK_STATUSES:
-            raise click.BadArgumentUsage(  # type: ignore
+            raise click.BadArgumentUsage(
                 f"Cannot re-run still running attempt #{attempt.number} "
                 f"of {bake.bake_id}."
             )
         if attempt.result == TaskStatus.SUCCEEDED and from_failed:
-            raise click.BadArgumentUsage(  # type: ignore
+            raise click.BadArgumentUsage(
                 f"Cannot re-run successful attempt #{attempt.number} "
                 f"of {bake.bake_id} with `--from-failed` flag set.\n"
                 "Hint: Try adding --no-from-failed to restart bake from the beginning."
             )
         if last_attempt.number >= 99:
-            raise click.BadArgumentUsage(  # type: ignore
+            raise click.BadArgumentUsage(
                 f"Cannot re-run {bake.bake_id}, the number of attempts exceeded."
             )
         new_att = await self._storage.create_attempt(bake, last_attempt.number + 1)
