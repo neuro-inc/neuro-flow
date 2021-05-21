@@ -476,7 +476,6 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
     async def upload(self, volume: str) -> None:
         volume_ctx = await self.find_volume(volume)
         await self._run_neuro_cli(
-            "neuro",
             "mkdir",
             "--parents",
             str(volume_ctx.remote.parent),
