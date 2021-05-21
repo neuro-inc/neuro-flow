@@ -40,7 +40,7 @@ def wrap_async(
                 return runner.run(callback(*args, **kwargs))
 
         if pass_obj:
-            wrapper = click.pass_obj(wrapper)  # type: ignore
+            wrapper = click.pass_obj(wrapper)
 
         return wrapper
 
@@ -52,7 +52,7 @@ def option(*param_decls: Any, **attrs: Any) -> Callable[..., Any]:
     typ = convert_type(attrs.get("type"), attrs.get("default"))
     autocompletion = getattr(typ, "complete", None)
     option_attrs.setdefault("autocompletion", autocompletion)
-    return click.option(*param_decls, **option_attrs)  # type: ignore
+    return click.option(*param_decls, **option_attrs)
 
 
 def argument(*param_decls: Any, **attrs: Any) -> Callable[..., Any]:
@@ -60,7 +60,7 @@ def argument(*param_decls: Any, **attrs: Any) -> Callable[..., Any]:
     typ = convert_type(attrs.get("type"), attrs.get("default"))
     autocompletion = getattr(typ, "complete", None)
     arg_attrs.setdefault("autocompletion", autocompletion)
-    return click.argument(*param_decls, **arg_attrs)  # type: ignore
+    return click.argument(*param_decls, **arg_attrs)
 
 
 BAKE_ID_PATTERN = r"job-[0-9a-z]{8}-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{12}"
