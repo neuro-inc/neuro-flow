@@ -173,7 +173,12 @@ class Storage(abc.ABC):
 
     @abc.abstractmethod
     async def list_bakes(
-        self, project: str, tags: Optional[AbstractSet[str]] = None
+        self,
+        project: str,
+        tags: Optional[AbstractSet[str]] = None,
+        since: Optional[datetime.datetime] = None,
+        until: Optional[datetime.datetime] = None,
+        recent_first: bool = False,
     ) -> AsyncIterator[Bake]:
         # This is here to make this real aiter for type checker
         bake = Bake(
@@ -587,7 +592,12 @@ class FSStorage(Storage):
         return live
 
     async def list_bakes(
-        self, project: str, tags: Optional[AbstractSet[str]] = None
+        self,
+        project: str,
+        tags: Optional[AbstractSet[str]] = None,
+        since: Optional[datetime.datetime] = None,
+        until: Optional[datetime.datetime] = None,
+        recent_first: bool = False,
     ) -> AsyncIterator[Bake]:
         url = self._fs.root / project
         try:
@@ -597,6 +607,7 @@ class FSStorage(Storage):
         except ValueError:
             raise ValueError(f"Cannot find remote project {url}")
 
+        res: List[Bake] = []
         async for fs in self._fs.ls(url):
             name = fs.name
             if name.startswith("."):
@@ -610,11 +621,20 @@ class FSStorage(Storage):
                 bake = _bake_from_json(data)
                 if tags is not None and not set(bake.tags).issuperset(tags):
                     continue
-                yield bake
+                if bake.when < since:
+                    continue
+                if bake.when > until:
+                    continue
+                res.append(bake)
             except (ValueError, LookupError):
                 # Not a bake folder, happens by incident
                 log.warning("Invalid record %s", url / fs.name)
                 continue
+        res = sorted(res, key=lambda it: it.when)
+        if recent_first:
+            res = list(reversed(res))
+        for bake in res:
+            yield bake
 
     async def create_bake(
         self,
@@ -1060,7 +1080,12 @@ class APIStorage(Storage):
         return live
 
     async def list_bakes(
-        self, project: str, tags: Optional[AbstractSet[str]] = None
+        self,
+        project: str,
+        tags: Optional[AbstractSet[str]] = None,
+        since: Optional[datetime.datetime] = None,
+        until: Optional[datetime.datetime] = None,
+        recent_first: bool = False,
     ) -> AsyncIterator[Bake]:
         prj = await self._get_project(project)
         url = self._base_url / "api/v1/flow/bakes"
@@ -1069,6 +1094,12 @@ class APIStorage(Storage):
         params = [("project_id", prj.id)]
         if tags is not None:
             params += [("tags", tag) for tag in tags]
+        if since:
+            params += [("since", since.isoformat())]
+        if until:
+            params += [("until", until.isoformat())]
+        if recent_first:
+            params += [("reverse", recent_first)]
 
         async with self._core.request(
             "GET",
