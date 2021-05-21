@@ -1182,7 +1182,7 @@ class APIStorage(Storage):
         for bake_data in self._bakes_cache.values():
             rounded = _dt2str(datetime.datetime.fromisoformat(bake_data["created_at"]))
             if (
-                bake_data["project_id"] == project
+                bake_data["project_id"] == prj.id
                 and bake_data["batch"] == batch
                 and rounded == rounded_when
             ):
