@@ -1,0 +1,1 @@
+Fix a error that leads to bakes cache check miss even if the record is present in cache actually.
