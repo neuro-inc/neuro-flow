@@ -4,6 +4,7 @@ import asyncio
 import pytest
 import shutil
 import sys
+from collections import defaultdict
 from datetime import datetime
 from neuro_sdk import (
     Client,
@@ -18,6 +19,7 @@ from neuro_sdk import (
     ResourceNotFound,
     Resources,
     SecretFile,
+    Tag,
     Volume,
     get as api_get,
 )
@@ -37,15 +39,25 @@ from typing import (
     Optional,
     Sequence,
     Tuple,
-    cast,
+    Type,
+    Union,
 )
 from yarl import URL
 
 from neuro_flow.batch_executor import BatchExecutor, ExecutorData, LocalsBatchExecutor
 from neuro_flow.batch_runner import BatchRunner
 from neuro_flow.parser import ConfigDir
-from neuro_flow.storage import Bake, FinishedTask, FSStorage, LocalFS, Storage
-from neuro_flow.types import LocalPath, TaskStatus
+from neuro_flow.storage import (
+    Bake,
+    BakeImage,
+    FileSystem,
+    FinishedTask,
+    FSStorage,
+    LocalFS,
+    Storage,
+    _Unset,
+)
+from neuro_flow.types import ImageStatus, LocalPath, TaskStatus
 
 
 MakeBatchRunner = Callable[[Path], Awaitable[BatchRunner]]
@@ -119,24 +131,31 @@ class JobsMock:
 
     # Method for controlling in tests
 
-    async def _get_task(self, task_name: str) -> JobDescription:
+    async def _get_task(self, job_id_or_task_name: str) -> JobDescription:
+        job_id = job_id_or_task_name
+        task_name = job_id_or_task_name.replace("_", "-")
         while True:
+            if job_id in self._data:
+                return self._data[job_id]
             for descr in self._data.values():
-                task_name = task_name.replace("_", "-")
                 if f"task:{task_name}" in descr.tags:
                     return descr
             await asyncio.sleep(0.01)
 
-    async def get_task(self, task_name: str, timeout: float = 2) -> JobDescription:
+    async def get_task(
+        self, job_id_or_task_name: str, timeout: float = 2
+    ) -> JobDescription:
         try:
-            return await asyncio.wait_for(self._get_task(task_name), timeout=timeout)
+            return await asyncio.wait_for(
+                self._get_task(job_id_or_task_name), timeout=timeout
+            )
         except asyncio.TimeoutError:
             raise AssertionError(
-                f'Task "{task_name}" did not appeared in timeout of {timeout}'
+                f'Task "{job_id_or_task_name}" did not appeared in timeout of {timeout}'
             )
 
-    async def mark_started(self, task_name: str) -> None:
-        descr = await self.get_task(task_name)
+    async def mark_started(self, job_id_or_task_name: str) -> None:
+        descr = await self.get_task(job_id_or_task_name)
         if descr.status == JobStatus.PENDING:
             descr = replace(descr, status=JobStatus.RUNNING)
             new_history = replace(
@@ -145,9 +164,9 @@ class JobsMock:
             descr = replace(descr, history=new_history)
             self._data[descr.id] = descr
 
-    async def mark_done(self, task_name: str, output: bytes = b"") -> None:
-        await self.mark_started(task_name)
-        descr = await self.get_task(task_name)
+    async def mark_done(self, job_id_or_task_name: str, output: bytes = b"") -> None:
+        await self.mark_started(job_id_or_task_name)
+        descr = await self.get_task(job_id_or_task_name)
         if descr.status == JobStatus.RUNNING:
             descr = replace(descr, status=JobStatus.SUCCEEDED)
             new_history = replace(
@@ -160,9 +179,9 @@ class JobsMock:
             self._data[descr.id] = descr
         self._outputs[descr.id] = output
 
-    async def mark_failed(self, task_name: str, output: bytes = b"") -> None:
-        await self.mark_started(task_name)
-        descr = await self.get_task(task_name)
+    async def mark_failed(self, job_id_or_task_name: str, output: bytes = b"") -> None:
+        await self.mark_started(job_id_or_task_name)
+        descr = await self.get_task(job_id_or_task_name)
         if descr.status == JobStatus.RUNNING:
             descr = replace(descr, status=JobStatus.FAILED)
             new_history = replace(
@@ -276,11 +295,87 @@ class JobsMock:
         yield self._outputs.get(job_id, b"")
 
 
+class ImagesMock:
+    def __init__(self) -> None:
+        self.known_images: Dict[str, Tag] = {}
+
+    async def tag_info(self, remote: RemoteImage) -> Tag:
+        tag = self.known_images.get(str(remote))
+        if tag:
+            return tag
+        raise ResourceNotFound
+
+    async def _close(self) -> None:
+        pass
+
+
+class MockStorage(FSStorage):
+    def __init__(self, fs: FileSystem) -> None:
+        super().__init__(fs)
+        self._bake_images: Dict[str, List[BakeImage]] = defaultdict(list)
+        self._index = 0
+
+    async def create_bake_image(
+        self,
+        bake: Bake,
+        prefix: Tuple[str, ...],
+        yaml_id: str,
+        ref: str,
+        context_on_storage: Optional[URL],
+        dockerfile_rel: Optional[str],
+    ) -> BakeImage:
+        image = BakeImage(
+            id=f"image-{self._index}",
+            prefix=prefix,
+            ref=ref,
+            yaml_id=yaml_id,
+            context_on_storage=context_on_storage,
+            dockerfile_rel=dockerfile_rel,
+            status=ImageStatus.PENDING,
+            builder_job_id=None,
+        )
+        self._index += 1
+        self._bake_images[bake.bake_id].append(image)
+        return image
+
+    async def list_bake_images(self, bake: Bake) -> AsyncIterator[BakeImage]:
+        for image in self._bake_images[bake.bake_id]:
+            yield image
+
+    async def get_bake_image(self, bake: Bake, ref: str) -> BakeImage:
+        for image in self._bake_images[bake.bake_id]:
+            if image.ref == ref:
+                return image
+        raise ResourceNotFound
+
+    async def update_bake_image(
+        self,
+        bake: Bake,
+        ref: str,
+        status: Union[ImageStatus, Type[_Unset]] = _Unset,
+        builder_job_id: Union[Optional[str], Type[_Unset]] = _Unset,
+    ) -> BakeImage:
+        try:
+            index, image = next(
+                (index, image)
+                for index, image in enumerate(self._bake_images[bake.bake_id])
+                if image.ref == ref
+            )
+        except StopIteration:
+            raise ResourceNotFound
+        if status != _Unset:
+            image = replace(image, status=status)
+        if builder_job_id != _Unset:
+            image = replace(image, builder_job_id=builder_job_id)
+        self._bake_images[bake.bake_id][index] = image
+        return image
+
+
 @pytest.fixture()
 def batch_storage(loop: None) -> Iterator[Storage]:
     with TemporaryDirectory() as tmpdir:
         fs = LocalFS(Path(tmpdir))
-        yield FSStorage(fs)
+        yield MockStorage(fs)
 
 
 class FakeGlobalOptions:
@@ -288,9 +383,44 @@ class FakeGlobalOptions:
     show_traceback = False
 
 
+class MockCliRunner:
+    def __init__(self) -> None:
+        self.runs: List[Tuple[str, ...]] = []
+
+    async def run(self, *args: str) -> None:
+        self.runs.append(args)
+
+
+@pytest.fixture()
+async def mock_neuro_cli_runner() -> MockCliRunner:
+    return MockCliRunner()
+
+
+class MockBuilder:
+    def __init__(self, jobs_mock: JobsMock) -> None:
+        self.runs: List[Tuple[str, ...]] = []
+        self.jobs = jobs_mock
+        self.ref2job: Dict[str, str] = {}
+
+    async def run(self, *args: str) -> str:
+        self.runs.append(args)
+        job = await self.jobs.start(image=RemoteImage("test"), preset_name="fake")
+        self.ref2job[args[-1]] = job.id
+        return job.id
+
+
+@pytest.fixture()
+async def mock_builder(
+    jobs_mock: JobsMock,
+) -> MockBuilder:
+    return MockBuilder(jobs_mock)
+
+
 @pytest.fixture()
 async def make_batch_runner(
     batch_storage: Storage,
+    client: Client,
+    mock_neuro_cli_runner: MockCliRunner,
 ) -> AsyncIterator[MakeBatchRunner]:
 
     runner: Optional[BatchRunner] = None
@@ -306,9 +436,10 @@ async def make_batch_runner(
         runner = BatchRunner(
             config_dir,
             get_console(),
-            cast(Client, None),
+            client,
             batch_storage,
             FakeGlobalOptions(),
+            run_neuro_cli=mock_neuro_cli_runner.run,
         )
         await runner.__aenter__()
         return runner
@@ -333,11 +464,17 @@ def jobs_mock() -> JobsMock:
 
 
 @pytest.fixture()
+def images_mock() -> ImagesMock:
+    return ImagesMock()
+
+
+@pytest.fixture()
 async def patched_client(
-    api_config: Path, jobs_mock: JobsMock
+    api_config: Path, jobs_mock: JobsMock, images_mock: ImagesMock
 ) -> AsyncIterator[Client]:
     async with api_get(path=api_config) as client:
         client._jobs = jobs_mock
+        client._images = images_mock  # type: ignore
         yield client
 
 
@@ -359,7 +496,9 @@ def start_locals_executor(
 
 @pytest.fixture()
 def start_executor(
-    batch_storage: Storage, patched_client: Client
+    batch_storage: Storage,
+    patched_client: Client,
+    mock_builder: MockBuilder,
 ) -> Callable[[ExecutorData], Awaitable[None]]:
     async def start(data: ExecutorData) -> None:
         async with BatchExecutor.create(
@@ -368,6 +507,7 @@ def start_executor(
             patched_client,
             batch_storage,
             polling_timeout=0.05,
+            run_builder_job=mock_builder.run,
         ) as executor:
             await executor.run()
 
@@ -802,67 +942,6 @@ async def test_volumes_parsing(
     await executor_task
 
 
-async def test_graphs(
-    batch_storage: Storage,
-    batch_runner: BatchRunner,
-) -> None:
-    data, _ = await batch_runner._setup_bake("batch-action-call")
-    bake = await batch_storage.fetch_bake(
-        data.project, data.batch, data.when, data.suffix
-    )
-    assert bake.graphs == {
-        (): {("test",): set()},
-        ("test",): {
-            ("test", "task_1"): set(),
-            ("test", "task_2"): {("test", "task_1")},
-        },
-    }
-
-
-async def test_early_graph(
-    batch_storage: Storage,
-    make_batch_runner: MakeBatchRunner,
-    assets: Path,
-) -> None:
-    batch_runner = await make_batch_runner(assets / "early_graph")
-    data, _ = await batch_runner._setup_bake("batch")
-    bake = await batch_storage.fetch_bake(
-        data.project, data.batch, data.when, data.suffix
-    )
-    assert bake.graphs == {
-        (): {
-            ("first_ac",): set(),
-            ("second",): {("first_ac",)},
-            ("third",): {("first_ac",)},
-        },
-        ("first_ac",): {("first_ac", "task_2"): set()},
-        ("second",): {
-            ("second", "task-1-o3-t3"): set(),
-            ("second", "task-1-o1-t1"): set(),
-            ("second", "task-1-o2-t1"): set(),
-            ("second", "task-1-o2-t2"): set(),
-            ("second", "task_2"): {
-                ("second", "task-1-o3-t3"),
-                ("second", "task-1-o1-t1"),
-                ("second", "task-1-o2-t1"),
-                ("second", "task-1-o2-t2"),
-            },
-        },
-        ("third",): {
-            ("third", "task-1-o3-t3"): set(),
-            ("third", "task-1-o1-t1"): set(),
-            ("third", "task-1-o2-t1"): set(),
-            ("third", "task-1-o2-t2"): set(),
-            ("third", "task_2"): {
-                ("third", "task-1-o3-t3"),
-                ("third", "task-1-o1-t1"),
-                ("third", "task-1-o2-t1"),
-                ("third", "task-1-o2-t2"),
-            },
-        },
-    }
-
-
 async def test_always_after_disabled(
     jobs_mock: JobsMock,
     assets: Path,
@@ -944,34 +1023,6 @@ async def test_action_with_local_action(
         await jobs_mock.mark_done("call_action.remote-task")
 
         await executor_task
-
-
-async def test_local_deps_on_remote_1(
-    jobs_mock: JobsMock,
-    assets: Path,
-    make_batch_runner: MakeBatchRunner,
-    run_executor: Callable[[Path, str], Awaitable[None]],
-) -> None:
-    batch_runner = await make_batch_runner(assets / "local_actions")
-    with pytest.raises(
-        Exception, match=r"Local action 'local' depends on remote task 'remote'"
-    ):
-        await batch_runner._setup_bake("bad-order")
-
-
-async def test_local_deps_on_remote_2(
-    jobs_mock: JobsMock,
-    assets: Path,
-    make_batch_runner: MakeBatchRunner,
-    run_executor: Callable[[Path, str], Awaitable[None]],
-) -> None:
-    batch_runner = await make_batch_runner(assets / "local_actions")
-    with pytest.raises(
-        Exception,
-        match=r"Local action 'local' depends on "
-        r"remote task 'call_action.remote_task'",
-    ):
-        await batch_runner._setup_bake("bad-order-through-action")
 
 
 async def test_stateful_no_post(
@@ -1327,3 +1378,106 @@ async def test_bake_marked_as_cancelled_on_task_cancelation(
     executor_task.cancel()
     _, status = await executor_task
     assert status == TaskStatus.CANCELLED
+
+
+async def test_image_builds(
+    jobs_mock: JobsMock,
+    assets: Path,
+    run_executor: Callable[[Path, str], Awaitable[None]],
+    mock_builder: MockBuilder,
+    batch_storage: Storage,
+) -> None:
+    executor_task = asyncio.ensure_future(
+        run_executor(assets / "batch_images", "batch")
+    )
+
+    async def _wait_for_build(ref: str) -> str:
+        async def _waiter() -> None:
+            while ref not in mock_builder.ref2job:
+                await asyncio.sleep(0.1)
+
+        await asyncio.wait_for(_waiter(), timeout=1)
+        return mock_builder.ref2job[ref]
+
+    job_id = await _wait_for_build("image:banana1")
+    bake = [bake async for bake in batch_storage.list_bakes("batch_images")][0]
+    image = await batch_storage.get_bake_image(bake, "image:banana1")
+    assert mock_builder.runs[-1] == (
+        "neuro-extras",
+        "image",
+        "build",
+        "--file=Dockerfile",
+        str(image.context_on_storage),
+        "image:banana1",
+    )
+    await jobs_mock.mark_done(job_id)
+
+    task = await jobs_mock.get_task("action.task_1")
+    assert task.container.image.name == "banana1"
+    await jobs_mock.mark_done("action.task_1")
+
+    job_id = await _wait_for_build("image:banana2")
+    assert mock_builder.runs[-1] == (
+        "neuro-extras",
+        "image",
+        "build",
+        "--file=Dockerfile",
+        "storage://default/foo/val1",
+        "image:banana2",
+    )
+    await jobs_mock.mark_done(job_id)
+
+    task = await jobs_mock.get_task("action.task_2")
+    assert task.container.image.name == "banana2"
+    await jobs_mock.mark_done("action.task_2")
+
+    job_id = await _wait_for_build("image:main")
+    image = await batch_storage.get_bake_image(bake, "image:main")
+    assert mock_builder.runs[-1] == (
+        "neuro-extras",
+        "image",
+        "build",
+        "--file=Dockerfile",
+        str(image.context_on_storage),
+        "image:main",
+    )
+    await jobs_mock.mark_done(job_id)
+
+    task = await jobs_mock.get_task("task")
+    assert task.container.image.name == "main"
+    await jobs_mock.mark_done("task")
+
+    await asyncio.wait_for(executor_task, timeout=1)
+
+
+async def test_image_builds_skip_if_present(
+    jobs_mock: JobsMock,
+    assets: Path,
+    run_executor: Callable[[Path, str], Awaitable[None]],
+    images_mock: ImagesMock,
+    client: Client,
+) -> None:
+    images_mock.known_images = {
+        f"image://{client.cluster_name}/{client.username}/banana1:latest": Tag(
+            "latest"
+        ),
+        f"image://{client.cluster_name}/{client.username}/banana2:latest": Tag(
+            "latest"
+        ),
+        f"image://{client.cluster_name}/{client.username}/main:latest": Tag("latest"),
+    }
+
+    executor_task = asyncio.ensure_future(
+        run_executor(assets / "batch_images", "batch")
+    )
+
+    await jobs_mock.get_task("action.task_1")
+    await jobs_mock.mark_done("action.task_1")
+
+    await jobs_mock.get_task("action.task_2")
+    await jobs_mock.mark_done("action.task_2")
+
+    await jobs_mock.get_task("task")
+    await jobs_mock.mark_done("task")
+
+    await asyncio.wait_for(executor_task, timeout=1)

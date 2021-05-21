@@ -1,0 +1,13 @@
+kind: batch
+tasks:
+  - id: first
+    needs: [second]
+    image: ubuntu
+    preset: cpu-micro
+    bash: echo abc
+
+  - id: second
+    needs: [first]
+    image: ubuntu
+    preset: cpu-micro
+    bash: echo abc

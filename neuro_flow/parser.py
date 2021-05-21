@@ -1202,6 +1202,10 @@ ActionLoader.add_path_resolver(  # type: ignore
 ActionLoader.add_constructor("action:cache", parse_cache)  # type: ignore
 
 
+ActionLoader.add_path_resolver("action:images", [(dict, "images")])  # type: ignore
+ActionLoader.add_constructor("action:images", parse_images)  # type: ignore
+
+
 ActionLoader.add_path_resolver(  # type: ignore[no-untyped-call]
     "action:task", [(dict, "tasks"), (list, None)]
 )
@@ -1246,7 +1250,12 @@ BASE_ACTION = {
 
 LIVE_ACTION: Dict[str, Any] = {"job": None, **BASE_ACTION}
 
-BATCH_ACTION: Dict[str, Any] = {"cache": None, "tasks": None, **BASE_ACTION}
+BATCH_ACTION: Dict[str, Any] = {
+    "cache": None,
+    "images": None,
+    "tasks": None,
+    **BASE_ACTION,
+}
 
 STATEFUL_ACTION: Dict[str, Any] = {
     "cache": None,

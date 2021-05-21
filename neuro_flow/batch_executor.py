@@ -22,6 +22,8 @@ from rich.progress import BarColumn, Progress, TaskID, TextColumn
 from typing import (
     AbstractSet,
     AsyncIterator,
+    Awaitable,
+    Callable,
     Dict,
     Generic,
     Iterable,
@@ -40,6 +42,8 @@ from .config_loader import BatchRemoteCL
 from .context import (
     BaseBatchContext,
     DepCtx,
+    EarlyImageCtx,
+    LocallyPreparedInfo,
     LocalTask,
     NeedsCtx,
     RunningBatchActionFlow,
@@ -50,8 +54,16 @@ from .context import (
     TaskMeta,
 )
 from .expr import EvalError
-from .storage import Attempt, Bake, FinishedTask, StartedTask, Storage, _dt2str
-from .types import AlwaysT, FullID, TaskStatus
+from .storage import (
+    Attempt,
+    Bake,
+    BakeImage,
+    FinishedTask,
+    StartedTask,
+    Storage,
+    _dt2str,
+)
+from .types import AlwaysT, FullID, ImageStatus, RemotePath, TaskStatus
 from .utils import (
     TERMINATED_JOB_STATUSES,
     TERMINATED_TASK_STATUSES,
@@ -105,11 +117,40 @@ async def get_running_flow(
         load_from_storage=lambda name: storage.fetch_config(bake, name),
         client=client,
     )
+    local_info = LocallyPreparedInfo(
+        children_info={},
+        early_images={},
+    )
+    async for image in storage.list_bake_images(bake):
+        sub = local_info
+        for part in image.prefix:
+            if part not in sub.children_info:
+                new_sub = LocallyPreparedInfo(
+                    children_info={},
+                    early_images={},
+                )
+                assert isinstance(sub.children_info, dict)
+                sub.children_info[part] = new_sub
+            sub = sub.children_info[part]
+        assert isinstance(sub.early_images, dict)
+        dockerfile = None
+        if image.context_on_storage and image.dockerfile_rel:
+            dockerfile = image.context_on_storage / str(image.dockerfile_rel)
+        sub.early_images[image.yaml_id] = EarlyImageCtx(
+            id=image.yaml_id,
+            ref=image.ref,
+            context=image.context_on_storage,
+            dockerfile=dockerfile,
+            dockerfile_rel=RemotePath(image.dockerfile_rel)
+            if image.dockerfile_rel
+            else None,
+        )
     return await RunningBatchFlow.create(
         config_loader=config_loader,
         batch=bake.batch,
         bake_id=bake.bake_id,
         params=bake.params,
+        local_info=local_info,
     )
 
 
@@ -154,6 +195,10 @@ class Graph(Generic[_T]):
     def get_ready_with_meta(self) -> Iterable[Tuple[FullID, _T]]:
         for ready in set(self._ready):
             yield ready, self._metas[ready[:-1]]
+
+    def get_graph_data(self, node: FullID) -> _T:
+        assert node in self._topos, f"Graph {node} not found"
+        return self._metas[node]
 
     def get_meta(self, node: FullID) -> _T:
         prefix = node[:-1]
@@ -284,6 +329,21 @@ class BakeTasksManager:
         return dep.state
 
 
+async def start_image_build(*cmd: str) -> str:
+    subprocess = await asyncio.create_subprocess_exec(
+        *cmd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    while True:
+        assert subprocess.stdout
+        line = (await subprocess.stdout.readline()).decode()
+        if line.startswith("Job ID: "):
+            # Job is started, we can freely kill neuro-cli
+            subprocess.terminate()
+            return line[len("Job ID: ") :].strip()
+
+
 class BatchExecutor:
     def __init__(
         self,
@@ -296,6 +356,7 @@ class BatchExecutor:
         polling_timeout: float = 1,
         transient_progress: bool = False,
         project_role: Optional[str] = None,
+        run_builder_job: Callable[..., Awaitable[str]] = start_image_build,
     ) -> None:
         self._progress = Progress(
             TextColumn("[progress.description]{task.description}"),
@@ -318,6 +379,8 @@ class BatchExecutor:
         self._project_role = project_role
         self._is_projet_role_created = False
 
+        self._run_builder_job = run_builder_job
+
         # A note about default value:
         # AS: I have no idea what timeout is better;
         # too short value bombards servers,
@@ -338,6 +401,7 @@ class BatchExecutor:
         polling_timeout: float = 1,
         transient_progress: bool = False,
         project_role: Optional[str] = None,
+        run_builder_job: Callable[..., Awaitable[str]] = start_image_build,
     ) -> AsyncIterator["BatchExecutor"]:
         console.log("Fetch bake data")
         bake = await storage.fetch_bake(
@@ -363,6 +427,7 @@ class BatchExecutor:
             polling_timeout=polling_timeout,
             transient_progress=transient_progress,
             project_role=project_role,
+            run_builder_job=run_builder_job,
         )
         ret._start()
         try:
@@ -502,10 +567,15 @@ class BatchExecutor:
             self._mark_finished(ft, advance=3)
         else:
             st = await self._start_task(full_id, task)
-            self._mark_started(st)
-            self._progress.log(
-                "Task", fmt_id(st.id), fmt_raw_id(st.raw_id), "is", TaskStatus.PENDING
-            )
+            if st:
+                self._mark_started(st)
+                self._progress.log(
+                    "Task",
+                    fmt_id(st.id),
+                    fmt_raw_id(st.raw_id),
+                    "is",
+                    TaskStatus.PENDING,
+                )
 
     async def _load_previous_run(self) -> None:
         # Loads tasks that previous executor run processed.
@@ -619,6 +689,7 @@ class BatchExecutor:
                     await self._process_task(full_id)
 
             ok = await self._process_started()
+            await self._process_running_builds()
 
             # Check for cancellation
             if not self._is_cancelling:
@@ -754,8 +825,36 @@ class BatchExecutor:
 
         return TaskStatus.SUCCEEDED
 
-    async def _start_task(self, full_id: FullID, task: Task) -> StartedTask:
+    async def _start_task(self, full_id: FullID, task: Task) -> Optional[StartedTask]:
+        remote_image = self._client.parse.remote_image(task.image)
+        if remote_image.cluster_name is None:  # Not a neuro registry image
+            return await self._run_task(full_id, task)
+        try:
+            await self._client.images.tag_info(remote_image)
+        except ResourceNotFound:
+            present_in_registry = False
+        else:
+            present_in_registry = True
+        if present_in_registry:
+            return await self._run_task(full_id, task)
+        try:
+            bake_image = await self._storage.get_bake_image(
+                self._attempt.bake, task.image
+            )
+        except ResourceNotFound:
+            # Not defined in the bake
+            return await self._run_task(full_id, task)
 
+        if bake_image.status == ImageStatus.PENDING:
+            await self._start_image_build(bake_image)
+            return None  # wait for next pulling interval
+        elif bake_image.status == ImageStatus.BUILDING:
+            return None  # wait for next pulling interval
+        else:
+            # Image is already build (maybe with an error, just try to run a job)
+            return await self._run_task(full_id, task)
+
+    async def _run_task(self, full_id: FullID, task: Task) -> StartedTask:
         preset_name = task.preset
         if preset_name is None:
             preset_name = next(iter(self._client.config.presets))
@@ -794,6 +893,68 @@ class BatchExecutor:
         )
         await self._add_resource(job.uri)
         return await self._storage.start_task(self._attempt, full_id, job)
+
+    async def _start_image_build(self, bake_image: BakeImage) -> None:
+        flow = self._graphs.get_graph_data(bake_image.prefix)
+        image_ctx = flow.images[bake_image.yaml_id]
+        context = bake_image.context_on_storage or image_ctx.context
+        dockerfile_rel = bake_image.dockerfile_rel or image_ctx.dockerfile_rel
+
+        if context is None or dockerfile_rel is None:
+            if context is None and dockerfile_rel is None:
+                error = "context and dockerfile not specified"
+            elif context is None and dockerfile_rel is not None:
+                error = "context not specified"
+            else:
+                error = "dockerfile not specified"
+            raise Exception(f"Failed to build image '{bake_image.ref}': {error}")
+
+        cmd = ["neuro-extras", "image", "build"]
+        cmd.append(f"--file={dockerfile_rel}")
+        for arg in image_ctx.build_args:
+            cmd.append(f"--build-arg={arg}")
+        for vol in image_ctx.volumes:
+            cmd.append(f"--volume={vol}")
+        for k, v in image_ctx.env.items():
+            cmd.append(f"--env={k}={v}")
+        if image_ctx.build_preset is not None:
+            cmd.append(f"--preset={image_ctx.build_preset}")
+        cmd.append(str(context))
+        cmd.append(str(bake_image.ref))
+
+        builder_job_id = await self._run_builder_job(*cmd)
+        await self._storage.update_bake_image(
+            self._attempt.bake,
+            bake_image.ref,
+            builder_job_id=builder_job_id,
+            status=ImageStatus.BUILDING,
+        )
+        self._progress.log("Image", fmt_id(bake_image.ref), "is", ImageStatus.BUILDING)
+        self._progress.log("  builder job:", fmt_raw_id(builder_job_id))
+
+    async def _process_running_builds(self) -> None:
+        async for image in self._storage.list_bake_images(self._attempt.bake):
+            if image.status == ImageStatus.BUILDING:
+                assert image.builder_job_id
+                descr = await self._client.jobs.status(image.builder_job_id)
+                if descr.status == JobStatus.SUCCEEDED:
+                    await self._storage.update_bake_image(
+                        self._attempt.bake,
+                        image.ref,
+                        status=ImageStatus.BUILT,
+                    )
+                    self._progress.log(
+                        "Image", fmt_id(image.ref), "is", ImageStatus.BUILT
+                    )
+                elif descr.status in TERMINATED_JOB_STATUSES:
+                    await self._storage.update_bake_image(
+                        self._attempt.bake,
+                        image.ref,
+                        status=ImageStatus.BUILD_FAILED,
+                    )
+                    self._progress.log(
+                        "Image", fmt_id(image.ref), "is", ImageStatus.BUILD_FAILED
+                    )
 
     async def _create_project_role(self, project_role: str) -> None:
         if self._is_projet_role_created:

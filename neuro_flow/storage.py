@@ -32,12 +32,13 @@ from typing import (
     Sequence,
     Tuple,
     Type,
+    Union,
     cast,
 )
 from typing_extensions import Final, TypedDict
 from yarl import URL
 
-from neuro_flow.types import LocalPath
+from neuro_flow.types import ImageStatus, LocalPath
 
 from .config_loader import ConfigFile
 from .context import DepCtx, JobMeta
@@ -139,9 +140,41 @@ class FinishedTask:
     state: Mapping[str, str]
 
 
+@dataclasses.dataclass
+class BakeImage:
+    id: str
+    prefix: Tuple[str, ...]
+    yaml_id: str
+    ref: str
+    context_on_storage: Optional[URL]
+    dockerfile_rel: Optional[str]
+
+    status: ImageStatus
+    builder_job_id: Optional[str]
+
+    @classmethod
+    def from_primitive(cls, data: Mapping[str, Any]) -> "BakeImage":
+        return cls(
+            id=data["id"],
+            prefix=_id_from_json(data["prefix"]),
+            yaml_id=data["yaml_id"],
+            ref=data["ref"],
+            context_on_storage=URL(data["context_on_storage"])
+            if "context_on_storage" in data
+            else None,
+            dockerfile_rel=data["dockerfile_rel"] if "dockerfile_rel" in data else None,
+            status=ImageStatus(data["status"]),
+            builder_job_id=data["builder_job_id"],
+        )
+
+
 # A storage abstraction
 #
 # There is a possibility to add Postgres storage class later, for example
+
+
+class _Unset:
+    pass
 
 
 class Storage(abc.ABC):
@@ -401,6 +434,36 @@ class Storage(abc.ABC):
 
     @abc.abstractmethod
     async def clear_cache(self, project: str, batch: Optional[str] = None) -> None:
+        pass
+
+    @abc.abstractmethod
+    async def create_bake_image(
+        self,
+        bake: Bake,
+        prefix: Tuple[str, ...],
+        yaml_id: str,
+        ref: str,
+        context_on_storage: Optional[URL],
+        dockerfile_rel: Optional[str],
+    ) -> BakeImage:
+        pass
+
+    @abc.abstractmethod
+    def list_bake_images(self, bake: Bake) -> AsyncIterator[BakeImage]:
+        pass
+
+    @abc.abstractmethod
+    async def get_bake_image(self, bake: Bake, ref: str) -> BakeImage:
+        pass
+
+    @abc.abstractmethod
+    async def update_bake_image(
+        self,
+        bake: Bake,
+        ref: str,
+        status: Union[ImageStatus, Type[_Unset]] = _Unset,
+        builder_job_id: Union[Optional[str], Type[_Unset]] = _Unset,
+    ) -> BakeImage:
         pass
 
 
@@ -916,6 +979,32 @@ class FSStorage(Storage):
 
     async def clear_cache(self, project: str, batch: Optional[str] = None) -> None:
         await self._fs.rm(_mk_cache_uri2(self._fs, project, batch), recursive=True)
+
+    async def create_bake_image(
+        self,
+        bake: Bake,
+        prefix: Tuple[str, ...],
+        yaml_id: str,
+        ref: str,
+        context_on_storage: Optional[URL],
+        dockerfile_rel: Optional[str],
+    ) -> BakeImage:
+        raise NotImplementedError("FS storage doesn't support remote images")
+
+    def list_bake_images(self, bake: Bake) -> AsyncIterator[BakeImage]:
+        raise NotImplementedError("FS storage doesn't support remote images")
+
+    async def get_bake_image(self, bake: Bake, ref: str) -> BakeImage:
+        raise NotImplementedError("FS storage doesn't support remote images")
+
+    async def update_bake_image(
+        self,
+        bake: Bake,
+        ref: str,
+        status: Union[ImageStatus, Type[_Unset]] = _Unset,
+        builder_job_id: Union[Optional[str], Type[_Unset]] = _Unset,
+    ) -> BakeImage:
+        raise NotImplementedError("FS storage doesn't support remote images")
 
     async def _read_file(self, url: URL) -> str:
         ret = []
@@ -1684,6 +1773,108 @@ class APIStorage(Storage):
             await resp.json()
 
         await self._fs.rm(_mk_cache_uri2(self._fs, project, batch), recursive=True)
+
+    async def create_bake_image(
+        self,
+        bake: Bake,
+        prefix: Tuple[str, ...],
+        yaml_id: str,
+        ref: str,
+        context_on_storage: Optional[URL],
+        dockerfile_rel: Optional[str],
+    ) -> BakeImage:
+        bake_data = await self._find_bake_data(bake)
+
+        url = self._base_url / "api/v1/flow/bake_images"
+        auth = await self._config._api_auth()
+
+        image_data = dict(
+            {
+                "bake_id": bake_data["id"],
+                "yaml_id": yaml_id,
+                "prefix": _id_to_json(prefix),
+                "ref": ref,
+                "context_on_storage": str(context_on_storage)
+                if context_on_storage
+                else None,
+                "dockerfile_rel": dockerfile_rel,
+                "status": ImageStatus.PENDING.value,
+            }
+        )
+
+        async with self._core.request(
+            "POST",
+            url,
+            json=image_data,
+            auth=auth,
+        ) as resp:
+            image_data = await resp.json()
+
+        return BakeImage.from_primitive(image_data)
+
+    async def list_bake_images(self, bake: Bake) -> AsyncIterator[BakeImage]:
+        bake_data = await self._find_bake_data(bake)
+
+        url = self._base_url / "api/v1/flow/bake_images"
+        auth = await self._config._api_auth()
+
+        async with self._core.request(
+            "GET",
+            url,
+            params={
+                "bake_id": bake_data["id"],
+            },
+            headers={
+                "Accept": "application/x-ndjson",
+            },
+            auth=auth,
+        ) as resp:
+            async for line in resp.content:
+                image_data = json.loads(line)
+                yield BakeImage.from_primitive(image_data)
+
+    async def get_bake_image(self, bake: Bake, ref: str) -> BakeImage:
+        bake_data = await self._find_bake_data(bake)
+
+        url = self._base_url / "api/v1/flow/bake_images/by_ref"
+        auth = await self._config._api_auth()
+
+        async with self._core.request(
+            "GET",
+            url,
+            params={
+                "bake_id": bake_data["id"],
+                "ref": ref,
+            },
+            auth=auth,
+        ) as resp:
+            return BakeImage.from_primitive(await resp.json())
+
+    async def update_bake_image(
+        self,
+        bake: Bake,
+        ref: str,
+        status: Union[ImageStatus, Type[_Unset]] = _Unset,
+        builder_job_id: Union[Optional[str], Type[_Unset]] = _Unset,
+    ) -> BakeImage:
+        image = await self.get_bake_image(bake, ref)
+
+        url = self._base_url / f"api/v1/flow/bake_images/{image.id}"
+        auth = await self._config._api_auth()
+
+        patch_data: Dict[str, Any] = {}
+        if status != _Unset:
+            patch_data["status"] = status
+        if builder_job_id != _Unset:
+            patch_data["builder_job_id"] = builder_job_id
+
+        async with self._core.request(
+            "PATCH",
+            url,
+            json=patch_data,
+            auth=auth,
+        ) as resp:
+            return BakeImage.from_primitive(await resp.json())
 
     async def _write_file(
         self, url: URL, body: str, *, overwrite: bool = False

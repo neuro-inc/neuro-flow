@@ -46,3 +46,21 @@ COLORS = {
     TaskStatus.SKIPPED: "bright_black",
     TaskStatus.CACHED: "magenta",
 }
+
+
+class ImageStatus(str, enum.Enum):
+    PENDING = "pending"
+    BUILDING = "building"
+    BUILT = "built"
+    BUILD_FAILED = "build_failed"
+
+    def __rich__(self) -> str:
+        return f"[{IMAGE_STATUS_COLORS[self]}]{self}"
+
+
+IMAGE_STATUS_COLORS = {
+    ImageStatus.PENDING: "cyan",
+    ImageStatus.BUILDING: "blue",
+    ImageStatus.BUILT: "green",
+    ImageStatus.BUILD_FAILED: "red",
+}
