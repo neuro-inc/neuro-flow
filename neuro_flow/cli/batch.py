@@ -140,14 +140,14 @@ async def execute(
 @option(
     "--since",
     metavar="DATE_OR_TIMEDELTA",
-    help="Show jobs created after a specific date (including). "
+    help="Show bakes created after a specific date (including). "
     "Use value of format '1d2h3m4s' to specify moment in "
     "past relatively to current time.",
 )
 @option(
     "--until",
     metavar="DATE_OR_TIMEDELTA",
-    help="Show jobs created before a specific date (including). "
+    help="Show bakes created before a specific date (including). "
     "Use value of format '1d2h3m4s' to specify moment in "
     "past relatively to current time.",
 )
@@ -155,7 +155,7 @@ async def execute(
     "--recent-first/--recent-last",
     is_flag=True,
     default=False,
-    help="Show newer jobs first or last",
+    help="Show newer bakes first or last",
 )
 @wrap_async()
 async def bakes(
