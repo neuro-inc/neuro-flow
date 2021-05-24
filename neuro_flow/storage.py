@@ -18,7 +18,7 @@ from neuro_sdk import (
     JobDescription,
     ResourceNotFound,
 )
-from operator import attrgetter
+from operator import attrgetter, itemgetter
 from types import TracebackType
 from typing import (
     AbstractSet,
@@ -636,10 +636,10 @@ class FSStorage(Storage):
             project=project,
             when=when,
             jobs=sorted(
-                [
+                (
                     Job(id=job.id, multi=job.multi, tags=sorted(job.tags))
                     for job in jobs
-                ],
+                ),
                 key=attrgetter("id"),
             ),
         )
@@ -1122,7 +1122,7 @@ class APIStorage(Storage):
     async def write_live(self, project: str, jobs: Iterable[JobMeta]) -> Live:
         prj = await self._get_project(project)
         jobs_data = sorted(
-            [Job(id=job.id, multi=job.multi, tags=sorted(job.tags)) for job in jobs],
+            (Job(id=job.id, multi=job.multi, tags=sorted(job.tags)) for job in jobs),
             key=attrgetter("id"),
         )
         auth = await self._config._api_auth()
@@ -1155,7 +1155,7 @@ class APIStorage(Storage):
         url = self._base_url / "api/v1/flow/bakes"
         auth = await self._config._api_auth()
 
-        params = [("project_id", prj.id)]
+        params = [("project_id", prj.id), ("fetch_last_attempt", "1")]
         if tags is not None:
             params += [("tags", tag) for tag in tags]
 
@@ -1170,8 +1170,13 @@ class APIStorage(Storage):
         ) as resp:
             async for line in resp.content:
                 bake_data = json.loads(line)
+                if "error" in bake_data:
+                    continue
                 bake = _bake_from_api_json(prj, bake_data)
                 self._bakes_cache[bake_data["id"]] = bake_data
+                last_attempt = bake_data.get("last_attempt")
+                if last_attempt is not None:
+                    self._attempts_cache[last_attempt["id"]] = last_attempt
                 yield bake
 
     async def create_bake(
@@ -1296,12 +1301,15 @@ class APIStorage(Storage):
         async with self._core.request(
             "GET",
             url,
-            params={"project_id": prj.id, "name": name},
+            params={"project_id": prj.id, "name": name, "fetch_last_attempt": "1"},
             auth=auth,
         ) as resp:
             bake_data = await resp.json()
             bake = _bake_from_api_json(prj, bake_data)
             self._bakes_cache[bake_data["id"]] = bake_data
+            last_attempt = bake_data.get("last_attempt")
+            if last_attempt is not None:
+                self._attempts_cache[last_attempt["id"]] = last_attempt
             return bake
 
     async def _find_bake_data(self, bake: Bake) -> Dict[str, Any]:
@@ -1433,13 +1441,19 @@ class APIStorage(Storage):
         self, bake: Bake, attempt_no: int = -1
     ) -> Dict[str, Any]:
         bake_data = await self._find_bake_data(bake)
+        last_attempts = []
 
         for attempt_data in self._attempts_cache.values():
-            if (
-                attempt_data["bake_id"] == bake_data["id"]
-                and attempt_data["number"] == attempt_no
-            ):
-                return attempt_data
+            if attempt_data["bake_id"] == bake_data["id"]:
+                if attempt_no != -1:
+                    if attempt_data["number"] == attempt_no:
+                        return attempt_data
+                else:
+                    last_attempts.append(attempt_data)
+
+        if last_attempts:
+            last_attempts.sort(key=itemgetter("number"))
+            return last_attempts[-1]
 
         assert attempt_no == -1 or 0 < attempt_no < 99
         url = self._base_url / "api/v1/flow/attempts/by_number"
