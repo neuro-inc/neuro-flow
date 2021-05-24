@@ -2,6 +2,9 @@ import click
 import neuro_sdk
 import signal
 import sys
+from datetime import datetime, timezone
+from dateutil.parser import isoparse
+from neuro_cli.parse_utils import parse_timedelta
 from typing import List, Optional, Sequence, Tuple
 
 from neuro_flow.batch_executor import ExecutorData
@@ -134,10 +137,33 @@ async def execute(
     help="Filter out bakes by tag (multiple option)",
     multiple=True,
 )
+@option(
+    "--since",
+    metavar="DATE_OR_TIMEDELTA",
+    help="Show jobs created after a specific date (including). "
+    "Use value of format '1d2h3m4s' to specify moment in "
+    "past relatively to current time.",
+)
+@option(
+    "--until",
+    metavar="DATE_OR_TIMEDELTA",
+    help="Show jobs created before a specific date (including). "
+    "Use value of format '1d2h3m4s' to specify moment in "
+    "past relatively to current time.",
+)
+@option(
+    "--recent-first/--recent-last",
+    is_flag=True,
+    default=False,
+    help="Show newer jobs first or last",
+)
 @wrap_async()
 async def bakes(
     root: Root,
     tag: Sequence[str],
+    since: Optional[str],
+    until: Optional[str],
+    recent_first: bool,
 ) -> None:
     """List existing bakes."""
     async with AsyncExitStack() as stack:
@@ -148,7 +174,12 @@ async def bakes(
         runner = await stack.enter_async_context(
             BatchRunner(root.config_dir, root.console, client, storage, root)
         )
-        await runner.list_bakes(set(tag))
+        await runner.list_bakes(
+            tags=set(tag),
+            since=_parse_date(since),
+            until=_parse_date(until),
+            recent_first=recent_first,
+        )
 
 
 @click.command()
@@ -366,3 +397,20 @@ async def restart(
             from_failed=from_failed,
             local_executor=local_executor,
         )
+
+
+def _parse_date(value: Optional[str]) -> Optional[datetime]:
+    if value:
+        try:
+            return isoparse(value)
+        except ValueError:
+            try:
+                delta = parse_timedelta(value)
+                return datetime.now(timezone.utc) - delta
+            except click.UsageError:
+                raise ValueError(
+                    "Date should be either in ISO-8601 format or "
+                    "relative delta of form 1d2h3m4s"
+                )
+    else:
+        return None

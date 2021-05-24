@@ -140,6 +140,9 @@ neuro-flow bakes [OPTIONS]
 | Name | Description |
 | :--- | :--- |
 | _-t, --tag TAG_ | Filter out bakes by tag \(multiple option\) |
+| _--since DATE\_OR\_TIMEDELTA_ | Show jobs created after a specific date \(including\). Use value of format '1d2h3m4s' to specify moment in past relatively to current time. |
+| _--until DATE\_OR\_TIMEDELTA_ | Show jobs created before a specific date \(including\). Use value of format '1d2h3m4s' to specify moment in past relatively to current time. |
+| _--recent-first / --recent-last_ | Show newer jobs first or last |
 | _--help_ | Show this message and exit. |
 
 ### neuro-flow build
