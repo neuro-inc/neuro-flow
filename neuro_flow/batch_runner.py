@@ -7,9 +7,10 @@ import uuid
 from graphviz import Digraph
 from neuro_cli import __version__ as cli_version
 from neuro_sdk import Client, ResourceNotFound, __version__ as sdk_version
-from operator import attrgetter, itemgetter
+from operator import attrgetter
 from rich import box
 from rich.console import Console
+from rich.live import Live
 from rich.panel import Panel
 from rich.table import Table
 from types import TracebackType
@@ -444,7 +445,13 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         bake = await self._storage.fetch_bake_by_id(self.project_id, bake_id)
         return await self._storage.find_attempt(bake, attempt_no)
 
-    async def list_bakes(self, tags: AbstractSet[str] = frozenset()) -> None:
+    async def list_bakes(
+        self,
+        tags: AbstractSet[str] = frozenset(),
+        since: Optional[datetime.datetime] = None,
+        until: Optional[datetime.datetime] = None,
+        recent_first: bool = False,
+    ) -> None:
         table = Table(box=box.MINIMAL_HEAVY_HEAD)
         table.add_column("ID", style="bold")
         table.add_column("NAME")
@@ -452,32 +459,29 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         table.add_column("STATUS")
         table.add_column("WHEN")
 
-        rows: List[Tuple[str, str, str, TaskStatus, datetime.datetime]] = []
-        async for bake in self._storage.list_bakes(self.project_id, tags):
-            try:
-                attempt = await self._storage.find_attempt(bake)
-            except ValueError:
-                self._console.print(
-                    f"[yellow]Bake [b]{bake}[/b] is malformed, skipping"
-                )
-            else:
-                rows.append(
-                    (
+        with Live(table, auto_refresh=False) as live:
+            async for bake in self._storage.list_bakes(
+                self.project_id,
+                tags=tags,
+                since=since,
+                until=until,
+                recent_first=recent_first,
+            ):
+                try:
+                    attempt = await self._storage.find_attempt(bake)
+                except ValueError:
+                    live.console.print(
+                        f"[yellow]Bake [b]{bake}[/b] is malformed, skipping"
+                    )
+                else:
+                    table.add_row(
                         bake.bake_id,
                         bake.name or "",
                         attempt.executor_id or "",
                         attempt.result,
-                        attempt.when,
+                        fmt_datetime(attempt.when),
                     )
-                )
-
-        # sort by date, ascending order (last is bottommost)
-        rows.sort(key=itemgetter(4))
-
-        for row in rows:
-            bake_id, name, executor_id, result, when = row
-            table.add_row(bake_id, name, executor_id, result, fmt_datetime(when))
-        self._console.print(table)
+                    live.refresh()
 
     async def inspect(
         self,

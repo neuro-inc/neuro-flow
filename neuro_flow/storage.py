@@ -206,7 +206,12 @@ class Storage(abc.ABC):
 
     @abc.abstractmethod
     async def list_bakes(
-        self, project: str, tags: Optional[AbstractSet[str]] = None
+        self,
+        project: str,
+        tags: Optional[AbstractSet[str]] = None,
+        since: Optional[datetime.datetime] = None,
+        until: Optional[datetime.datetime] = None,
+        recent_first: bool = False,
     ) -> AsyncIterator[Bake]:
         # This is here to make this real aiter for type checker
         bake = Bake(
@@ -650,8 +655,17 @@ class FSStorage(Storage):
         return live
 
     async def list_bakes(
-        self, project: str, tags: Optional[AbstractSet[str]] = None
+        self,
+        project: str,
+        tags: Optional[AbstractSet[str]] = None,
+        since: Optional[datetime.datetime] = None,
+        until: Optional[datetime.datetime] = None,
+        recent_first: Optional[bool] = None,
     ) -> AsyncIterator[Bake]:
+        assert since is None, "Since is not supported"
+        assert since is None, "Until is not supported"
+        assert recent_first is None, "Sorting is not supported"
+
         url = self._fs.root / project
         try:
             fs = await self._fs.stat(url)
@@ -1149,7 +1163,12 @@ class APIStorage(Storage):
         return live
 
     async def list_bakes(
-        self, project: str, tags: Optional[AbstractSet[str]] = None
+        self,
+        project: str,
+        tags: Optional[AbstractSet[str]] = None,
+        since: Optional[datetime.datetime] = None,
+        until: Optional[datetime.datetime] = None,
+        recent_first: bool = False,
     ) -> AsyncIterator[Bake]:
         prj = await self._get_project(project)
         url = self._base_url / "api/v1/flow/bakes"
@@ -1158,6 +1177,12 @@ class APIStorage(Storage):
         params = [("project_id", prj.id), ("fetch_last_attempt", "1")]
         if tags is not None:
             params += [("tags", tag) for tag in tags]
+        if since is not None:
+            params += [("since", since.isoformat())]
+        if until is not None:
+            params += [("until", until.isoformat())]
+        if recent_first:
+            params += [("reverse", "true")]
 
         async with self._core.request(
             "GET",
