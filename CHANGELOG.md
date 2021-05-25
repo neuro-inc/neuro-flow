@@ -5,6 +5,51 @@
 
 [comment]: # (towncrier release notes start)
 
+
+Neuro_Flow 21.5.25 (2021-05-25)
+===============================
+
+
+Features
+--------
+
+
+- Support shared projects. Shared project should have parameters `owner` or `role` set in `project.yml`. ([#373](https://github.com/neuro-inc/neuro-flow/issues/373))
+
+- Add bake id to `neuro-flow inspect`. ([#396](https://github.com/neuro-inc/neuro-flow/issues/396))
+
+- Added support of `storage:` urls in `images.<image-id>.context` and `images.<image-id>.dockerfile`. ([#402](https://github.com/neuro-inc/neuro-flow/issues/402))
+
+- Added image building functionality to batch mode.
+  The `images` yaml section entries with `context` and `dockerfile` are now allowed
+  both in batch and batch action config files.
+  Image build starts automatically when task that uses it is ready to be run. ([#412](https://github.com/neuro-inc/neuro-flow/issues/412))
+
+- Added automatic creation of parent directories in `neuro-flow upload` command. ([#416](https://github.com/neuro-inc/neuro-flow/issues/416))
+
+- Added cancellation of image build jobs if bake is cancelled or failed. ([#423](https://github.com/neuro-inc/neuro-flow/issues/423))
+
+- Added `force_rebuild` flag to image section in yaml config. ([#424](https://github.com/neuro-inc/neuro-flow/issues/424))
+
+- Added new options to neuro-flow bakes:
+  - `--since DATE_OR_TIMEDELTA` to show bakes that were created after specified moment
+  - `--until DATE_OR_TIMEDELTA` to show bakes that were created before specified moment
+  - `--recent-first/--recent-last` to alter ordering in the result table ([#428](https://github.com/neuro-inc/neuro-flow/issues/428))
+
+- Pre-fetch the last attempt in bakes list to speed up the command. ([#429](https://github.com/neuro-inc/neuro-flow/issues/429))
+
+
+Bugfixes
+--------
+
+
+- Fixed auto-generation of suffixes for multi jobs in live mode. ([#415](https://github.com/neuro-inc/neuro-flow/issues/415))
+
+- Fixed overriding param with empty value, `--param name ""` works properly now. ([#417](https://github.com/neuro-inc/neuro-flow/issues/417))
+
+- Fixed EvalError when tried to access `ref`, `ref_rw`, `ref_ro` of volume context. ([#418](https://github.com/neuro-inc/neuro-flow/issues/418))
+
+
 Neuro_Flow 21.5.19 (2021-05-19)
 ===============================
 
