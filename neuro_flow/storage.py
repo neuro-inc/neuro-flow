@@ -636,10 +636,10 @@ class FSStorage(Storage):
             project=project,
             when=when,
             jobs=sorted(
-                [
+                (
                     Job(id=job.id, multi=job.multi, tags=sorted(job.tags))
                     for job in jobs
-                ],
+                ),
                 key=attrgetter("id"),
             ),
         )
@@ -1122,7 +1122,7 @@ class APIStorage(Storage):
     async def write_live(self, project: str, jobs: Iterable[JobMeta]) -> Live:
         prj = await self._get_project(project)
         jobs_data = sorted(
-            [Job(id=job.id, multi=job.multi, tags=sorted(job.tags)) for job in jobs],
+            (Job(id=job.id, multi=job.multi, tags=sorted(job.tags)) for job in jobs),
             key=attrgetter("id"),
         )
         auth = await self._config._api_auth()
