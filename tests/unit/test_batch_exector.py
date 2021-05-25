@@ -1380,6 +1380,15 @@ async def test_bake_marked_as_cancelled_on_task_cancelation(
     assert status == TaskStatus.CANCELLED
 
 
+async def _wait_for_build(mock_builder: MockBuilder, ref: str) -> str:
+    async def _waiter() -> None:
+        while ref not in mock_builder.ref2job:
+            await asyncio.sleep(0.1)
+
+    await asyncio.wait_for(_waiter(), timeout=1)
+    return mock_builder.ref2job[ref]
+
+
 async def test_image_builds(
     jobs_mock: JobsMock,
     assets: Path,
@@ -1391,15 +1400,7 @@ async def test_image_builds(
         run_executor(assets / "batch_images", "batch")
     )
 
-    async def _wait_for_build(ref: str) -> str:
-        async def _waiter() -> None:
-            while ref not in mock_builder.ref2job:
-                await asyncio.sleep(0.1)
-
-        await asyncio.wait_for(_waiter(), timeout=1)
-        return mock_builder.ref2job[ref]
-
-    job_id = await _wait_for_build("image:banana1")
+    job_id = await _wait_for_build(mock_builder, "image:banana1")
     bake = [bake async for bake in batch_storage.list_bakes("batch_images")][0]
     image = await batch_storage.get_bake_image(bake, "image:banana1")
     assert mock_builder.runs[-1] == (
@@ -1416,7 +1417,7 @@ async def test_image_builds(
     assert task.container.image.name == "banana1"
     await jobs_mock.mark_done("action.task_1")
 
-    job_id = await _wait_for_build("image:banana2")
+    job_id = await _wait_for_build(mock_builder, "image:banana2")
     assert mock_builder.runs[-1] == (
         "neuro-extras",
         "image",
@@ -1431,7 +1432,7 @@ async def test_image_builds(
     assert task.container.image.name == "banana2"
     await jobs_mock.mark_done("action.task_2")
 
-    job_id = await _wait_for_build("image:main")
+    job_id = await _wait_for_build(mock_builder, "image:main")
     image = await batch_storage.get_bake_image(bake, "image:main")
     assert mock_builder.runs[-1] == (
         "neuro-extras",
@@ -1476,6 +1477,55 @@ async def test_image_builds_skip_if_present(
 
     await jobs_mock.get_task("action.task_2")
     await jobs_mock.mark_done("action.task_2")
+
+    await jobs_mock.get_task("task")
+    await jobs_mock.mark_done("task")
+
+    await asyncio.wait_for(executor_task, timeout=1)
+
+
+async def test_image_builds_if_present_but_force(
+    jobs_mock: JobsMock,
+    assets: Path,
+    run_executor: Callable[[Path, str], Awaitable[None]],
+    images_mock: ImagesMock,
+    mock_builder: MockBuilder,
+    batch_storage: Storage,
+    client: Client,
+) -> None:
+    images_mock.known_images = {
+        f"image://{client.cluster_name}/{client.username}/banana1:latest": Tag(
+            "latest"
+        ),
+        f"image://{client.cluster_name}/{client.username}/banana2:latest": Tag(
+            "latest"
+        ),
+        f"image://{client.cluster_name}/{client.username}/main:latest": Tag("latest"),
+    }
+
+    executor_task = asyncio.ensure_future(
+        run_executor(assets / "batch_images", "batch-with-force")
+    )
+
+    await jobs_mock.get_task("action.task_1")
+    await jobs_mock.mark_done("action.task_1")
+
+    await jobs_mock.get_task("action.task_2")
+    await jobs_mock.mark_done("action.task_2")
+
+    job_id = await _wait_for_build(mock_builder, "image:main")
+    bake = [bake async for bake in batch_storage.list_bakes("batch_images")][0]
+    image = await batch_storage.get_bake_image(bake, "image:main")
+    assert mock_builder.runs[-1] == (
+        "neuro-extras",
+        "image",
+        "build",
+        "--file=Dockerfile",
+        "--force-overwrite",
+        str(image.context_on_storage),
+        "image:main",
+    )
+    await jobs_mock.mark_done(job_id)
 
     await jobs_mock.get_task("task")
     await jobs_mock.mark_done("task")

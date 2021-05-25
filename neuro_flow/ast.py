@@ -83,6 +83,7 @@ class Image(Base):
     env: Optional[BaseExpr[MappingT]] = field(metadata={"allow_none": True})
     volumes: Optional[BaseExpr[SequenceT]] = field(metadata={"allow_none": True})
     build_preset: OptStrExpr
+    force_rebuild: OptBoolExpr
 
 
 @dataclass(frozen=True)

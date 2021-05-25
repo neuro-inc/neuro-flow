@@ -262,6 +262,9 @@ def test_parse_full(assets: pathlib.Path) -> None:
                 build_preset=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "gpu-small"
                 ),
+                force_rebuild=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
             )
         },
         volumes={
@@ -498,6 +501,9 @@ def test_parse_full_exprs(assets: pathlib.Path) -> None:
                 ),
                 build_preset=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "gpu-small"
+                ),
+                force_rebuild=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
             )
         },
