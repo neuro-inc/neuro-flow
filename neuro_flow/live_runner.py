@@ -464,7 +464,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
         volume_ctx = self.flow.volumes.get(volume)
         if volume_ctx is None:
             self._console.print(f"[red]Unknown volume [b]{volume}[/b]")
-            volumes = sorted([volume for volume in self.flow.volumes.keys()])
+            volumes = sorted(volume for volume in self.flow.volumes.keys())
             volumes_str = ",".join(volumes)
             self._console.print(f"[dim]Existing volumes: {volumes_str}")
             sys.exit(1)
@@ -544,7 +544,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
         image_ctx = self.flow.images.get(image)
         if image_ctx is None:
             self._console.print(f"[red]Unknown image [b]{image}[/b]")
-            images = sorted([image for image in self.flow.images.keys()])
+            images = sorted(image for image in self.flow.images.keys())
             images_str = ",".join(images)
             self._console.print(f"[dim]Existing images: {images_str}")
             sys.exit(1)

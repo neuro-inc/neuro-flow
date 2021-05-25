@@ -725,6 +725,10 @@ class BatchExecutor:
             if task.enable is not AlwaysT():
                 self._progress.log(f"Task {fmt_id(st.id)} is being killed")
                 await self._client.jobs.kill(st.raw_id)
+        async for image in self._storage.list_bake_images(self._attempt.bake):
+            if image.status == ImageStatus.BUILDING:
+                assert image.builder_job_id
+                await self._client.jobs.kill(image.builder_job_id)
 
     async def _store_to_cache(self, ft: FinishedTask) -> None:
         task = await self._get_task(ft.id)
