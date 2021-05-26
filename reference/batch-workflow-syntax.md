@@ -208,7 +208,8 @@ cache:
 
 A mapping of image definitions used by the _batch_ workflow.
 
-`neuro-flow build <image-id>` creates an image from the passed `Dockerfile` and uploads it to the Neu.ro Registry. The `${{ images.img_id.ref }}` expression can be used for pointing the image from a [`tasks.image`](batch-workflow-syntax.md#tasks-image).
+If the specified image reference is available at the Neu.ro registry and the [`.force_rebuild`](batch-workflow-syntax.md#images-less-than-image-id-greater-than-force-rebuild) flag is not set, then Neu.ro Flow starts building the image from scratch. 
+If this flag is set, then the existing image from the registry will be used.
 
 {% hint style="info" %}
 The `images` section is not required. A task can specify the image name in a plain string without referring to the `${{ images.my_image.ref }}` context.
@@ -280,7 +281,7 @@ images:
 
 An optional Docker file name used for building images, `Dockerfile` by default.
 
-Works almost the same as `.context` - if it's a local path, dynamic values are forbidden and it's automatically uploaded. If it's a remote path, then dynamic values are allowed.
+Works almost the same as [`.context`](batch-workflow-syntax.md#images-less-than-image-id-greater-than-context) - if it's a local path, dynamic values are forbidden and it's automatically uploaded. If it's a remote path, then dynamic values are allowed.
 
 **Example:**
 
@@ -359,7 +360,7 @@ images:
 
 ### `images.<image-name>.force_rebuild`
 
-This controls rebuilds between different bakes.
+If this flag is enabled, the referernced image will be rebuilt from scratch for each bake.
 
 **Example:**
 
