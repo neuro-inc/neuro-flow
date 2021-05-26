@@ -261,7 +261,7 @@ images:
 
 The Docker _context_ used to build an image. Can be either local path (e.g. ${{ flow.workspace / 'some/dir' }}) or a remote volume spec (e.g. storage:subdir/${{ inputs.path_on_storage }}). 
 If it's a local path, it cannot use anything that's not available at the beginning of a bake (for example, action inputs). 
-If it's a remote path, usage of dynamic values is allowed. Local context should be automatically uploaded to storage during the "local actions" step of the bake.
+If it's a remote path, usage of dynamic values is allowed. Local context will be automatically uploaded to storage during the "local actions" step of the bake.
 
 **Example:**
 
@@ -1131,4 +1131,3 @@ tasks:
 ```
 
 **Expression contexts:** [`flow` context](batch-contexts.md#flow-context), [`params` context](batch-contexts.md#params-context), [`env` context](batch-contexts.md#env-context), [`tags` context](batch-contexts.md#tags-context), [`volumes` context](batch-contexts.md#volumes-context), [`images` context](batch-contexts.md#images-context), [`matrix` context](batch-contexts.md#matrix-context), [`strategy` context](batch-contexts.md#strategy-context), [`needs` context](batch-contexts.md#needs-context).
-
