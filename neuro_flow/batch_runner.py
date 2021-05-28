@@ -3,7 +3,6 @@ import dataclasses
 import click
 import datetime
 import neuro_extras
-import uuid
 from graphviz import Digraph
 from neuro_cli import __version__ as cli_version
 from neuro_sdk import Client, ResourceNotFound, __version__ as sdk_version
@@ -198,9 +197,11 @@ async def upload_image_data(
     async for prefix, flow in iter_flows(top_flow):
         for image in flow.early_images.values():
             if isinstance(image.context, LocalPath):
-                # TODO: use hash of data instead of random value for storage path
+                # Reusing image ref between bakes introduces
+                # race condition anyway, so we can safely use it
+                # as remote context dir name
                 storage_context_dir: Optional[URL] = URL(
-                    f"storage:.flow/image-contexts/{uuid.uuid4()}"
+                    f"storage:.flow/image-contexts/{image.ref}"
                 )
                 await neuro_runner(
                     "mkdir",
