@@ -1,0 +1,1 @@
+Fix broken cache when using images: now remote context dir name is based on image ref instead of random name.
