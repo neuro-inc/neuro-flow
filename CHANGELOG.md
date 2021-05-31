@@ -5,6 +5,17 @@
 
 [comment]: # (towncrier release notes start)
 
+Neuro_Flow 21.5.31 (2021-05-31)
+===============================
+
+Bugfixes
+--------
+
+
+- Fix broken cache when using images: now remote context dir name is based on image ref instead of random name. ([#422](https://github.com/neuro-inc/neuro-flow/issues/422))
+
+- Fix a error that leads to bakes cache check miss even if the record is present in cache actually. ([#441](https://github.com/neuro-inc/neuro-flow/issues/441))
+
 
 Neuro_Flow 21.5.25 (2021-05-25)
 ===============================
