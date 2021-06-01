@@ -208,13 +208,11 @@ cache:
 
 A mapping of image definitions used by the _batch_ workflow.
 
-If the specified image reference is available at the Neu.ro registry and the [`.force_rebuild`](batch-workflow-syntax.md#images-less-than-image-id-greater-than-force-rebuild) flag is not set, then Neu.ro Flow starts building the image from scratch. 
-If this flag is set, then the existing image from the registry will be used.
+If the specified image reference is available at the Neu.ro registry and the [`.force_rebuild`](batch-workflow-syntax.md#images-less-than-image-id-greater-than-force-rebuild) flag is not set, then Neu.ro Flow will not attempt to build the image from scratch. 
+If this flag is set or the image is not in the registry, then the platform will start buliding the image.
 
 {% hint style="info" %}
 The `images` section is not required. A task can specify the image name in a plain string without referring to the `${{ images.my_image.ref }}` context.
-
-However, this section exists for convenience: there is no need to repeat yourself if you can just point the image reference everywhere in the YAML.
 {% endhint %}
 
 ### `images.<image-id>`
