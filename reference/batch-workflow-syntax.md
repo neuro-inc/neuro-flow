@@ -219,7 +219,7 @@ However, this section exists for convenience: there is no need to repeat yoursel
 
 ### `images.<image-id>`
 
-The key `image-id` is a string and its value is a map of a bake's configuration data. You must replace `<image-id>` with a string that is unique to the `images` object. `<image-id>` must start with a letter and contain only alphanumeric characters or underscore symbols `_`. Dash `-` is not allowed.
+The key `image-id` is a string and its value is a map of an image's configuration data. You must replace `<image-id>` with a string that is unique to the `images` object. `<image-id>` must start with a letter and contain only alphanumeric characters or underscore symbols `_`. Dash `-` is not allowed.
 
 ### `images.<image-id>.ref`
 
