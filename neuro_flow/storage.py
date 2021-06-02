@@ -1283,7 +1283,7 @@ class APIStorage(Storage):
             else:
                 for key, action_meta in configs_meta["action_configs"].items():
                     if filename == action_meta["storage_filename"]:
-                        filename == action_meta["real_name"]
+                        filename = action_meta["real_name"]
                         real_meta["action_config_ids"][key] = await self._write_config(
                             bake_data["id"], filename, config.content
                         )
