@@ -267,7 +267,9 @@ class Storage(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def find_attempt(self, bake: Bake, attempt_no: int = -1) -> Attempt:
+    async def find_attempt(
+        self, bake: Bake, attempt_no: int = -1, force_no_cache: bool = False
+    ) -> Attempt:
         pass
 
     @abc.abstractmethod
@@ -786,7 +788,9 @@ class FSStorage(Storage):
         await self._write_json(attempt_uri / f"{pre}.init.json", _attempt_to_json(ret))
         return ret
 
-    async def find_attempt(self, bake: Bake, attempt_no: int = -1) -> Attempt:
+    async def find_attempt(
+        self, bake: Bake, attempt_no: int = -1, force_no_cache: bool = False
+    ) -> Attempt:
         bake_uri = _mk_bake_uri(self._fs, bake)
         if attempt_no == -1:
             files = set()
