@@ -1,0 +1,1 @@
+Fixed hanging when executor tried to build an image in batch mode.
