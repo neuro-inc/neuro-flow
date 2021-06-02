@@ -5,6 +5,17 @@
 
 [comment]: # (towncrier release notes start)
 
+
+Neuro_Flow 21.6.2 (2021-6-2)
+============================
+
+Bugfixes
+--------
+
+
+- Fixed hanging when executor tried to build an image in batch mode. ([#448](https://github.com/neuro-inc/neuro-flow/issues/448))
+
+
 Neuro_Flow 21.5.31 (2021-05-31)
 ===============================
 
