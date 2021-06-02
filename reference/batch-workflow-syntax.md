@@ -204,6 +204,170 @@ cache:
 
 **Expression contexts:** [`flow` context](batch-contexts.md#flow-context), [`params` context](batch-contexts.md#params-context), [`env` context](batch-contexts.md#env-context), [`tags` context](batch-contexts.md#tags-context), [`volumes` context](batch-contexts.md#volumes-context), [`images` context](batch-contexts.md#images-context).
 
+## `images`
+
+A mapping of image definitions used by the _batch_ workflow.
+
+If the specified image reference is available at the Neu.ro registry and the [`.force_rebuild`](batch-workflow-syntax.md#images-less-than-image-id-greater-than-force-rebuild) flag is not set, then Neu.ro Flow will not attempt to build the image from scratch. 
+If this flag is set or the image is not in the registry, then the platform will start buliding the image.
+
+{% hint style="info" %}
+The `images` section is not required. A task can specify the image name in a plain string without referring to the `${{ images.my_image.ref }}` context.
+{% endhint %}
+
+### `images.<image-id>`
+
+The key `image-id` is a string and its value is a map of an image's configuration data. You must replace `<image-id>` with a string that is unique to the `images` object. `<image-id>` must start with a letter and contain only alphanumeric characters or underscore symbols `_`. Dash `-` is not allowed.
+
+### `images.<image-id>.ref`
+
+**Required** Image _reference_ that can be used in the [`tasks.image`](batch-workflow-syntax.md#tasks-image) expression.
+
+**Example of a self-hosted image:**
+
+```yaml
+images:
+  my_image:
+    ref: image:my_image:latest
+```
+
+This can only use locally accessible functions (such as `hash_files`). Its value will be calculated before the remote executor starts.
+
+**Example of external image:**
+
+```yaml
+images:
+  python:
+    ref: python:3.9.0
+```
+
+{% hint style="info" %}
+Use the embedded [`hash_files()`](expression-functions.md#hash_files-pattern) function to generate the built image's tag based on its content.
+{% endhint %}
+
+**Example of an auto-calculated stable hash:**
+
+```yaml
+images:
+  my_image:
+    ref: image:my_image:${{ hash_files('Dockerfile', 'requirements/*.txt', 'modules/**/*.py') }}
+```
+
+**Expression contexts:** [`flow` context](batch-contexts.md#flow-context).
+
+### `images.<image-id>.context`
+
+The Docker _context_ used to build an image. Can be either local path (e.g. ${{ flow.workspace / 'some/dir' }}) or a remote volume spec (e.g. storage:subdir/${{ flow.flow_id }}). 
+If it's a local path, it cannot use anything that's not available at the beginning of a bake (for example, action inputs). 
+If it's a remote path, usage of dynamic values is allowed. Local context will be automatically uploaded to storage during the "local actions" step of the bake.
+
+**Example:**
+
+```yaml
+images:
+  my_image:
+    context: path/to/context
+```
+
+{% hint style="info" %}
+`neuro-flow` cannot build images without the context, but can address _pre-built_ images using [`images.<image-id>.ref`](batch-workflow-syntax.md#images-less-than-image-id-greater-than-ref)
+{% endhint %}
+
+**Expression contexts:** [`flow` context](batch-contexts.md#flow-context).
+
+### `images.<image-id>.dockerfile`
+
+An optional Docker file name used for building images, `Dockerfile` by default.
+
+Works almost the same as [`.context`](batch-workflow-syntax.md#images-less-than-image-id-greater-than-context) - if it's a local path, dynamic values are forbidden and it's automatically uploaded. If it's a remote path, then dynamic values are allowed.
+
+**Example:**
+
+```yaml
+images:
+  my_image:
+    dockerfile: MyDockerfile
+```
+
+**Expression contexts:** [`flow` context](batch-contexts.md#flow-context).
+
+### `images.<image-id>.build_args`
+
+A list of optional build arguments passed to the image builder. See [Docker documentation](https://docs.docker.com/engine/reference/commandline/build/#set-build-time-variables---build-arg) for details. Supports dynamic values such as action inputs.
+
+**Example:**
+
+```yaml
+images:
+  my_image:
+    build_args:
+    - ARG1=val1
+    - ARG2=val2
+```
+
+**Expression contexts:** [`flow` context](batch-contexts.md#flow-context).
+
+### `images.<image-id>.env`
+
+A mapping of _environment variables_ passed to the image builder. Supports dynamic values such as action inputs.
+
+**Example:**
+
+```yaml
+images:
+  my_image:
+    env:
+      ENV1: val1
+      ENV2: val2
+```
+
+This attribute also supports dictionaries as values:
+
+```yaml
+images:
+  my_image:
+    env: ${{ {'ENV1': 'val1', 'ENV2': 'val2'} }}
+```
+
+**Expression contexts:** [`flow` context](batch-contexts.md#flow-context).
+
+### `images.<image-id>.volumes`
+
+A list of volume references mounted to the image building process. Supports dynamic values such as action inputs.
+
+**Example:**
+
+```yaml
+images:
+  my_image:
+    volumes:
+    - storage:folder1:/mnt/folder1:ro
+    - storage:folder2:/mnt/folder2
+    - volumes.volume_id.ref
+```
+
+This attribute also supports lists as values:
+
+```yaml
+images:
+  my_image:
+    volumes: ${{ ['ubuntu', volumes.volume_id.ref] }}
+```
+
+**Expression contexts:** [`flow` context](batch-contexts.md#flow-context).
+
+### `images.<image-name>.force_rebuild`
+
+If this flag is enabled, the referernced image will be rebuilt from scratch for each bake.
+
+**Example:**
+
+```yaml
+images:
+  my_image:
+    force_rebuild: true
+```
+
 ## `params`
 
 Mapping of key-value pairs that have default values.
@@ -965,4 +1129,3 @@ tasks:
 ```
 
 **Expression contexts:** [`flow` context](batch-contexts.md#flow-context), [`params` context](batch-contexts.md#params-context), [`env` context](batch-contexts.md#env-context), [`tags` context](batch-contexts.md#tags-context), [`volumes` context](batch-contexts.md#volumes-context), [`images` context](batch-contexts.md#images-context), [`matrix` context](batch-contexts.md#matrix-context), [`strategy` context](batch-contexts.md#strategy-context), [`needs` context](batch-contexts.md#needs-context).
-
