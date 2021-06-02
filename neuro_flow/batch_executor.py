@@ -6,6 +6,7 @@ import datetime
 import json
 import os
 import sys
+import textwrap
 from collections import defaultdict
 from neuro_sdk import (
     Action,
@@ -331,19 +332,45 @@ class BakeTasksManager:
         return dep.state
 
 
+class ImageBuildCommandError(Exception):
+    def __init__(self, exit_code: int, stdout: str, stderr: str) -> None:
+        self.exit_code = exit_code
+        self.stdout = stdout
+        self.stderr = stderr
+
+    def __str__(self) -> str:
+        return (
+            f"Image builder command failed:\n"
+            f"exit code: {self.exit_code}\n"
+            f"stdout: \n{textwrap.indent(self.stdout, '  ')}\n"
+            f"stderr: \n{textwrap.indent(self.stderr, '  ')}"
+        )
+
+
 async def start_image_build(*cmd: str) -> str:
     subprocess = await asyncio.create_subprocess_exec(
         *cmd,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
-    while True:
-        assert subprocess.stdout
+    assert subprocess.stdout
+    assert subprocess.stderr
+    stdout = ""
+    while subprocess.returncode is None:
         line = (await subprocess.stdout.readline()).decode()
+        stdout += line
         if line.startswith("Job ID: "):
             # Job is started, we can freely kill neuro-cli
             subprocess.terminate()
             return line[len("Job ID: ") :].strip()
+
+    stdout += (await subprocess.stdout.read()).decode()
+    stderr = (await subprocess.stderr.read()).decode()
+    raise ImageBuildCommandError(
+        exit_code=subprocess.returncode,
+        stdout=stdout,
+        stderr=stderr,
+    )
 
 
 class BatchExecutor:
@@ -938,7 +965,6 @@ class BatchExecutor:
             cmd.append(f"--preset={image_ctx.build_preset}")
         cmd.append(str(context))
         cmd.append(str(bake_image.ref))
-
         builder_job_id = await self._run_builder_job(*cmd)
         await self._storage.update_bake_image(
             self._attempt.bake,

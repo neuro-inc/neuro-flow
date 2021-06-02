@@ -201,7 +201,7 @@ async def upload_image_data(
                 # race condition anyway, so we can safely use it
                 # as remote context dir name
                 storage_context_dir: Optional[URL] = URL(
-                    f"storage:.flow/image-contexts/{image.ref}"
+                    f"storage:.flow/{top_flow.project_id}/{image.ref.replace(':', '/')}"
                 )
                 await neuro_runner(
                     "mkdir",
