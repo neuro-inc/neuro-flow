@@ -9,8 +9,9 @@ from typing import Any, List, Optional
 import neuro_flow
 from neuro_flow.cli import batch, completion, images, live, storage
 from neuro_flow.parser import ConfigDir, find_workspace
-from neuro_flow.types import LocalPath
+from neuro_flow.types import LocalPath, TaskStatus
 
+from ..batch_runner import BakeFailedError
 from ..expr import MultiEvalError
 from .root import Root
 
@@ -197,6 +198,10 @@ def main(args: Optional[List[str]] = None) -> None:
         sys.exit(e.exit_code)
     except ClickExit as e:
         sys.exit(e.exit_code)
+    except BakeFailedError as e:
+        if e.status == TaskStatus.CANCELLED:
+            sys.exit(130)
+        sys.exit(1)
 
     except SystemExit:
         raise
