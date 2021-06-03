@@ -125,29 +125,31 @@ async def get_running_flow(
         early_images={},
     )
     async for image in storage.list_bake_images(bake):
-        sub = local_info
-        for part in image.prefix:
-            if part not in sub.children_info:
-                new_sub = LocallyPreparedInfo(
-                    children_info={},
-                    early_images={},
-                )
-                assert isinstance(sub.children_info, dict)
-                sub.children_info[part] = new_sub
-            sub = sub.children_info[part]
-        assert isinstance(sub.early_images, dict)
-        dockerfile = None
-        if image.context_on_storage and image.dockerfile_rel:
-            dockerfile = image.context_on_storage / str(image.dockerfile_rel)
-        sub.early_images[image.yaml_id] = EarlyImageCtx(
-            id=image.yaml_id,
-            ref=image.ref,
-            context=image.context_on_storage,
-            dockerfile=dockerfile,
-            dockerfile_rel=RemotePath(image.dockerfile_rel)
-            if image.dockerfile_rel
-            else None,
-        )
+        for yaml_def in image.yaml_defs:
+            *prefix, image_id = yaml_def
+            sub = local_info
+            for part in prefix:
+                if part not in sub.children_info:
+                    new_sub = LocallyPreparedInfo(
+                        children_info={},
+                        early_images={},
+                    )
+                    assert isinstance(sub.children_info, dict)
+                    sub.children_info[part] = new_sub
+                sub = sub.children_info[part]
+            assert isinstance(sub.early_images, dict)
+            dockerfile = None
+            if image.context_on_storage and image.dockerfile_rel:
+                dockerfile = image.context_on_storage / str(image.dockerfile_rel)
+            sub.early_images[image_id] = EarlyImageCtx(
+                id=image_id,
+                ref=image.ref,
+                context=image.context_on_storage,
+                dockerfile=dockerfile,
+                dockerfile_rel=RemotePath(image.dockerfile_rel)
+                if image.dockerfile_rel
+                else None,
+            )
     return await RunningBatchFlow.create(
         config_loader=config_loader,
         batch=bake.batch,
@@ -200,7 +202,6 @@ class Graph(Generic[_T]):
             yield ready, self._metas[ready[:-1]]
 
     def get_graph_data(self, node: FullID) -> _T:
-        assert node in self._topos, f"Graph {node} not found"
         return self._metas[node]
 
     def get_meta(self, node: FullID) -> _T:
@@ -519,9 +520,45 @@ class BatchExecutor:
         )
         return await flow.get_action(tid, needs=needs)
 
-    async def _get_image(self, prefix: FullID, image_id: str) -> ImageCtx:
-        flow = self._graphs.get_graph_data(prefix)
-        return flow.images[image_id]
+    async def _get_image(self, bake_image: BakeImage) -> Optional[ImageCtx]:
+        actions = []
+        full_id_to_image: Dict[FullID, ImageCtx] = {}
+        for yaml_def in bake_image.yaml_defs:
+            *prefix, image_id = yaml_def
+            actions.append(".".join(prefix))
+            try:
+                flow = self._graphs.get_graph_data(tuple(prefix))
+            except KeyError:
+                pass
+            else:
+                full_id_to_image[yaml_def] = flow.images[image_id]
+        image_ctx = None
+        for _it in full_id_to_image.values():
+            image_ctx = _it  # Return any context
+            break
+        if not all(image_ctx == it for it in full_id_to_image.values()):
+            locations_str = "\n".join(
+                f" - {'.'.join(full_id)}" for full_id in full_id_to_image.keys()
+            )
+            self._progress.log(
+                f"[red]Warning:[/red] definitions for image with"
+                f" ref [b]{bake_image.ref}[/b] differ:\n"
+                f"{locations_str}"
+            )
+        if len(full_id_to_image.values()) == 0:
+            actions_str = ", ".join(f"'{it}'" for it in actions)
+            self._progress.log(
+                f"[red]Warning:[/red] image with ref "
+                f"[b]{bake_image.ref}[/b] is referred "
+                + (
+                    f"before action {actions_str} "
+                    "that holds its definition was able to run"
+                    if len(actions) == 1
+                    else f"before actions {actions_str} "
+                    "that hold its definition were able to run"
+                )
+            )
+        return image_ctx
 
     # Graph helpers
 
@@ -881,7 +918,10 @@ class BatchExecutor:
             # Not defined in the bake
             return await self._run_task(full_id, task)
 
-        image_ctx = await self._get_image(bake_image.prefix, bake_image.yaml_id)
+        image_ctx = await self._get_image(bake_image)
+        if image_ctx is None:
+            # The image referred before definition
+            return await self._run_task(full_id, task)
 
         if not image_ctx.force_rebuild and await self._is_image_in_registry(
             remote_image
@@ -889,7 +929,7 @@ class BatchExecutor:
             return await self._run_task(full_id, task)
 
         if bake_image.status == ImageStatus.PENDING:
-            await self._start_image_build(bake_image)
+            await self._start_image_build(bake_image, image_ctx)
             return None  # wait for next pulling interval
         elif bake_image.status == ImageStatus.BUILDING:
             return None  # wait for next pulling interval
@@ -937,8 +977,9 @@ class BatchExecutor:
         await self._add_resource(job.uri)
         return await self._storage.start_task(self._attempt, full_id, job)
 
-    async def _start_image_build(self, bake_image: BakeImage) -> None:
-        image_ctx = await self._get_image(bake_image.prefix, bake_image.yaml_id)
+    async def _start_image_build(
+        self, bake_image: BakeImage, image_ctx: ImageCtx
+    ) -> None:
         context = bake_image.context_on_storage or image_ctx.context
         dockerfile_rel = bake_image.dockerfile_rel or image_ctx.dockerfile_rel
 

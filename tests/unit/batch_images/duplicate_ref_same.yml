@@ -3,7 +3,7 @@ images:
   image1:
     ref: image:banana1
     context: dir
-    dockerfile: dir/Dockerfile_differ
+    dockerfile: dir/Dockerfile
 tasks:
 - id: test
   action: ws:action

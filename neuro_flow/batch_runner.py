@@ -3,6 +3,7 @@ import dataclasses
 import click
 import datetime
 import neuro_extras
+from collections import defaultdict
 from graphviz import Digraph
 from neuro_cli import __version__ as cli_version
 from neuro_sdk import Client, ResourceNotFound, __version__ as sdk_version
@@ -24,6 +25,7 @@ from typing import (
     Set,
     Tuple,
     Type,
+    Union,
     cast,
 )
 from typing_extensions import AsyncContextManager, AsyncIterator
@@ -31,6 +33,7 @@ from yarl import URL
 
 import neuro_flow
 
+from . import ast
 from .batch_executor import (
     BatchExecutor,
     ExecutorData,
@@ -48,7 +51,7 @@ from .context import (
     RunningBatchFlow,
     setup_project_ctx,
 )
-from .expr import EvalError, MultiEvalError
+from .expr import EvalError, MultiError
 from .parser import ConfigDir
 from .storage import Attempt, Bake, BakeImage, FinishedTask, Storage
 from .types import FullID, LocalPath, TaskStatus
@@ -157,19 +160,55 @@ async def check_expressions(top_flow: RunningBatchFlow) -> None:
     async for _, flow in iter_flows(top_flow):
         errors += flow.validate_expressions()
     if errors:
-        raise MultiEvalError(errors)
+        raise MultiError(errors)
+
+
+class ImageRefNotUniqueError(Exception):
+    @dataclasses.dataclass
+    class ImageInfo:
+        context: Optional[Union[URL, LocalPath]]
+        dockerfile: Optional[Union[URL, LocalPath]]
+        ast: ast.Image
+
+    def __init__(self, ref: str, images: Sequence[ImageInfo]) -> None:
+        self._ref = ref
+        self._images = images
+
+    def __str__(self) -> str:
+        return (
+            f"Image with ref '{self._ref}' defined multiple times "
+            f"with different attributes:\n"
+            + "\n".join(
+                f"at {EvalError.format_pos(image.ast._start)} with params:\n"
+                f"  context: {image.context or '<empty>'}\n"
+                f"  dockerfile: {image.dockerfile or '<empty>'}"
+                for image in self._images
+            )
+        )
 
 
 async def check_image_refs_unique(top_flow: RunningBatchFlow) -> None:
-    refs: Set[str] = set()
+    _tmp: Dict[str, List[ImageRefNotUniqueError.ImageInfo]] = defaultdict(list)
 
     async for _, flow in iter_flows(top_flow):
         for image in flow.early_images.values():
             if image.ref.startswith("image:"):
-                if image.ref in refs:
-                    # TODO: add more descriptive error here
-                    raise Exception(f"Image ref '{image.ref}' is duplicated")
-                refs.add(image.ref)
+                _tmp[image.ref].append(
+                    ImageRefNotUniqueError.ImageInfo(
+                        context=image.context,
+                        dockerfile=image.dockerfile,
+                        ast=flow.get_image_ast(image.id),
+                    )
+                )
+
+    errors = []
+    for ref, images in _tmp.items():
+        contexts_differ = len({it.context for it in images}) > 1
+        dockerfiles_differ = len({it.dockerfile for it in images}) > 1
+        if contexts_differ or dockerfiles_differ:
+            errors.append(ImageRefNotUniqueError(ref, images))
+    if errors:
+        raise MultiError(errors)
 
 
 async def build_graphs(
@@ -192,7 +231,13 @@ async def upload_image_data(
     neuro_runner: CommandRunner,
     storage: Storage,
 ) -> List[BakeImage]:
-    images: List[BakeImage] = []
+    @dataclasses.dataclass
+    class _TmpData:
+        context_on_storage: Optional[URL]
+        dockerfile_rel: Optional[str]
+        yaml_defs: List[FullID]
+
+    _tmp: Dict[str, _TmpData] = {}
 
     async for prefix, flow in iter_flows(top_flow):
         for image in flow.early_images.values():
@@ -203,19 +248,6 @@ async def upload_image_data(
                 storage_context_dir: Optional[URL] = URL(
                     f"storage:.flow/{top_flow.project_id}/{image.ref.replace(':', '/')}"
                 )
-                await neuro_runner(
-                    "mkdir",
-                    "--parents",
-                    str(storage_context_dir),
-                )
-                await neuro_runner(
-                    "cp",
-                    "--recursive",
-                    "--update",
-                    "--no-target-directory",
-                    str(image.context),
-                    str(storage_context_dir),
-                )
             else:
                 storage_context_dir = image.context
 
@@ -223,17 +255,41 @@ async def upload_image_data(
             if image.dockerfile_rel:
                 dockerfile_rel = str(image.dockerfile_rel.as_posix())
 
-            bake_image = await storage.create_bake_image(
-                bake,
-                yaml_id=image.id,
-                prefix=prefix,
-                ref=image.ref,
-                context_on_storage=storage_context_dir,
-                dockerfile_rel=dockerfile_rel,
-            )
-            images.append(bake_image)
+            prev_entry = _tmp.get(image.ref)
+            if prev_entry is not None:
+                # Validation is done before
+                prev_entry.yaml_defs.append(prefix + (image.id,))
+            else:
+                if isinstance(image.context, LocalPath):
+                    await neuro_runner(
+                        "mkdir",
+                        "--parents",
+                        str(storage_context_dir),
+                    )
+                    await neuro_runner(
+                        "cp",
+                        "--recursive",
+                        "--update",
+                        "--no-target-directory",
+                        str(image.context),
+                        str(storage_context_dir),
+                    )
+                _tmp[image.ref] = _TmpData(
+                    yaml_defs=[prefix + (image.id,)],
+                    context_on_storage=storage_context_dir,
+                    dockerfile_rel=dockerfile_rel,
+                )
 
-    return images
+    return [
+        await storage.create_bake_image(
+            bake=bake,
+            ref=ref,
+            yaml_defs=entry.yaml_defs,
+            context_on_storage=entry.context_on_storage,
+            dockerfile_rel=entry.dockerfile_rel,
+        )
+        for ref, entry in _tmp.items()
+    ]
 
 
 class BatchRunner(AsyncContextManager["BatchRunner"]):

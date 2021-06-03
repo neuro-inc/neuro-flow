@@ -11,7 +11,7 @@ from neuro_flow.cli import batch, completion, images, live, storage
 from neuro_flow.parser import ConfigDir, find_workspace
 from neuro_flow.types import LocalPath
 
-from ..expr import MultiEvalError
+from ..expr import MultiError
 from .root import Root
 
 
@@ -201,7 +201,7 @@ def main(args: Optional[List[str]] = None) -> None:
     except SystemExit:
         raise
 
-    except MultiEvalError as e:
+    except MultiError as e:
         for error in e.errors:
             LOG_ERROR(f"{error}")
         sys.exit(1)
