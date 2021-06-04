@@ -712,7 +712,7 @@ async def test_job_with_params(live_config_loader: ConfigLoader) -> None:
     assert job.http_port is None
     assert not job.http_auth
     assert job.entrypoint is None
-    assert job.cmd == "bash -euo pipefail -c 'echo value val2'"
+    assert job.cmd == "bash -euo pipefail -c 'echo value val2 live_params'"
     assert job.workdir is None
     assert job.volumes == []
     assert job.tags == {

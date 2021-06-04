@@ -997,12 +997,12 @@ def test_parse_args(assets: pathlib.Path) -> None:
                     12,
                     config_file,
                 ),
-                default=SimpleOptStrExpr(
+                default=OptStrExpr(
                     Pos(0, 0, config_file),
                     Pos(0, 0, config_file),
                     "val1",
                 ),
-                descr=SimpleOptStrExpr(
+                descr=OptStrExpr(
                     Pos(0, 0, config_file),
                     Pos(0, 0, config_file),
                     None,
@@ -1019,12 +1019,12 @@ def test_parse_args(assets: pathlib.Path) -> None:
                     0,
                     config_file,
                 ),
-                default=SimpleOptStrExpr(
+                default=OptStrExpr(
                     Pos(0, 0, config_file),
                     Pos(0, 0, config_file),
                     "val2",
                 ),
-                descr=SimpleOptStrExpr(
+                descr=OptStrExpr(
                     Pos(0, 0, config_file),
                     Pos(0, 0, config_file),
                     "descr2",

@@ -942,7 +942,7 @@ FLOW = {
 }
 
 
-PARAMS = {"default": SimpleOptStrExpr, "descr": SimpleOptStrExpr}
+PARAMS = {"default": OptStrExpr, "descr": OptStrExpr}
 
 
 def parse_param(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Param:
@@ -960,8 +960,8 @@ def parse_params(ctor: BaseConstructor, node: yaml.MappingNode) -> Dict[str, ast
             ret[key] = ast.Param(
                 _start=start,
                 _end=end,
-                default=SimpleOptStrExpr(start, end, default),
-                descr=SimpleOptStrExpr(start, end, None),
+                default=OptStrExpr(start, end, default),
+                descr=OptStrExpr(start, end, None),
             )
         else:
             arg = parse_param(ctor, v)

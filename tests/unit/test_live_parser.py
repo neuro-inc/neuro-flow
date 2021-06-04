@@ -176,20 +176,20 @@ def test_parse_params(assets: pathlib.Path) -> None:
                     "arg1": ast.Param(
                         _start=Pos(4, 12, config_file),
                         _end=Pos(4, 16, config_file),
-                        default=SimpleOptStrExpr(
+                        default=OptStrExpr(
                             Pos(0, 0, config_file), Pos(0, 0, config_file), "val1"
                         ),
-                        descr=SimpleOptStrExpr(
+                        descr=OptStrExpr(
                             Pos(0, 0, config_file), Pos(0, 0, config_file), None
                         ),
                     ),
                     "arg2": ast.Param(
                         _start=Pos(6, 8, config_file),
                         _end=Pos(8, 4, config_file),
-                        default=SimpleOptStrExpr(
+                        default=OptStrExpr(
                             Pos(0, 0, config_file), Pos(0, 0, config_file), "val2"
                         ),
-                        descr=SimpleOptStrExpr(
+                        descr=OptStrExpr(
                             Pos(0, 0, config_file), Pos(0, 0, config_file), "Second arg"
                         ),
                     ),

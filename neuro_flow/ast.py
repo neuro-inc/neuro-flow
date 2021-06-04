@@ -130,8 +130,8 @@ class Param(Base):
     #  name:
     #    default: value
     #    descr: description
-    default: SimpleOptStrExpr
-    descr: SimpleOptStrExpr
+    default: OptStrExpr
+    descr: OptStrExpr
 
 
 @dataclass(frozen=True)
