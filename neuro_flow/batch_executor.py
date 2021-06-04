@@ -73,6 +73,7 @@ from .utils import (
     fmt_id,
     fmt_raw_id,
     fmt_status,
+    retries,
 )
 
 
@@ -744,6 +745,13 @@ class BatchExecutor:
             ),
             justify="center",
         )
+        if attempt_status != TaskStatus.SUCCEEDED:
+            self._progress.log(
+                "[blue b]Hint:[/blue b] you can restart bake starting "
+                "from first failed task "
+                "by the following command:\n"
+                f"[b]neuro-flow restart {self._attempt.bake.bake_id}[/b]"
+            )
 
     async def _cancel_unfinished(self) -> None:
         self._is_cancelling = True
@@ -770,7 +778,9 @@ class BatchExecutor:
     async def _process_started(self) -> bool:
         # Process tasks
         for full_id, st in self._tasks_mgr.unfinished_tasks.items():
-            job_descr = await self._client.jobs.status(st.raw_id)
+            for retry in retries(f"Failed to fetch job {st.raw_id} status"):
+                async with retry:
+                    job_descr = await self._client.jobs.status(st.raw_id)
             if (
                 job_descr.status in {JobStatus.RUNNING, JobStatus.SUCCEEDED}
                 and full_id not in self._tasks_mgr.running
@@ -784,12 +794,14 @@ class BatchExecutor:
                     TaskStatus.RUNNING,
                 )
             if job_descr.status in TERMINATED_JOB_STATUSES:
-                async with CmdProcessor() as proc:
-                    async for chunk in self._client.jobs.monitor(st.raw_id):
-                        async for line in proc.feed_chunk(chunk):
-                            pass
-                    async for line in proc.feed_eof():
-                        pass
+                for retry in retries(f"Failed to fetch job {st.raw_id} logs"):
+                    async with retry:
+                        async with CmdProcessor() as proc:
+                            async for chunk in self._client.jobs.monitor(st.raw_id):
+                                async for line in proc.feed_chunk(chunk):
+                                    pass
+                            async for line in proc.feed_eof():
+                                pass
                 ft = await self._storage.finish_task(
                     self._attempt, st, job_descr, proc.outputs, proc.states
                 )
@@ -979,7 +991,11 @@ class BatchExecutor:
         async for image in self._storage.list_bake_images(self._attempt.bake):
             if image.status == ImageStatus.BUILDING:
                 assert image.builder_job_id
-                descr = await self._client.jobs.status(image.builder_job_id)
+                for retry in retries(
+                    f"Failed to fetch job {image.builder_job_id} status"
+                ):
+                    async with retry:
+                        descr = await self._client.jobs.status(image.builder_job_id)
                 if descr.status == JobStatus.SUCCEEDED:
                     await self._storage.update_bake_image(
                         self._attempt.bake,
