@@ -74,6 +74,7 @@ def test_live_context(
                 "build_args": [],
                 "env": {},
                 "volumes": [],
+                "force_rebuild": False,
             }
         },
         "params": {"arg1": "cli-value", "arg2": "val2"},
