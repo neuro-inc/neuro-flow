@@ -185,7 +185,7 @@ F = TypeVar("F", bound=Callable[..., Any])
 def async_retried(msg: str, attempts: int = 10) -> Callable[[F], F]:
     def _deco(func: F) -> F:
         @wraps(func)
-        async def wrapper(*args, **kwargs):
+        async def wrapper(*args: Any, **kwargs: Any) -> Any:
             for retry in retries(msg, attempts):
                 async with retry:
                     return await func(*args, **kwargs)
