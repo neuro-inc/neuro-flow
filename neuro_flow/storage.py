@@ -267,7 +267,9 @@ class Storage(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def find_attempt(self, bake: Bake, attempt_no: int = -1) -> Attempt:
+    async def find_attempt(
+        self, bake: Bake, attempt_no: int = -1, force_no_cache: bool = False
+    ) -> Attempt:
         pass
 
     @abc.abstractmethod
@@ -786,7 +788,9 @@ class FSStorage(Storage):
         await self._write_json(attempt_uri / f"{pre}.init.json", _attempt_to_json(ret))
         return ret
 
-    async def find_attempt(self, bake: Bake, attempt_no: int = -1) -> Attempt:
+    async def find_attempt(
+        self, bake: Bake, attempt_no: int = -1, force_no_cache: bool = False
+    ) -> Attempt:
         bake_uri = _mk_bake_uri(self._fs, bake)
         if attempt_no == -1:
             files = set()
@@ -1463,22 +1467,23 @@ class APIStorage(Storage):
         )
 
     async def _find_attempt_data(
-        self, bake: Bake, attempt_no: int = -1
+        self, bake: Bake, attempt_no: int = -1, force_no_cache: bool = False
     ) -> Dict[str, Any]:
         bake_data = await self._find_bake_data(bake)
         last_attempts = []
 
-        for attempt_data in self._attempts_cache.values():
-            if attempt_data["bake_id"] == bake_data["id"]:
-                if attempt_no != -1:
-                    if attempt_data["number"] == attempt_no:
-                        return attempt_data
-                else:
-                    last_attempts.append(attempt_data)
+        if not force_no_cache:
+            for attempt_data in self._attempts_cache.values():
+                if attempt_data["bake_id"] == bake_data["id"]:
+                    if attempt_no != -1:
+                        if attempt_data["number"] == attempt_no:
+                            return attempt_data
+                    else:
+                        last_attempts.append(attempt_data)
 
-        if last_attempts:
-            last_attempts.sort(key=itemgetter("number"))
-            return last_attempts[-1]
+            if last_attempts:
+                last_attempts.sort(key=itemgetter("number"))
+                return last_attempts[-1]
 
         assert attempt_no == -1 or 0 < attempt_no < 99
         url = self._base_url / "api/v1/flow/attempts/by_number"
@@ -1496,8 +1501,10 @@ class APIStorage(Storage):
             self._attempts_cache[attempt_data["id"]] = attempt_data
             return attempt_data
 
-    async def find_attempt(self, bake: Bake, attempt_no: int = -1) -> Attempt:
-        attempt_data = await self._find_attempt_data(bake, attempt_no)
+    async def find_attempt(
+        self, bake: Bake, attempt_no: int = -1, force_no_cache: bool = False
+    ) -> Attempt:
+        attempt_data = await self._find_attempt_data(bake, attempt_no, force_no_cache)
         return _attempt_from_api_json(bake, attempt_data)
 
     async def fetch_attempt(

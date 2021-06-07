@@ -471,8 +471,11 @@ class BatchExecutor:
         pass
 
     async def _refresh_attempt(self) -> None:
+        # TODO: Drop force_no_cache when storage is refactored
         self._attempt = await self._storage.find_attempt(
-            self._attempt.bake, self._attempt.number
+            self._attempt.bake,
+            self._attempt.number,
+            force_no_cache=True,
         )
 
     def _only_completed_needs(
