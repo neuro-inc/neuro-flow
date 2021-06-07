@@ -1,8 +1,22 @@
+import aiohttp
 import asyncio
 import datetime
 import humanize
+import logging
+from functools import wraps
 from neuro_sdk import JobStatus
-from typing import Iterable, List, Optional, Union, cast
+from typing import (
+    Any,
+    Callable,
+    Iterable,
+    Iterator,
+    List,
+    Optional,
+    Type,
+    TypeVar,
+    Union,
+    cast,
+)
 from typing_extensions import Protocol
 
 from .types import COLORS, FullID, TaskStatus
@@ -124,3 +138,58 @@ def make_cmd_exec(exe: str, *, global_options: Iterable[str] = ()) -> CommandRun
         await run_subproc(exe, *global_options, *args)
 
     return _runner
+
+
+log = logging.getLogger(__name__)
+
+
+# Copied from neuro_sdk.utils to avoid dependency on private class
+class retries:
+    def __init__(
+        self, msg: str, attempts: int = 10, logger: Callable[[str], None] = log.info
+    ) -> None:
+        self._msg = msg
+        self._attempts = attempts
+        self._logger = logger
+        self.reset()
+
+    def reset(self) -> None:
+        self._attempt = 0
+        self._sleeptime = 0.0
+
+    def __iter__(self) -> Iterator["retries"]:
+        while self._attempt < self._attempts:
+            self._sleeptime += 0.1
+            self._attempt += 1
+            yield self
+
+    async def __aenter__(self) -> None:
+        pass
+
+    async def __aexit__(
+        self, type: Type[BaseException], value: BaseException, tb: Any
+    ) -> bool:
+        if type is None:
+            # Stop iteration
+            self._attempt = self._attempts
+        elif issubclass(type, aiohttp.ClientError) and self._attempt < self._attempts:
+            self._logger(f"{self._msg}: {value}.  Retry...")
+            await asyncio.sleep(self._sleeptime)
+            return True
+        return False
+
+
+F = TypeVar("F", bound=Callable[..., Any])
+
+
+def async_retried(msg: str, attempts: int = 10) -> Callable[[F], F]:
+    def _deco(func: F) -> F:
+        @wraps(func)
+        async def wrapper(*args: Any, **kwargs: Any) -> Any:
+            for retry in retries(msg, attempts):
+                async with retry:
+                    return await func(*args, **kwargs)
+
+        return cast(F, wrapper)
+
+    return _deco
