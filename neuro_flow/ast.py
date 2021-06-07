@@ -205,6 +205,11 @@ class TaskActionCall(BaseActionCall, TaskBase):
 
 
 @dataclass(frozen=True)
+class TaskModuleCall(BaseModuleCall, TaskBase):
+    pass
+
+
+@dataclass(frozen=True)
 class FlowDefaults(Base):
     tags: Optional[BaseExpr[SequenceT]] = field(metadata={"allow_none": True})
 
@@ -248,7 +253,7 @@ class BatchFlow(BaseFlow):
     # self.kind == Kind.Batch
     life_span: OptTimeDeltaExpr = field(metadata={"allow_none": True})
     params: Optional[Mapping[str, Param]] = field(metadata={"allow_none": True})
-    tasks: Sequence[Union[Task, TaskActionCall]]
+    tasks: Sequence[Union[Task, TaskActionCall, TaskModuleCall]]
 
     defaults: Optional[BatchFlowDefaults] = field(metadata={"allow_none": True})
 
@@ -304,7 +309,7 @@ class BatchAction(BaseAction):
     cache: Optional[Cache] = field(metadata={"allow_none": True})
     images: Optional[Mapping[str, Image]] = field(metadata={"allow_none": True})
 
-    tasks: Sequence[Task]
+    tasks: Sequence[Union[Task, TaskActionCall, TaskModuleCall]]
 
 
 @dataclass(frozen=True)

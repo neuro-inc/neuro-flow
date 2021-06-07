@@ -6,7 +6,7 @@ import sys
 from abc import abstractmethod
 from typing import AbstractSet, Any, Callable, Iterable, List, Optional, Tuple, Type
 
-from neuro_flow.context import Context, TagsCtx
+from neuro_flow.context import Context, ModuleContext, TagsCtx
 from neuro_flow.expr import AttrGetter, EvalError, Expr, Item, ItemGetter, Lookup
 
 
@@ -44,6 +44,13 @@ def iter_lookups(expr: Expr[Any]) -> Iterable[Lookup]:
 
 
 def _get_dataclass_field_type(dataclass: Any, attr: str) -> Optional[Any]:
+    if hasattr(dataclass, "__origin__"):
+        # This is generic, probably ModuleContext
+        real_class = dataclass.__origin__
+        res = _get_dataclass_field_type(real_class, attr)
+        if res is None and issubclass(real_class, ModuleContext):
+            res = _get_dataclass_field_type(dataclass.__args__[0], attr)
+        return res
     res = get_hints(dataclass).get(attr)
     if res is None:
         # Maybe this is a property?

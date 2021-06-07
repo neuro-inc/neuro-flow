@@ -321,7 +321,7 @@ class BatchLocalCL(
 
     async def _collect_actions(
         self,
-        tasks: Sequence[Union[ast.Task, ast.TaskActionCall]],
+        tasks: Sequence[Union[ast.Task, ast.TaskActionCall, ast.TaskModuleCall]],
         collect_to: Dict[str, Tuple["ConfigFile", "ConfigOnStorage"]],
     ) -> None:
         from neuro_flow.context import EMPTY_ROOT
@@ -334,13 +334,17 @@ class BatchLocalCL(
         for task in tasks:
             if isinstance(task, ast.BaseActionCall):
                 action_name = await task.action.eval(EMPTY_ROOT)
-                if action_name in collect_to:
-                    continue
-                async with self.action_stream(action_name) as stream:
-                    collect_to[action_name] = self._stream_to_config(stream)
-                action_ast = await self.fetch_action(action_name)
-                if isinstance(action_ast, ast.BatchAction):
-                    await self._collect_actions(action_ast.tasks, collect_to)
+            elif isinstance(task, ast.BaseModuleCall):
+                action_name = await task.module.eval(EMPTY_ROOT)
+            else:
+                continue
+            if action_name in collect_to:
+                continue
+            async with self.action_stream(action_name) as stream:
+                collect_to[action_name] = self._stream_to_config(stream)
+            action_ast = await self.fetch_action(action_name)
+            if isinstance(action_ast, ast.BatchAction):
+                await self._collect_actions(action_ast.tasks, collect_to)
 
 
 @dataclasses.dataclass(frozen=True)
