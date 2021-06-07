@@ -5,8 +5,8 @@ click==8.0.1
 dataclasses==0.7; python_version<"3.7"
 funcparserlib==0.3.6
 graphviz==0.16
-humanize==3.6.0
-neuro-cli==21.5.17
+humanize==3.7.1
+neuro-cli==21.6.3
 neuro-extras==21.3.19
 pyyaml==5.4.1
 rich==10.2.2

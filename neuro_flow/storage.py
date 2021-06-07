@@ -268,7 +268,9 @@ class Storage(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def find_attempt(self, bake: Bake, attempt_no: int = -1) -> Attempt:
+    async def find_attempt(
+        self, bake: Bake, attempt_no: int = -1, force_no_cache: bool = False
+    ) -> Attempt:
         pass
 
     @abc.abstractmethod
@@ -439,7 +441,9 @@ class Storage(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def clear_cache(self, project: str, batch: Optional[str] = None) -> None:
+    async def clear_cache(
+        self, project: str, batch: Optional[str] = None, task_id: Optional[str] = None
+    ) -> None:
         pass
 
     @abc.abstractmethod
@@ -787,7 +791,9 @@ class FSStorage(Storage):
         await self._write_json(attempt_uri / f"{pre}.init.json", _attempt_to_json(ret))
         return ret
 
-    async def find_attempt(self, bake: Bake, attempt_no: int = -1) -> Attempt:
+    async def find_attempt(
+        self, bake: Bake, attempt_no: int = -1, force_no_cache: bool = False
+    ) -> Attempt:
         bake_uri = _mk_bake_uri(self._fs, bake)
         if attempt_no == -1:
             files = set()
@@ -992,8 +998,13 @@ class FSStorage(Storage):
             await self._fs.mkdir(url.parent, parents=True)
             await self._write_json(url, data, overwrite=True)
 
-    async def clear_cache(self, project: str, batch: Optional[str] = None) -> None:
-        await self._fs.rm(_mk_cache_uri2(self._fs, project, batch), recursive=True)
+    async def clear_cache(
+        self, project: str, batch: Optional[str] = None, task_id: Optional[str] = None
+    ) -> None:
+        url = _mk_cache_uri2(self._fs, project, batch)
+        if task_id:
+            url = url / f"{task_id}.json"
+        await self._fs.rm(url, recursive=True)
 
     async def create_bake_image(
         self,
@@ -1284,7 +1295,7 @@ class APIStorage(Storage):
             else:
                 for key, action_meta in configs_meta["action_configs"].items():
                     if filename == action_meta["storage_filename"]:
-                        filename == action_meta["real_name"]
+                        filename = action_meta["real_name"]
                         real_meta["action_config_ids"][key] = await self._write_config(
                             bake_data["id"], filename, config.content
                         )
@@ -1468,22 +1479,23 @@ class APIStorage(Storage):
         )
 
     async def _find_attempt_data(
-        self, bake: Bake, attempt_no: int = -1
+        self, bake: Bake, attempt_no: int = -1, force_no_cache: bool = False
     ) -> Dict[str, Any]:
         bake_data = await self._find_bake_data(bake)
         last_attempts = []
 
-        for attempt_data in self._attempts_cache.values():
-            if attempt_data["bake_id"] == bake_data["id"]:
-                if attempt_no != -1:
-                    if attempt_data["number"] == attempt_no:
-                        return attempt_data
-                else:
-                    last_attempts.append(attempt_data)
+        if not force_no_cache:
+            for attempt_data in self._attempts_cache.values():
+                if attempt_data["bake_id"] == bake_data["id"]:
+                    if attempt_no != -1:
+                        if attempt_data["number"] == attempt_no:
+                            return attempt_data
+                    else:
+                        last_attempts.append(attempt_data)
 
-        if last_attempts:
-            last_attempts.sort(key=itemgetter("number"))
-            return last_attempts[-1]
+            if last_attempts:
+                last_attempts.sort(key=itemgetter("number"))
+                return last_attempts[-1]
 
         assert attempt_no == -1 or 0 < attempt_no < 99
         url = self._base_url / "api/v1/flow/attempts/by_number"
@@ -1502,8 +1514,10 @@ class APIStorage(Storage):
             return attempt_data
 
     @async_retried("Failed to find attempt")
-    async def find_attempt(self, bake: Bake, attempt_no: int = -1) -> Attempt:
-        attempt_data = await self._find_attempt_data(bake, attempt_no)
+    async def find_attempt(
+        self, bake: Bake, attempt_no: int = -1, force_no_cache: bool = False
+    ) -> Attempt:
+        attempt_data = await self._find_attempt_data(bake, attempt_no, force_no_cache)
         return _attempt_from_api_json(bake, attempt_data)
 
     @async_retried("Failed to fetch attempt")
@@ -1736,7 +1750,7 @@ class APIStorage(Storage):
         st = StartedTask(
             attempt=attempt,
             id=task_id,
-            raw_id="",
+            raw_id=payload.get("raw_id", ""),
             when=created_at,
             created_at=created_at,
         )
@@ -1744,7 +1758,7 @@ class APIStorage(Storage):
         ft = FinishedTask(
             attempt=attempt,
             id=task_id,
-            raw_id="",
+            raw_id=payload.get("raw_id", ""),
             when=created_at,
             status=TaskStatus.CACHED,
             created_at=created_at,
@@ -1773,6 +1787,7 @@ class APIStorage(Storage):
                 "task_id": _id_to_json(ft.id),
                 "batch": attempt.bake.batch,
                 "key": caching_key,
+                "raw_id": ft.raw_id,
                 "outputs": ft.outputs,
                 "state": ft.state,
             },
@@ -1803,22 +1818,31 @@ class APIStorage(Storage):
             await self._fs.mkdir(url.parent, parents=True)
             await self._write_json(url, data, overwrite=True)
 
-    async def clear_cache(self, project: str, batch: Optional[str] = None) -> None:
+    async def clear_cache(
+        self, project: str, batch: Optional[str] = None, task_id: Optional[str] = None
+    ) -> None:
         prj = await self._get_project(project)
+
+        params = {
+            "project_id": prj.id,
+            "batch": batch,
+        }
+        if task_id:
+            params["task_id"] = task_id
 
         auth = await self._config._api_auth()
         async with self._core.request(
             "DELETE",
             self._base_url / "api/v1/flow/cache_entries",
-            params={
-                "project_id": prj.id,
-                "batch": batch,
-            },
+            params=params,
             auth=auth,
         ) as resp:
-            await resp.json()
+            resp.raise_for_status()
 
-        await self._fs.rm(_mk_cache_uri2(self._fs, project, batch), recursive=True)
+        url = _mk_cache_uri2(self._fs, project, batch)
+        if task_id:
+            url = url / f"{task_id}.json"
+        await self._fs.rm(url, recursive=True)
 
     async def create_bake_image(
         self,
