@@ -1168,7 +1168,7 @@ class RunningLiveFlow:
         ), "Use get_multi_job() for multi jobs instead of get_job()"
         job_ast = self._get_job_ast(job_id)
         ctx = self._ctx.to_job_ctx(
-            params=await setup_params_ctx(EMPTY_ROOT, params, job_ast.params)
+            params=await setup_params_ctx(self._ctx, params, job_ast.params)
         )
         return await self._get_job(ctx, ctx.env, self._defaults, job_id)
 
@@ -1190,7 +1190,7 @@ class RunningLiveFlow:
         job_ast = self._get_job_ast(job_id)
         ctx = self._ctx.to_multi_job_ctx(
             multi=MultiCtx(suffix=suffix, args=args_str),
-            params=await setup_params_ctx(EMPTY_ROOT, params, job_ast.params),
+            params=await setup_params_ctx(self._ctx, params, job_ast.params),
         )
         job = await self._get_job(ctx, ctx.env, self._defaults, job_id)
         return replace(job, tags=job.tags | {f"multi:{suffix}"})

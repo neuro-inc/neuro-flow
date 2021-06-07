@@ -110,7 +110,7 @@ def test_parse_params(assets: pathlib.Path) -> None:
     flow = parse_live(workspace, config_file)
     assert flow == ast.LiveFlow(
         Pos(0, 0, config_file),
-        Pos(10, 0, config_file),
+        Pos(11, 0, config_file),
         id=SimpleOptIdExpr(
             Pos(0, 0, config_file),
             Pos(0, 0, config_file),
@@ -128,7 +128,7 @@ def test_parse_params(assets: pathlib.Path) -> None:
         jobs={
             "test": ast.Job(
                 Pos(3, 4, config_file),
-                Pos(10, 0, config_file),
+                Pos(11, 0, config_file),
                 name=OptStrExpr(Pos(3, 4, config_file), Pos(5, 0, config_file), None),
                 image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
                 preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
@@ -141,7 +141,7 @@ def test_parse_params(assets: pathlib.Path) -> None:
                 cmd=OptBashExpr(
                     Pos(0, 0, config_file),
                     Pos(0, 0, config_file),
-                    "echo ${{ params.arg1 }} ${{ params.arg2 }}",
+                    "echo ${{ params.arg1 }} ${{ params.arg2 }} ${{ params.arg3 }}",
                 ),
                 workdir=OptRemotePathExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
@@ -176,21 +176,33 @@ def test_parse_params(assets: pathlib.Path) -> None:
                     "arg1": ast.Param(
                         _start=Pos(4, 12, config_file),
                         _end=Pos(4, 16, config_file),
-                        default=SimpleOptStrExpr(
+                        default=OptStrExpr(
                             Pos(0, 0, config_file), Pos(0, 0, config_file), "val1"
                         ),
-                        descr=SimpleOptStrExpr(
+                        descr=OptStrExpr(
                             Pos(0, 0, config_file), Pos(0, 0, config_file), None
                         ),
                     ),
                     "arg2": ast.Param(
                         _start=Pos(6, 8, config_file),
-                        _end=Pos(8, 4, config_file),
-                        default=SimpleOptStrExpr(
+                        _end=Pos(8, 6, config_file),
+                        default=OptStrExpr(
                             Pos(0, 0, config_file), Pos(0, 0, config_file), "val2"
                         ),
-                        descr=SimpleOptStrExpr(
+                        descr=OptStrExpr(
                             Pos(0, 0, config_file), Pos(0, 0, config_file), "Second arg"
+                        ),
+                    ),
+                    "arg3": ast.Param(
+                        _start=Pos(8, 12, config_file),
+                        _end=Pos(8, 31, config_file),
+                        default=OptStrExpr(
+                            Pos(0, 0, config_file),
+                            Pos(0, 0, config_file),
+                            "${{ flow.flow_id }}",
+                        ),
+                        descr=OptStrExpr(
+                            Pos(0, 0, config_file), Pos(0, 0, config_file), None
                         ),
                     ),
                 },
