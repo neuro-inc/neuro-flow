@@ -173,12 +173,12 @@ async def test_check_image_refs_unique(batch_cl_factory: BatchClFactory) -> None
     assert str(inner_err) == textwrap.dedent(
         f"""\
         Image with ref 'image:banana1' defined multiple times with different attributes:
-        at "{ws}/duplicate_ref.yml", line 4, column 5 with params:
-          context: {ws}/dir
-          dockerfile: {ws}/dir/Dockerfile_differ
-        at "{ws}/action.yml", line 10, column 5 with params:
-          context: {ws}/dir
-          dockerfile: {ws}/dir/Dockerfile
+        at "{ws / "duplicate_ref.yml"}", line 4, column 5 with params:
+          context: {ws / "dir"}
+          dockerfile: {ws / "dir/Dockerfile_differ"}
+        at "{ws / "action.yml"}", line 10, column 5 with params:
+          context: {ws / "dir"}
+          dockerfile: {ws / "dir/Dockerfile"}
     """.rstrip()
     )
 
