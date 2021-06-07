@@ -155,15 +155,17 @@ class BakeImage:
 
     @classmethod
     def from_primitive(cls, data: Mapping[str, Any]) -> "BakeImage":
+        context_on_storage_raw = data.get("context_on_storage")
+        context_on_storage = None
+        if context_on_storage_raw:
+            context_on_storage = URL(context_on_storage_raw)
         return cls(
             id=data["id"],
             prefix=_id_from_json(data["prefix"]),
             yaml_id=data["yaml_id"],
             ref=data["ref"],
-            context_on_storage=URL(data["context_on_storage"])
-            if "context_on_storage" in data
-            else None,
-            dockerfile_rel=data["dockerfile_rel"] if "dockerfile_rel" in data else None,
+            context_on_storage=context_on_storage,
+            dockerfile_rel=data.get("dockerfile_rel"),
             status=ImageStatus(data["status"]),
             builder_job_id=data["builder_job_id"],
         )
