@@ -721,6 +721,12 @@ JOB_ACTION_CALL = {
     "params": None,
 }
 
+JOB_MODULE_CALL = {
+    "module": SimpleStrExpr,
+    "args": SimpleMapping(StrExpr),
+    "params": None,
+}
+
 
 def check_extra(
     node: yaml.Node, dct: Dict[str, Any], ret: Dict[str, Any], name: str
@@ -752,10 +758,13 @@ def select_shells(
     return dct
 
 
-def select_job_or_action(
+def select_job_or_action_or_module(
     ctor: BaseConstructor, node: yaml.MappingNode, dct: Dict[str, Any]
 ) -> Dict[str, Any]:
-    if "action" in dct:
+    if "module" in dct:
+        ret = {k: v for k, v in dct.items() if k in JOB_MODULE_CALL}
+        check_extra(node, dct, ret, "module call")
+    elif "action" in dct:
         ret = {k: v for k, v in dct.items() if k in JOB_ACTION_CALL}
         check_extra(node, dct, ret, "action call")
     else:
@@ -765,7 +774,7 @@ def select_job_or_action(
     return ret
 
 
-JOB_OR_ACTION = {**JOB, **JOB_ACTION_CALL}
+JOB_OR_ACTION_OR_MODULE = {**JOB, **JOB_ACTION_CALL, **JOB_MODULE_CALL}
 
 
 def find_job_type(
@@ -773,25 +782,25 @@ def find_job_type(
     node: yaml.MappingNode,
     res_type: Type[ast.Base],
     arg: Dict[str, Any],
-) -> Union[Type[ast.Job], Type[ast.JobActionCall]]:
-    action = arg.get("action")
-    if action is None:
-        return ast.Job
-    else:
+) -> Union[Type[ast.Job], Type[ast.JobActionCall], Type[ast.JobModuleCall]]:
+    if arg.get("module") is not None:
+        return ast.JobModuleCall
+    if arg.get("action") is not None:
         return ast.JobActionCall
+    return ast.Job
 
 
 def parse_job(
     ctor: BaseConstructor, node: yaml.MappingNode
-) -> Union[ast.Job, ast.JobActionCall]:
+) -> Union[ast.Job, ast.JobActionCall, ast.JobModuleCall]:
     return cast(
-        Union[ast.Job, ast.JobActionCall],
+        Union[ast.Job, ast.JobActionCall, ast.JobModuleCall],
         parse_dict(
             ctor,
             node,
-            JOB_OR_ACTION,
+            JOB_OR_ACTION_OR_MODULE,
             ast.JobBase,
-            preprocess=select_job_or_action,
+            preprocess=select_job_or_action_or_module,
             find_res_type=find_job_type,
         ),
     )
@@ -799,7 +808,7 @@ def parse_job(
 
 def parse_jobs(
     ctor: BaseConstructor, node: yaml.MappingNode
-) -> Dict[str, Union[ast.Job, ast.JobActionCall]]:
+) -> Dict[str, Union[ast.Job, ast.JobActionCall, ast.JobModuleCall]]:
     ret = {}
     for k, v in node.value:
         key = ctor.construct_id(k)

@@ -184,14 +184,24 @@ class BaseActionCall(Base):
 
 
 @dataclass(frozen=True)
+class BaseModuleCall(Base):
+    module: SimpleStrExpr  # action ref
+    args: Optional[Mapping[str, StrExpr]] = field(metadata={"allow_none": True})
+
+
+@dataclass(frozen=True)
 class JobActionCall(BaseActionCall, JobBase):
     pass
 
 
 @dataclass(frozen=True)
+class JobModuleCall(BaseModuleCall, JobBase):
+    pass
+
+
+@dataclass(frozen=True)
 class TaskActionCall(BaseActionCall, TaskBase):
-    enable: EnableExpr = field(metadata={"default_expr": "${{ success() }}"})
-    cache: Optional[Cache] = field(metadata={"allow_none": True})
+    pass
 
 
 @dataclass(frozen=True)
@@ -230,7 +240,7 @@ class BaseFlow(Base):
 @dataclass(frozen=True)
 class LiveFlow(BaseFlow):
     # self.kind == Kind.Job
-    jobs: Mapping[str, Union[Job, JobActionCall]]
+    jobs: Mapping[str, Union[Job, JobActionCall, JobModuleCall]]
 
 
 @dataclass(frozen=True)

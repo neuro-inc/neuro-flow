@@ -339,6 +339,17 @@ class Context(RootABC):
 
 
 @dataclass(frozen=True)
+class ModuleContext(Context):
+    _parent: RootABC
+
+    def lookup(self, name: str) -> TypeT:
+        try:
+            return super().lookup(name)
+        except NotAvailable:
+            return self._parent.lookup(name)
+
+
+@dataclass(frozen=True)
 class WithFlowContext(Context):
     project: ProjectCtx
     flow: FlowCtx
@@ -412,6 +423,11 @@ class LiveMultiJobContext(LiveContext):
 
 @dataclass(frozen=True)
 class LiveActionContext(Context):
+    inputs: InputsCtx
+
+
+@dataclass(frozen=True)
+class LiveModuleContext(ModuleContext):
     inputs: InputsCtx
 
 
@@ -910,7 +926,7 @@ async def setup_images_ctx(
 
 
 async def validate_action_call(
-    call_ast: ast.BaseActionCall,
+    call_ast: Union[ast.BaseActionCall, ast.BaseModuleCall],
     ast_inputs: Optional[Mapping[str, ast.Input]],
 ) -> None:
     if ast_inputs:
@@ -945,7 +961,9 @@ async def validate_action_call(
 
 async def setup_inputs_ctx(
     ctx: RootABC,
-    call_ast: ast.BaseActionCall,  # Only used to generate errors
+    call_ast: Union[
+        ast.BaseActionCall, ast.BaseModuleCall
+    ],  # Only used to generate errors
     ast_inputs: Optional[Mapping[str, ast.Input]],
 ) -> InputsCtx:
     await validate_action_call(call_ast, ast_inputs)
@@ -1128,14 +1146,21 @@ class RunningLiveFlow:
         # Simple shortcut
         return (await self.get_meta(job_id)).multi
 
-    def _get_job_ast(self, job_id: str) -> Union[ast.Job, ast.JobActionCall]:
+    def _get_job_ast(
+        self, job_id: str
+    ) -> Union[ast.Job, ast.JobActionCall, ast.JobModuleCall]:
         try:
             return self._ast_flow.jobs[job_id]
         except KeyError:
             raise UnknownJob(job_id)
 
-    async def _get_action_ast(self, call_ast: ast.JobActionCall) -> ast.LiveAction:
-        action_name = await call_ast.action.eval(EMPTY_ROOT)
+    async def _get_action_ast(
+        self, call_ast: Union[ast.JobActionCall, ast.JobModuleCall]
+    ) -> ast.LiveAction:
+        if isinstance(call_ast, ast.JobActionCall):
+            action_name = await call_ast.action.eval(EMPTY_ROOT)
+        else:
+            action_name = await call_ast.module.eval(EMPTY_ROOT)
         action_ast = await self._cl.fetch_action(action_name)
         if action_ast.kind != ast.ActionKind.LIVE:
             raise TypeError(
@@ -1148,7 +1173,7 @@ class RunningLiveFlow:
     async def get_meta(self, job_id: str) -> JobMeta:
         job_ast = self._get_job_ast(job_id)
 
-        if isinstance(job_ast, ast.JobActionCall):
+        if isinstance(job_ast, (ast.JobActionCall, ast.JobModuleCall)):
             action_ast = await self._get_action_ast(job_ast)
             multi = await action_ast.job.multi.eval(EMPTY_ROOT)
         else:
@@ -1211,6 +1236,14 @@ class RunningLiveFlow:
             )
             env_ctx = {}
             defaults = DefaultsConf()
+            job = action_ast.job
+        if isinstance(job, ast.JobModuleCall):
+            action_ast = await self._get_action_ast(job)
+            ctx = LiveModuleContext(
+                inputs=await setup_inputs_ctx(ctx, job, action_ast.inputs),
+                _parent=ctx,
+                _client=self._ctx._client,
+            )
             job = action_ast.job
         assert isinstance(job, ast.Job)
 

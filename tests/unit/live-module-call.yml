@@ -1,0 +1,6 @@
+kind: live
+jobs:
+  test:
+    module: workspace:live-module
+    args:
+      arg1: val 1

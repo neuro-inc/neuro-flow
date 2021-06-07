@@ -700,6 +700,32 @@ async def test_job_with_live_action(live_config_loader: ConfigLoader) -> None:
     assert not job.browse
 
 
+async def test_job_with_live_module(live_config_loader: ConfigLoader) -> None:
+    flow = await RunningLiveFlow.create(live_config_loader, "live-module-call")
+    job = await flow.get_job("test", {})
+
+    assert job.id == "test"
+    assert job.title == "live_module_call.test"
+    assert job.name is None
+    assert job.image == "ubuntu"
+    assert job.preset is None
+    assert job.http_port is None
+    assert not job.http_auth
+    assert job.entrypoint is None
+    assert job.cmd == "bash -euo pipefail -c 'echo A val 1 B live_module_call C'"
+    assert job.workdir is None
+    assert job.volumes == []
+    assert job.tags == {
+        "project:unit",
+        "flow:live-module-call",
+        "job:test",
+    }
+    assert job.life_span is None
+    assert job.port_forward == []
+    assert not job.detach
+    assert not job.browse
+
+
 async def test_job_with_params(live_config_loader: ConfigLoader) -> None:
     flow = await RunningLiveFlow.create(live_config_loader, "live-params")
     job = await flow.get_job("test", {"arg1": "value"})
