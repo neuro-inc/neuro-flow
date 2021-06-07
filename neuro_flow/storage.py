@@ -1827,8 +1827,9 @@ class APIStorage(Storage):
 
         params = {
             "project_id": prj.id,
-            "batch": batch,
         }
+        if batch:
+            params["batch"] = batch
         if task_id:
             params["task_id"] = task_id
 
