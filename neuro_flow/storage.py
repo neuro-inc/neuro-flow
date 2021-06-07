@@ -1736,7 +1736,7 @@ class APIStorage(Storage):
         st = StartedTask(
             attempt=attempt,
             id=task_id,
-            raw_id="",
+            raw_id=payload.get("raw_id", ""),
             when=created_at,
             created_at=created_at,
         )
@@ -1744,7 +1744,7 @@ class APIStorage(Storage):
         ft = FinishedTask(
             attempt=attempt,
             id=task_id,
-            raw_id="",
+            raw_id=payload.get("raw_id", ""),
             when=created_at,
             status=TaskStatus.CACHED,
             created_at=created_at,
@@ -1773,6 +1773,7 @@ class APIStorage(Storage):
                 "task_id": _id_to_json(ft.id),
                 "batch": attempt.bake.batch,
                 "key": caching_key,
+                "raw_id": ft.raw_id,
                 "outputs": ft.outputs,
                 "state": ft.state,
             },
