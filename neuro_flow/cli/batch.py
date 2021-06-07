@@ -329,14 +329,18 @@ async def cancel(
 
 @click.command()
 @argument("batch", type=BATCH_OR_ALL)
+@argument("task_id", type=str, required=False)
 @wrap_async()
 async def clear_cache(
     root: Root,
     batch: str,
+    task_id: Optional[str],
 ) -> None:
     """Clear cache.
 
     Use `neuro-flow clear-cache <BATCH>` for cleaning up the cache for BATCH;
+    Use `neuro-flow clear-cache <BATCH> <TASK_ID>` for cleaning up the cache
+    for TASK_ID in BATCH;
 
     `neuro-flow clear-cache ALL` clears all caches.
     """
@@ -351,7 +355,7 @@ async def clear_cache(
         if batch == "ALL":
             await runner.clear_cache(None)
         else:
-            await runner.clear_cache(batch)
+            await runner.clear_cache(batch, task_id)
 
 
 @click.command()

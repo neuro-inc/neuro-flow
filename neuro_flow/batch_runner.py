@@ -81,6 +81,11 @@ GRAPH_COLORS = {
 }
 
 
+class BakeFailedError(Exception):
+    def __init__(self, status: TaskStatus):
+        self.status = status
+
+
 async def iter_flows(top_flow: EarlyBatch) -> AsyncIterator[Tuple[FullID, EarlyBatch]]:
     to_check: List[Tuple[FullID, EarlyBatch]] = [((), top_flow)]
     while to_check:
@@ -493,7 +498,9 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             self._storage,
             project_role=self.project_role,
         ) as executor:
-            await executor.run()
+            status = await executor.run()
+            if status != TaskStatus.SUCCEEDED:
+                raise BakeFailedError(status)
 
     def get_bakes(self) -> AsyncIterator[Bake]:
         return self._storage.list_bakes(self.project_id)
@@ -747,8 +754,10 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             f"[b]{bake.bake_id}[/b] was cancelled."
         )
 
-    async def clear_cache(self, batch: Optional[str] = None) -> None:
-        await self._storage.clear_cache(self.project_id, batch)
+    async def clear_cache(
+        self, batch: Optional[str] = None, task_id: Optional[str] = None
+    ) -> None:
+        await self._storage.clear_cache(self.project_id, batch, task_id)
 
     async def restart(
         self,
