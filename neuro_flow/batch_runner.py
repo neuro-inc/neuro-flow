@@ -691,8 +691,10 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             f"[b]{bake.bake_id}[/b] was cancelled."
         )
 
-    async def clear_cache(self, batch: Optional[str] = None) -> None:
-        await self._storage.clear_cache(self.project_id, batch)
+    async def clear_cache(
+        self, batch: Optional[str] = None, task_id: Optional[str] = None
+    ) -> None:
+        await self._storage.clear_cache(self.project_id, batch, task_id)
 
     async def restart(
         self,

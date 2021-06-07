@@ -440,7 +440,9 @@ class Storage(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def clear_cache(self, project: str, batch: Optional[str] = None) -> None:
+    async def clear_cache(
+        self, project: str, batch: Optional[str] = None, task_id: Optional[str] = None
+    ) -> None:
         pass
 
     @abc.abstractmethod
@@ -995,8 +997,13 @@ class FSStorage(Storage):
             await self._fs.mkdir(url.parent, parents=True)
             await self._write_json(url, data, overwrite=True)
 
-    async def clear_cache(self, project: str, batch: Optional[str] = None) -> None:
-        await self._fs.rm(_mk_cache_uri2(self._fs, project, batch), recursive=True)
+    async def clear_cache(
+        self, project: str, batch: Optional[str] = None, task_id: Optional[str] = None
+    ) -> None:
+        url = _mk_cache_uri2(self._fs, project, batch)
+        if task_id:
+            url = url / f"{task_id}.json"
+        await self._fs.rm(url, recursive=True)
 
     async def create_bake_image(
         self,
@@ -1804,22 +1811,31 @@ class APIStorage(Storage):
             await self._fs.mkdir(url.parent, parents=True)
             await self._write_json(url, data, overwrite=True)
 
-    async def clear_cache(self, project: str, batch: Optional[str] = None) -> None:
+    async def clear_cache(
+        self, project: str, batch: Optional[str] = None, task_id: Optional[str] = None
+    ) -> None:
         prj = await self._get_project(project)
+
+        params = {
+            "project_id": prj.id,
+            "batch": batch,
+        }
+        if task_id:
+            params["task_id"] = task_id
 
         auth = await self._config._api_auth()
         async with self._core.request(
             "DELETE",
             self._base_url / "api/v1/flow/cache_entries",
-            params={
-                "project_id": prj.id,
-                "batch": batch,
-            },
+            params=params,
             auth=auth,
         ) as resp:
-            await resp.json()
+            resp.raise_for_status()
 
-        await self._fs.rm(_mk_cache_uri2(self._fs, project, batch), recursive=True)
+        url = _mk_cache_uri2(self._fs, project, batch)
+        if task_id:
+            url = url / f"{task_id}.json"
+        await self._fs.rm(url, recursive=True)
 
     async def create_bake_image(
         self,
