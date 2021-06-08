@@ -111,7 +111,7 @@ Run BATCH pipeline remotely on the cluster.
 **Usage:**
 
 ```bash
-neuro-flow bake [OPTIONS] BATCH
+neuro-flow bake [OPTIONS] BATCH PARAMS
 ```
 
 **Options:**

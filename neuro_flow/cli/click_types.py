@@ -377,3 +377,31 @@ FINISHED_TASK_AFTER_BAKE = BakeTaskType(
     args_to_bake_id=operator.itemgetter(-1),
     args_to_attempt=extract_attempt_no,
 )
+
+
+class ParamPairType(AsyncType[Tuple[str, str]]):
+    name = "param"
+
+    async def async_convert(
+        self,
+        root: Root,
+        value: str,
+        param: Optional[click.Parameter],
+        ctx: Optional[click.Context],
+    ) -> Tuple[str, str]:
+        name, sep, val = value.partition("=")
+        if sep != "=":
+            self.fail("Param should have 'name=val' format", param, ctx)
+        return (name, val)
+
+    async def async_complete(
+        self,
+        root: Root,
+        ctx: click.Context,
+        args: Sequence[str],
+        incomplete: str,
+    ) -> List[Tuple[str, Optional[str]]]:
+        return []
+
+
+PARAM_PAIR = ParamPairType()

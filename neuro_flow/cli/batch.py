@@ -14,6 +14,7 @@ from neuro_flow.cli.click_types import (
     BATCH,
     BATCH_OR_ALL,
     FINISHED_TASK_AFTER_BAKE,
+    PARAM_PAIR,
 )
 from neuro_flow.cli.utils import argument, option, resolve_bake, wrap_async
 from neuro_flow.storage import APIStorage, NeuroStorageFS, Storage
@@ -56,6 +57,7 @@ else:
     multiple=True,
 )
 @argument("batch", type=BATCH)
+@argument("posarg", metavar="PARAMS", type=PARAM_PAIR, nargs=-1)
 @wrap_async()
 async def bake(
     root: Root,
@@ -65,11 +67,13 @@ async def bake(
     param: List[Tuple[str, str]],
     name: Optional[str],
     tag: Sequence[str],
+    posarg: List[Tuple[str, str]],
 ) -> None:
     """Start a batch.
 
     Run BATCH pipeline remotely on the cluster.
     """
+    param += posarg
     async with AsyncExitStack() as stack:
         client = await stack.enter_async_context(neuro_sdk.get())
         storage: Storage = await stack.enter_async_context(
