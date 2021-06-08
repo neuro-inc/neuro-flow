@@ -44,7 +44,7 @@ def iter_lookups(expr: Expr[Any]) -> Iterable[Lookup]:
 
 
 def _get_dataclass_field_type(dataclass: Any, attr: str) -> Optional[Any]:
-    if hasattr(dataclass, "__origin__"):
+    if getattr(dataclass, "__origin__", None) is not None:
         # This is generic, probably ModuleContext
         real_class = dataclass.__origin__
         res = _get_dataclass_field_type(real_class, attr)
