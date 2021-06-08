@@ -1329,6 +1329,10 @@ class EarlyBatch:
     def early_images(self) -> Mapping[str, EarlyImageCtx]:
         pass
 
+    @abstractmethod
+    def get_image_ast(self, image_id: str) -> ast.Image:
+        pass
+
     @lru_cache()
     def _graph(self) -> Mapping[str, Mapping[str, ast.NeedsLevel]]:
         # This function is only needed for mypy
@@ -1440,6 +1444,11 @@ class EarlyBatchAction(EarlyBatch):
     @property
     def early_images(self) -> Mapping[str, EarlyImageCtx]:
         return self._early_images
+
+    def get_image_ast(self, image_id: str) -> ast.Image:
+        if self._action.images is None:
+            raise KeyError(image_id)
+        return self._action.images[image_id]
 
     def _task_context_class(self) -> Type[Context]:
         return BatchActionTaskContext
@@ -1690,10 +1699,17 @@ class RunningBatchFlow(RunningBatchBase[BatchContext]):
         defaults: DefaultsConf,
         bake_id: str,
         local_info: Optional[LocallyPreparedInfo],
+        ast_flow: ast.BatchFlow,
     ):
         super().__init__(
             ctx, ctx, ctx.tags, tasks, config_loader, defaults, bake_id, local_info
         )
+        self._ast_flow = ast_flow
+
+    def get_image_ast(self, image_id: str) -> ast.Image:
+        if self._ast_flow.images is None:
+            raise KeyError(image_id)
+        return self._ast_flow.images[image_id]
 
     @property
     def project_id(self) -> str:
@@ -1775,7 +1791,7 @@ class RunningBatchFlow(RunningBatchBase[BatchContext]):
         ).build()
 
         return RunningBatchFlow(
-            batch_ctx, tasks, config_loader, defaults, bake_id, local_info
+            batch_ctx, tasks, config_loader, defaults, bake_id, local_info, ast_flow
         )
 
 
@@ -1803,6 +1819,11 @@ class RunningBatchActionFlow(RunningBatchBase[BatchActionContext]):
             local_info,
         )
         self._action = action
+
+    def get_image_ast(self, image_id: str) -> ast.Image:
+        if self._action.images is None:
+            raise KeyError(image_id)
+        return self._action.images[image_id]
 
     async def calc_outputs(self, task_results: NeedsCtx) -> DepCtx:
         if any(i.result == TaskStatus.FAILED for i in task_results.values()):

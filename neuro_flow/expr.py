@@ -112,16 +112,17 @@ class EvalError(Exception):
         self.start = start
         self.end = end
 
-    def __str__(self) -> str:
+    @staticmethod
+    def format_pos(pos: Pos) -> str:
         # For humans, line and columns are enumerated from 1, so we should add 1 here.
-        line = self.start.line + 1
-        col = self.start.col + 1
-        filename = self.start.filename
-        return str(self.args[0]) + f'\n  in "{filename}", line {line}, column {col}'
+        return f'"{pos.filename}", line {pos.line + 1}, column {pos.col + 1}'
+
+    def __str__(self) -> str:
+        return str(self.args[0]) + f"\n  in {self.format_pos(self.start)}"
 
 
-class MultiEvalError(Exception):
-    def __init__(self, errors: Sequence[EvalError]):
+class MultiError(Exception):
+    def __init__(self, errors: Sequence[Exception]):
         self.errors = errors
 
     def __str__(self) -> str:

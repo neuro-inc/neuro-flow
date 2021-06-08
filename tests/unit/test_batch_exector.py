@@ -57,7 +57,7 @@ from neuro_flow.storage import (
     Storage,
     _Unset,
 )
-from neuro_flow.types import ImageStatus, LocalPath, TaskStatus
+from neuro_flow.types import FullID, ImageStatus, LocalPath, TaskStatus
 
 
 MakeBatchRunner = Callable[[Path], Awaitable[BatchRunner]]
@@ -318,17 +318,15 @@ class MockStorage(FSStorage):
     async def create_bake_image(
         self,
         bake: Bake,
-        prefix: Tuple[str, ...],
-        yaml_id: str,
+        yaml_defs: Sequence[FullID],
         ref: str,
         context_on_storage: Optional[URL],
         dockerfile_rel: Optional[str],
     ) -> BakeImage:
         image = BakeImage(
             id=f"image-{self._index}",
-            prefix=prefix,
             ref=ref,
-            yaml_id=yaml_id,
+            yaml_defs=yaml_defs,
             context_on_storage=context_on_storage,
             dockerfile_rel=dockerfile_rel,
             status=ImageStatus.PENDING,

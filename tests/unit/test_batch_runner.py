@@ -1,11 +1,13 @@
 import pathlib
 import pytest
 import sys
+import textwrap
 from neuro_sdk import Client
 from tempfile import TemporaryDirectory
 from typing import AsyncContextManager, AsyncIterator, Callable, Iterator, Mapping
 
 from neuro_flow.batch_runner import (
+    ImageRefNotUniqueError,
     build_graphs,
     check_image_refs_unique,
     check_local_deps,
@@ -16,6 +18,7 @@ from neuro_flow.batch_runner import (
 from neuro_flow.colored_topo_sorter import CycleError
 from neuro_flow.config_loader import BatchLocalCL, ConfigLoader
 from neuro_flow.context import EarlyBatchAction, RunningBatchFlow
+from neuro_flow.expr import MultiError
 from neuro_flow.parser import ConfigDir
 from neuro_flow.storage import BakeImage, LocalFS, Storage
 from tests.unit.test_batch_exector import MockStorage
@@ -158,11 +161,35 @@ async def test_early_graph(batch_cl_factory: BatchClFactory) -> None:
 async def test_check_image_refs_unique(batch_cl_factory: BatchClFactory) -> None:
     async with batch_cl_factory("batch_images") as cl:
         flow = await RunningBatchFlow.create(cl, "duplicate_ref", "bake-id")
-        with pytest.raises(
-            Exception,
-            match=r"Image ref 'image:banana1' is duplicated",
-        ):
+        with pytest.raises(MultiError) as err_info:
             await check_image_refs_unique(flow)
+    err = err_info.value
+    assert isinstance(err, MultiError)
+    assert len(err.errors) == 1
+    inner_err = err.errors[0]
+
+    assert isinstance(inner_err, ImageRefNotUniqueError)
+    ws = cl.workspace
+    assert str(inner_err) == textwrap.dedent(
+        f"""\
+        Image with ref 'image:banana1' defined multiple times with different attributes:
+        at "{ws / "duplicate_ref.yml"}", line 4, column 5 with params:
+          context: {ws / "dir"}
+          dockerfile: {ws / "dir/Dockerfile_differ"}
+        at "{ws / "action.yml"}", line 10, column 5 with params:
+          context: {ws / "dir"}
+          dockerfile: {ws / "dir/Dockerfile"}
+    """.rstrip()
+    )
+
+
+async def test_check_image_refs_unique_same_defs(
+    batch_cl_factory: BatchClFactory,
+) -> None:
+    async with batch_cl_factory("batch_images") as cl:
+        flow = await RunningBatchFlow.create(cl, "duplicate_ref_same", "bake-id")
+        # Should not raise an exception
+        await check_image_refs_unique(flow)
 
 
 async def test_upload_image_data(

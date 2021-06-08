@@ -144,9 +144,8 @@ class FinishedTask:
 @dataclasses.dataclass
 class BakeImage:
     id: str
-    prefix: Tuple[str, ...]
-    yaml_id: str
     ref: str
+    yaml_defs: Sequence[FullID]
     context_on_storage: Optional[URL]
     dockerfile_rel: Optional[str]
 
@@ -161,8 +160,7 @@ class BakeImage:
             context_on_storage = URL(context_on_storage_raw)
         return cls(
             id=data["id"],
-            prefix=_id_from_json(data["prefix"]),
-            yaml_id=data["yaml_id"],
+            yaml_defs=[_id_from_json(it) for it in data["yaml_defs"]],
             ref=data["ref"],
             context_on_storage=context_on_storage,
             dockerfile_rel=data.get("dockerfile_rel"),
@@ -452,8 +450,7 @@ class Storage(abc.ABC):
     async def create_bake_image(
         self,
         bake: Bake,
-        prefix: Tuple[str, ...],
-        yaml_id: str,
+        yaml_defs: Sequence[FullID],
         ref: str,
         context_on_storage: Optional[URL],
         dockerfile_rel: Optional[str],
@@ -1011,8 +1008,7 @@ class FSStorage(Storage):
     async def create_bake_image(
         self,
         bake: Bake,
-        prefix: Tuple[str, ...],
-        yaml_id: str,
+        yaml_defs: Sequence[FullID],
         ref: str,
         context_on_storage: Optional[URL],
         dockerfile_rel: Optional[str],
@@ -1850,8 +1846,7 @@ class APIStorage(Storage):
     async def create_bake_image(
         self,
         bake: Bake,
-        prefix: Tuple[str, ...],
-        yaml_id: str,
+        yaml_defs: Sequence[FullID],
         ref: str,
         context_on_storage: Optional[URL],
         dockerfile_rel: Optional[str],
@@ -1864,8 +1859,7 @@ class APIStorage(Storage):
         image_data = dict(
             {
                 "bake_id": bake_data["id"],
-                "yaml_id": yaml_id,
-                "prefix": _id_to_json(prefix),
+                "yaml_defs": [_id_to_json(it) for it in yaml_defs],
                 "ref": ref,
                 "context_on_storage": str(context_on_storage)
                 if context_on_storage
