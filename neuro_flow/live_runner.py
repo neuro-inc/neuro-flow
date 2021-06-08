@@ -316,7 +316,9 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
                 "Additional job arguments are supported by multi-jobs only"
             )
 
-        if await self._try_attach_to_running(job_id, suffix, args, params):
+        if not dry_run and await self._try_attach_to_running(
+            job_id, suffix, args, params
+        ):
             return  # Attached to running job
 
         if not is_multi:
