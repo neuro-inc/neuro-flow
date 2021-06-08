@@ -708,19 +708,22 @@ async def test_job_with_live_module(live_config_loader: ConfigLoader) -> None:
     assert job.title == "live_module_call.test"
     assert job.name is None
     assert job.image == "ubuntu"
-    assert job.preset is None
+    assert job.preset == "test-preset"
     assert job.http_port is None
     assert not job.http_auth
     assert job.entrypoint is None
     assert job.cmd == "bash -euo pipefail -c 'echo A val 1 B live_module_call C'"
-    assert job.workdir is None
-    assert job.volumes == []
+    assert job.workdir == pathlib.PurePosixPath("/some/dir")
+    assert job.volumes == ["storage:test:/volume"]
     assert job.tags == {
         "project:unit",
         "flow:live-module-call",
         "job:test",
+        "test-tag",
     }
-    assert job.life_span is None
+    assert job.env == {"TEST": "test_value"}
+    assert job.life_span == timedelta(days=2).total_seconds()
+    assert job.schedule_timeout == timedelta(minutes=60).total_seconds()
     assert job.port_forward == []
     assert not job.detach
     assert not job.browse

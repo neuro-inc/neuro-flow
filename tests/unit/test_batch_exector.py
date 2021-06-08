@@ -5,7 +5,7 @@ import pytest
 import shutil
 import sys
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timedelta
 from neuro_sdk import (
     Client,
     Container,
@@ -816,11 +816,19 @@ async def test_batch_with_module_ok(
     task = await jobs_mock.get_task("test.task-1")
     assert task.container.command
     assert "batch_module_call" in task.container.command
+    assert task.container.env.get("TEST") == "test_value"
+    assert "test-tag" in task.tags
+    assert task.preset_name == "test-preset"
+    assert task.life_span == timedelta(days=2).total_seconds()
+    assert task.schedule_timeout == timedelta(minutes=60).total_seconds()
+    assert task.container.working_dir == "/some/dir"
+    assert task.container.volumes[0].container_path == "/volume"
     await jobs_mock.mark_done("test.task-1", b"::set-output name=task1::Task 1 val 1")
 
     task = await jobs_mock.get_task("test.task-2")
     assert task.container.command
     assert "batch_module_call" in task.container.command
+    assert task.container.env.get("TEST") == "test_value"
     await jobs_mock.mark_done("test.task-2", b"::set-output name=task2::Task 2 value 2")
     await executor_task
 

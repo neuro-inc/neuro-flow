@@ -520,7 +520,7 @@ def test_parse_live_module_call(assets: LocalPath) -> None:
     flow = parse_live(workspace, config_file)
     assert flow == ast.LiveFlow(
         Pos(0, 0, config_file),
-        Pos(6, 0, config_file),
+        Pos(16, 0, config_file),
         id=SimpleOptIdExpr(
             Pos(0, 0, config_file),
             Pos(0, 0, config_file),
@@ -534,14 +534,14 @@ def test_parse_live_module_call(assets: LocalPath) -> None:
         ),
         images=None,
         volumes=None,
-        defaults=None,
+        defaults=ANY,
         jobs={
             "test": ast.JobModuleCall(
-                Pos(3, 4, config_file),
-                Pos(6, 0, config_file),
+                Pos(13, 4, config_file),
+                Pos(16, 0, config_file),
                 module=SimpleStrExpr(
-                    Pos(3, 4, config_file),
-                    Pos(5, 0, config_file),
+                    Pos(13, 4, config_file),
+                    Pos(15, 0, config_file),
                     "workspace:live-module",
                 ),
                 args={

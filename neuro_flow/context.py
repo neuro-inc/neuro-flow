@@ -1630,9 +1630,11 @@ class RunningBatchBase(Generic[_T], EarlyBatch):
 
         full_id = prefix + (real_id,)
 
-        if isinstance(ctx, BatchTaskContext):
-            env = dict(ctx.env)
-        else:
+        try:
+            env_ctx = ctx.lookup("env")
+            assert isinstance(env_ctx, dict)
+            env: Dict[str, str] = dict(env_ctx)
+        except NotAvailable:
             env = {}
 
         if prep_task.ast_task.env is not None:
@@ -1712,8 +1714,10 @@ class RunningBatchBase(Generic[_T], EarlyBatch):
 
         if isinstance(prep_task, PrepModuleCall):
             parent_ctx: RootABC = ctx
+            defaults = self._defaults
         else:
             parent_ctx = EMPTY_ROOT
+            defaults = DefaultsConf()
 
         return await RunningBatchActionFlow.create(
             flow_ctx=self._flow_ctx,
@@ -1728,6 +1732,7 @@ class RunningBatchBase(Generic[_T], EarlyBatch):
             if self._local_info
             else None,
             config_loader=self._cl,
+            defaults=defaults,
         )
 
     async def get_local(self, real_id: str, needs: NeedsCtx) -> LocalTask:
@@ -1901,6 +1906,7 @@ class RunningBatchActionFlow(RunningBatchBase[BatchActionContext[RootABC]]):
         config_loader: ConfigLoader,
         bake_id: str,
         local_info: Optional[LocallyPreparedInfo],
+        defaults: DefaultsConf = DefaultsConf(),
     ) -> "RunningBatchActionFlow":
         step_1_ctx = BatchActionContextStep1(
             inputs=inputs,
@@ -1936,7 +1942,7 @@ class RunningBatchActionFlow(RunningBatchBase[BatchActionContext[RootABC]]):
             default_tags,
             tasks,
             config_loader,
-            DefaultsConf(),
+            defaults,
             ast_action,
             bake_id,
             local_info,
