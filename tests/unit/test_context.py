@@ -726,6 +726,17 @@ async def test_job_with_live_module(live_config_loader: ConfigLoader) -> None:
     assert not job.browse
 
 
+async def test_job_with_live_call_to_remote_module_invalid(
+    live_config_loader: ConfigLoader,
+) -> None:
+    flow = await RunningLiveFlow.create(live_config_loader, "live-module-remote-call")
+    with pytest.raises(
+        EvalError,
+        match=r"Module call to non local action 'gh:username/repo@tag' is forbidden",
+    ):
+        await flow.get_job("test", {})
+
+
 async def test_job_with_params(live_config_loader: ConfigLoader) -> None:
     flow = await RunningLiveFlow.create(live_config_loader, "live-params")
     job = await flow.get_job("test", {"arg1": "value"})
@@ -904,3 +915,23 @@ def test_sanitize_name() -> None:
     assert sanitize_name("my//project") == "my/project"
     assert sanitize_name("/my/project/") == "my/project"
     assert sanitize_name("") == "_"
+
+
+async def test_batch_module_call_to_remote_invalid(
+    assets: pathlib.Path, client: Client
+) -> None:
+    ws = assets / "batch_module"
+    config_dir = ConfigDir(
+        workspace=ws,
+        config_dir=ws,
+    )
+    cl = BatchLocalCL(config_dir, client)
+    try:
+        with pytest.raises(
+            EvalError,
+            match=r"Module call to non local action 'gh:username/repo@tag' "
+            r"is forbidden",
+        ):
+            await RunningBatchFlow.create(cl, "batch-module-remote-call", "bake-id")
+    finally:
+        await cl.close()

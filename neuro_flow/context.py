@@ -36,7 +36,7 @@ from typing_extensions import Annotated
 from yarl import URL
 
 from neuro_flow import ast
-from neuro_flow.config_loader import ConfigLoader
+from neuro_flow.config_loader import ActionSpec, ConfigLoader
 from neuro_flow.expr import (
     EnableExpr,
     EvalError,
@@ -1112,6 +1112,15 @@ async def setup_cache(
     return CacheConf(strategy=strategy, life_span=life_span)
 
 
+def check_module_call_is_local(action_name: str, call_ast: ast.BaseModuleCall) -> None:
+    if not ActionSpec.parse(action_name).is_local:
+        raise EvalError(
+            f"Module call to non local action '{action_name}' is forbidden",
+            start=call_ast._start,
+            end=call_ast._end,
+        )
+
+
 class RunningLiveFlow:
     _ast_flow: ast.LiveFlow
     _ctx: LiveContext
@@ -1172,6 +1181,7 @@ class RunningLiveFlow:
             action_name = await call_ast.action.eval(EMPTY_ROOT)
         else:
             action_name = await call_ast.module.eval(EMPTY_ROOT)
+            check_module_call_is_local(action_name, call_ast)
         action_ast = await self._cl.fetch_action(action_name)
         if action_ast.kind != ast.ActionKind.LIVE:
             raise TypeError(
@@ -2293,6 +2303,7 @@ class EarlyTaskGraphBuilder:
                     prep_tasks[real_id] = base.to_task(ast_task)
                 elif isinstance(ast_task, ast.TaskModuleCall):
                     action_name = await ast_task.module.eval(EMPTY_ROOT)
+                    check_module_call_is_local(action_name, ast_task)
                     action = await self._cl.fetch_action(action_name)
                     if isinstance(action, ast.BatchAction):
                         prep_tasks[real_id] = base.to_module_call(
