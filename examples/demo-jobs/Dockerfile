@@ -1,4 +1,4 @@
-FROM neuromation/base:v1.7.9
+FROM neuromation/base:v1.7.10
 
 ENV DEBIAN_FRONTEND noninteractive
 
