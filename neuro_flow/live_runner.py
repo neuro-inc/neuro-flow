@@ -139,13 +139,14 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
             sys.exit(1)
 
     async def _resolve_jobs(
-        self, meta: JobMeta, suffix: Optional[str]
+        self, meta: JobMeta, suffix: Optional[str], statuses: Iterable[JobStatus] = ()
     ) -> AsyncIterator[JobDescription]:
         found = False
         if meta.multi and not suffix:
             async for job in self.client.jobs.list(
                 tags=meta.tags,
                 reverse=True,
+                statuses=statuses,
             ):
                 found = True
                 yield job
@@ -157,6 +158,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
                 tags=tags,
                 reverse=True,
                 limit=1,
+                statuses=statuses,
             ):
                 found = True
                 yield job
@@ -257,7 +259,9 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
             meta = await self._ensure_meta(job_id, suffix)
             try:
                 jobs = []
-                async for descr in self._resolve_jobs(meta, suffix):
+                async for descr in self._resolve_jobs(
+                    meta, suffix, statuses=(JobStatus.PENDING, JobStatus.RUNNING)
+                ):
                     jobs.append(descr)
                 if len(jobs) > 1:
                     # Should never happen, but just in case
@@ -317,7 +321,9 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
                 "Additional job arguments are supported by multi-jobs only"
             )
 
-        if await self._try_attach_to_running(job_id, suffix, args, params):
+        if not dry_run and await self._try_attach_to_running(
+            job_id, suffix, args, params
+        ):
             return  # Attached to running job
 
         if not is_multi:
