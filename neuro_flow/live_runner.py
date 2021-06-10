@@ -311,6 +311,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
         dry_run: bool,
     ) -> None:
         """Run a named job"""
+        assert self._flow is not None
 
         meta_ctx = await self._ensure_meta(job_id, suffix, skip_check=True)
         is_multi = meta_ctx.multi
@@ -336,7 +337,13 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
         if job.title:
             run_args.append(f"--description={job.title}")
         if job.name:
-            run_args.append(f"--name={job.name}")
+            name = job.name
+        else:
+            name = f"{self._flow.project.id}--{job_id}"
+            if is_multi:
+                name += f"--{suffix}"
+            name = name.replace("_", "-")
+        run_args.append(f"--name={name}")
         if job.preset is not None:
             run_args.append(f"--preset={job.preset}")
         if job.schedule_timeout is not None:
@@ -368,7 +375,6 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
             run_args.append(f"--port-forward={pf}")
         if job.pass_config:
             run_args.append(f"--pass-config")
-        assert self._flow is not None
         project_role = self._flow.project.role
         if project_role is not None:
             await self._create_project_role(project_role)
