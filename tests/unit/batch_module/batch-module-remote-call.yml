@@ -1,0 +1,6 @@
+kind: batch
+tasks:
+- id: test
+  module: gh:username/repo@tag
+  args:
+    arg1: val 1

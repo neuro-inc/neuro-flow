@@ -722,6 +722,12 @@ JOB_ACTION_CALL = {
     "params": None,
 }
 
+JOB_MODULE_CALL = {
+    "module": SimpleStrExpr,
+    "args": SimpleMapping(StrExpr),
+    "params": None,
+}
+
 
 def check_extra(
     node: yaml.Node, dct: Dict[str, Any], ret: Dict[str, Any], name: str
@@ -753,10 +759,13 @@ def select_shells(
     return dct
 
 
-def select_job_or_action(
+def select_job_or_action_or_module(
     ctor: BaseConstructor, node: yaml.MappingNode, dct: Dict[str, Any]
 ) -> Dict[str, Any]:
-    if "action" in dct:
+    if "module" in dct:
+        ret = {k: v for k, v in dct.items() if k in JOB_MODULE_CALL}
+        check_extra(node, dct, ret, "module call")
+    elif "action" in dct:
         ret = {k: v for k, v in dct.items() if k in JOB_ACTION_CALL}
         check_extra(node, dct, ret, "action call")
     else:
@@ -766,7 +775,7 @@ def select_job_or_action(
     return ret
 
 
-JOB_OR_ACTION = {**JOB, **JOB_ACTION_CALL}
+JOB_OR_ACTION_OR_MODULE = {**JOB, **JOB_ACTION_CALL, **JOB_MODULE_CALL}
 
 
 def find_job_type(
@@ -774,25 +783,25 @@ def find_job_type(
     node: yaml.MappingNode,
     res_type: Type[ast.Base],
     arg: Dict[str, Any],
-) -> Union[Type[ast.Job], Type[ast.JobActionCall]]:
-    action = arg.get("action")
-    if action is None:
-        return ast.Job
-    else:
+) -> Union[Type[ast.Job], Type[ast.JobActionCall], Type[ast.JobModuleCall]]:
+    if arg.get("module") is not None:
+        return ast.JobModuleCall
+    if arg.get("action") is not None:
         return ast.JobActionCall
+    return ast.Job
 
 
 def parse_job(
     ctor: BaseConstructor, node: yaml.MappingNode
-) -> Union[ast.Job, ast.JobActionCall]:
+) -> Union[ast.Job, ast.JobActionCall, ast.JobModuleCall]:
     return cast(
-        Union[ast.Job, ast.JobActionCall],
+        Union[ast.Job, ast.JobActionCall, ast.JobModuleCall],
         parse_dict(
             ctor,
             node,
-            JOB_OR_ACTION,
+            JOB_OR_ACTION_OR_MODULE,
             ast.JobBase,
-            preprocess=select_job_or_action,
+            preprocess=select_job_or_action_or_module,
             find_res_type=find_job_type,
         ),
     )
@@ -800,7 +809,7 @@ def parse_job(
 
 def parse_jobs(
     ctor: BaseConstructor, node: yaml.MappingNode
-) -> Dict[str, Union[ast.Job, ast.JobActionCall]]:
+) -> Dict[str, Union[ast.Job, ast.JobActionCall, ast.JobModuleCall]]:
     ret = {}
     for k, v in node.value:
         key = ctor.construct_id(k)
@@ -812,35 +821,43 @@ def parse_jobs(
 FlowLoader.add_path_resolver("flow:jobs", [(dict, "jobs")])  # type: ignore
 FlowLoader.add_constructor("flow:jobs", parse_jobs)  # type: ignore
 
-
-TASK: Mapping[str, Any] = {
+TASK_BASE = {
     "id": OptIdExpr,
     "needs": None,
     "strategy": None,
     "enable": EnableExpr,
     "cache": None,
+}
+
+TASK: Mapping[str, Any] = {
+    **TASK_BASE,
     **EXEC_UNIT,
 }
 
 
 TASK_ACTION_CALL = {
-    "id": OptIdExpr,
-    "needs": None,
-    "strategy": None,
-    "enable": EnableExpr,
-    "cache": None,
+    **TASK_BASE,
     "action": SimpleStrExpr,
     "args": SimpleMapping(StrExpr),
 }
 
+TASK_MODULE_CALL = {
+    **TASK_BASE,
+    "module": SimpleStrExpr,
+    "args": SimpleMapping(StrExpr),
+}
 
-TASK_OR_ACTION = {**TASK, **TASK_ACTION_CALL}
+
+TASK_OR_ACTION_OR_MODULE = {**TASK, **TASK_ACTION_CALL, **TASK_MODULE_CALL}
 
 
-def select_task_or_action(
+def select_task_or_action_or_module(
     ctor: BaseConstructor, node: yaml.MappingNode, dct: Dict[str, Any]
 ) -> Dict[str, Any]:
-    if "action" in dct:
+    if "module" in dct:
+        ret = {k: v for k, v in dct.items() if k in TASK_MODULE_CALL}
+        check_extra(node, dct, ret, "module call")
+    elif "action" in dct:
         ret = {k: v for k, v in dct.items() if k in TASK_ACTION_CALL}
         check_extra(node, dct, ret, "action call")
     else:
@@ -855,21 +872,21 @@ def find_task_type(
     node: yaml.MappingNode,
     res_type: Type[ast.Base],
     arg: Dict[str, Any],
-) -> Union[Type[ast.Task], Type[ast.TaskActionCall]]:
-    action = arg.get("action")
-    if action is None:
-        return ast.Task
-    else:
+) -> Union[Type[ast.Task], Type[ast.TaskActionCall], Type[ast.TaskModuleCall]]:
+    if arg.get("module") is not None:
+        return ast.TaskModuleCall
+    if arg.get("action") is not None:
         return ast.TaskActionCall
+    return ast.Task
 
 
 def parse_task(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Base:
     return parse_dict(
         ctor,
         node,
-        TASK_OR_ACTION,
+        TASK_OR_ACTION_OR_MODULE,
         ast.Base,
-        preprocess=select_task_or_action,
+        preprocess=select_task_or_action_or_module,
         find_res_type=find_task_type,
     )
 

@@ -514,6 +514,47 @@ def test_parse_live_call(assets: LocalPath) -> None:
     )
 
 
+def test_parse_live_module_call(assets: LocalPath) -> None:
+    workspace = assets
+    config_file = workspace / "live-module-call.yml"
+    flow = parse_live(workspace, config_file)
+    assert flow == ast.LiveFlow(
+        Pos(0, 0, config_file),
+        Pos(16, 0, config_file),
+        id=SimpleOptIdExpr(
+            Pos(0, 0, config_file),
+            Pos(0, 0, config_file),
+            None,
+        ),
+        kind=ast.FlowKind.LIVE,
+        title=SimpleOptStrExpr(
+            Pos(0, 0, config_file),
+            Pos(0, 0, config_file),
+            None,
+        ),
+        images=None,
+        volumes=None,
+        defaults=ANY,
+        jobs={
+            "test": ast.JobModuleCall(
+                Pos(13, 4, config_file),
+                Pos(16, 0, config_file),
+                module=SimpleStrExpr(
+                    Pos(13, 4, config_file),
+                    Pos(15, 0, config_file),
+                    "workspace:live-module",
+                ),
+                args={
+                    "arg1": StrExpr(
+                        Pos(0, 0, config_file), Pos(0, 0, config_file), "val 1"
+                    )
+                },
+                params=None,
+            )
+        },
+    )
+
+
 def test_parse_batch_call(assets: LocalPath) -> None:
     workspace = assets
     config_file = workspace / "batch-action-call.yml"

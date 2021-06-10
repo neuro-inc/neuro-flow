@@ -184,14 +184,29 @@ class BaseActionCall(Base):
 
 
 @dataclass(frozen=True)
+class BaseModuleCall(Base):
+    module: SimpleStrExpr  # action ref
+    args: Optional[Mapping[str, StrExpr]] = field(metadata={"allow_none": True})
+
+
+@dataclass(frozen=True)
 class JobActionCall(BaseActionCall, JobBase):
     pass
 
 
 @dataclass(frozen=True)
+class JobModuleCall(BaseModuleCall, JobBase):
+    pass
+
+
+@dataclass(frozen=True)
 class TaskActionCall(BaseActionCall, TaskBase):
-    enable: EnableExpr = field(metadata={"default_expr": "${{ success() }}"})
-    cache: Optional[Cache] = field(metadata={"allow_none": True})
+    pass
+
+
+@dataclass(frozen=True)
+class TaskModuleCall(BaseModuleCall, TaskBase):
+    pass
 
 
 @dataclass(frozen=True)
@@ -230,7 +245,7 @@ class BaseFlow(Base):
 @dataclass(frozen=True)
 class LiveFlow(BaseFlow):
     # self.kind == Kind.Job
-    jobs: Mapping[str, Union[Job, JobActionCall]]
+    jobs: Mapping[str, Union[Job, JobActionCall, JobModuleCall]]
 
 
 @dataclass(frozen=True)
@@ -238,7 +253,7 @@ class BatchFlow(BaseFlow):
     # self.kind == Kind.Batch
     life_span: OptTimeDeltaExpr = field(metadata={"allow_none": True})
     params: Optional[Mapping[str, Param]] = field(metadata={"allow_none": True})
-    tasks: Sequence[Union[Task, TaskActionCall]]
+    tasks: Sequence[Union[Task, TaskActionCall, TaskModuleCall]]
 
     defaults: Optional[BatchFlowDefaults] = field(metadata={"allow_none": True})
 
@@ -294,7 +309,7 @@ class BatchAction(BaseAction):
     cache: Optional[Cache] = field(metadata={"allow_none": True})
     images: Optional[Mapping[str, Image]] = field(metadata={"allow_none": True})
 
-    tasks: Sequence[Task]
+    tasks: Sequence[Union[Task, TaskActionCall, TaskModuleCall]]
 
 
 @dataclass(frozen=True)

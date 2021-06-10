@@ -1,4 +1,9 @@
-from neuro_flow.context import BatchActionContext, BatchContext, BatchTaskContext
+from neuro_flow.context import (
+    BatchActionContext,
+    BatchContext,
+    BatchTaskContext,
+    EmptyRoot,
+)
 from neuro_flow.expr import StrExpr
 from neuro_flow.expr_validation import validate_expr
 from neuro_flow.tokenizer import Pos
@@ -61,7 +66,7 @@ def test_expr_validation_invalid_input() -> None:
         Pos(0, 0, LocalPath("<default>")),
         pattern="${{ inputs.fff }}",
     )
-    errors = validate_expr(expr, BatchActionContext, known_inputs=set())
+    errors = validate_expr(expr, BatchActionContext[EmptyRoot], known_inputs=set())
     assert errors[0].args[0] == "Input 'fff' is undefined"
 
 
