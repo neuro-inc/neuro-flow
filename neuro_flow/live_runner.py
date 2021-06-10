@@ -339,7 +339,10 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
         if job.name:
             name = job.name
         else:
-            name = f"{self._flow.project.id}--{job_id}".replace("_", "-")
+            name = f"{self._flow.project.id}--{job_id}"
+            if is_multi:
+                name += f"--{suffix}"
+            name = name.replace("_", "-")
         run_args.append(f"--name={name}")
         if job.preset is not None:
             run_args.append(f"--preset={job.preset}")
