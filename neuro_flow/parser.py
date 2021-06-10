@@ -459,7 +459,7 @@ def parse_project_stream(stream: TextIO) -> ast.Project:
     ret: ast.Project
     loader = ProjectLoader(stream)
     try:
-        ret = loader.get_single_data()  # type: ignore[no-untyped-call]
+        ret = loader.get_single_data()
         assert isinstance(ret, ast.Project)
         return ret
     finally:
@@ -572,8 +572,9 @@ FlowLoader.add_path_resolver("flow:images", [(dict, "images")])  # type: ignore
 FlowLoader.add_constructor("flow:images", parse_images)  # type: ignore
 
 
-def parse_needs_key(ctor: BaseConstructor, node: yaml.Node) -> IdExpr:
-    tmp = ctor.construct_scalar(node)  # type: ignore[no-untyped-call]
+def parse_needs_key(ctor: BaseConstructor, node: yaml.ScalarNode) -> IdExpr:
+    tmp = ctor.construct_scalar(node)
+    assert tmp is None or isinstance(tmp, str)
     return IdExpr(mark2pos(node.start_mark), mark2pos(node.end_mark), tmp)
 
 
@@ -1019,7 +1020,7 @@ FlowLoader.add_constructor("flow:main", parse_flow_main)  # type: ignore
 def parse_live_stream(stream: TextIO) -> ast.LiveFlow:
     loader = FlowLoader(stream, kind=ast.FlowKind.LIVE)
     try:
-        ret = loader.get_single_data()  # type: ignore[no-untyped-call]
+        ret = loader.get_single_data()
         assert isinstance(ret, ast.LiveFlow)
         assert ret.kind == ast.FlowKind.LIVE
         return ret
@@ -1036,7 +1037,7 @@ def parse_live(workspace: LocalPath, config_file: LocalPath) -> ast.LiveFlow:
 def parse_batch_stream(stream: TextIO) -> ast.BatchFlow:
     loader = FlowLoader(stream, kind=ast.FlowKind.BATCH)
     try:
-        ret = loader.get_single_data()  # type: ignore[no-untyped-call]
+        ret = loader.get_single_data()
         assert isinstance(ret, ast.BatchFlow)
         assert ret.kind == ast.FlowKind.BATCH
         return ret
@@ -1417,8 +1418,8 @@ def parse_meta_main(ctor: BaseConstructor, node: yaml.MappingNode) -> Mapping[st
         )
     ret = {}
     for k, v in node.value:
-        key = str(ctor.construct_scalar(k))  # type: ignore[no-untyped-call]
-        value = str(ctor.construct_scalar(v))  # type: ignore[no-untyped-call]
+        key = str(ctor.construct_scalar(k))
+        value = str(ctor.construct_scalar(v))
         ret[key] = value
     return ret
 
@@ -1431,7 +1432,7 @@ def parse_action_stream(stream: TextIO) -> ast.BaseAction:
     ret: ast.Project
     loader = ActionLoader(stream)
     try:
-        ret = loader.get_single_data()  # type: ignore[no-untyped-call]
+        ret = loader.get_single_data()
         assert isinstance(ret, ast.BaseAction)
         return ret
     finally:
@@ -1446,6 +1447,6 @@ def parse_action(action_file: LocalPath) -> ast.BaseAction:
 
 def parse_bake_meta(meta_file: LocalPath) -> Mapping[str, str]:
     with meta_file.open() as f:
-        result = BakeMetaLoader(f).get_single_data()  # type: ignore[no-untyped-call]
+        result = BakeMetaLoader(f).get_single_data()
         assert isinstance(result, dict)
         return result

@@ -1017,7 +1017,7 @@ class Expr(BaseExpr[_T]):
                 self._parsed = [Text(start, end, "")]
             assert self._parsed
             if len(self._parsed) == 1 and type(self._parsed[0]) == Text:
-                self._try_convert(cast(Text, self._parsed[0]).arg, start, end)
+                self._try_convert(self._parsed[0].arg, start, end)
             elif not self.allow_expr:
                 raise EvalError(f"Expressions are not allowed in {pattern}", start, end)
         elif self.allow_none:
