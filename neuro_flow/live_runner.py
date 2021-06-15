@@ -139,14 +139,30 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
             sys.exit(1)
 
     async def _resolve_jobs(
-        self, meta: JobMeta, suffix: Optional[str], statuses: Iterable[JobStatus] = ()
+        self, meta: JobMeta, suffix: Optional[str]
     ) -> AsyncIterator[JobDescription]:
         found = False
+        since = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(
+            days=7
+        )
         if meta.multi and not suffix:
             async for job in self.client.jobs.list(
                 tags=meta.tags,
                 reverse=True,
-                statuses=statuses,
+                statuses=(JobStatus.PENDING, JobStatus.RUNNING),
+            ):
+                found = True
+                yield job
+            async for job in self.client.jobs.list(
+                tags=meta.tags,
+                reverse=True,
+                statuses=(
+                    JobStatus.SUSPENDED,
+                    JobStatus.SUCCEEDED,
+                    JobStatus.FAILED,
+                    JobStatus.CANCELLED,
+                ),
+                since=since,
             ):
                 found = True
                 yield job
@@ -158,7 +174,22 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
                 tags=tags,
                 reverse=True,
                 limit=1,
-                statuses=statuses,
+                statuses=(JobStatus.PENDING, JobStatus.RUNNING),
+            ):
+                found = True
+                yield job
+                return
+            async for job in self.client.jobs.list(
+                tags=tags,
+                reverse=True,
+                limit=1,
+                statuses=(
+                    JobStatus.SUSPENDED,
+                    JobStatus.SUCCEEDED,
+                    JobStatus.FAILED,
+                    JobStatus.CANCELLED,
+                ),
+                since=since,
             ):
                 found = True
                 yield job
@@ -259,9 +290,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
             meta = await self._ensure_meta(job_id, suffix)
             try:
                 jobs = []
-                async for descr in self._resolve_jobs(
-                    meta, suffix, statuses=(JobStatus.PENDING, JobStatus.RUNNING)
-                ):
+                async for descr in self._resolve_jobs(meta, suffix):
                     jobs.append(descr)
                 if len(jobs) > 1:
                     # Should never happen, but just in case
@@ -339,10 +368,20 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
         if job.name:
             name = job.name
         else:
-            name = f"{self._flow.project.id}--{job_id}"
+            first_part = self._flow.project.id.replace("_", "-").strip("-")
+            while "--" in first_part:
+                first_part = first_part.replace("--", "-")
+            second_part = job_id
             if is_multi:
-                name += f"--{suffix}"
-            name = name.replace("_", "-")
+                second_part += f"-{suffix}"
+            second_part = second_part.replace("_", "-").strip("-")
+            while "--" in second_part:
+                second_part = second_part.replace("--", "-")
+
+            first_part = first_part[: 40 - len(second_part) - 1]
+            name = first_part + "-" + second_part
+            while "--" in name:
+                name = name.replace("--", "-")
         run_args.append(f"--name={name}")
         if job.preset is not None:
             run_args.append(f"--preset={job.preset}")
