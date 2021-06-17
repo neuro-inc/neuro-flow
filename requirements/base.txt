@@ -11,3 +11,5 @@ neuro-extras==21.3.19
 pyyaml==5.4.1
 rich==10.3.0
 trafaret==2.1.0
+
+typing-extensions==3.10.0.0

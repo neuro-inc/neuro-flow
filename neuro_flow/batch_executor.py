@@ -62,6 +62,7 @@ from .storage import (
     Bake,
     BakeImage,
     FinishedTask,
+    RetryReadStorage,
     StartedTask,
     Storage,
     _dt2str,
@@ -434,6 +435,8 @@ class BatchExecutor:
         project_role: Optional[str] = None,
         run_builder_job: Callable[..., Awaitable[str]] = start_image_build,
     ) -> AsyncIterator["BatchExecutor"]:
+        storage = RetryReadStorage(storage)
+
         console.log("Fetch bake data")
         bake = await storage.fetch_bake(
             executor_data.project,
