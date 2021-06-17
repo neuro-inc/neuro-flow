@@ -6,6 +6,33 @@
 [comment]: # (towncrier release notes start)
 
 
+Features
+--------
+
+
+- Added command to clear cache of a single task: `neuro-flow clear-cache <batch> <task_id>`. ([#452](https://github.com/neuro-inc/neuro-flow/issues/452))
+
+- Added support in live jobs params. The following contexts are now available under `jobs.<job-id>.params`:
+  `project`, `flow`, `env`, `tags`, `volumes`, `images`. ([#457](https://github.com/neuro-inc/neuro-flow/issues/457))
+
+- Generate default live job name as '<PROJECT-ID>-<JOB-ID>-[<MULTI_SUFFIX>]' if not set. ([#462](https://github.com/neuro-inc/neuro-flow/issues/462))
+
+- Retry operations inside a batch runner if possible; it increase baking stability. ([#483](https://github.com/neuro-inc/neuro-flow/issues/483))
+
+
+Bugfixes
+--------
+
+
+- Fixed bug when executor ignored bake cancellation. ([#449](https://github.com/neuro-inc/neuro-flow/issues/449))
+
+- Fixed wrong filename of action config file in logs. ([#450](https://github.com/neuro-inc/neuro-flow/issues/450))
+
+- Fixed missing id of initial job for cached tasks. ([#451](https://github.com/neuro-inc/neuro-flow/issues/451))
+
+- Don't attach to live job in dry-run mode. ([#463](https://github.com/neuro-inc/neuro-flow/issues/463))
+
+
 Neuro_Flow 21.6.2 (2021-6-2)
 ============================
 
