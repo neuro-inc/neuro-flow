@@ -13,12 +13,10 @@ from abc import abstractmethod
 from neuro_sdk import (
     Action,
     Client,
-    ClientError,
     FileStatus,
     FileStatusType,
     JobDescription,
     ResourceNotFound,
-    ServerNotAvailable,
 )
 from operator import attrgetter, itemgetter
 from types import TracebackType
@@ -26,8 +24,6 @@ from typing import (
     AbstractSet,
     Any,
     AsyncIterator,
-    Awaitable,
-    Callable,
     Dict,
     Iterable,
     List,
@@ -36,11 +32,10 @@ from typing import (
     Sequence,
     Tuple,
     Type,
-    TypeVar,
     Union,
     cast,
 )
-from typing_extensions import Concatenate, Final, ParamSpec, TypedDict
+from typing_extensions import Final, TypedDict
 from yarl import URL
 
 from neuro_flow.types import ImageStatus, LocalPath
@@ -48,7 +43,7 @@ from neuro_flow.types import ImageStatus, LocalPath
 from .config_loader import ConfigFile
 from .context import DepCtx, JobMeta
 from .types import FullID, TaskStatus
-from .utils import async_retried, retries
+from .utils import RetryConfig, async_retried, retry
 
 
 if sys.version_info < (3, 7):
@@ -2172,41 +2167,13 @@ def _find_finished_at(statuses: List[_StatusItem]) -> datetime.datetime:
         raise ValueError(f"Task is not finished, the history is {statuses}")
 
 
-_P = ParamSpec("_P")
-_R = TypeVar("_R")
-
-
-def _retry(
-    func: Callable[Concatenate["RetryReadStorage", _P], Awaitable[_R]]  # type: ignore
-) -> Callable[Concatenate["RetryReadStorage", _P], Awaitable[_R]]:  # type: ignore
-    async def inner(
-        self: "RetryReadStorage", *args: _P.args, **kwargs: _P.kwargs  # type: ignore
-    ) -> _R:
-        for retry in retries(
-            repr(func),
-            timeout=self._retry_timeout,
-            delay=self._delay,
-            factor=self._delay_factor,
-            cap=self._delay_cap,
-            exceptions=(ClientError, ServerNotAvailable, OSError),
-        ):
-            async with retry:
-                return await func(self, *args, **kwargs)  # type: ignore
-        assert False, "Unreachable"
-
-    return inner
-
-
-class RetryReadStorage(Storage):
+class RetryReadStorage(Storage, RetryConfig):
     # Storage implementation that retries reads.
     # Intentded to make batch executor more stable
 
     def __init__(self, storage: Storage) -> None:
+        super().__init__()
         self._storage = storage
-        self._retry_timeout = 15 * 60
-        self._delay = 15
-        self._delay_factor = 0.5
-        self._delay_cap = 60
 
     async def close(self) -> None:
         await self._storage.close()
@@ -2221,7 +2188,7 @@ class RetryReadStorage(Storage):
     async def write_live(self, project: str, jobs: Iterable[JobMeta]) -> Live:
         raise NotImplementedError
 
-    @_retry
+    @retry
     async def _list_bakes(
         self,
         project: str,
@@ -2280,7 +2247,7 @@ class RetryReadStorage(Storage):
             tags=tags,
         )
 
-    @_retry
+    @retry
     async def fetch_bake(
         self, project: str, batch: str, when: datetime.datetime, suffix: str
     ) -> Bake:
@@ -2288,29 +2255,29 @@ class RetryReadStorage(Storage):
             project=project, batch=batch, when=when, suffix=suffix
         )
 
-    @_retry
+    @retry
     async def fetch_bake_by_id(self, project: str, bake_id: str) -> Bake:
         return await self._storage.fetch_bake_by_id(project=project, bake_id=bake_id)
 
-    @_retry
+    @retry
     async def fetch_bake_by_name(self, project: str, bake_name: str) -> Bake:
         return await self._storage.fetch_bake_by_name(
             project=project, bake_name=bake_name
         )
 
-    @_retry
+    @retry
     async def fetch_configs_meta(self, bake: Bake) -> Mapping[str, Any]:
         return await self._storage.fetch_configs_meta(bake=bake)
 
-    @_retry
+    @retry
     async def fetch_config(self, bake: Bake, filename: str) -> str:
         return await self._storage.fetch_config(bake=bake, filename=filename)
 
-    @_retry
+    @retry
     async def create_attempt(self, bake: Bake, attempt_no: int) -> Attempt:
         return await self._storage.create_attempt(bake=bake, attempt_no=attempt_no)
 
-    @_retry
+    @retry
     async def find_attempt(
         self, bake: Bake, attempt_no: int = -1, force_no_cache: bool = False
     ) -> Attempt:
@@ -2318,7 +2285,7 @@ class RetryReadStorage(Storage):
             bake=bake, attempt_no=attempt_no, force_no_cache=force_no_cache
         )
 
-    @_retry
+    @retry
     async def fetch_attempt(
         self, attempt: Attempt
     ) -> Tuple[Dict[FullID, StartedTask], Dict[FullID, FinishedTask]]:
@@ -2342,7 +2309,7 @@ class RetryReadStorage(Storage):
     ) -> None:
         await self._storage.write_finish(task)
 
-    @_retry
+    @retry
     async def check_cache(
         self,
         attempt: Attempt,
@@ -2390,7 +2357,7 @@ class RetryReadStorage(Storage):
             dockerfile_rel=dockerfile_rel,
         )
 
-    @_retry
+    @retry
     async def _list_bake_images(self, bake: Bake) -> List[BakeImage]:
         images = []
         async for image in self._storage.list_bake_images(bake=bake):
@@ -2401,7 +2368,7 @@ class RetryReadStorage(Storage):
         for image in await self._list_bake_images(bake=bake):
             yield image
 
-    @_retry
+    @retry
     async def get_bake_image(self, bake: Bake, ref: str) -> BakeImage:
         return await self._storage.get_bake_image(bake=bake, ref=ref)
 

@@ -5,9 +5,10 @@ import humanize
 import logging
 import time
 from functools import wraps
-from neuro_sdk import JobStatus
+from neuro_sdk import ClientError, JobStatus, ServerNotAvailable
 from typing import (
     Any,
+    Awaitable,
     Callable,
     Iterable,
     Iterator,
@@ -19,7 +20,7 @@ from typing import (
     Union,
     cast,
 )
-from typing_extensions import Protocol
+from typing_extensions import Concatenate, ParamSpec, Protocol
 
 from .types import COLORS, FullID, TaskStatus
 
@@ -224,3 +225,36 @@ def async_retried(
         return cast(F, wrapper)
 
     return _deco
+
+
+class RetryConfig:
+    def __init__(self) -> None:
+        self._retry_timeout = 15 * 60
+        self._delay = 15
+        self._delay_factor = 0.5
+        self._delay_cap = 60
+
+
+_P = ParamSpec("_P")
+_R = TypeVar("_R")
+
+
+def retry(
+    func: Callable[Concatenate[RetryConfig, _P], Awaitable[_R]]  # type: ignore
+) -> Callable[Concatenate[RetryConfig, _P], Awaitable[_R]]:  # type: ignore
+    async def inner(
+        self: RetryConfig, *args: _P.args, **kwargs: _P.kwargs  # type: ignore
+    ) -> _R:
+        for retry in retries(
+            f"{func!r}(*{args!r}, **{kwargs!r})",
+            timeout=self._retry_timeout,
+            delay=self._delay,
+            factor=self._delay_factor,
+            cap=self._delay_cap,
+            exceptions=(ClientError, ServerNotAvailable, OSError),
+        ):
+            async with retry:
+                return await func(self, *args, **kwargs)  # type: ignore
+        assert False, "Unreachable"
+
+    return inner
