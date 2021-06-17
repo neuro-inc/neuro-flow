@@ -24,7 +24,7 @@ setup(
     python_requires=">=3.6.0",
     include_package_data=True,
     install_requires=[
-        "neuro-cli>=21.5.17",
+        "neuro-cli>=21.6.17",
         "pyyaml>=5.4",
         "funcparserlib>=0.3",
         'dataclasses>=0.5; python_version<"3.7"',
@@ -36,6 +36,7 @@ setup(
         "yarl>=1.6.2,<1.7",
         "multidict>=5.0,<6.0",
         "rich~=10.0",
+        "typing-extensions>=3.10",
     ],
     packages=find_packages(),
     classifiers=[

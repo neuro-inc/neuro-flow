@@ -43,7 +43,7 @@ from neuro_flow.types import ImageStatus, LocalPath
 from .config_loader import ConfigFile
 from .context import DepCtx, JobMeta
 from .types import FullID, TaskStatus
-from .utils import async_retried
+from .utils import RetryConfig, async_retried, retry
 
 
 if sys.version_info < (3, 7):
@@ -2165,3 +2165,220 @@ def _find_finished_at(statuses: List[_StatusItem]) -> datetime.datetime:
             return item["created_at"]
     else:
         raise ValueError(f"Task is not finished, the history is {statuses}")
+
+
+class RetryReadStorage(Storage, RetryConfig):
+    # Storage implementation that retries reads.
+    # Intentded to make batch executor more stable
+
+    def __init__(self, storage: Storage) -> None:
+        super().__init__()
+        self._storage = storage
+
+    async def close(self) -> None:
+        await self._storage.close()
+
+    async def ensure_project(
+        self, name: str, owner: Optional[str] = None, cluster: Optional[str] = None
+    ) -> Project:
+        return await self._storage.ensure_project(
+            name=name, owner=owner, cluster=cluster
+        )
+
+    async def write_live(self, project: str, jobs: Iterable[JobMeta]) -> Live:
+        raise NotImplementedError
+
+    @retry
+    async def _list_bakes(
+        self,
+        project: str,
+        tags: Optional[AbstractSet[str]] = None,
+        since: Optional[datetime.datetime] = None,
+        until: Optional[datetime.datetime] = None,
+        recent_first: bool = False,
+    ) -> List[Bake]:
+        bakes = []
+        async for bake in self._storage.list_bakes(
+            project=project,
+            tags=tags,
+            since=since,
+            until=until,
+            recent_first=recent_first,
+        ):
+            bakes.append(bake)
+        return bakes
+
+    async def list_bakes(
+        self,
+        project: str,
+        tags: Optional[AbstractSet[str]] = None,
+        since: Optional[datetime.datetime] = None,
+        until: Optional[datetime.datetime] = None,
+        recent_first: bool = False,
+    ) -> AsyncIterator[Bake]:
+        for bake in await self._list_bakes(
+            project=project,
+            tags=tags,
+            since=since,
+            until=until,
+            recent_first=recent_first,
+        ):
+            yield bake
+
+    async def create_bake(
+        self,
+        project: str,
+        batch: str,
+        configs_meta: Mapping[str, Any],
+        configs: Sequence[ConfigFile],
+        graphs: Mapping[FullID, Mapping[FullID, AbstractSet[FullID]]],
+        params: Optional[Mapping[str, str]],
+        name: Optional[str],
+        tags: Sequence[str] = (),
+    ) -> Bake:
+        return await self._storage.create_bake(
+            project=project,
+            batch=batch,
+            configs_meta=configs_meta,
+            configs=configs,
+            graphs=graphs,
+            params=params,
+            name=name,
+            tags=tags,
+        )
+
+    @retry
+    async def fetch_bake(
+        self, project: str, batch: str, when: datetime.datetime, suffix: str
+    ) -> Bake:
+        return await self._storage.fetch_bake(
+            project=project, batch=batch, when=when, suffix=suffix
+        )
+
+    @retry
+    async def fetch_bake_by_id(self, project: str, bake_id: str) -> Bake:
+        return await self._storage.fetch_bake_by_id(project=project, bake_id=bake_id)
+
+    @retry
+    async def fetch_bake_by_name(self, project: str, bake_name: str) -> Bake:
+        return await self._storage.fetch_bake_by_name(
+            project=project, bake_name=bake_name
+        )
+
+    @retry
+    async def fetch_configs_meta(self, bake: Bake) -> Mapping[str, Any]:
+        return await self._storage.fetch_configs_meta(bake=bake)
+
+    @retry
+    async def fetch_config(self, bake: Bake, filename: str) -> str:
+        return await self._storage.fetch_config(bake=bake, filename=filename)
+
+    @retry
+    async def create_attempt(self, bake: Bake, attempt_no: int) -> Attempt:
+        return await self._storage.create_attempt(bake=bake, attempt_no=attempt_no)
+
+    @retry
+    async def find_attempt(
+        self, bake: Bake, attempt_no: int = -1, force_no_cache: bool = False
+    ) -> Attempt:
+        return await self._storage.find_attempt(
+            bake=bake, attempt_no=attempt_no, force_no_cache=force_no_cache
+        )
+
+    @retry
+    async def fetch_attempt(
+        self, attempt: Attempt
+    ) -> Tuple[Dict[FullID, StartedTask], Dict[FullID, FinishedTask]]:
+        return await self._storage.fetch_attempt(attempt=attempt)
+
+    async def store_executor_id(self, attempt: Attempt, executor_id: str) -> None:
+        await self._storage.store_executor_id(attempt=attempt, executor_id=executor_id)
+
+    async def finish_attempt(self, attempt: Attempt, result: TaskStatus) -> None:
+        await self._storage.finish_attempt(attempt=attempt, result=result)
+
+    async def write_start(
+        self,
+        task: StartedTask,
+    ) -> None:
+        await self._storage.write_start(task)
+
+    async def write_finish(
+        self,
+        task: FinishedTask,
+    ) -> None:
+        await self._storage.write_finish(task)
+
+    @retry
+    async def check_cache(
+        self,
+        attempt: Attempt,
+        task_id: FullID,
+        caching_key: str,
+        life_span: datetime.timedelta,
+    ) -> Optional[FinishedTask]:
+        return await self._storage.check_cache(
+            attempt=attempt,
+            task_id=task_id,
+            caching_key=caching_key,
+            life_span=life_span,
+        )
+
+    async def write_cache(
+        self,
+        attempt: Attempt,
+        ft: FinishedTask,
+        caching_key: str,
+    ) -> None:
+        await self._storage.write_cache(
+            attempt=attempt,
+            ft=ft,
+            caching_key=caching_key,
+        )
+
+    async def clear_cache(
+        self, project: str, batch: Optional[str] = None, task_id: Optional[str] = None
+    ) -> None:
+        await self._storage.clear_cache(project=project, batch=batch, task_id=task_id)
+
+    async def create_bake_image(
+        self,
+        bake: Bake,
+        yaml_defs: Sequence[FullID],
+        ref: str,
+        context_on_storage: Optional[URL],
+        dockerfile_rel: Optional[str],
+    ) -> BakeImage:
+        return await self._storage.create_bake_image(
+            bake=bake,
+            yaml_defs=yaml_defs,
+            ref=ref,
+            context_on_storage=context_on_storage,
+            dockerfile_rel=dockerfile_rel,
+        )
+
+    @retry
+    async def _list_bake_images(self, bake: Bake) -> List[BakeImage]:
+        images = []
+        async for image in self._storage.list_bake_images(bake=bake):
+            images.append(image)
+        return images
+
+    async def list_bake_images(self, bake: Bake) -> AsyncIterator[BakeImage]:
+        for image in await self._list_bake_images(bake=bake):
+            yield image
+
+    @retry
+    async def get_bake_image(self, bake: Bake, ref: str) -> BakeImage:
+        return await self._storage.get_bake_image(bake=bake, ref=ref)
+
+    async def update_bake_image(
+        self,
+        bake: Bake,
+        ref: str,
+        status: Union[ImageStatus, Type[_Unset]] = _Unset,
+        builder_job_id: Union[Optional[str], Type[_Unset]] = _Unset,
+    ) -> BakeImage:
+        return await self._storage.update_bake_image(
+            bake=bake, ref=ref, status=status, builder_job_id=builder_job_id
+        )

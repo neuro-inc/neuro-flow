@@ -3,21 +3,24 @@ import asyncio
 import datetime
 import humanize
 import logging
+import time
 from functools import wraps
-from neuro_sdk import JobStatus
+from neuro_sdk import ClientError, JobStatus, ServerNotAvailable
 from typing import (
     Any,
+    Awaitable,
     Callable,
     Iterable,
     Iterator,
     List,
     Optional,
+    Sequence,
     Type,
     TypeVar,
     Union,
     cast,
 )
-from typing_extensions import Protocol
+from typing_extensions import Concatenate, ParamSpec, Protocol
 
 from .types import COLORS, FullID, TaskStatus
 
@@ -146,21 +149,31 @@ log = logging.getLogger(__name__)
 # Copied from neuro_sdk.utils to avoid dependency on private class
 class retries:
     def __init__(
-        self, msg: str, attempts: int = 10, logger: Callable[[str], None] = log.info
+        self,
+        msg: str,
+        timeout: float = 60,
+        delay: float = 0.1,
+        factor: float = 0.5,
+        cap: float = 5,
+        exceptions: Sequence[Type[Exception]] = (),
+        logger: Callable[[str], None] = log.info,
     ) -> None:
         self._msg = msg
-        self._attempts = attempts
+        self._timeout = timeout
+        self._delay = delay
+        self._factor = factor
+        self._cap = cap
+        self._exceptions = (aiohttp.ClientError,) + tuple(exceptions)
         self._logger = logger
+        self._done = False
         self.reset()
 
     def reset(self) -> None:
-        self._attempt = 0
-        self._sleeptime = 0.0
+        self._t0 = time.monotonic()
+        self._sleeptime = self._delay
 
     def __iter__(self) -> Iterator["retries"]:
-        while self._attempt < self._attempts:
-            self._sleeptime += 0.1
-            self._attempt += 1
+        while not self._done:
             yield self
 
     async def __aenter__(self) -> None:
@@ -171,25 +184,77 @@ class retries:
     ) -> bool:
         if type is None:
             # Stop iteration
-            self._attempt = self._attempts
-        elif issubclass(type, aiohttp.ClientError) and self._attempt < self._attempts:
-            self._logger(f"{self._msg}: {value}.  Retry...")
-            await asyncio.sleep(self._sleeptime)
-            return True
+            pass
+        elif issubclass(type, self._exceptions):
+            t1 = time.monotonic()
+            if t1 - self._t0 <= self._timeout:
+                self._logger(f"{self._msg}: {value}.  Retry...")
+                await asyncio.sleep(self._sleeptime)
+                self._sleeptime = min(self._sleeptime * self._factor, self._cap)
+                return True
+        self._done = True
         return False
 
 
 F = TypeVar("F", bound=Callable[..., Any])
 
 
-def async_retried(msg: str, attempts: int = 10) -> Callable[[F], F]:
+def async_retried(
+    msg: str,
+    *,
+    timeout: float = 60,
+    delay: float = 0.1,
+    factor: float = 0.5,
+    cap: float = 5,
+    exceptions: Sequence[Type[Exception]] = (),
+) -> Callable[[F], F]:
     def _deco(func: F) -> F:
         @wraps(func)
         async def wrapper(*args: Any, **kwargs: Any) -> Any:
-            for retry in retries(msg, attempts):
+            for retry in retries(
+                msg,
+                timeout=timeout,
+                delay=delay,
+                factor=factor,
+                cap=cap,
+                exceptions=exceptions,
+            ):
                 async with retry:
                     return await func(*args, **kwargs)
 
         return cast(F, wrapper)
 
     return _deco
+
+
+class RetryConfig:
+    def __init__(self) -> None:
+        self._retry_timeout = 15 * 60
+        self._delay = 15
+        self._delay_factor = 0.5
+        self._delay_cap = 60
+
+
+_P = ParamSpec("_P")
+_R = TypeVar("_R")
+
+
+def retry(
+    func: Callable[Concatenate[RetryConfig, _P], Awaitable[_R]]  # type: ignore
+) -> Callable[Concatenate[RetryConfig, _P], Awaitable[_R]]:  # type: ignore
+    async def inner(
+        self: RetryConfig, *args: _P.args, **kwargs: _P.kwargs  # type: ignore
+    ) -> _R:
+        for retry in retries(
+            f"{func!r}(*{args!r}, **{kwargs!r})",
+            timeout=self._retry_timeout,
+            delay=self._delay,
+            factor=self._delay_factor,
+            cap=self._delay_cap,
+            exceptions=(ClientError, ServerNotAvailable, OSError),
+        ):
+            async with retry:
+                return await func(self, *args, **kwargs)  # type: ignore
+        assert False, "Unreachable"
+
+    return inner
