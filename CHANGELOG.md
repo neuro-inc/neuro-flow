@@ -6,6 +6,17 @@
 [comment]: # (towncrier release notes start)
 
 
+Neuro_Flow 21.6.18 (2021-6-18)
+==============================
+
+Bugfixes
+--------
+
+
+- Fix READ retry logic: increase delay between retries (was decreasing to zero in
+  21.6.17 release by mistake).
+
+
 Neuro_Flow 21.6.17 (2021-6-17)
 ==============================
 

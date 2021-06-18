@@ -153,7 +153,7 @@ class retries:
         msg: str,
         timeout: float = 60,
         delay: float = 0.1,
-        factor: float = 0.5,
+        factor: float = 1.5,
         cap: float = 5,
         exceptions: Sequence[Type[Exception]] = (),
         logger: Callable[[str], None] = log.info,
@@ -204,7 +204,7 @@ def async_retried(
     *,
     timeout: float = 60,
     delay: float = 0.1,
-    factor: float = 0.5,
+    factor: float = 1.5,
     cap: float = 5,
     exceptions: Sequence[Type[Exception]] = (),
 ) -> Callable[[F], F]:
@@ -231,7 +231,7 @@ class RetryConfig:
     def __init__(self) -> None:
         self._retry_timeout = 15 * 60
         self._delay = 15
-        self._delay_factor = 0.5
+        self._delay_factor = 1.5
         self._delay_cap = 60
 
 
