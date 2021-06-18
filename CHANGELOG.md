@@ -6,6 +6,16 @@
 [comment]: # (towncrier release notes start)
 
 
+Neuro_Flow 21.6.18.1 (2021-6-18)
+================================
+
+Bugfixes
+--------
+
+
+- Fix cache key calculation: now it doesn't depend on top-level contexts but on a task calculated parameters plus "needs" and "state" for stateful actions only.
+
+
 Neuro_Flow 21.6.18 (2021-6-18)
 ==============================
 

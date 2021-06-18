@@ -1706,7 +1706,7 @@ class RunningBatchBase(Generic[_T], EarlyBatch):
         return replace(
             task,
             tags=task.tags | {f"bake_id:{self._bake_id}"},
-            caching_key=_hash(dict(task=task, ctx=ctx)),
+            caching_key=_hash(dict(task=task, needs=needs, state=state)),
         )
 
     async def get_action(
