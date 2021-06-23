@@ -24,7 +24,7 @@ setup(
     python_requires=">=3.6.0",
     include_package_data=True,
     install_requires=[
-        "neuro-cli>=21.6.17",
+        "neuro-cli>=21.6.23",
         "pyyaml>=5.4",
         "funcparserlib>=0.3",
         'dataclasses>=0.5; python_version<"3.7"',

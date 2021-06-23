@@ -16,6 +16,7 @@ from neuro_sdk import (
     FileStatus,
     FileStatusType,
     JobDescription,
+    NDJSONError,
     ResourceNotFound,
 )
 from operator import attrgetter, itemgetter
@@ -1205,7 +1206,7 @@ class APIStorage(Storage):
         ) as resp:
             async for line in resp.content:
                 bake_data = json.loads(line)
-                if "error" in bake_data:
+                if not self._check_ndjson(bake_data, skip=True):
                     continue
                 bake = _bake_from_api_json(prj, bake_data)
                 self._bakes_cache[bake_data["id"]] = bake_data
@@ -1303,7 +1304,6 @@ class APIStorage(Storage):
         await self._create_attempt(bake, 1, real_meta, when)
         return bake
 
-    @async_retried("Failed to fetch bake")
     async def fetch_bake(
         self, project: str, batch: str, when: datetime.datetime, suffix: str
     ) -> Bake:
@@ -1324,14 +1324,12 @@ class APIStorage(Storage):
 
         raise ResourceNotFound
 
-    @async_retried("Failed to fetch bake by id")
     async def fetch_bake_by_id(self, project: str, bake_id: str) -> Bake:
         batch, whenstr, suffix = bake_id.split("_")
         when = datetime.datetime.fromisoformat(whenstr)
 
         return await self.fetch_bake(project, batch, when, "")
 
-    @async_retried("Failed to fetch bakes by name")
     async def fetch_bake_by_name(self, project: str, name: str) -> Bake:
         prj = await self._get_project(project)
         url = self._base_url / "api/v1/flow/bakes/by_name"
@@ -1405,7 +1403,6 @@ class APIStorage(Storage):
             payload = await resp.json()
             return cast(Dict[str, Any], payload)
 
-    @async_retried("Failed to fetch configs")
     async def fetch_config(self, bake: Bake, filename: str) -> str:
         # filename is config id actually
         ret = await self._get_config(filename)
@@ -1511,14 +1508,12 @@ class APIStorage(Storage):
             self._attempts_cache[attempt_data["id"]] = attempt_data
             return attempt_data
 
-    @async_retried("Failed to find attempt")
     async def find_attempt(
         self, bake: Bake, attempt_no: int = -1, force_no_cache: bool = False
     ) -> Attempt:
         attempt_data = await self._find_attempt_data(bake, attempt_no, force_no_cache)
         return _attempt_from_api_json(bake, attempt_data)
 
-    @async_retried("Failed to fetch attempt")
     async def fetch_attempt(
         self, attempt: Attempt
     ) -> Tuple[Dict[FullID, StartedTask], Dict[FullID, FinishedTask]]:
@@ -1540,6 +1535,7 @@ class APIStorage(Storage):
         ) as resp:
             async for line in resp.content:
                 task_data = json.loads(line)
+                self._check_ndjson(task_data)
                 full_id = _id_from_json(task_data["yaml_id"])
                 statuses = _parse_statuses(task_data["statuses"])
                 status = statuses[-1]["status"]
@@ -1897,10 +1893,10 @@ class APIStorage(Storage):
             auth=auth,
         ) as resp:
             async for line in resp.content:
+                self._check_ndjson(line)
                 image_data = json.loads(line)
                 yield BakeImage.from_primitive(image_data)
 
-    @async_retried("Failed to get bake image")
     async def get_bake_image(self, bake: Bake, ref: str) -> BakeImage:
         bake_data = await self._find_bake_data(bake)
 
@@ -1973,6 +1969,14 @@ class APIStorage(Storage):
             data["when"] = _now().isoformat()
 
         await self._write_file(url, json.dumps(data), overwrite=overwrite)
+
+    def _check_ndjson(self, data: Dict[str, Any], *, skip: bool = False) -> bool:
+        if "error" in data:
+            if skip:
+                return False
+            else:
+                raise NDJSONError(data["error"])
+        return True
 
 
 def _now() -> datetime.datetime:
