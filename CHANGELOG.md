@@ -6,6 +6,16 @@
 [comment]: # (towncrier release notes start)
 
 
+Neuro_Flow 21.6.23 (2021-6-23)
+==============================
+
+Features
+--------
+
+
+- Implement retry on NDJSON errors ([#493](https://github.com/neuro-inc/neuro-flow/issues/493))
+
+
 Neuro_Flow 21.6.18.1 (2021-6-18)
 ================================
 
