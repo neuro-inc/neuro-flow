@@ -1893,8 +1893,8 @@ class APIStorage(Storage):
             auth=auth,
         ) as resp:
             async for line in resp.content:
-                self._check_ndjson(line)
                 image_data = json.loads(line)
+                self._check_ndjson(image_data)
                 yield BakeImage.from_primitive(image_data)
 
     async def get_bake_image(self, bake: Bake, ref: str) -> BakeImage:
