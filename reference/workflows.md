@@ -16,5 +16,5 @@ Here's an example of a typical job:
 
 ### _Batch_ workflows
 
-[_Batch_](batch-workflow-syntax.md) workflows serve for orchestration of a set of remote tasks that depend on each other. _Batch_ workflows are executed by the main job that manages workflow graphs by spawning required jobs, waiting for their results, and starting dependent tasks when all of their requirements are satisfied.
+[_Batch_](batch-workflow-syntax.md) workflows serve for orchestration of a set of remote tasks that depend on each other. _Batch_ workflows are executed by the main job that manages workflow graphs by spawning required jobs, waiting for their results, and starting dependent tasks when all of their requirements are satisfied. When possible, operations inside the batch runner will be re-ran on failing to ensure maximum batch stability.
 
