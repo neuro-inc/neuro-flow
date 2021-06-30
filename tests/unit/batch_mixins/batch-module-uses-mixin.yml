@@ -1,0 +1,5 @@
+kind: batch
+tasks:
+- id: task_1
+  mixins: [basic]
+  bash: echo abc

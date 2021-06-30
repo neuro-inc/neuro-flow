@@ -9,7 +9,7 @@ import json
 import re
 import shlex
 import sys
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 from datetime import timedelta
 from functools import lru_cache
 from neuro_sdk import Client
@@ -32,7 +32,7 @@ from typing import (
     Union,
     cast,
 )
-from typing_extensions import Annotated
+from typing_extensions import Annotated, Protocol
 from yarl import URL
 
 from neuro_flow import ast
@@ -69,10 +69,6 @@ class NotAvailable(LookupError):
 
 
 class UnknownJob(KeyError):
-    pass
-
-
-class UnknownMixin(KeyError):
     pass
 
 
@@ -1130,29 +1126,57 @@ def check_module_call_is_local(action_name: str, call_ast: ast.BaseModuleCall) -
         )
 
 
-_MergeBase = TypeVar("_MergeBase", bound=ast.WithSpecifiedFields)
+class MixinApplyTarget(Protocol):
+    @property
+    def mixins(self) -> Optional[Sequence[StrExpr]]:
+        ...
+
+    @property
+    def _specified_fields(self) -> AbstractSet[str]:
+        ...
 
 
-def _merge(base: _MergeBase, mixin: ast.WithSpecifiedFields) -> _MergeBase:
-    for field in mixin._specified_fields:
-        field_present = field in base._specified_fields
-        base_value = getattr(base, field)
-        mixin_value = getattr(mixin, field)
-        merge_supported = isinstance(mixin_value, BaseSequenceExpr) or isinstance(
-            mixin_value, BaseMappingExpr
-        )
-        if not field_present or (base_value is None and merge_supported):
-            base = replace(
-                base,
-                **{field: mixin_value},
-                _specified_fields=base._specified_fields | {field},
+_MixinApplyTarget = TypeVar("_MixinApplyTarget", bound=MixinApplyTarget)
+
+
+async def apply_mixins(
+    base: _MixinApplyTarget, mixins: Mapping[str, ast.WithSpecifiedFields]
+) -> _MixinApplyTarget:
+    if base.mixins is None:
+        return base
+    for mixin_expr in reversed(base.mixins):
+        mixin_name = await mixin_expr.eval(EMPTY_ROOT)
+        try:
+            mixin = mixins[mixin_name]
+        except KeyError:
+            raise EvalError(
+                f"Unknown mixin '{mixin_name}'",
+                start=mixin_expr.start,
+                end=mixin_expr.end,
             )
-        if isinstance(mixin_value, BaseSequenceExpr):
-            assert isinstance(base_value, BaseSequenceExpr)
-            base = replace(base, **{field: ConcatSequenceExpr(base_value, mixin_value)})
-        if isinstance(mixin_value, BaseMappingExpr):
-            assert isinstance(base_value, BaseMappingExpr)
-            base = replace(base, **{field: MergeMappingsExpr(base_value, mixin_value)})
+        for field in mixin._specified_fields:
+            field_present = field in base._specified_fields
+            base_value = getattr(base, field)
+            mixin_value = getattr(mixin, field)
+            merge_supported = isinstance(mixin_value, BaseSequenceExpr) or isinstance(
+                mixin_value, BaseMappingExpr
+            )
+            if not field_present or (base_value is None and merge_supported):
+                base = replace(
+                    base,
+                    **{field: mixin_value},
+                    _specified_fields=base._specified_fields | {field},
+                )
+            if isinstance(mixin_value, BaseSequenceExpr):
+                assert isinstance(base_value, BaseSequenceExpr)
+                base = replace(
+                    base, **{field: ConcatSequenceExpr(base_value, mixin_value)}
+                )
+            if isinstance(mixin_value, BaseMappingExpr):
+                assert isinstance(base_value, BaseMappingExpr)
+                base = replace(
+                    base, **{field: MergeMappingsExpr(base_value, mixin_value)}
+                )
     return base
 
 
@@ -1201,28 +1225,14 @@ class RunningLiveFlow:
         # Simple shortcut
         return (await self.get_meta(job_id)).multi
 
-    def _get_mixin_ast(self, mixin_name: str) -> ast.JobMixin:
-        if self._ast_flow.mixins is None:
-            raise UnknownMixin(mixin_name)
-        try:
-            return self._ast_flow.mixins[mixin_name]
-        except KeyError:
-            raise UnknownMixin(mixin_name)
-
     async def _get_job_ast(
         self, job_id: str
     ) -> Union[ast.Job, ast.JobActionCall, ast.JobModuleCall]:
         try:
-            result_ast = self._ast_flow.jobs[job_id]
-            if not isinstance(result_ast, ast.Job):
-                return result_ast
-            mixins: Sequence[StrExpr] = []
-            if result_ast.mixins is not None:
-                mixins = result_ast.mixins
-            for mixin in mixins:
-                mixin_ast = self._get_mixin_ast(await mixin.eval(EMPTY_ROOT))
-                result_ast = _merge(result_ast, mixin_ast)
-            return result_ast
+            base = self._ast_flow.jobs[job_id]
+            if isinstance(base, ast.Job):
+                base = await apply_mixins(base, self._ast_flow.mixins or {})
+            return base
         except KeyError:
             raise UnknownJob(job_id)
 
@@ -1439,6 +1449,11 @@ class EarlyBatch:
 
     @property
     @abstractmethod
+    def mixins(self) -> Optional[Mapping[str, ast.TaskMixin]]:
+        pass
+
+    @property
+    @abstractmethod
     def early_images(self) -> Mapping[str, EarlyImageCtx]:
         pass
 
@@ -1524,18 +1539,29 @@ class EarlyBatch:
         )  # Already checked
 
         await validate_action_call(prep_task.call, prep_task.action.inputs)
-        tasks = await EarlyTaskGraphBuilder(self._cl, prep_task.action.tasks).build()
+
+        if isinstance(prep_task, EarlyModuleCall):
+            parent_ctx: Type[RootABC] = self._task_context_class()
+            mixins = self.mixins
+        else:
+            parent_ctx = EmptyRoot
+            mixins = None
+
+        tasks = await EarlyTaskGraphBuilder(
+            self._cl, prep_task.action.tasks, mixins
+        ).build()
         early_images = await setup_images_early(
             self._flow_ctx, self._flow_ctx, prep_task.action.images
         )
 
-        if isinstance(prep_task, EarlyModuleCall):
-            parent_ctx: Type[RootABC] = self._task_context_class()
-        else:
-            parent_ctx = EmptyRoot
-
         return EarlyBatchAction(
-            self._flow_ctx, tasks, early_images, self._cl, prep_task.action, parent_ctx
+            self._flow_ctx,
+            tasks,
+            early_images,
+            self._cl,
+            prep_task.action,
+            parent_ctx,
+            mixins,
         )
 
     async def get_local_early(self, real_id: str) -> "EarlyLocalCall":
@@ -1556,15 +1582,21 @@ class EarlyBatchAction(EarlyBatch):
         config_loader: ConfigLoader,
         action: ast.BatchAction,
         parent_ctx_class: Type[RootABC],
+        mixins: Optional[Mapping[str, ast.TaskMixin]],
     ):
         super().__init__(ctx, tasks, config_loader)
         self._action = action
         self._early_images = early_images
         self._parent_ctx_class = parent_ctx_class
+        self._mixins = mixins
 
     @property
     def early_images(self) -> Mapping[str, EarlyImageCtx]:
         return self._early_images
+
+    @property
+    def mixins(self) -> Optional[Mapping[str, ast.TaskMixin]]:
+        return self._mixins
 
     def get_image_ast(self, image_id: str) -> ast.Image:
         if self._action.images is None:
@@ -1603,7 +1635,7 @@ class EarlyBatchAction(EarlyBatch):
         return errors
 
 
-class RunningBatchBase(Generic[_T], EarlyBatch):
+class RunningBatchBase(Generic[_T], EarlyBatch, ABC):
     _tasks: Mapping[str, "BasePrepTask"]
 
     def __init__(
@@ -1791,9 +1823,11 @@ class RunningBatchBase(Generic[_T], EarlyBatch):
         if isinstance(prep_task, PrepModuleCall):
             parent_ctx: RootABC = ctx
             defaults = self._defaults
+            mixins = self.mixins
         else:
             parent_ctx = EMPTY_ROOT
             defaults = DefaultsConf()
+            mixins = None
 
         return await RunningBatchActionFlow.create(
             flow_ctx=self._flow_ctx,
@@ -1809,6 +1843,7 @@ class RunningBatchBase(Generic[_T], EarlyBatch):
             else None,
             config_loader=self._cl,
             defaults=defaults,
+            mixins=mixins,
         )
 
     async def get_local(self, real_id: str, needs: NeedsCtx) -> LocalTask:
@@ -1843,7 +1878,14 @@ class RunningBatchFlow(RunningBatchBase[BatchContext]):
         ast_flow: ast.BatchFlow,
     ):
         super().__init__(
-            ctx, ctx, ctx.tags, tasks, config_loader, defaults, bake_id, local_info
+            ctx,
+            ctx,
+            ctx.tags,
+            tasks,
+            config_loader,
+            defaults,
+            bake_id,
+            local_info,
         )
         self._ast_flow = ast_flow
 
@@ -1851,6 +1893,10 @@ class RunningBatchFlow(RunningBatchBase[BatchContext]):
         if self._ast_flow.images is None:
             raise KeyError(image_id)
         return self._ast_flow.images[image_id]
+
+    @property
+    def mixins(self) -> Optional[Mapping[str, ast.TaskMixin]]:
+        return self._ast_flow.mixins
 
     @property
     def project_id(self) -> str:
@@ -1928,7 +1974,7 @@ class RunningBatchFlow(RunningBatchBase[BatchContext]):
         )
 
         tasks = await TaskGraphBuilder(
-            batch_ctx, config_loader, cache_conf, ast_flow.tasks
+            batch_ctx, config_loader, cache_conf, ast_flow.tasks, ast_flow.mixins
         ).build()
 
         return RunningBatchFlow(
@@ -1948,6 +1994,7 @@ class RunningBatchActionFlow(RunningBatchBase[BatchActionContext[RootABC]]):
         action: ast.BatchAction,
         bake_id: str,
         local_info: Optional[LocallyPreparedInfo],
+        mixins: Optional[Mapping[str, ast.TaskMixin]],
     ):
         super().__init__(
             flow_ctx,
@@ -1960,11 +2007,16 @@ class RunningBatchActionFlow(RunningBatchBase[BatchActionContext[RootABC]]):
             local_info,
         )
         self._action = action
+        self._mixins = mixins
 
     def get_image_ast(self, image_id: str) -> ast.Image:
         if self._action.images is None:
             raise KeyError(image_id)
         return self._action.images[image_id]
+
+    @property
+    def mixins(self) -> Optional[Mapping[str, ast.TaskMixin]]:
+        return self._mixins
 
     async def calc_outputs(self, task_results: NeedsCtx) -> DepCtx:
         if any(i.result == TaskStatus.FAILED for i in task_results.values()):
@@ -1995,6 +2047,7 @@ class RunningBatchActionFlow(RunningBatchBase[BatchActionContext[RootABC]]):
         bake_id: str,
         local_info: Optional[LocallyPreparedInfo],
         defaults: DefaultsConf = DefaultsConf(),
+        mixins: Optional[Mapping[str, ast.TaskMixin]] = None,
     ) -> "RunningBatchActionFlow":
         step_1_ctx = BatchActionContextStep1(
             inputs=inputs,
@@ -2021,7 +2074,7 @@ class RunningBatchActionFlow(RunningBatchBase[BatchActionContext[RootABC]]):
         )
 
         tasks = await TaskGraphBuilder(
-            action_context, config_loader, cache, ast_action.tasks
+            action_context, config_loader, cache, ast_action.tasks, mixins
         ).build()
 
         return RunningBatchActionFlow(
@@ -2034,6 +2087,7 @@ class RunningBatchActionFlow(RunningBatchBase[BatchActionContext[RootABC]]):
             ast_action,
             bake_id,
             local_info,
+            mixins,
         )
 
 
@@ -2334,9 +2388,11 @@ class EarlyTaskGraphBuilder:
         self,
         config_loader: ConfigLoader,
         ast_tasks: Sequence[Union[ast.Task, ast.TaskActionCall, ast.TaskModuleCall]],
+        mixins: Optional[Mapping[str, ast.TaskMixin]],
     ):
         self._cl = config_loader
         self._ast_tasks = ast_tasks
+        self._mixins = mixins or {}
 
     async def _extend_base(
         self,
@@ -2394,6 +2450,7 @@ class EarlyTaskGraphBuilder:
                 base = await self._extend_base(base, ast_task)
 
                 if isinstance(ast_task, ast.Task):
+                    ast_task = await apply_mixins(ast_task, self._mixins)
                     prep_tasks[real_id] = base.to_task(ast_task)
                 elif isinstance(ast_task, ast.TaskModuleCall):
                     action_name = await ast_task.module.eval(EMPTY_ROOT)
@@ -2524,8 +2581,9 @@ class TaskGraphBuilder(EarlyTaskGraphBuilder):
         config_loader: ConfigLoader,
         default_cache: CacheConf,
         ast_tasks: Sequence[Union[ast.Task, ast.TaskActionCall, ast.TaskModuleCall]],
+        mixins: Optional[Mapping[str, ast.TaskMixin]],
     ):
-        super().__init__(config_loader, ast_tasks)
+        super().__init__(config_loader, ast_tasks, mixins)
         self._ctx = ctx
         self._default_cache = default_cache
 

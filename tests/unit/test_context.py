@@ -751,7 +751,7 @@ async def test_job_with_mixins(live_config_loader: ConfigLoader) -> None:
     assert job.env == {
         "env1": "val1",
         "env2": "val2",
-        "env3": "val-mixin1-3",
+        "env3": "val-mixin2-3",
         "env4": "val-mixin2-4",
     }
 
@@ -952,5 +952,79 @@ async def test_batch_module_call_to_remote_invalid(
             r"is forbidden",
         ):
             await RunningBatchFlow.create(cl, "batch-module-remote-call", "bake-id")
+    finally:
+        await cl.close()
+
+
+async def test_batch_with_mixins(batch_config_loader: ConfigLoader) -> None:
+    flow = await RunningBatchFlow.create(batch_config_loader, "batch-mixin", "bake-id")
+    task = await flow.get_task((), "task-1", needs={}, state={})
+
+    assert task.image == "ubuntu"
+    assert task.preset == "cpu-micro"
+    assert task.cmd == "bash -euo pipefail -c 'echo abc'"
+
+    task = await flow.get_task(
+        (), "task-2", needs={"task-1": DepCtx(TaskStatus.SUCCEEDED, {})}, state={}
+    )
+    assert task.image == "ubuntu"
+    assert task.preset == "cpu-micro"
+    assert task.cmd == "bash -euo pipefail -c 'echo def'"
+
+
+async def test_batch_module_with_mixin(assets: pathlib.Path, client: Client) -> None:
+    ws = assets / "batch_mixins"
+    config_dir = ConfigDir(
+        workspace=ws,
+        config_dir=ws,
+    )
+    cl = BatchLocalCL(config_dir, client)
+    try:
+        flow = await RunningBatchFlow.create(cl, "batch-module-call", "bake-id")
+        module_flow = await flow.get_action("test", needs={})
+        task = await module_flow.get_task(("test",), "task_1", needs={}, state={})
+
+        assert task.image == "ubuntu"
+        assert task.preset == "cpu-micro"
+        assert task.cmd == "bash -euo pipefail -c 'echo abc'"
+    finally:
+        await cl.close()
+
+
+async def test_batch_action_no_access_to_mixin(
+    assets: pathlib.Path, client: Client
+) -> None:
+    ws = assets / "batch_mixins"
+    config_dir = ConfigDir(
+        workspace=ws,
+        config_dir=ws,
+    )
+    cl = BatchLocalCL(config_dir, client)
+    try:
+        flow = await RunningBatchFlow.create(cl, "batch-action-call", "bake-id")
+        with pytest.raises(
+            EvalError,
+            match=r"Unknown mixin 'basic'",
+        ):
+            await flow.get_action("test", needs={})
+
+    finally:
+        await cl.close()
+
+
+async def test_batch_task_with_no_image(assets: pathlib.Path, client: Client) -> None:
+    ws = assets / "batch_mixins"
+    config_dir = ConfigDir(
+        workspace=ws,
+        config_dir=ws,
+    )
+    cl = BatchLocalCL(config_dir, client)
+    try:
+        with pytest.raises(
+            EvalError,
+            match=r"Image for task test is not specified",
+        ):
+            await RunningBatchFlow.create(cl, "batch-task-no-image", "bake-id")
+
     finally:
         await cl.close()
