@@ -42,7 +42,7 @@ mixins:
 jobs:
   test_a:
     name: job-name
-    mixins: [ envs ]
+    inherits: [ envs ]
     image: ${{ images.image_a.ref }}
     preset: cpu-micro
     schedule_timeout: 1d2h3m4s

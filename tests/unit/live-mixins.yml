@@ -15,7 +15,7 @@ mixins:
 jobs:
   test:
     name: job-name
-    mixins: [ envs1, envs2, preset, image ]
+    inherits: [ envs1, envs2, preset, image ]
     env:
       env1: val1
       env2: val2

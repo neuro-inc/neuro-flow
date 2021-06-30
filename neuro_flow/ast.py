@@ -176,7 +176,7 @@ class Job(ExecUnit, WithSpecifiedFields, JobBase):
     browse: OptBoolExpr
     port_forward: Optional[BaseExpr[SequenceT]] = field(metadata={"allow_none": True})
     multi: SimpleOptBoolExpr
-    mixins: Optional[Sequence[StrExpr]] = field(metadata={"allow_none": True})
+    inherits: Optional[Sequence[StrExpr]] = field(metadata={"allow_none": True})
 
 
 class NeedsLevel(enum.Enum):
@@ -204,7 +204,7 @@ class TaskBase(Base):
 
 @dataclass(frozen=True)
 class Task(ExecUnit, WithSpecifiedFields, TaskBase):
-    mixins: Optional[Sequence[StrExpr]] = field(metadata={"allow_none": True})
+    inherits: Optional[Sequence[StrExpr]] = field(metadata={"allow_none": True})
 
 
 @dataclass(frozen=True)

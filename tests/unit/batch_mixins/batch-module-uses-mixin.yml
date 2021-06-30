@@ -1,5 +1,5 @@
 kind: batch
 tasks:
 - id: task_1
-  mixins: [basic]
+  inherits: [basic]
   bash: echo abc

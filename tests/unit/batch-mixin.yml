@@ -4,8 +4,8 @@ mixins:
     image: ubuntu
     preset: cpu-micro
 tasks:
-  - mixins: [basic]
+  - inherits: [basic]
     bash: echo abc
 
-  - mixins: [basic]
+  - inherits: [basic]
     bash: echo def

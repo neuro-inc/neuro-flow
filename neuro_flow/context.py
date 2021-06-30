@@ -1128,7 +1128,7 @@ def check_module_call_is_local(action_name: str, call_ast: ast.BaseModuleCall) -
 
 class MixinApplyTarget(Protocol):
     @property
-    def mixins(self) -> Optional[Sequence[StrExpr]]:
+    def inherits(self) -> Optional[Sequence[StrExpr]]:
         ...
 
     @property
@@ -1142,9 +1142,9 @@ _MixinApplyTarget = TypeVar("_MixinApplyTarget", bound=MixinApplyTarget)
 async def apply_mixins(
     base: _MixinApplyTarget, mixins: Mapping[str, ast.WithSpecifiedFields]
 ) -> _MixinApplyTarget:
-    if base.mixins is None:
+    if base.inherits is None:
         return base
-    for mixin_expr in reversed(base.mixins):
+    for mixin_expr in reversed(base.inherits):
         mixin_name = await mixin_expr.eval(EMPTY_ROOT)
         try:
             mixin = mixins[mixin_name]

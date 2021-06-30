@@ -724,7 +724,7 @@ JOB: Dict[str, Any] = {
     "port_forward": ExprOrSeq(PortPairExpr, port_pair_item),
     "multi": SimpleOptBoolExpr,
     "params": None,
-    "mixins": SimpleSeq(StrExpr),
+    "inherits": SimpleSeq(StrExpr),
 }
 
 JOB_ACTION_CALL = {
@@ -878,7 +878,7 @@ TASK_BASE = {
 TASK: Mapping[str, Any] = {
     **TASK_BASE,
     **EXEC_UNIT,
-    "mixins": SimpleSeq(StrExpr),
+    "inherits": SimpleSeq(StrExpr),
 }
 
 TASK_MIXIN: Mapping[str, Any] = {

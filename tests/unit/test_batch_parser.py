@@ -186,7 +186,7 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
                     "id",
                     "volumes",
                 },
-                mixins=None,
+                inherits=None,
                 id=OptIdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "test_a"),
                 title=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "Batch title"
@@ -314,7 +314,7 @@ def test_parse_seq(assets: pathlib.Path) -> None:
                 _start=Pos(2, 4, config_file),
                 _end=Pos(6, 2, config_file),
                 _specified_fields={"preset", "cmd", "image"},
-                mixins=None,
+                inherits=None,
                 id=OptIdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 needs=None,
@@ -364,7 +364,7 @@ def test_parse_seq(assets: pathlib.Path) -> None:
                 _start=Pos(6, 4, config_file),
                 _end=Pos(9, 0, config_file),
                 _specified_fields={"preset", "cmd", "image"},
-                mixins=None,
+                inherits=None,
                 id=OptIdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 needs=None,
@@ -445,7 +445,7 @@ def test_parse_needs(assets: pathlib.Path) -> None:
                 _start=Pos(2, 4, config_file),
                 _end=Pos(7, 2, config_file),
                 _specified_fields={"cmd", "image", "id", "preset"},
-                mixins=None,
+                inherits=None,
                 id=OptIdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "task_a"),
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 needs=None,
@@ -495,7 +495,7 @@ def test_parse_needs(assets: pathlib.Path) -> None:
                 _start=Pos(7, 4, config_file),
                 _end=Pos(11, 0, config_file),
                 _specified_fields={"needs", "image", "cmd", "preset"},
-                mixins=None,
+                inherits=None,
                 id=OptIdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 needs={
@@ -580,7 +580,7 @@ def test_parse_needs_dict(assets: pathlib.Path) -> None:
                 _start=Pos(2, 4, config_file),
                 _end=Pos(7, 2, config_file),
                 _specified_fields={"preset", "image", "cmd", "id"},
-                mixins=None,
+                inherits=None,
                 id=OptIdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "task_a"),
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 needs=None,
@@ -630,7 +630,7 @@ def test_parse_needs_dict(assets: pathlib.Path) -> None:
                 _start=Pos(7, 4, config_file),
                 _end=Pos(12, 0, config_file),
                 _specified_fields={"preset", "image", "cmd", "needs"},
-                mixins=None,
+                inherits=None,
                 id=OptIdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 needs={
@@ -717,7 +717,7 @@ def test_parse_matrix(assets: pathlib.Path) -> None:
                 _start=Pos(2, 4, config_file),
                 _end=Pos(14, 0, config_file),
                 _specified_fields={"strategy", "image", "cmd"},
-                mixins=None,
+                inherits=None,
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 image=OptStrExpr(
@@ -873,7 +873,7 @@ def test_parse_matrix_with_strategy(assets: pathlib.Path) -> None:
                 _start=Pos(8, 4, config_file),
                 _end=Pos(25, 2, config_file),
                 _specified_fields={"image", "strategy", "cmd", "cache"},
-                mixins=None,
+                inherits=None,
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 image=OptStrExpr(
@@ -979,7 +979,7 @@ def test_parse_matrix_with_strategy(assets: pathlib.Path) -> None:
                 Pos(25, 4, config_file),
                 Pos(28, 0, config_file),
                 _specified_fields={"id", "image", "cmd"},
-                mixins=None,
+                inherits=None,
                 id=OptIdExpr(
                     Pos(25, 8, config_file), Pos(25, 14, config_file), "simple"
                 ),
@@ -1141,7 +1141,7 @@ def test_parse_args(assets: pathlib.Path) -> None:
                     config_file,
                 ),
                 _specified_fields={"image", "cmd"},
-                mixins=None,
+                inherits=None,
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 image=OptStrExpr(
@@ -1220,7 +1220,7 @@ def test_parse_enable(assets: pathlib.Path) -> None:
                 _start=Pos(2, 4, config_file),
                 _end=Pos(6, 2, config_file),
                 _specified_fields={"cmd", "id", "preset", "image"},
-                mixins=None,
+                inherits=None,
                 id=OptIdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "task_a"),
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 needs=None,
@@ -1270,7 +1270,7 @@ def test_parse_enable(assets: pathlib.Path) -> None:
                 _start=Pos(6, 4, config_file),
                 _end=Pos(11, 0, config_file),
                 _specified_fields={"enable", "image", "needs", "cmd", "preset"},
-                mixins=None,
+                inherits=None,
                 id=OptIdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 needs={
@@ -1403,8 +1403,8 @@ def test_parse_mixin(assets: pathlib.Path) -> None:
             ast.Task(
                 _start=Pos(6, 4, config_file),
                 _end=Pos(9, 2, config_file),
-                _specified_fields={"mixins", "cmd"},
-                mixins=[
+                _specified_fields={"inherits", "cmd"},
+                inherits=[
                     StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "basic")
                 ],
                 id=OptIdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
@@ -1451,8 +1451,8 @@ def test_parse_mixin(assets: pathlib.Path) -> None:
             ast.Task(
                 _start=Pos(9, 4, config_file),
                 _end=Pos(11, 0, config_file),
-                _specified_fields={"mixins", "cmd"},
-                mixins=[
+                _specified_fields={"inherits", "cmd"},
+                inherits=[
                     StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "basic")
                 ],
                 id=OptIdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),

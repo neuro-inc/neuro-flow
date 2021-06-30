@@ -41,5 +41,5 @@ def check_mixin(
 
 
 if __name__ == "__main__":
-    check_mixin(ast.Job, ast.JobMixin, {"mixins"})
-    check_mixin(ast.Task, ast.TaskMixin, {"mixins", "id"})
+    check_mixin(ast.Job, ast.JobMixin, allowed_extra_fields={"inherits"})
+    check_mixin(ast.Task, ast.TaskMixin, allowed_extra_fields={"inherits", "id"})
