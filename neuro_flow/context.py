@@ -38,13 +38,18 @@ from yarl import URL
 from neuro_flow import ast
 from neuro_flow.config_loader import ActionSpec, ConfigLoader
 from neuro_flow.expr import (
+    BaseMappingExpr,
+    BaseSequenceExpr,
+    ConcatSequenceExpr,
     EnableExpr,
     EvalError,
     Expr,
     IdExpr,
     LiteralT,
+    MergeMappingsExpr,
     OptStrExpr,
     RootABC,
+    StrExpr,
     TypeT,
 )
 from neuro_flow.types import AlwaysT, FullID, LocalPath, RemotePath, TaskStatus
@@ -64,6 +69,10 @@ class NotAvailable(LookupError):
 
 
 class UnknownJob(KeyError):
+    pass
+
+
+class UnknownMixin(KeyError):
     pass
 
 
@@ -1121,6 +1130,32 @@ def check_module_call_is_local(action_name: str, call_ast: ast.BaseModuleCall) -
         )
 
 
+_MergeBase = TypeVar("_MergeBase", bound=ast.WithSpecifiedFields)
+
+
+def _merge(base: _MergeBase, mixin: ast.WithSpecifiedFields) -> _MergeBase:
+    for field in mixin._specified_fields:
+        field_present = field in base._specified_fields
+        base_value = getattr(base, field)
+        mixin_value = getattr(mixin, field)
+        merge_supported = isinstance(mixin_value, BaseSequenceExpr) or isinstance(
+            mixin_value, BaseMappingExpr
+        )
+        if not field_present or (base_value is None and merge_supported):
+            base = replace(
+                base,
+                **{field: mixin_value},
+                _specified_fields=base._specified_fields | {field},
+            )
+        if isinstance(mixin_value, BaseSequenceExpr):
+            assert isinstance(base_value, BaseSequenceExpr)
+            base = replace(base, **{field: ConcatSequenceExpr(base_value, mixin_value)})
+        if isinstance(mixin_value, BaseMappingExpr):
+            assert isinstance(base_value, BaseMappingExpr)
+            base = replace(base, **{field: MergeMappingsExpr(base_value, mixin_value)})
+    return base
+
+
 class RunningLiveFlow:
     _ast_flow: ast.LiveFlow
     _ctx: LiveContext
@@ -1166,11 +1201,28 @@ class RunningLiveFlow:
         # Simple shortcut
         return (await self.get_meta(job_id)).multi
 
-    def _get_job_ast(
+    def _get_mixin_ast(self, mixin_name: str) -> ast.JobMixin:
+        if self._ast_flow.mixins is None:
+            raise UnknownMixin(mixin_name)
+        try:
+            return self._ast_flow.mixins[mixin_name]
+        except KeyError:
+            raise UnknownMixin(mixin_name)
+
+    async def _get_job_ast(
         self, job_id: str
     ) -> Union[ast.Job, ast.JobActionCall, ast.JobModuleCall]:
         try:
-            return self._ast_flow.jobs[job_id]
+            result_ast = self._ast_flow.jobs[job_id]
+            if not isinstance(result_ast, ast.Job):
+                return result_ast
+            mixins: Sequence[StrExpr] = []
+            if result_ast.mixins is not None:
+                mixins = result_ast.mixins
+            for mixin in mixins:
+                mixin_ast = self._get_mixin_ast(await mixin.eval(EMPTY_ROOT))
+                result_ast = _merge(result_ast, mixin_ast)
+            return result_ast
         except KeyError:
             raise UnknownJob(job_id)
 
@@ -1192,7 +1244,7 @@ class RunningLiveFlow:
         return action_ast
 
     async def get_meta(self, job_id: str) -> JobMeta:
-        job_ast = self._get_job_ast(job_id)
+        job_ast = await self._get_job_ast(job_id)
 
         if isinstance(job_ast, (ast.JobActionCall, ast.JobModuleCall)):
             action_ast = await self._get_action_ast(job_ast)
@@ -1212,7 +1264,7 @@ class RunningLiveFlow:
         assert not await self.is_multi(
             job_id
         ), "Use get_multi_job() for multi jobs instead of get_job()"
-        job_ast = self._get_job_ast(job_id)
+        job_ast = await self._get_job_ast(job_id)
         ctx = self._ctx.to_job_ctx(
             params=await setup_params_ctx(self._ctx, params, job_ast.params)
         )
@@ -1233,7 +1285,7 @@ class RunningLiveFlow:
             args_str = ""
         else:
             args_str = " ".join(shlex.quote(arg) for arg in args)
-        job_ast = self._get_job_ast(job_id)
+        job_ast = await self._get_job_ast(job_id)
         ctx = self._ctx.to_multi_job_ctx(
             multi=MultiCtx(suffix=suffix, args=args_str),
             params=await setup_params_ctx(self._ctx, params, job_ast.params),
@@ -1248,7 +1300,7 @@ class RunningLiveFlow:
         defaults: DefaultsConf,
         job_id: str,
     ) -> Job:
-        job = self._get_job_ast(job_id)
+        job = await self._get_job_ast(job_id)
         if isinstance(job, ast.JobActionCall):
             action_ast = await self._get_action_ast(job)
             ctx = LiveActionContext(

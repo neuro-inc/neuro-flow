@@ -84,6 +84,7 @@ async def test_env_from_job(live_config_loader: ConfigLoader) -> None:
         "global_b": "val-b",
         "local_a": "val-1",
         "local_b": "val-2",
+        "local_c": "val-mixin-3",
     }
 
 
@@ -738,6 +739,21 @@ async def test_job_with_live_call_to_remote_module_invalid(
         match=r"Module call to non local action 'gh:username/repo@tag' is forbidden",
     ):
         await flow.get_job("test", {})
+
+
+async def test_job_with_mixins(live_config_loader: ConfigLoader) -> None:
+    flow = await RunningLiveFlow.create(live_config_loader, "live-mixins")
+    job = await flow.get_job("test", {})
+
+    assert job.id == "test"
+    assert job.image == "ubuntu"
+    assert job.preset == "cpu-micro"
+    assert job.env == {
+        "env1": "val1",
+        "env2": "val2",
+        "env3": "val-mixin1-3",
+        "env4": "val-mixin2-4",
+    }
 
 
 async def test_job_with_params(live_config_loader: ConfigLoader) -> None:

@@ -1,0 +1,20 @@
+kind: live
+mixins:
+  envs1:
+    env:
+      env2: val-mixin1-2
+      env3: val-mixin1-3
+  envs2:
+    env:
+      env3: val-mixin2-3
+      env4: val-mixin2-4
+  preset:
+    preset: cpu-micro
+jobs:
+  test:
+    name: job-name
+    mixins: [ envs1, envs2, preset ]
+    image: ubuntu
+    env:
+      env1: val1
+      env2: val2
