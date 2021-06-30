@@ -708,12 +708,8 @@ EXEC_UNIT = {
     "pass_config": OptBoolExpr,
 }
 
-EXEC_UNIT_MIXIN: Dict[str, Any] = {
+JOB_MIXIN = {
     **EXEC_UNIT,
-    "image": OptStrExpr,
-}
-
-JOB_BASE = {
     "detach": OptBoolExpr,
     "browse": OptBoolExpr,
     "port_forward": ExprOrSeq(PortPairExpr, port_pair_item),
@@ -721,14 +717,13 @@ JOB_BASE = {
     "params": None,
 }
 
-JOB_MIXIN = {
-    **JOB_BASE,
-    **EXEC_UNIT_MIXIN,
-}
-
 JOB: Dict[str, Any] = {
-    **JOB_BASE,
     **EXEC_UNIT,
+    "detach": OptBoolExpr,
+    "browse": OptBoolExpr,
+    "port_forward": ExprOrSeq(PortPairExpr, port_pair_item),
+    "multi": SimpleOptBoolExpr,
+    "params": None,
     "mixins": SimpleSeq(StrExpr),
 }
 
@@ -834,18 +829,30 @@ def parse_jobs(
     return ret
 
 
-def parse_mixin(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.JobMixin:
-    return parse_dict(
-        ctor,
-        node,
-        JOB_MIXIN,
-        ast.JobMixin,
-    )
+def parse_mixin(
+    ctor: FlowLoader, node: yaml.MappingNode
+) -> Union[ast.JobMixin, ast.TaskMixin]:
+    if ctor._kind == ast.FlowKind.LIVE:
+        return parse_dict(
+            ctor,
+            node,
+            JOB_MIXIN,
+            ast.JobMixin,
+        )
+    elif ctor._kind == ast.FlowKind.BATCH:
+        return parse_dict(
+            ctor,
+            node,
+            TASK_MIXIN,
+            ast.TaskMixin,
+        )
+    else:
+        raise ValueError(f"Unknown kind {ctor._kind}")
 
 
 def parse_mixins(
-    ctor: BaseConstructor, node: yaml.MappingNode
-) -> Dict[str, ast.JobMixin]:
+    ctor: FlowLoader, node: yaml.MappingNode
+) -> Dict[str, Union[ast.JobMixin, ast.TaskMixin]]:
     ret = {}
     for k, v in node.value:
         key = ctor.construct_id(k)
@@ -871,6 +878,15 @@ TASK_BASE = {
 TASK: Mapping[str, Any] = {
     **TASK_BASE,
     **EXEC_UNIT,
+    "mixins": SimpleSeq(StrExpr),
+}
+
+TASK_MIXIN: Mapping[str, Any] = {
+    **EXEC_UNIT,
+    "needs": None,
+    "strategy": None,
+    "enable": EnableExpr,
+    "cache": None,
 }
 
 
@@ -927,6 +943,7 @@ def parse_task(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Base:
         ast.Base,
         preprocess=select_task_or_action_or_module,
         find_res_type=find_task_type,
+        ret_name="Task",
     )
 
 

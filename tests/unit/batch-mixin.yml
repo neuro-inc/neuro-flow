@@ -1,0 +1,11 @@
+kind: batch
+mixins:
+  basic:
+    image: ubuntu
+    preset: cpu-micro
+tasks:
+  - mixins: [basic]
+    bash: echo abc
+
+  - mixins: [basic]
+    bash: echo def

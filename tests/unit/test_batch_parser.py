@@ -163,6 +163,7 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
             max_parallel=OptIntExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), 10),
             cache=None,
         ),
+        mixins=None,
         tasks=[
             ast.Task(
                 _start=Pos(35, 4, config_file),
@@ -185,6 +186,7 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
                     "id",
                     "volumes",
                 },
+                mixins=None,
                 id=OptIdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "test_a"),
                 title=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "Batch title"
@@ -306,11 +308,13 @@ def test_parse_seq(assets: pathlib.Path) -> None:
         images=None,
         volumes=None,
         defaults=None,
+        mixins=None,
         tasks=[
             ast.Task(
                 _start=Pos(2, 4, config_file),
                 _end=Pos(6, 2, config_file),
                 _specified_fields={"preset", "cmd", "image"},
+                mixins=None,
                 id=OptIdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 needs=None,
@@ -360,6 +364,7 @@ def test_parse_seq(assets: pathlib.Path) -> None:
                 _start=Pos(6, 4, config_file),
                 _end=Pos(9, 0, config_file),
                 _specified_fields={"preset", "cmd", "image"},
+                mixins=None,
                 id=OptIdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 needs=None,
@@ -434,11 +439,13 @@ def test_parse_needs(assets: pathlib.Path) -> None:
         images=None,
         volumes=None,
         defaults=None,
+        mixins=None,
         tasks=[
             ast.Task(
                 _start=Pos(2, 4, config_file),
                 _end=Pos(7, 2, config_file),
                 _specified_fields={"cmd", "image", "id", "preset"},
+                mixins=None,
                 id=OptIdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "task_a"),
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 needs=None,
@@ -488,6 +495,7 @@ def test_parse_needs(assets: pathlib.Path) -> None:
                 _start=Pos(7, 4, config_file),
                 _end=Pos(11, 0, config_file),
                 _specified_fields={"needs", "image", "cmd", "preset"},
+                mixins=None,
                 id=OptIdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 needs={
@@ -566,11 +574,13 @@ def test_parse_needs_dict(assets: pathlib.Path) -> None:
         images=None,
         volumes=None,
         defaults=None,
+        mixins=None,
         tasks=[
             ast.Task(
                 _start=Pos(2, 4, config_file),
                 _end=Pos(7, 2, config_file),
                 _specified_fields={"preset", "image", "cmd", "id"},
+                mixins=None,
                 id=OptIdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "task_a"),
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 needs=None,
@@ -620,6 +630,7 @@ def test_parse_needs_dict(assets: pathlib.Path) -> None:
                 _start=Pos(7, 4, config_file),
                 _end=Pos(12, 0, config_file),
                 _specified_fields={"preset", "image", "cmd", "needs"},
+                mixins=None,
                 id=OptIdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 needs={
@@ -700,11 +711,13 @@ def test_parse_matrix(assets: pathlib.Path) -> None:
         images=None,
         volumes=None,
         defaults=None,
+        mixins=None,
         tasks=[
             ast.Task(
                 _start=Pos(2, 4, config_file),
                 _end=Pos(14, 0, config_file),
                 _specified_fields={"strategy", "image", "cmd"},
+                mixins=None,
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 image=OptStrExpr(
@@ -854,11 +867,13 @@ def test_parse_matrix_with_strategy(assets: pathlib.Path) -> None:
                 ),
             ),
         ),
+        mixins=None,
         tasks=[
             ast.Task(
                 _start=Pos(8, 4, config_file),
                 _end=Pos(25, 2, config_file),
                 _specified_fields={"image", "strategy", "cmd", "cache"},
+                mixins=None,
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 image=OptStrExpr(
@@ -964,6 +979,7 @@ def test_parse_matrix_with_strategy(assets: pathlib.Path) -> None:
                 Pos(25, 4, config_file),
                 Pos(28, 0, config_file),
                 _specified_fields={"id", "image", "cmd"},
+                mixins=None,
                 id=OptIdExpr(
                     Pos(25, 8, config_file), Pos(25, 14, config_file), "simple"
                 ),
@@ -1111,6 +1127,7 @@ def test_parse_args(assets: pathlib.Path) -> None:
             ),
             cache=None,
         ),
+        mixins=None,
         tasks=[
             ast.Task(
                 _start=Pos(
@@ -1124,6 +1141,7 @@ def test_parse_args(assets: pathlib.Path) -> None:
                     config_file,
                 ),
                 _specified_fields={"image", "cmd"},
+                mixins=None,
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 image=OptStrExpr(
@@ -1196,11 +1214,13 @@ def test_parse_enable(assets: pathlib.Path) -> None:
         images=None,
         volumes=None,
         defaults=None,
+        mixins=None,
         tasks=[
             ast.Task(
                 _start=Pos(2, 4, config_file),
                 _end=Pos(6, 2, config_file),
                 _specified_fields={"cmd", "id", "preset", "image"},
+                mixins=None,
                 id=OptIdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "task_a"),
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 needs=None,
@@ -1250,6 +1270,7 @@ def test_parse_enable(assets: pathlib.Path) -> None:
                 _start=Pos(6, 4, config_file),
                 _end=Pos(11, 0, config_file),
                 _specified_fields={"enable", "image", "needs", "cmd", "preset"},
+                mixins=None,
                 id=OptIdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 needs={
@@ -1272,6 +1293,182 @@ def test_parse_enable(assets: pathlib.Path) -> None:
                 ),
                 cmd=OptBashExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "echo abc"
+                ),
+                workdir=OptRemotePathExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                env=None,
+                volumes=None,
+                tags=None,
+                life_span=OptTimeDeltaExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                http_port=OptIntExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                http_auth=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                pass_config=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                strategy=None,
+                cache=None,
+                enable=EnableExpr(
+                    Pos(0, 0, config_file),
+                    Pos(0, 0, config_file),
+                    "${{ success() }}",
+                ),
+            ),
+        ],
+    )
+
+
+def test_parse_mixin(assets: pathlib.Path) -> None:
+    workspace = assets
+    config_file = workspace / "batch-mixin.yml"
+    flow = parse_batch(workspace, config_file)
+    assert flow == ast.BatchFlow(
+        Pos(0, 0, config_file),
+        Pos(11, 0, config_file),
+        id=SimpleOptIdExpr(
+            Pos(0, 0, config_file),
+            Pos(0, 0, config_file),
+            None,
+        ),
+        kind=ast.FlowKind.BATCH,
+        title=SimpleOptStrExpr(
+            Pos(0, 0, config_file),
+            Pos(0, 0, config_file),
+            None,
+        ),
+        life_span=OptTimeDeltaExpr(
+            Pos(0, 0, config_file), Pos(0, 0, config_file), None
+        ),
+        params=None,
+        images=None,
+        volumes=None,
+        defaults=None,
+        mixins={
+            "basic": ast.TaskMixin(
+                Pos(3, 4, config_file),
+                Pos(5, 0, config_file),
+                _specified_fields={"image", "preset"},
+                name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                image=OptStrExpr(
+                    Pos(0, 0, config_file),
+                    Pos(0, 0, config_file),
+                    "ubuntu",
+                ),
+                preset=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "cpu-micro"
+                ),
+                schedule_timeout=OptTimeDeltaExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                entrypoint=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                cmd=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                workdir=OptRemotePathExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                env=None,
+                volumes=None,
+                tags=None,
+                life_span=OptTimeDeltaExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                http_port=OptIntExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                http_auth=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                pass_config=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                needs=None,
+                strategy=None,
+                cache=None,
+                enable=EnableExpr(
+                    Pos(0, 0, config_file),
+                    Pos(0, 0, config_file),
+                    "${{ success() }}",
+                ),
+            ),
+        },
+        tasks=[
+            ast.Task(
+                _start=Pos(6, 4, config_file),
+                _end=Pos(9, 2, config_file),
+                _specified_fields={"mixins", "cmd"},
+                mixins=[
+                    StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "basic")
+                ],
+                id=OptIdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                needs=None,
+                name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                image=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                schedule_timeout=OptTimeDeltaExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                entrypoint=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                cmd=OptBashExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "echo abc"
+                ),
+                workdir=OptRemotePathExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                env=None,
+                volumes=None,
+                tags=None,
+                life_span=OptTimeDeltaExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                http_port=OptIntExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                http_auth=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                pass_config=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                strategy=None,
+                cache=None,
+                enable=EnableExpr(
+                    Pos(0, 0, config_file),
+                    Pos(0, 0, config_file),
+                    "${{ success() }}",
+                ),
+            ),
+            ast.Task(
+                _start=Pos(9, 4, config_file),
+                _end=Pos(11, 0, config_file),
+                _specified_fields={"mixins", "cmd"},
+                mixins=[
+                    StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "basic")
+                ],
+                id=OptIdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                needs=None,
+                name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                image=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                schedule_timeout=OptTimeDeltaExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                entrypoint=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                cmd=OptBashExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "echo def"
                 ),
                 workdir=OptRemotePathExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None

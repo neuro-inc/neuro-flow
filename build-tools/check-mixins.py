@@ -42,3 +42,4 @@ def check_mixin(
 
 if __name__ == "__main__":
     check_mixin(ast.Job, ast.JobMixin, {"mixins"})
+    check_mixin(ast.Task, ast.TaskMixin, {"mixins", "id"})

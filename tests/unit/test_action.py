@@ -263,6 +263,7 @@ def test_parse_batch_action(assets: LocalPath) -> None:
                 Pos(36, 2, config_file),
                 Pos(40, 0, config_file),
                 _specified_fields={"needs", "image", "cmd", "id"},
+                mixins=None,
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 image=OptStrExpr(
@@ -312,6 +313,7 @@ def test_parse_batch_action(assets: LocalPath) -> None:
                 Pos(40, 2, config_file),
                 Pos(43, 0, config_file),
                 _specified_fields={"image", "cmd", "id"},
+                mixins=None,
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 image=OptStrExpr(
@@ -588,6 +590,7 @@ def test_parse_batch_call(assets: LocalPath) -> None:
         images=None,
         volumes=None,
         defaults=None,
+        mixins=None,
         tasks=[
             ast.TaskActionCall(
                 Pos(2, 2, config_file),
