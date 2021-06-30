@@ -193,7 +193,7 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
                 name=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "job-name"
                 ),
-                image=StrExpr(
+                image=OptStrExpr(
                     Pos(0, 0, config_file),
                     Pos(0, 0, config_file),
                     "${{ images.image_a.ref }}",
@@ -315,7 +315,9 @@ def test_parse_seq(assets: pathlib.Path) -> None:
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 needs=None,
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
-                image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
+                image=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"
+                ),
                 preset=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "cpu-micro"
                 ),
@@ -362,7 +364,9 @@ def test_parse_seq(assets: pathlib.Path) -> None:
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 needs=None,
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
-                image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
+                image=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"
+                ),
                 preset=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "cpu-micro"
                 ),
@@ -439,7 +443,9 @@ def test_parse_needs(assets: pathlib.Path) -> None:
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 needs=None,
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
-                image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
+                image=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"
+                ),
                 preset=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "cpu-micro"
                 ),
@@ -490,7 +496,9 @@ def test_parse_needs(assets: pathlib.Path) -> None:
                     ): NeedsLevel.COMPLETED
                 },
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
-                image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
+                image=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"
+                ),
                 preset=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "cpu-micro"
                 ),
@@ -567,7 +575,9 @@ def test_parse_needs_dict(assets: pathlib.Path) -> None:
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 needs=None,
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
-                image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
+                image=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"
+                ),
                 preset=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "cpu-micro"
                 ),
@@ -620,7 +630,9 @@ def test_parse_needs_dict(assets: pathlib.Path) -> None:
                     ): NeedsLevel.RUNNING
                 },
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
-                image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
+                image=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"
+                ),
                 preset=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "cpu-micro"
                 ),
@@ -695,7 +707,9 @@ def test_parse_matrix(assets: pathlib.Path) -> None:
                 _specified_fields={"strategy", "image", "cmd"},
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
-                image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
+                image=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"
+                ),
                 preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 schedule_timeout=OptTimeDeltaExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
@@ -847,7 +861,9 @@ def test_parse_matrix_with_strategy(assets: pathlib.Path) -> None:
                 _specified_fields={"image", "strategy", "cmd", "cache"},
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
-                image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
+                image=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"
+                ),
                 preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 schedule_timeout=OptTimeDeltaExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
@@ -959,7 +975,7 @@ def test_parse_matrix_with_strategy(assets: pathlib.Path) -> None:
                 cache=None,
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
-                image=StrExpr(
+                image=OptStrExpr(
                     Pos(26, 11, config_file), Pos(26, 17, config_file), "ubuntu"
                 ),
                 preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
@@ -1110,7 +1126,9 @@ def test_parse_args(assets: pathlib.Path) -> None:
                 _specified_fields={"image", "cmd"},
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
-                image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
+                image=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"
+                ),
                 preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 schedule_timeout=OptTimeDeltaExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
@@ -1187,7 +1205,9 @@ def test_parse_enable(assets: pathlib.Path) -> None:
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 needs=None,
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
-                image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
+                image=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"
+                ),
                 preset=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "cpu-micro"
                 ),
@@ -1238,7 +1258,9 @@ def test_parse_enable(assets: pathlib.Path) -> None:
                     ): NeedsLevel.COMPLETED
                 },
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
-                image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
+                image=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"
+                ),
                 preset=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "cpu-micro"
                 ),

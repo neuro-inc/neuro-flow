@@ -61,7 +61,9 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
                 _specified_fields={"cmd", "image"},
                 mixins=None,
                 name=OptStrExpr(Pos(3, 4, config_file), Pos(5, 0, config_file), None),
-                image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
+                image=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"
+                ),
                 preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 schedule_timeout=OptTimeDeltaExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
@@ -136,7 +138,9 @@ def test_parse_params(assets: pathlib.Path) -> None:
                 _specified_fields={"cmd", "image", "params"},
                 mixins=None,
                 name=OptStrExpr(Pos(3, 4, config_file), Pos(5, 0, config_file), None),
-                image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
+                image=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"
+                ),
                 preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 schedule_timeout=OptTimeDeltaExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
@@ -455,7 +459,7 @@ def test_parse_full(assets: pathlib.Path) -> None:
                 name=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "job-name"
                 ),
-                image=StrExpr(
+                image=OptStrExpr(
                     Pos(0, 0, config_file),
                     Pos(0, 0, config_file),
                     "${{ images.image_a.ref }}",
@@ -710,7 +714,7 @@ def test_parse_full_exprs(assets: pathlib.Path) -> None:
                 name=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "job-name"
                 ),
-                image=StrExpr(
+                image=OptStrExpr(
                     Pos(0, 0, config_file),
                     Pos(0, 0, config_file),
                     "${{ images.image_a.ref }}",
@@ -813,7 +817,9 @@ def test_parse_bash(assets: pathlib.Path) -> None:
                 _specified_fields={"cmd", "image"},
                 mixins=None,
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
-                image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
+                image=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"
+                ),
                 preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 schedule_timeout=OptTimeDeltaExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
@@ -890,7 +896,9 @@ def test_parse_python(assets: pathlib.Path) -> None:
                 _specified_fields={"cmd", "image"},
                 mixins=None,
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
-                image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
+                image=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"
+                ),
                 preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 schedule_timeout=OptTimeDeltaExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
@@ -1015,7 +1023,9 @@ def test_parse_multi(assets: pathlib.Path) -> None:
                 _specified_fields={"cmd", "multi", "image"},
                 mixins=None,
                 name=OptStrExpr(Pos(3, 4, config_file), Pos(5, 0, config_file), None),
-                image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
+                image=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"
+                ),
                 preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 schedule_timeout=OptTimeDeltaExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
@@ -1090,7 +1100,9 @@ def test_parse_explicit_flow_id(assets: pathlib.Path) -> None:
                 _specified_fields={"cmd", "image"},
                 mixins=None,
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
-                image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
+                image=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"
+                ),
                 preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 schedule_timeout=OptTimeDeltaExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None

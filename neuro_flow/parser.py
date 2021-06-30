@@ -691,7 +691,7 @@ FlowLoader.add_constructor("flow:cache", parse_cache)  # type: ignore
 EXEC_UNIT = {
     "title": OptStrExpr,
     "name": OptStrExpr,
-    "image": StrExpr,
+    "image": OptStrExpr,
     "preset": OptStrExpr,
     "schedule_timeout": OptTimeDeltaExpr,
     "entrypoint": OptStrExpr,

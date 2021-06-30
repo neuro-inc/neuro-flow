@@ -1358,13 +1358,20 @@ class RunningLiveFlow:
             assert isinstance(tmp_port_forward, list)
             port_forward = tmp_port_forward
 
+        image = await job.image.eval(ctx)
+        if image is None:
+            raise EvalError(
+                f"Image for job {job_id} is not specified",
+                start=job.image.start,
+                end=job.image.end,
+            )
         return Job(
             id=job_id,
             detach=bool(await job.detach.eval(ctx)),
             browse=bool(await job.browse.eval(ctx)),
             title=title,
             name=await job.name.eval(ctx),
-            image=await job.image.eval(ctx),
+            image=image,
             preset=preset,
             schedule_timeout=schedule_timeout,
             entrypoint=await job.entrypoint.eval(ctx),
@@ -1733,11 +1740,19 @@ class RunningBatchBase(Generic[_T], EarlyBatch):
         # Enable should be calculated using outer ctx for stateful calls
         enable = (await self.get_meta(real_id, needs, state)).enable
 
+        image = await prep_task.ast_task.image.eval(ctx)
+        if image is None:
+            # Should be validated out earlier, but just in case
+            raise EvalError(
+                f"Image for task {prep_task.real_id} is not specified",
+                start=prep_task.ast_task.image.start,
+                end=prep_task.ast_task.image.end,
+            )
         task = Task(
             id=prep_task.id,
             title=title,
             name=(await prep_task.ast_task.name.eval(ctx)),
-            image=await prep_task.ast_task.image.eval(ctx),
+            image=image,
             preset=preset,
             schedule_timeout=schedule_timeout,
             entrypoint=await prep_task.ast_task.entrypoint.eval(ctx),
@@ -2461,6 +2476,17 @@ class EarlyTaskGraphBuilder:
                         id_expr.start,
                         id_expr.end,
                     )
+        # Check that all tasks have non-null image
+        for prep_task in prep_tasks.values():
+            if isinstance(prep_task, EarlyTask):
+                image_expr = prep_task.ast_task.image
+                if image_expr.pattern is None:
+                    raise EvalError(
+                        f"Image for task {prep_task.real_id} is not specified",
+                        image_expr.start,
+                        image_expr.end,
+                    )
+
         return prep_tasks
 
     async def _setup_ids(

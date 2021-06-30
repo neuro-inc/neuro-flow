@@ -95,7 +95,7 @@ class Image(Base):
 class ExecUnit(Base):
     title: OptStrExpr  # Autocalculated if not passed explicitly
     name: OptStrExpr
-    image: StrExpr
+    image: OptStrExpr
     preset: OptStrExpr
     schedule_timeout: OptTimeDeltaExpr
     entrypoint: OptStrExpr

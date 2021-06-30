@@ -10,11 +10,12 @@ mixins:
       env4: val-mixin2-4
   preset:
     preset: cpu-micro
+  image:
+    image: ubuntu
 jobs:
   test:
     name: job-name
-    mixins: [ envs1, envs2, preset ]
-    image: ubuntu
+    mixins: [ envs1, envs2, preset, image ]
     env:
       env1: val1
       env2: val2
