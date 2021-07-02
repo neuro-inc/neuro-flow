@@ -715,6 +715,7 @@ JOB_MIXIN = {
     "port_forward": ExprOrSeq(PortPairExpr, port_pair_item),
     "multi": SimpleOptBoolExpr,
     "params": None,
+    "inherits": SimpleSeq(StrExpr),
 }
 
 JOB: Dict[str, Any] = {
@@ -887,6 +888,7 @@ TASK_MIXIN: Mapping[str, Any] = {
     "strategy": None,
     "enable": EnableExpr,
     "cache": None,
+    "inherits": SimpleSeq(StrExpr),
 }
 
 

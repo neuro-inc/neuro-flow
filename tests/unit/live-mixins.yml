@@ -12,6 +12,18 @@ mixins:
     preset: cpu-micro
   image:
     image: ubuntu
+  image2:
+    image: ubuntu2
+  volumes1:
+    volumes:
+      - storage:dir1:/var/dir1:ro
+  volumes2:
+    volumes:
+      - storage:dir2:/var/dir2:ro
+  expression:
+    name: ${{ params.test_expr }}
+    params:
+      test_expr: ~
 jobs:
   test:
     name: job-name
@@ -19,3 +31,11 @@ jobs:
     env:
       env1: val1
       env2: val2
+  test2:
+    name: job-name
+    inherits: [ image, image2 ]
+  test3:
+    name: job-name
+    inherits: [ image, volumes1, volumes2 ]
+  test4:
+    inherits: [ image, expression ]

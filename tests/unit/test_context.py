@@ -755,6 +755,36 @@ async def test_job_with_mixins(live_config_loader: ConfigLoader) -> None:
         "env4": "val-mixin2-4",
     }
 
+    job = await flow.get_job("test2", {})
+
+    assert job.id == "test2"
+    assert job.image == "ubuntu2"
+
+    job = await flow.get_job("test3", {})
+
+    assert job.id == "test3"
+    assert job.image == "ubuntu"
+    assert job.volumes == ["storage:dir2:/var/dir2:ro", "storage:dir1:/var/dir1:ro"]
+
+    job = await flow.get_job("test4", {"test_expr": "test_name"})
+
+    assert job.id == "test4"
+    assert job.image == "ubuntu"
+    assert job.name == "test_name"
+
+
+async def test_job_with_sub_mixins(live_config_loader: ConfigLoader) -> None:
+    flow = await RunningLiveFlow.create(live_config_loader, "live-sub-mixins")
+    job = await flow.get_job("test", {})
+
+    assert job.id == "test"
+    assert job.image == "ubuntu"
+    assert job.env == {
+        "env1": "val-mixin1-1",
+        "env2": "val-mixin2-2",
+        "env3": "val-mixin2-3",
+    }
+
 
 async def test_job_with_params(live_config_loader: ConfigLoader) -> None:
     flow = await RunningLiveFlow.create(live_config_loader, "live-params")
@@ -970,6 +1000,33 @@ async def test_batch_with_mixins(batch_config_loader: ConfigLoader) -> None:
     assert task.image == "ubuntu"
     assert task.preset == "cpu-micro"
     assert task.cmd == "bash -euo pipefail -c 'echo def'"
+
+
+async def test_batch_with_sub_mixins(batch_config_loader: ConfigLoader) -> None:
+    flow = await RunningBatchFlow.create(
+        batch_config_loader, "batch-sub-mixin", "bake-id"
+    )
+    task = await flow.get_task((), "task-1", needs={}, state={})
+
+    assert task.image == "ubuntu"
+    assert task.preset == "cpu-micro"
+    assert task.cmd == "bash -euo pipefail -c 'echo abc'"
+    assert task.env == {
+        "env1": "val-mixin1-1",
+        "env2": "val-mixin1-2",
+    }
+
+    task = await flow.get_task(
+        (), "task-2", needs={"task-1": DepCtx(TaskStatus.SUCCEEDED, {})}, state={}
+    )
+    assert task.image == "ubuntu"
+    assert task.preset == "cpu-micro"
+    assert task.cmd == "bash -euo pipefail -c 'echo def'"
+    assert task.env == {
+        "env1": "val-mixin1-1",
+        "env2": "val-mixin2-2",
+        "env3": "val-mixin2-3",
+    }
 
 
 async def test_batch_module_with_mixin(assets: pathlib.Path, client: Client) -> None:

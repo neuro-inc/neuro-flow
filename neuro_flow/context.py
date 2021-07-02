@@ -36,6 +36,7 @@ from typing_extensions import Annotated, Protocol
 from yarl import URL
 
 from neuro_flow import ast
+from neuro_flow.colored_topo_sorter import ColoredTopoSorter
 from neuro_flow.config_loader import ActionSpec, ConfigLoader
 from neuro_flow.expr import (
     BaseMappingExpr,
@@ -1126,6 +1127,12 @@ def check_module_call_is_local(action_name: str, call_ast: ast.BaseModuleCall) -
         )
 
 
+class MixinProtocol(Protocol):
+    @property
+    def _specified_fields(self) -> AbstractSet[str]:
+        ...
+
+
 class MixinApplyTarget(Protocol):
     @property
     def inherits(self) -> Optional[Sequence[StrExpr]]:
@@ -1140,7 +1147,7 @@ _MixinApplyTarget = TypeVar("_MixinApplyTarget", bound=MixinApplyTarget)
 
 
 async def apply_mixins(
-    base: _MixinApplyTarget, mixins: Mapping[str, ast.WithSpecifiedFields]
+    base: _MixinApplyTarget, mixins: Mapping[str, MixinProtocol]
 ) -> _MixinApplyTarget:
     if base.inherits is None:
         return base
@@ -1155,6 +1162,8 @@ async def apply_mixins(
                 end=mixin_expr.end,
             )
         for field in mixin._specified_fields:
+            if field == "inherits":
+                continue  # Do not inherit 'inherits' field
             field_present = field in base._specified_fields
             base_value = getattr(base, field)
             mixin_value = getattr(mixin, field)
@@ -1167,12 +1176,12 @@ async def apply_mixins(
                     **{field: mixin_value},
                     _specified_fields=base._specified_fields | {field},
                 )
-            if isinstance(mixin_value, BaseSequenceExpr):
+            elif isinstance(mixin_value, BaseSequenceExpr):
                 assert isinstance(base_value, BaseSequenceExpr)
                 base = replace(
                     base, **{field: ConcatSequenceExpr(base_value, mixin_value)}
                 )
-            if isinstance(mixin_value, BaseMappingExpr):
+            elif isinstance(mixin_value, BaseMappingExpr):
                 assert isinstance(base_value, BaseMappingExpr)
                 base = replace(
                     base, **{field: MergeMappingsExpr(base_value, mixin_value)}
@@ -1180,10 +1189,31 @@ async def apply_mixins(
     return base
 
 
+async def setup_mixins(
+    raw_mixins: Optional[Mapping[str, _MixinApplyTarget]]
+) -> Mapping[str, _MixinApplyTarget]:
+    if raw_mixins is None:
+        return {}
+    graph: Dict[str, Dict[str, int]] = {}
+    for mixin_name, mixin in raw_mixins.items():
+        inherits = mixin.inherits or []
+        graph[mixin_name] = {
+            await dep_expr.eval(EMPTY_ROOT): 1 for dep_expr in inherits
+        }
+    topo = ColoredTopoSorter(graph)
+    result: Dict[str, _MixinApplyTarget] = {}
+    while not topo.is_all_colored(1):
+        for mixin_name in topo.get_ready():
+            result[mixin_name] = await apply_mixins(raw_mixins[mixin_name], result)
+            topo.mark(mixin_name, 1)
+    return result
+
+
 class RunningLiveFlow:
     _ast_flow: ast.LiveFlow
     _ctx: LiveContext
     _cl: ConfigLoader
+    _mixins: Optional[Mapping[str, ast.JobMixin]] = None
 
     def __init__(
         self,
@@ -1225,13 +1255,18 @@ class RunningLiveFlow:
         # Simple shortcut
         return (await self.get_meta(job_id)).multi
 
+    async def get_mixins(self) -> Mapping[str, ast.JobMixin]:
+        if self._mixins is None:
+            self._mixins = await setup_mixins(self._ast_flow.mixins)
+        return self._mixins
+
     async def _get_job_ast(
         self, job_id: str
     ) -> Union[ast.Job, ast.JobActionCall, ast.JobModuleCall]:
         try:
             base = self._ast_flow.jobs[job_id]
             if isinstance(base, ast.Job):
-                base = await apply_mixins(base, self._ast_flow.mixins or {})
+                base = await apply_mixins(base, await self.get_mixins())
             return base
         except KeyError:
             raise UnknownJob(job_id)
@@ -1876,6 +1911,7 @@ class RunningBatchFlow(RunningBatchBase[BatchContext]):
         bake_id: str,
         local_info: Optional[LocallyPreparedInfo],
         ast_flow: ast.BatchFlow,
+        mixins: Optional[Mapping[str, ast.TaskMixin]],
     ):
         super().__init__(
             ctx,
@@ -1888,6 +1924,7 @@ class RunningBatchFlow(RunningBatchBase[BatchContext]):
             local_info,
         )
         self._ast_flow = ast_flow
+        self._mixins = mixins
 
     def get_image_ast(self, image_id: str) -> ast.Image:
         if self._ast_flow.images is None:
@@ -1896,7 +1933,7 @@ class RunningBatchFlow(RunningBatchBase[BatchContext]):
 
     @property
     def mixins(self) -> Optional[Mapping[str, ast.TaskMixin]]:
-        return self._ast_flow.mixins
+        return self._mixins
 
     @property
     def project_id(self) -> str:
@@ -1973,12 +2010,20 @@ class RunningBatchFlow(RunningBatchBase[BatchContext]):
             strategy=await setup_strategy_ctx(step_2_ctx, ast_flow.defaults),
         )
 
+        mixins = await setup_mixins(ast_flow.mixins)
         tasks = await TaskGraphBuilder(
-            batch_ctx, config_loader, cache_conf, ast_flow.tasks, ast_flow.mixins
+            batch_ctx, config_loader, cache_conf, ast_flow.tasks, mixins
         ).build()
 
         return RunningBatchFlow(
-            batch_ctx, tasks, config_loader, defaults, bake_id, local_info, ast_flow
+            batch_ctx,
+            tasks,
+            config_loader,
+            defaults,
+            bake_id,
+            local_info,
+            ast_flow,
+            mixins,
         )
 
 

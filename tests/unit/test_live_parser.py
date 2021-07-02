@@ -369,6 +369,7 @@ def test_parse_full(assets: pathlib.Path) -> None:
                 Pos(38, 4, config_file),
                 Pos(41, 0, config_file),
                 _specified_fields={"env"},
+                inherits=None,
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 image=OptStrExpr(
                     Pos(0, 0, config_file),

@@ -1354,6 +1354,7 @@ def test_parse_mixin(assets: pathlib.Path) -> None:
                 Pos(3, 4, config_file),
                 Pos(5, 0, config_file),
                 _specified_fields={"image", "preset"},
+                inherits=None,
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 image=OptStrExpr(
                     Pos(0, 0, config_file),
