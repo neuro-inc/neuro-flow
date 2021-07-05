@@ -10,7 +10,6 @@ from neuro_sdk import Client, ResourceNotFound, __version__ as sdk_version
 from operator import attrgetter
 from rich import box
 from rich.console import Console
-from rich.live import Live
 from rich.panel import Panel
 from rich.table import Table
 from types import TracebackType
@@ -516,36 +515,49 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         until: Optional[datetime.datetime] = None,
         recent_first: bool = False,
     ) -> None:
-        table = Table(box=box.MINIMAL_HEAVY_HEAD)
-        table.add_column("ID", style="bold")
-        table.add_column("NAME")
-        table.add_column("EXECUTOR")
-        table.add_column("STATUS")
-        table.add_column("WHEN")
+        def _setup_table() -> Table:
+            table = Table(box=box.MINIMAL_HEAVY_HEAD)
+            table.add_column(
+                "ID",
+                style="bold",
+                min_width=len("2021-07-03T10:54:20+00:00_9e1f7a") + 10,
+            )
+            table.add_column("NAME", min_width=8)
+            table.add_column(
+                "EXECUTOR", width=len("job-f6bd815b-3a3b-4ea1-b5ec-e8ab13678e3e")
+            )
+            table.add_column("STATUS", width=9)
+            table.add_column("WHEN", min_width=10)
+            table.show_edge = False
+            return table
 
-        with Live(table, auto_refresh=False) as live:
-            async for bake in self._storage.list_bakes(
-                self.project_id,
-                tags=tags,
-                since=since,
-                until=until,
-                recent_first=recent_first,
-            ):
-                try:
-                    attempt = await self._storage.find_attempt(bake)
-                except ValueError:
-                    live.console.print(
-                        f"[yellow]Bake [b]{bake}[/b] is malformed, skipping"
-                    )
-                else:
-                    table.add_row(
-                        bake.bake_id,
-                        bake.name or "",
-                        attempt.executor_id or "",
-                        attempt.result,
-                        fmt_datetime(attempt.when),
-                    )
-                    live.refresh()
+        header_table = _setup_table()
+        self._console.print(header_table)
+
+        async for bake in self._storage.list_bakes(
+            self.project_id,
+            tags=tags,
+            since=since,
+            until=until,
+            recent_first=recent_first,
+        ):
+            try:
+                attempt = await self._storage.find_attempt(bake)
+            except ValueError:
+                self._console.print(
+                    f"[yellow]Bake [b]{bake}[/b] is malformed, skipping"
+                )
+            else:
+                row_table = _setup_table()
+                row_table.show_header = False
+                row_table.add_row(
+                    bake.bake_id,
+                    bake.name or "",
+                    attempt.executor_id or "",
+                    attempt.result,
+                    fmt_datetime(attempt.when),
+                )
+                self._console.print(row_table)
 
     async def inspect(
         self,
