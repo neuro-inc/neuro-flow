@@ -61,6 +61,10 @@ class Project(Base):
     owner: SimpleOptStrExpr  # user name can contain "-"
     role: SimpleOptStrExpr
 
+    images: Optional[Mapping[str, "Image"]] = field(metadata={"allow_none": True})
+    volumes: Optional[Mapping[str, "Volume"]] = field(metadata={"allow_none": True})
+    defaults: Optional["BatchFlowDefaults"] = field(metadata={"allow_none": True})
+
 
 # There are 'batch' for pipelined mode and 'live' for interactive one
 # (while 'batches' are technically just non-interactive jobs.

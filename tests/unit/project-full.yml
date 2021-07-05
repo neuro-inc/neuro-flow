@@ -1,0 +1,42 @@
+id: test_project
+owner: test-owner
+role: test-owner/roles/test-role
+images:
+  image_a:
+    ref: image:banana
+    context: dir
+    dockerfile: dir/Dockerfile
+    build_args:
+    - --arg1
+    - val1
+    - --arg2=val2
+    env:
+      SECRET_ENV: secret:key
+    volumes:
+      - secret:key:/var/secret/key.txt
+    build_preset: gpu-small
+volumes:
+  volume_a:
+    remote: storage:dir
+    mount: /var/dir
+    read_only: true
+    local: dir
+  volume_b:
+    remote: storage:other
+    mount: /var/other
+defaults:
+  tags: [tag-a, tag-b]
+  env:
+    global_a: val-a
+    global_b: val-b
+  volumes:
+    - storage:common:/mnt/common:rw
+  workdir: /global/dir
+  life_span: 1d4h
+  preset: cpu-large
+  schedule_timeout: 24d23h22m21s
+  fail_fast: true
+  max_parallel: 10
+  cache:
+    strategy: none
+    life_span: 2h30m
