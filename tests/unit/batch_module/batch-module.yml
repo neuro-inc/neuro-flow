@@ -1,0 +1,25 @@
+kind: batch
+inputs:
+  arg1:
+    descr: param 1
+  arg2:
+    descr: param 2
+    default: value 2
+outputs:
+  needs: [task_1, task_2]
+  res1:
+    descr: module result 1
+    value: ${{ needs.task_1.outputs.task1 }}
+  res2:
+    descr: module result 2
+    value: ${{ needs.task_2.outputs.task2 }}
+cache:
+  strategy: inherit
+  life_span: 30m
+tasks:
+- id: task_1
+  image: ubuntu
+  bash: echo ::set-output name=task1::Task 1 ${{ inputs.arg1 }} ${{ flow.flow_id }}
+- id: task_2
+  image: ubuntu
+  bash: echo ::set-output name=task2::Task 2 ${{ inputs.arg2 }} ${{ flow.flow_id }}

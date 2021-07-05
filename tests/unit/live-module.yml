@@ -1,0 +1,7 @@
+kind: live
+inputs:
+  arg1:
+    descr: param 1
+job:
+  image: ubuntu
+  bash: echo A ${{ inputs.arg1 }} B ${{ flow.flow_id }} C

@@ -33,7 +33,7 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
     flow = parse_batch(workspace, config_file)
     assert flow == ast.BatchFlow(
         Pos(0, 0, config_file),
-        Pos(54, 0, config_file),
+        Pos(57, 0, config_file),
         id=SimpleOptIdExpr(
             Pos(0, 0, config_file),
             Pos(0, 0, config_file),
@@ -45,18 +45,21 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
             Pos(0, 0, config_file),
             "Global title",
         ),
+        life_span=OptTimeDeltaExpr(
+            Pos(0, 0, config_file), Pos(0, 0, config_file), None
+        ),
         params=None,
         images={
             "image_a": ast.Image(
                 _start=Pos(4, 4, config_file),
-                _end=Pos(11, 0, config_file),
+                _end=Pos(12, 0, config_file),
                 ref=StrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "image:banana"
                 ),
-                context=OptLocalPathExpr(
+                context=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "dir"
                 ),
-                dockerfile=OptLocalPathExpr(
+                dockerfile=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "dir/Dockerfile"
                 ),
                 build_args=SequenceItemsExpr(
@@ -77,12 +80,15 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
                 build_preset=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
+                force_rebuild=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), True
+                ),
             )
         },
         volumes={
             "volume_a": ast.Volume(
-                _start=Pos(13, 4, config_file),
-                _end=Pos(17, 2, config_file),
+                _start=Pos(14, 4, config_file),
+                _end=Pos(18, 2, config_file),
                 remote=URIExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "storage:dir"
                 ),
@@ -97,8 +103,8 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
                 ),
             ),
             "volume_b": ast.Volume(
-                _start=Pos(18, 4, config_file),
-                _end=Pos(20, 0, config_file),
+                _start=Pos(19, 4, config_file),
+                _end=Pos(21, 0, config_file),
                 remote=URIExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "storage:other"
                 ),
@@ -114,8 +120,8 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
             ),
         },
         defaults=ast.BatchFlowDefaults(
-            _start=Pos(21, 2, config_file),
-            _end=Pos(31, 0, config_file),
+            _start=Pos(22, 2, config_file),
+            _end=Pos(34, 0, config_file),
             tags=SequenceItemsExpr(
                 [
                     StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "tag-a"),
@@ -131,6 +137,15 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
                         Pos(0, 0, config_file), Pos(0, 0, config_file), "val-b"
                     ),
                 }
+            ),
+            volumes=SequenceItemsExpr(
+                [
+                    OptStrExpr(
+                        Pos(0, 0, config_file),
+                        Pos(0, 0, config_file),
+                        "storage:common:/mnt/common:rw",
+                    ),
+                ]
             ),
             workdir=OptRemotePathExpr(
                 Pos(0, 0, config_file), Pos(0, 0, config_file), "/global/dir"
@@ -150,8 +165,8 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
         ),
         tasks=[
             ast.Task(
-                _start=Pos(32, 4, config_file),
-                _end=Pos(54, 0, config_file),
+                _start=Pos(35, 4, config_file),
+                _end=Pos(57, 0, config_file),
                 id=OptIdExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "test_a"),
                 title=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "Batch title"
@@ -265,6 +280,9 @@ def test_parse_seq(assets: pathlib.Path) -> None:
             Pos(0, 0, config_file),
             Pos(0, 0, config_file),
             None,
+        ),
+        life_span=OptTimeDeltaExpr(
+            Pos(0, 0, config_file), Pos(0, 0, config_file), None
         ),
         params=None,
         images=None,
@@ -384,6 +402,9 @@ def test_parse_needs(assets: pathlib.Path) -> None:
             Pos(0, 0, config_file),
             Pos(0, 0, config_file),
             None,
+        ),
+        life_span=OptTimeDeltaExpr(
+            Pos(0, 0, config_file), Pos(0, 0, config_file), None
         ),
         params=None,
         images=None,
@@ -507,6 +528,9 @@ def test_parse_needs_dict(assets: pathlib.Path) -> None:
             Pos(0, 0, config_file),
             Pos(0, 0, config_file),
             None,
+        ),
+        life_span=OptTimeDeltaExpr(
+            Pos(0, 0, config_file), Pos(0, 0, config_file), None
         ),
         params=None,
         images=None,
@@ -633,6 +657,9 @@ def test_parse_matrix(assets: pathlib.Path) -> None:
             Pos(0, 0, config_file),
             None,
         ),
+        life_span=OptTimeDeltaExpr(
+            Pos(0, 0, config_file), Pos(0, 0, config_file), None
+        ),
         params=None,
         images=None,
         volumes=None,
@@ -755,6 +782,9 @@ def test_parse_matrix_with_strategy(assets: pathlib.Path) -> None:
             Pos(0, 0, config_file),
             None,
         ),
+        life_span=OptTimeDeltaExpr(
+            Pos(0, 0, config_file), Pos(0, 0, config_file), None
+        ),
         params=None,
         images=None,
         volumes=None,
@@ -763,6 +793,7 @@ def test_parse_matrix_with_strategy(assets: pathlib.Path) -> None:
             Pos(7, 0, config_file),
             tags=None,
             env=None,
+            volumes=None,
             workdir=OptRemotePathExpr(
                 Pos(0, 0, config_file), Pos(0, 0, config_file), None
             ),
@@ -955,6 +986,9 @@ def test_parse_args(assets: pathlib.Path) -> None:
             Pos(0, 0, config_file),
             None,
         ),
+        life_span=OptTimeDeltaExpr(
+            Pos(0, 0, config_file), Pos(0, 0, config_file), None
+        ),
         params={
             "arg1": ast.Param(
                 _start=Pos(2, 8, config_file),
@@ -963,12 +997,12 @@ def test_parse_args(assets: pathlib.Path) -> None:
                     12,
                     config_file,
                 ),
-                default=SimpleOptStrExpr(
+                default=OptStrExpr(
                     Pos(0, 0, config_file),
                     Pos(0, 0, config_file),
                     "val1",
                 ),
-                descr=SimpleOptStrExpr(
+                descr=OptStrExpr(
                     Pos(0, 0, config_file),
                     Pos(0, 0, config_file),
                     None,
@@ -985,12 +1019,12 @@ def test_parse_args(assets: pathlib.Path) -> None:
                     0,
                     config_file,
                 ),
-                default=SimpleOptStrExpr(
+                default=OptStrExpr(
                     Pos(0, 0, config_file),
                     Pos(0, 0, config_file),
                     "val2",
                 ),
-                descr=SimpleOptStrExpr(
+                descr=OptStrExpr(
                     Pos(0, 0, config_file),
                     Pos(0, 0, config_file),
                     "descr2",
@@ -1017,6 +1051,7 @@ def test_parse_args(assets: pathlib.Path) -> None:
                 ]
             ),
             env=None,
+            volumes=None,
             workdir=OptRemotePathExpr(
                 Pos(0, 0, config_file), Pos(0, 0, config_file), None
             ),
@@ -1107,6 +1142,9 @@ def test_parse_enable(assets: pathlib.Path) -> None:
             Pos(0, 0, config_file),
             Pos(0, 0, config_file),
             None,
+        ),
+        life_span=OptTimeDeltaExpr(
+            Pos(0, 0, config_file), Pos(0, 0, config_file), None
         ),
         params=None,
         images=None,

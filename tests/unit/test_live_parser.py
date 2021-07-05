@@ -110,7 +110,7 @@ def test_parse_params(assets: pathlib.Path) -> None:
     flow = parse_live(workspace, config_file)
     assert flow == ast.LiveFlow(
         Pos(0, 0, config_file),
-        Pos(10, 0, config_file),
+        Pos(11, 0, config_file),
         id=SimpleOptIdExpr(
             Pos(0, 0, config_file),
             Pos(0, 0, config_file),
@@ -128,7 +128,7 @@ def test_parse_params(assets: pathlib.Path) -> None:
         jobs={
             "test": ast.Job(
                 Pos(3, 4, config_file),
-                Pos(10, 0, config_file),
+                Pos(11, 0, config_file),
                 name=OptStrExpr(Pos(3, 4, config_file), Pos(5, 0, config_file), None),
                 image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
                 preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
@@ -141,7 +141,7 @@ def test_parse_params(assets: pathlib.Path) -> None:
                 cmd=OptBashExpr(
                     Pos(0, 0, config_file),
                     Pos(0, 0, config_file),
-                    "echo ${{ params.arg1 }} ${{ params.arg2 }}",
+                    "echo ${{ params.arg1 }} ${{ params.arg2 }} ${{ params.arg3 }}",
                 ),
                 workdir=OptRemotePathExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
@@ -176,21 +176,33 @@ def test_parse_params(assets: pathlib.Path) -> None:
                     "arg1": ast.Param(
                         _start=Pos(4, 12, config_file),
                         _end=Pos(4, 16, config_file),
-                        default=SimpleOptStrExpr(
+                        default=OptStrExpr(
                             Pos(0, 0, config_file), Pos(0, 0, config_file), "val1"
                         ),
-                        descr=SimpleOptStrExpr(
+                        descr=OptStrExpr(
                             Pos(0, 0, config_file), Pos(0, 0, config_file), None
                         ),
                     ),
                     "arg2": ast.Param(
                         _start=Pos(6, 8, config_file),
-                        _end=Pos(8, 4, config_file),
-                        default=SimpleOptStrExpr(
+                        _end=Pos(8, 6, config_file),
+                        default=OptStrExpr(
                             Pos(0, 0, config_file), Pos(0, 0, config_file), "val2"
                         ),
-                        descr=SimpleOptStrExpr(
+                        descr=OptStrExpr(
                             Pos(0, 0, config_file), Pos(0, 0, config_file), "Second arg"
+                        ),
+                    ),
+                    "arg3": ast.Param(
+                        _start=Pos(8, 12, config_file),
+                        _end=Pos(8, 31, config_file),
+                        default=OptStrExpr(
+                            Pos(0, 0, config_file),
+                            Pos(0, 0, config_file),
+                            "${{ flow.flow_id }}",
+                        ),
+                        descr=OptStrExpr(
+                            Pos(0, 0, config_file), Pos(0, 0, config_file), None
                         ),
                     ),
                 },
@@ -205,7 +217,7 @@ def test_parse_full(assets: pathlib.Path) -> None:
     flow = parse_live(workspace, config_file)
     assert flow == ast.LiveFlow(
         Pos(0, 0, config_file),
-        Pos(61, 0, config_file),
+        Pos(63, 0, config_file),
         id=SimpleOptIdExpr(
             Pos(0, 0, config_file),
             Pos(0, 0, config_file),
@@ -224,10 +236,10 @@ def test_parse_full(assets: pathlib.Path) -> None:
                 ref=StrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "image:banana"
                 ),
-                context=OptLocalPathExpr(
+                context=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "dir"
                 ),
-                dockerfile=OptLocalPathExpr(
+                dockerfile=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "dir/Dockerfile"
                 ),
                 build_args=SequenceItemsExpr(
@@ -261,6 +273,9 @@ def test_parse_full(assets: pathlib.Path) -> None:
                 ),
                 build_preset=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "gpu-small"
+                ),
+                force_rebuild=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
             )
         },
@@ -300,7 +315,7 @@ def test_parse_full(assets: pathlib.Path) -> None:
         },
         defaults=ast.FlowDefaults(
             Pos(26, 2, config_file),
-            Pos(34, 0, config_file),
+            Pos(36, 0, config_file),
             tags=SequenceItemsExpr(
                 [
                     StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "tag-a"),
@@ -317,6 +332,15 @@ def test_parse_full(assets: pathlib.Path) -> None:
                     ),
                 }
             ),
+            volumes=SequenceItemsExpr(
+                [
+                    OptStrExpr(
+                        Pos(0, 0, config_file),
+                        Pos(0, 0, config_file),
+                        "storage:common:/mnt/common:rw",
+                    ),
+                ]
+            ),
             workdir=OptRemotePathExpr(
                 Pos(0, 0, config_file), Pos(0, 0, config_file), "/global/dir"
             ),
@@ -332,8 +356,8 @@ def test_parse_full(assets: pathlib.Path) -> None:
         ),
         jobs={
             "test_a": ast.Job(
-                Pos(36, 4, config_file),
-                Pos(61, 0, config_file),
+                Pos(38, 4, config_file),
+                Pos(63, 0, config_file),
                 name=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "job-name"
                 ),
@@ -444,7 +468,7 @@ def test_parse_full_exprs(assets: pathlib.Path) -> None:
     flow = parse_live(workspace, config_file)
     assert flow == ast.LiveFlow(
         Pos(0, 0, config_file),
-        Pos(47, 0, config_file),
+        Pos(48, 0, config_file),
         id=SimpleOptIdExpr(
             Pos(0, 0, config_file),
             Pos(0, 0, config_file),
@@ -463,10 +487,10 @@ def test_parse_full_exprs(assets: pathlib.Path) -> None:
                 ref=StrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "image:banana"
                 ),
-                context=OptLocalPathExpr(
+                context=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "dir"
                 ),
-                dockerfile=OptLocalPathExpr(
+                dockerfile=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "dir/Dockerfile"
                 ),
                 build_args=SequenceExpr(
@@ -489,6 +513,9 @@ def test_parse_full_exprs(assets: pathlib.Path) -> None:
                 ),
                 build_preset=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "gpu-small"
+                ),
+                force_rebuild=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
             )
         },
@@ -528,7 +555,7 @@ def test_parse_full_exprs(assets: pathlib.Path) -> None:
         },
         defaults=ast.FlowDefaults(
             Pos(21, 2, config_file),
-            Pos(27, 0, config_file),
+            Pos(28, 0, config_file),
             tags=SequenceExpr(
                 Pos(0, 0, config_file),
                 Pos(0, 0, config_file),
@@ -539,6 +566,12 @@ def test_parse_full_exprs(assets: pathlib.Path) -> None:
                 Pos(0, 0, config_file),
                 Pos(0, 0, config_file),
                 "${{ {'global_a': 'val-a', 'global_b': 'val-b'} }}",
+                type2str,
+            ),
+            volumes=SequenceExpr(
+                Pos(0, 0, config_file),
+                Pos(0, 0, config_file),
+                "${{ ['storage:common:/mnt/common:rw'] }}",
                 type2str,
             ),
             workdir=OptRemotePathExpr(
@@ -556,8 +589,8 @@ def test_parse_full_exprs(assets: pathlib.Path) -> None:
         ),
         jobs={
             "test_a": ast.Job(
-                Pos(29, 4, config_file),
-                Pos(47, 0, config_file),
+                Pos(30, 4, config_file),
+                Pos(48, 0, config_file),
                 name=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "job-name"
                 ),
@@ -825,9 +858,9 @@ def test_bad_expr_type_before_eval(assets: pathlib.Path) -> None:
     with pytest.raises(EvalError) as ctx:
         parse_live(workspace, config_file)
     assert str(ctx.value) == dedent(
-        """\
+        f"""\
         invalid literal for int() with base 10: 'abc def'
-          in line 5, column 15"""
+          in "{config_file}", line 6, column 16"""
     )
 
 

@@ -35,6 +35,7 @@ from typing import (
     ClassVar,
     Dict,
     Generic,
+    Iterable,
     Iterator,
     List,
     Mapping,
@@ -111,10 +112,21 @@ class EvalError(Exception):
         self.start = start
         self.end = end
 
+    @staticmethod
+    def format_pos(pos: Pos) -> str:
+        # For humans, line and columns are enumerated from 1, so we should add 1 here.
+        return f'"{pos.filename}", line {pos.line + 1}, column {pos.col + 1}'
+
     def __str__(self) -> str:
-        line = self.start.line
-        col = self.start.col
-        return str(self.args[0]) + f"\n  in line {line}, column {col}"
+        return str(self.args[0]) + f"\n  in {self.format_pos(self.start)}"
+
+
+class MultiError(Exception):
+    def __init__(self, errors: Sequence[Exception]):
+        self.errors = errors
+
+    def __str__(self) -> str:
+        return "\n".join(str(error) for error in self.errors)
 
 
 def parse_literal(arg: str, err_msg: str) -> LiteralT:
@@ -160,6 +172,13 @@ async def akeys(ctx: CallCtx, arg: TypeT) -> TypeT:
     if not isinstance(arg, Mapping):
         raise TypeError(f"keys() requires a mapping, got {arg!r}")
     return list(arg)  # type: ignore  # List[...] is implicitly converted to SequenceT
+
+
+async def values(ctx: CallCtx, arg: TypeT) -> TypeT:
+    # Trampoline for mapping.values, async is required for the sake of uniformness.
+    if not isinstance(arg, Mapping):
+        raise TypeError(f"values() requires a mapping, got {arg!r}")
+    return list(arg.values())  # type: ignore  # implicitly converted to SequenceT
 
 
 async def fmt(ctx: CallCtx, spec: str, *args: TypeT) -> str:
@@ -231,6 +250,12 @@ async def upload(ctx: CallCtx, volume_ctx: ContainerT) -> ContainerT:
         raise ValueError("upload() argument should be volume")
     await run_subproc(
         "neuro",
+        "mkdir",
+        "--parents",
+        str(volume_ctx.remote.parent),
+    )
+    await run_subproc(
+        "neuro",
         "cp",
         "--recursive",
         "--update",
@@ -253,6 +278,38 @@ async def aupper(ctx: CallCtx, arg: TypeT) -> str:
     if not isinstance(arg, str):
         raise TypeError(f"upper() requires a str, got {arg!r}")
     return arg.upper()
+
+
+async def astr(ctx: CallCtx, arg: TypeT) -> str:
+    # Async version of str(), async is required for the sake of uniformness.
+    return str(arg)
+
+
+async def replace(ctx: CallCtx, arg: TypeT, old: TypeT, new: TypeT) -> str:
+    # We need a trampoline since expression syntax doesn't support classes
+    if not isinstance(arg, str):
+        raise TypeError(f"replace() first argument should be a str, got {arg!r}")
+    if not isinstance(old, str):
+        raise TypeError(f"replace() second argument should be a str, got {old!r}")
+    if not isinstance(new, str):
+        raise TypeError(f"replace() third argument should be a str, got {new!r}")
+    return arg.replace(old, new)
+
+
+async def join(ctx: CallCtx, sep: TypeT, array: TypeT) -> str:
+    # We need a trampoline since expression syntax doesn't support classes
+    if not isinstance(sep, str):
+        raise TypeError(f"join() first argument should be a str, got {sep!r}")
+    if not isinstance(array, SequenceT):
+        raise TypeError(
+            f"replace() second argument should be a sequence, got {array!r}"
+        )
+    str_array = []
+    for idx, item in enumerate(array):
+        if not isinstance(item, str):
+            raise TypeError(f"join() array item {idx} should be a str, got {item!r}")
+        str_array.append(item)
+    return sep.join(str_array)
 
 
 async def parse_volume(ctx: CallCtx, arg: TypeT) -> ContainerT:
@@ -290,7 +347,7 @@ def _get_needs_statuses(root: RootABC) -> Dict[str, TaskStatus]:
 
 
 async def always(ctx: CallCtx, *args: str) -> AlwaysT:
-    _check_has_needs(ctx, func_name="success")
+    _check_has_needs(ctx, func_name="always")
     return AlwaysT()
 
 
@@ -376,7 +433,11 @@ FUNCTIONS = _build_signatures(
     len=alen,
     nothing=nothing,
     fmt=fmt,
+    str=astr,
+    replace=replace,
+    join=join,
     keys=akeys,
+    values=values,
     to_json=to_json,
     from_json=from_json,
     success=success,
@@ -401,6 +462,9 @@ class Item(Entity):
     @abc.abstractmethod
     async def eval(self, root: RootABC) -> TypeT:
         pass
+
+    def child_items(self) -> Iterable["Item"]:
+        return []
 
 
 @dataclasses.dataclass(frozen=True)
@@ -485,6 +549,11 @@ class Lookup(Item):
             ret = await op.eval(root, ret, start)
         return ret
 
+    def child_items(self) -> Iterable["Item"]:
+        for getter in self.trailer:
+            if isinstance(getter, ItemGetter):
+                yield getter.key
+
 
 def make_lookup(arg: Tuple[Token, List[Getter]]) -> Lookup:
     name, trailer = arg
@@ -521,6 +590,12 @@ class Call(Item):
         for op in self.trailer:
             ret = await op.eval(root, ret, start)
         return ret
+
+    def child_items(self) -> Iterable["Item"]:
+        yield from self.args
+        for getter in self.trailer:
+            if isinstance(getter, ItemGetter):
+                yield getter.key
 
 
 def make_call(arg: Tuple[Token, List[Item], Sequence[Getter]]) -> Call:
@@ -562,6 +637,9 @@ class BinOp(Item):
         left_val = await self.left.eval(root)
         right_val = await self.right.eval(root)
         return self.op(left_val, right_val)  # type: ignore
+
+    def child_items(self) -> Iterable["Item"]:
+        return [self.left, self.right]
 
 
 def or_(arg1: Any, arg2: Any) -> Any:
@@ -635,6 +713,9 @@ class UnaryOp(Item):
         operand_val = await self.operand.eval(root)
         return self.op(operand_val)  # type: ignore
 
+    def child_items(self) -> Iterable["Item"]:
+        return [self.operand]
+
 
 def _unary_plus(arg: Any) -> Any:
     return +arg
@@ -666,10 +747,17 @@ class ListMaker(Item):
     async def eval(self, root: RootABC) -> SequenceT:
         return [await item.eval(root) for item in self.items]  # type: ignore
 
+    def child_items(self) -> Iterable["Item"]:
+        return self.items
+
 
 def make_list(args: Tuple[Item, List[Item]]) -> ListMaker:
     lst = [args[0]] + args[1]
     return ListMaker(lst[0].start, lst[-1].end, lst)
+
+
+def make_empty_list(args: Tuple[Item, Item]) -> ListMaker:
+    return ListMaker(args[0].start, args[1].end, [])
 
 
 @dataclasses.dataclass(frozen=True)
@@ -684,12 +772,21 @@ class DictMaker(Item):
             ret[k] = v
         return ret  # type: ignore
 
+    def child_items(self) -> Iterable["Item"]:
+        for entry in self.items:
+            yield entry[0]
+            yield entry[1]
+
 
 def make_dict(args: Tuple[Item, Item, List[Tuple[Item, Item]]]) -> DictMaker:
     lst = [(args[0], args[1])]
     if len(args) > 2:
         lst += args[2]
     return DictMaker(lst[0][0].start, lst[-1][1].end, lst)
+
+
+def make_empty_dict(args: Tuple[Item, Item]) -> DictMaker:
+    return DictMaker(args[0].start, args[0].end, [])
 
 
 def a(value: str) -> Parser:
@@ -825,7 +922,10 @@ FACTOR.define((OP_PLUS | OP_MINUS) + FACTOR >> make_unary_op_expr | ATOM_EXPR)
 
 EXPR.define(DISJUNCTION)  # Just synonym
 
-LIST_MAKER.define((LSQB + EXPR + many(COMMA + EXPR) + maybe(COMMA) + RSQB) >> make_list)
+LIST_MAKER.define(
+    (LSQB + EXPR + many(COMMA + EXPR) + maybe(COMMA) + RSQB) >> make_list
+    | (a("[") + a("]")) >> make_empty_list
+)
 
 DICT_MAKER.define(
     (
@@ -838,6 +938,7 @@ DICT_MAKER.define(
         + RBRACE
     )
     >> make_dict
+    | (a("{") + a("}")) >> make_empty_dict
 )
 
 TMPL: Final = (OPEN_TMPL + EXPR + CLOSE_TMPL) | (OPEN_TMPL2 + EXPR + CLOSE_TMPL2)
@@ -860,6 +961,8 @@ class Expr(BaseExpr[_T]):
     allow_none: ClassVar[bool] = True
     allow_expr: ClassVar[bool] = True
     type: ClassVar[Type[_T]]
+    start: Pos
+    end: Pos
     _ret: Union[None, _T]
     _pattern: Union[None, str, _T]
     _parsed: Optional[Sequence[Item]]
@@ -875,6 +978,8 @@ class Expr(BaseExpr[_T]):
             raise EvalError(str(exc), start, end)
 
     def __init__(self, start: Pos, end: Pos, pattern: Union[None, str, _T]) -> None:
+        self.start = start
+        self.end = end
         self._pattern = pattern
         # precalculated value for constant string, allows raising errors earlier
         self._ret = None
@@ -912,7 +1017,7 @@ class Expr(BaseExpr[_T]):
                 self._parsed = [Text(start, end, "")]
             assert self._parsed
             if len(self._parsed) == 1 and type(self._parsed[0]) == Text:
-                self._try_convert(cast(Text, self._parsed[0]).arg, start, end)
+                self._try_convert(self._parsed[0].arg, start, end)
             elif not self.allow_expr:
                 raise EvalError(f"Expressions are not allowed in {pattern}", start, end)
         elif self.allow_none:
@@ -939,7 +1044,7 @@ class Expr(BaseExpr[_T]):
                 except EvalError:
                     raise
                 except Exception as exc:
-                    raise EvalError(str(exc), part.start, part.end)
+                    raise EvalError(str(exc), part.start, part.end) from exc
                 # TODO: add str() function, raise an explicit error if
                 # an expresion evaluates non-str type
                 # assert isinstance(val, str), repr(val)

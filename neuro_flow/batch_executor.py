@@ -4,15 +4,28 @@ import asyncio
 import base64
 import datetime
 import json
+import os
 import sys
+import textwrap
 from collections import defaultdict
 from neuro_sdk import (
+    Action,
     Client,
-    Container,
+    DiskVolume,
+    EnvParseResult,
     HTTPPort,
+    IllegalArgumentError,
+    JobDescription,
+    JobRestartPolicy,
     JobStatus,
+    Permission,
+    Preset,
+    RemoteImage,
     ResourceNotFound,
-    Resources,
+    SecretFile,
+    Tag,
+    Volume,
+    VolumeParseResult,
 )
 from rich.console import Console
 from rich.panel import Panel
@@ -20,15 +33,20 @@ from rich.progress import BarColumn, Progress, TaskID, TextColumn
 from typing import (
     AbstractSet,
     AsyncIterator,
+    Awaitable,
+    Callable,
     Dict,
     Generic,
     Iterable,
+    List,
     Mapping,
     Optional,
+    Sequence,
     Set,
     Tuple,
     TypeVar,
 )
+from yarl import URL
 
 from . import ast
 from .colored_topo_sorter import ColoredTopoSorter
@@ -37,6 +55,9 @@ from .config_loader import BatchRemoteCL
 from .context import (
     BaseBatchContext,
     DepCtx,
+    EarlyImageCtx,
+    ImageCtx,
+    LocallyPreparedInfo,
     LocalTask,
     NeedsCtx,
     RunningBatchActionFlow,
@@ -46,14 +67,26 @@ from .context import (
     Task,
     TaskMeta,
 )
-from .storage import Attempt, FinishedTask, StartedTask, Storage
-from .types import AlwaysT, FullID, TaskStatus
+from .expr import EvalError
+from .storage import (
+    Attempt,
+    Bake,
+    BakeImage,
+    FinishedTask,
+    RetryReadStorage,
+    StartedTask,
+    Storage,
+    _dt2str,
+)
+from .types import AlwaysT, FullID, ImageStatus, RemotePath, TaskStatus
 from .utils import (
     TERMINATED_JOB_STATUSES,
     TERMINATED_TASK_STATUSES,
+    RetryConfig,
     fmt_id,
     fmt_raw_id,
     fmt_status,
+    retry,
 )
 
 
@@ -85,6 +118,59 @@ class ExecutorData:
         data = json.loads(raw_json)
         data["when"] = datetime.datetime.fromisoformat(data["when"])
         return cls(**data)
+
+    def get_bake_id(self) -> str:
+        # Todo: this is duplication with code in storage.py,
+        # remove when platform service will be added
+        return "_".join([self.batch, _dt2str(self.when), self.suffix])
+
+
+async def get_running_flow(
+    bake: Bake, client: Client, storage: Storage
+) -> RunningBatchFlow:
+    meta = await storage.fetch_configs_meta(bake)
+    config_loader = BatchRemoteCL(
+        meta,
+        load_from_storage=lambda name: storage.fetch_config(bake, name),
+        client=client,
+    )
+    local_info = LocallyPreparedInfo(
+        children_info={},
+        early_images={},
+    )
+    async for image in storage.list_bake_images(bake):
+        for yaml_def in image.yaml_defs:
+            *prefix, image_id = yaml_def
+            sub = local_info
+            for part in prefix:
+                if part not in sub.children_info:
+                    new_sub = LocallyPreparedInfo(
+                        children_info={},
+                        early_images={},
+                    )
+                    assert isinstance(sub.children_info, dict)
+                    sub.children_info[part] = new_sub
+                sub = sub.children_info[part]
+            assert isinstance(sub.early_images, dict)
+            dockerfile = None
+            if image.context_on_storage and image.dockerfile_rel:
+                dockerfile = image.context_on_storage / str(image.dockerfile_rel)
+            sub.early_images[image_id] = EarlyImageCtx(
+                id=image_id,
+                ref=image.ref,
+                context=image.context_on_storage,
+                dockerfile=dockerfile,
+                dockerfile_rel=RemotePath(image.dockerfile_rel)
+                if image.dockerfile_rel
+                else None,
+            )
+    return await RunningBatchFlow.create(
+        config_loader=config_loader,
+        batch=bake.batch,
+        bake_id=bake.bake_id,
+        params=bake.params,
+        local_info=local_info,
+    )
 
 
 _T = TypeVar("_T")
@@ -128,6 +214,9 @@ class Graph(Generic[_T]):
     def get_ready_with_meta(self) -> Iterable[Tuple[FullID, _T]]:
         for ready in set(self._ready):
             yield ready, self._metas[ready[:-1]]
+
+    def get_graph_data(self, node: FullID) -> _T:
+        return self._metas[node]
 
     def get_meta(self, node: FullID) -> _T:
         prefix = node[:-1]
@@ -242,7 +331,10 @@ class BakeTasksManager:
             dep = self._finished.get(full_id)
             if dep is None:
                 raise NotFinished(full_id)
-            needs[dep_id] = DepCtx(TaskStatus(dep.status), dep.outputs)
+            status = TaskStatus(dep.status)
+            if status == TaskStatus.CACHED:
+                status = TaskStatus.SUCCEEDED
+            needs[dep_id] = DepCtx(status, dep.outputs)
         return needs
 
     def build_state(self, prefix: FullID, state_from: Optional[str]) -> StateCtx:
@@ -255,17 +347,160 @@ class BakeTasksManager:
         return dep.state
 
 
+class ImageBuildCommandError(Exception):
+    def __init__(self, exit_code: int, stdout: str, stderr: str) -> None:
+        self.exit_code = exit_code
+        self.stdout = stdout
+        self.stderr = stderr
+
+    def __str__(self) -> str:
+        return (
+            f"Image builder command failed:\n"
+            f"exit code: {self.exit_code}\n"
+            f"stdout: \n{textwrap.indent(self.stdout, '  ')}\n"
+            f"stderr: \n{textwrap.indent(self.stderr, '  ')}"
+        )
+
+
+async def start_image_build(*cmd: str) -> str:
+    subprocess = await asyncio.create_subprocess_exec(
+        *cmd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    assert subprocess.stdout
+    assert subprocess.stderr
+    stdout = ""
+    while subprocess.returncode is None:
+        line = (await subprocess.stdout.readline()).decode()
+        stdout += line
+        if line.startswith("Job ID: "):
+            # Job is started, we can freely kill neuro-cli
+            subprocess.terminate()
+            return line[len("Job ID: ") :].strip()
+
+    stdout += (await subprocess.stdout.read()).decode()
+    stderr = (await subprocess.stderr.read()).decode()
+    raise ImageBuildCommandError(
+        exit_code=subprocess.returncode,
+        stdout=stdout,
+        stderr=stderr,
+    )
+
+
+class RetryReadNeuroClient(RetryConfig):
+    def __init__(self, client: Client) -> None:
+        super().__init__()
+        self._client = client
+
+    async def job_start(
+        self,
+        *,
+        image: RemoteImage,
+        preset_name: str,
+        entrypoint: Optional[str] = None,
+        command: Optional[str] = None,
+        working_dir: Optional[str] = None,
+        http: Optional[HTTPPort] = None,
+        env: Optional[Mapping[str, str]] = None,
+        volumes: Sequence[Volume] = (),
+        secret_env: Optional[Mapping[str, URL]] = None,
+        secret_files: Sequence[SecretFile] = (),
+        disk_volumes: Sequence[DiskVolume] = (),
+        tty: bool = False,
+        shm: bool = False,
+        name: Optional[str] = None,
+        tags: Sequence[str] = (),
+        description: Optional[str] = None,
+        pass_config: bool = False,
+        wait_for_jobs_quota: bool = False,
+        schedule_timeout: Optional[float] = None,
+        restart_policy: JobRestartPolicy = JobRestartPolicy.NEVER,
+        life_span: Optional[float] = None,
+        privileged: bool = False,
+    ) -> JobDescription:
+        return await self._client.jobs.start(
+            image=image,
+            preset_name=preset_name,
+            entrypoint=entrypoint,
+            command=command,
+            working_dir=working_dir,
+            http=http,
+            env=env,
+            volumes=volumes,
+            secret_env=secret_env,
+            secret_files=secret_files,
+            disk_volumes=disk_volumes,
+            tty=tty,
+            shm=shm,
+            name=name,
+            tags=tags,
+            description=description,
+            pass_config=pass_config,
+            wait_for_jobs_quota=wait_for_jobs_quota,
+            schedule_timeout=schedule_timeout,
+            restart_policy=restart_policy,
+            life_span=life_span,
+            privileged=privileged,
+        )
+
+    @retry
+    async def job_status(self, raw_id: str) -> JobDescription:
+        return await self._client.jobs.status(raw_id)
+
+    @retry
+    async def _job_logs(self, raw_id: str) -> List[bytes]:
+        chunks = []
+        async for chunk in self._client.jobs.monitor(raw_id):
+            chunks.append(chunk)
+        return chunks
+
+    async def job_logs(self, raw_id: str) -> AsyncIterator[bytes]:
+        for chunk in await self._job_logs(raw_id):
+            yield chunk
+
+    async def job_kill(self, raw_id: str) -> None:
+        await self._client.jobs.kill(raw_id)
+
+    @retry
+    async def image_tag_info(self, remote_image: RemoteImage) -> Tag:
+        return await self._client.images.tag_info(remote_image)
+
+    def parse_remote_image(self, image: str) -> RemoteImage:
+        return self._client.parse.remote_image(image)
+
+    @property
+    def config_presets(self) -> Mapping[str, Preset]:
+        return self._client.config.presets
+
+    def parse_envs(
+        self, env: Sequence[str], env_file: Sequence[str] = ()
+    ) -> EnvParseResult:
+        return self._client.parse.envs(env, env_file)
+
+    def parse_volumes(self, volume: Sequence[str]) -> VolumeParseResult:
+        return self._client.parse.volumes(volume)
+
+    async def user_add(self, role_name: str) -> None:
+        await self._client.users.add(role_name)
+
+    async def user_share(self, user: str, permission: Permission) -> Permission:
+        return await self._client.users.share(user, permission)
+
+
 class BatchExecutor:
     def __init__(
         self,
         console: Console,
         flow: RunningBatchFlow,
         attempt: Attempt,
-        client: Client,
+        client: RetryReadNeuroClient,
         storage: Storage,
         *,
         polling_timeout: float = 1,
         transient_progress: bool = False,
+        project_role: Optional[str] = None,
+        run_builder_job: Callable[..., Awaitable[str]] = start_image_build,
     ) -> None:
         self._progress = Progress(
             TextColumn("[progress.description]{task.description}"),
@@ -285,6 +520,10 @@ class BatchExecutor:
         )
         self._tasks_mgr = BakeTasksManager()
         self._is_cancelling = False
+        self._project_role = project_role
+        self._is_projet_role_created = False
+
+        self._run_builder_job = run_builder_job
 
         # A note about default value:
         # AS: I have no idea what timeout is better;
@@ -305,7 +544,11 @@ class BatchExecutor:
         *,
         polling_timeout: float = 1,
         transient_progress: bool = False,
+        project_role: Optional[str] = None,
+        run_builder_job: Callable[..., Awaitable[str]] = start_image_build,
     ) -> AsyncIterator["BatchExecutor"]:
+        storage = RetryReadStorage(storage)
+
         console.log("Fetch bake data")
         bake = await storage.fetch_bake(
             executor_data.project,
@@ -315,13 +558,7 @@ class BatchExecutor:
         )
 
         console.log("Fetch configs metadata")
-        meta = await storage.fetch_configs_meta(bake)
-        config_loader = BatchRemoteCL(
-            meta,
-            load_from_storage=lambda name: storage.fetch_config(bake, name),
-            client=client,
-        )
-        flow = await RunningBatchFlow.create(config_loader, bake.batch, bake.params)
+        flow = await get_running_flow(bake, client, storage)
 
         console.log("Find last attempt")
         attempt = await storage.find_attempt(bake)
@@ -331,10 +568,12 @@ class BatchExecutor:
             console,
             flow,
             attempt,
-            client,
+            RetryReadNeuroClient(client),
             storage,
             polling_timeout=polling_timeout,
             transient_progress=transient_progress,
+            project_role=project_role,
+            run_builder_job=run_builder_job,
         )
         ret._start()
         try:
@@ -343,14 +582,17 @@ class BatchExecutor:
             ret._stop()
 
     def _start(self) -> None:
-        self._progress.start()
+        pass
 
     def _stop(self) -> None:
-        self._progress.stop()
+        pass
 
     async def _refresh_attempt(self) -> None:
+        # TODO: Drop force_no_cache when storage is refactored
         self._attempt = await self._storage.find_attempt(
-            self._attempt.bake, self._attempt.number
+            self._attempt.bake,
+            self._attempt.number,
+            force_no_cache=True,
         )
 
     def _only_completed_needs(
@@ -387,7 +629,6 @@ class BatchExecutor:
         needs = self._tasks_mgr.build_needs(
             prefix, self._only_completed_needs(flow.graph[tid])
         )
-        assert isinstance(flow, RunningBatchFlow)
         return await flow.get_local(tid, needs=needs)
 
     async def _get_action(self, full_id: FullID) -> RunningBatchActionFlow:
@@ -397,6 +638,46 @@ class BatchExecutor:
             prefix, self._only_completed_needs(flow.graph[tid])
         )
         return await flow.get_action(tid, needs=needs)
+
+    async def _get_image(self, bake_image: BakeImage) -> Optional[ImageCtx]:
+        actions = []
+        full_id_to_image: Dict[FullID, ImageCtx] = {}
+        for yaml_def in bake_image.yaml_defs:
+            *prefix, image_id = yaml_def
+            actions.append(".".join(prefix))
+            try:
+                flow = self._graphs.get_graph_data(tuple(prefix))
+            except KeyError:
+                pass
+            else:
+                full_id_to_image[yaml_def] = flow.images[image_id]
+        image_ctx = None
+        for _it in full_id_to_image.values():
+            image_ctx = _it  # Return any context
+            break
+        if not all(image_ctx == it for it in full_id_to_image.values()):
+            locations_str = "\n".join(
+                f" - {'.'.join(full_id)}" for full_id in full_id_to_image.keys()
+            )
+            self._progress.log(
+                f"[red]Warning:[/red] definitions for image with"
+                f" ref [b]{bake_image.ref}[/b] differ:\n"
+                f"{locations_str}"
+            )
+        if len(full_id_to_image.values()) == 0:
+            actions_str = ", ".join(f"'{it}'" for it in actions)
+            self._progress.log(
+                f"[red]Warning:[/red] image with ref "
+                f"[b]{bake_image.ref}[/b] is referred "
+                + (
+                    f"before action {actions_str} "
+                    "that holds its definition was able to run"
+                    if len(actions) == 1
+                    else f"before actions {actions_str} "
+                    "that hold its definition were able to run"
+                )
+            )
+        return image_ctx
 
     # Graph helpers
 
@@ -471,14 +752,19 @@ class BatchExecutor:
             self._progress.log(
                 "Task", fmt_id(ft.id), fmt_raw_id(ft.raw_id), "is", TaskStatus.CACHED
             )
-            assert ft.status == TaskStatus.SUCCEEDED
+            assert ft.status == TaskStatus.CACHED
             self._mark_finished(ft, advance=3)
         else:
             st = await self._start_task(full_id, task)
-            self._mark_started(st)
-            self._progress.log(
-                "Task", fmt_id(st.id), fmt_raw_id(st.raw_id), "is", TaskStatus.PENDING
-            )
+            if st:
+                self._mark_started(st)
+                self._progress.log(
+                    "Task",
+                    fmt_id(st.id),
+                    fmt_raw_id(st.raw_id),
+                    "is",
+                    TaskStatus.PENDING,
+                )
 
     async def _load_previous_run(self) -> None:
         # Loads tasks that previous executor run processed.
@@ -501,7 +787,7 @@ class BatchExecutor:
             if not st.raw_id:
                 continue
             try:
-                job_descr = await self._client.jobs.status(st.raw_id)
+                job_descr = await self._client.job_status(st.raw_id)
             except ResourceNotFound:
                 pass
             else:
@@ -523,7 +809,7 @@ class BatchExecutor:
                     if full_id in finished:
                         self._mark_finished(finished[full_id])
             for full_id in self._graphs.get_ready_to_mark_running_embeds():
-                self._mark_running(running[full_id])
+                self._mark_running(started[full_id])
             for full_id in self._graphs.get_ready_to_mark_done_embeds():
                 if full_id in finished:
                     self._mark_finished(finished[full_id])
@@ -531,8 +817,46 @@ class BatchExecutor:
     async def _should_continue(self) -> bool:
         return self._graphs.is_active
 
-    async def run(self) -> None:
+    async def run(self) -> TaskStatus:
+        with self._progress:
+            try:
+                result = await self._run()
+            except (KeyboardInterrupt, asyncio.CancelledError):
+                await self._cancel_unfinished()
+                result = TaskStatus.CANCELLED
+            except Exception as exp:
+                await self.log_error(exp)
+                await self._cancel_unfinished()
+                result = TaskStatus.FAILED
+        await self._finish_run(result)
+        return result
+
+    async def log_error(self, exp: Exception) -> None:
+        if isinstance(exp, EvalError):
+            self._progress.log(f"[red][b]ERROR:[/b] {exp}[/red]")
+        else:
+            # Looks like this is some bug in our code, so we should print stacktrace
+            # for easier debug
+            self._progress.console.print_exception(show_locals=True)
+            self._progress.log(
+                "[red][b]ERROR:[/b] Some unknown error happened. Please report "
+                "an issue to https://github.com/neuro-inc/neuro-flow/issues/new "
+                "with traceback printed above.[/red]"
+            )
+
+    async def _run(self) -> TaskStatus:
         await self._load_previous_run()
+
+        job_id = os.environ.get("NEURO_JOB_ID")
+        if job_id:
+            # store job id as executor id
+            await self._storage.store_executor_id(self._attempt, job_id)
+
+        if self._attempt.result in TERMINATED_TASK_STATUSES:
+            # If attempt is already terminated, just clean up tasks
+            # and exit
+            await self._cancel_unfinished()
+            return self._attempt.result
 
         while await self._should_continue():
             for full_id, flow in self._graphs.get_ready_with_meta():
@@ -554,21 +878,20 @@ class BatchExecutor:
                     await self._process_task(full_id)
 
             ok = await self._process_started()
+            await self._process_running_builds()
 
             # Check for cancellation
             if not self._is_cancelling:
                 await self._refresh_attempt()
 
                 if not ok or self._attempt.result == TaskStatus.CANCELLED:
-                    self._is_cancelling = True
-                    await self._stop_unfinished()
+                    await self._cancel_unfinished()
 
             await asyncio.sleep(self._polling_timeout)
 
-        await self._finish_run()
+        return self._accumulate_result()
 
-    async def _finish_run(self) -> None:
-        attempt_status = self._accumulate_result()
+    async def _finish_run(self, attempt_status: TaskStatus) -> None:
         if self._attempt.result not in TERMINATED_TASK_STATUSES:
             await self._storage.finish_attempt(self._attempt, attempt_status)
         self._progress.print(
@@ -577,13 +900,25 @@ class BatchExecutor:
             ),
             justify="center",
         )
+        if attempt_status != TaskStatus.SUCCEEDED:
+            self._progress.log(
+                "[blue b]Hint:[/blue b] you can restart bake starting "
+                "from first failed task "
+                "by the following command:\n"
+                f"[b]neuro-flow restart {self._attempt.bake.bake_id}[/b]"
+            )
 
-    async def _stop_unfinished(self) -> None:
+    async def _cancel_unfinished(self) -> None:
+        self._is_cancelling = True
         for full_id, st in self._tasks_mgr.unfinished_tasks.items():
             task = await self._get_task(full_id)
             if task.enable is not AlwaysT():
                 self._progress.log(f"Task {fmt_id(st.id)} is being killed")
-                await self._client.jobs.kill(st.raw_id)
+                await self._client.job_kill(st.raw_id)
+        async for image in self._storage.list_bake_images(self._attempt.bake):
+            if image.status == ImageStatus.BUILDING:
+                assert image.builder_job_id
+                await self._client.job_kill(image.builder_job_id)
 
     async def _store_to_cache(self, ft: FinishedTask) -> None:
         task = await self._get_task(ft.id)
@@ -598,7 +933,7 @@ class BatchExecutor:
     async def _process_started(self) -> bool:
         # Process tasks
         for full_id, st in self._tasks_mgr.unfinished_tasks.items():
-            job_descr = await self._client.jobs.status(st.raw_id)
+            job_descr = await self._client.job_status(st.raw_id)
             if (
                 job_descr.status in {JobStatus.RUNNING, JobStatus.SUCCEEDED}
                 and full_id not in self._tasks_mgr.running
@@ -613,7 +948,7 @@ class BatchExecutor:
                 )
             if job_descr.status in TERMINATED_JOB_STATUSES:
                 async with CmdProcessor() as proc:
-                    async for chunk in self._client.jobs.monitor(st.raw_id):
+                    async for chunk in self._client.job_logs(st.raw_id):
                         async for line in proc.feed_chunk(chunk):
                             pass
                     async for line in proc.feed_eof():
@@ -644,7 +979,7 @@ class BatchExecutor:
             st = self._tasks_mgr.started[full_id]
             self._mark_running(st)
             self._progress.log(
-                "Task",
+                "Action",
                 fmt_id(st.id),
                 fmt_raw_id(st.raw_id),
                 "is",
@@ -655,8 +990,8 @@ class BatchExecutor:
             # done action, make it finished
             ctx = await self._get_action(full_id)
 
-            needs = self._tasks_mgr.build_needs(full_id, await ctx.get_output_needs())
-            outputs = await ctx.calc_outputs(needs, is_cancelling=self._is_cancelling)
+            results = self._tasks_mgr.build_needs(full_id, ctx.graph.keys())
+            outputs = await ctx.calc_outputs(results)
 
             ft = await self._storage.finish_action(
                 self._attempt,
@@ -690,49 +1025,72 @@ class BatchExecutor:
 
         return TaskStatus.SUCCEEDED
 
-    async def _start_task(self, full_id: FullID, task: Task) -> StartedTask:
+    async def _is_image_in_registry(self, remote_image: RemoteImage) -> bool:
+        try:
+            await self._client.image_tag_info(remote_image)
+        except ResourceNotFound:
+            return False
+        return True
 
+    async def _start_task(self, full_id: FullID, task: Task) -> Optional[StartedTask]:
+        remote_image = self._client.parse_remote_image(task.image)
+        if remote_image.cluster_name is None:  # Not a neuro registry image
+            return await self._run_task(full_id, task)
+        try:
+            bake_image = await self._storage.get_bake_image(
+                self._attempt.bake, task.image
+            )
+        except ResourceNotFound:
+            # Not defined in the bake
+            return await self._run_task(full_id, task)
+
+        image_ctx = await self._get_image(bake_image)
+        if image_ctx is None:
+            # The image referred before definition
+            return await self._run_task(full_id, task)
+
+        if not image_ctx.force_rebuild and await self._is_image_in_registry(
+            remote_image
+        ):
+            return await self._run_task(full_id, task)
+
+        if bake_image.status == ImageStatus.PENDING:
+            await self._start_image_build(bake_image, image_ctx)
+            return None  # wait for next pulling interval
+        elif bake_image.status == ImageStatus.BUILDING:
+            return None  # wait for next pulling interval
+        else:
+            # Image is already build (maybe with an error, just try to run a job)
+            return await self._run_task(full_id, task)
+
+    async def _run_task(self, full_id: FullID, task: Task) -> StartedTask:
         preset_name = task.preset
         if preset_name is None:
-            preset_name = next(iter(self._client.config.presets))
-        preset = self._client.config.presets[preset_name]
+            preset_name = next(iter(self._client.config_presets))
 
-        env_dict, secret_env_dict = self._client.parse.env(
-            [f"{k}={v}" for k, v in task.env.items()]
-        )
-        resources = Resources(
-            memory_mb=preset.memory_mb,
-            cpu=preset.cpu,
-            gpu=preset.gpu,
-            gpu_model=preset.gpu_model,
-            shm=True,
-            tpu_type=preset.tpu_type,
-            tpu_software_version=preset.tpu_software_version,
-        )
-        volumes_parsed = self._client.parse.volumes(task.volumes)
+        envs = self._client.parse_envs([f"{k}={v}" for k, v in task.env.items()])
+
+        volumes_parsed = self._client.parse_volumes(task.volumes)
         volumes = list(volumes_parsed.volumes)
 
         http_auth = task.http_auth
         if http_auth is None:
             http_auth = HTTPPort.requires_auth
 
-        container = Container(
-            image=self._client.parse.remote_image(task.image),
+        job = await self._client.job_start(
+            shm=True,
+            tty=False,
+            image=self._client.parse_remote_image(task.image),
+            preset_name=preset_name,
             entrypoint=task.entrypoint,
             command=task.cmd,
             http=HTTPPort(task.http_port, http_auth) if task.http_port else None,
-            resources=resources,
-            env=env_dict,
-            secret_env=secret_env_dict,
+            env=envs.env,
+            secret_env=envs.secret_env,
             volumes=volumes,
             working_dir=str(task.workdir) if task.workdir else None,
             secret_files=list(volumes_parsed.secret_files),
             disk_volumes=list(volumes_parsed.disk_volumes),
-            tty=False,
-        )
-        job = await self._client.jobs.run(
-            container,
-            scheduler_enabled=preset.scheduler_enabled,
             name=task.name,
             tags=list(task.tags),
             description=task.title,
@@ -740,7 +1098,92 @@ class BatchExecutor:
             schedule_timeout=task.schedule_timeout,
             pass_config=bool(task.pass_config),
         )
+        await self._add_resource(job.uri)
         return await self._storage.start_task(self._attempt, full_id, job)
+
+    async def _start_image_build(
+        self, bake_image: BakeImage, image_ctx: ImageCtx
+    ) -> None:
+        context = bake_image.context_on_storage or image_ctx.context
+        dockerfile_rel = bake_image.dockerfile_rel or image_ctx.dockerfile_rel
+
+        if context is None or dockerfile_rel is None:
+            if context is None and dockerfile_rel is None:
+                error = "context and dockerfile not specified"
+            elif context is None and dockerfile_rel is not None:
+                error = "context not specified"
+            else:
+                error = "dockerfile not specified"
+            raise Exception(f"Failed to build image '{bake_image.ref}': {error}")
+
+        cmd = ["neuro-extras", "image", "build"]
+        cmd.append(f"--file={dockerfile_rel}")
+        for arg in image_ctx.build_args:
+            cmd.append(f"--build-arg={arg}")
+        for vol in image_ctx.volumes:
+            cmd.append(f"--volume={vol}")
+        for k, v in image_ctx.env.items():
+            cmd.append(f"--env={k}={v}")
+        if image_ctx.force_rebuild:
+            cmd.append("--force-overwrite")
+        if image_ctx.build_preset is not None:
+            cmd.append(f"--preset={image_ctx.build_preset}")
+        cmd.append(str(context))
+        cmd.append(str(bake_image.ref))
+        builder_job_id = await self._run_builder_job(*cmd)
+        await self._storage.update_bake_image(
+            self._attempt.bake,
+            bake_image.ref,
+            builder_job_id=builder_job_id,
+            status=ImageStatus.BUILDING,
+        )
+        self._progress.log("Image", fmt_id(bake_image.ref), "is", ImageStatus.BUILDING)
+        self._progress.log("  builder job:", fmt_raw_id(builder_job_id))
+
+    async def _process_running_builds(self) -> None:
+        async for image in self._storage.list_bake_images(self._attempt.bake):
+            if image.status == ImageStatus.BUILDING:
+                assert image.builder_job_id
+                descr = await self._client.job_status(image.builder_job_id)
+                if descr.status == JobStatus.SUCCEEDED:
+                    await self._storage.update_bake_image(
+                        self._attempt.bake,
+                        image.ref,
+                        status=ImageStatus.BUILT,
+                    )
+                    self._progress.log(
+                        "Image", fmt_id(image.ref), "is", ImageStatus.BUILT
+                    )
+                elif descr.status in TERMINATED_JOB_STATUSES:
+                    await self._storage.update_bake_image(
+                        self._attempt.bake,
+                        image.ref,
+                        status=ImageStatus.BUILD_FAILED,
+                    )
+                    self._progress.log(
+                        "Image", fmt_id(image.ref), "is", ImageStatus.BUILD_FAILED
+                    )
+
+    async def _create_project_role(self, project_role: str) -> None:
+        if self._is_projet_role_created:
+            return
+        try:
+            await self._client.user_add(project_role)
+        except IllegalArgumentError as e:
+            if "already exists" not in str(e):
+                raise
+        self._is_projet_role_created = True
+
+    async def _add_resource(self, uri: URL) -> None:
+        project_role = self._project_role
+        if project_role is None:
+            return
+        await self._create_project_role(project_role)
+        permission = Permission(uri, Action.WRITE)
+        try:
+            await self._client.user_share(project_role, permission)
+        except ValueError:
+            self._progress.log(f"[red]Cannot share [b]{uri!s}[/b]")
 
 
 class LocalsBatchExecutor(BatchExecutor):
@@ -754,6 +1197,7 @@ class LocalsBatchExecutor(BatchExecutor):
         storage: Storage,
         *,
         polling_timeout: Optional[float] = None,
+        project_role: Optional[str] = None,
     ) -> AsyncIterator["BatchExecutor"]:
         assert (
             polling_timeout is None
@@ -765,6 +1209,7 @@ class LocalsBatchExecutor(BatchExecutor):
             storage,
             polling_timeout=0,
             transient_progress=True,
+            project_role=project_role,
         ) as ret:
             yield ret
 
@@ -773,18 +1218,20 @@ class LocalsBatchExecutor(BatchExecutor):
         st = await self._storage.start_action(self._attempt, full_id)
         self._mark_started(st)
         self._progress.log(f"Local action {fmt_id(st.id)} is", TaskStatus.PENDING)
-
         subprocess = await asyncio.create_subprocess_shell(
             local.cmd,
             stdout=asyncio.subprocess.PIPE,
-            cwd=local.workdir,
+            stderr=asyncio.subprocess.PIPE,
+            cwd=self._top_flow.workspace,
         )
         (stdout_data, stderr_data) = await subprocess.communicate()
         async with CmdProcessor() as proc:
             async for line in proc.feed_chunk(stdout_data):
-                self._progress.log(line)
+                self._progress.log(line.decode())
             async for line in proc.feed_eof():
-                self._progress.log(line)
+                self._progress.log(line.decode())
+        if stderr_data:
+            self._progress.log(stderr_data.decode())
         if subprocess.returncode == 0:
             result_status = TaskStatus.SUCCEEDED
         else:
@@ -807,17 +1254,21 @@ class LocalsBatchExecutor(BatchExecutor):
         for key, value in ft.outputs.items():
             self._progress.log(f"  {key}: {value}")
 
-    async def _process_action(self, full_id: FullID) -> None:
-        pass  # Skip for local
-
     async def _process_task(self, full_id: FullID) -> None:
         pass  # Skip for local
 
     async def _should_continue(self) -> bool:
         for full_id, flow in self._graphs.get_ready_with_meta():
             if await flow.is_local(full_id[-1]):
-                return True
+                return True  # Has local action
+            if (
+                await flow.is_action(full_id[-1])
+                and full_id not in self._tasks_mgr.started
+            ):
+                return True  # Has unchecked batch action
         return False
 
-    async def _finish_run(self) -> None:
-        pass  # Do nothing for locals run
+    async def _finish_run(self, attempt_status: TaskStatus) -> None:
+        # Only process failures during local run
+        if attempt_status != TaskStatus.SUCCEEDED:
+            await super()._finish_run(attempt_status)

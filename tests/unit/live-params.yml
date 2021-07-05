@@ -6,5 +6,6 @@ jobs:
       arg2:
         default: val2
         descr: Second arg
+      arg3: ${{ flow.flow_id }}
     image: ubuntu
-    bash: echo ${{ params.arg1 }} ${{ params.arg2 }}
+    bash: echo ${{ params.arg1 }} ${{ params.arg2 }} ${{ params.arg3 }}

@@ -1,0 +1,9 @@
+kind: batch
+tasks:
+- id: call_action
+  action: ws:call-cp
+- id: local
+  needs: [call_action]
+  action: ws:shell
+  args:
+    shell: echo "test" > file

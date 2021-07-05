@@ -8,7 +8,7 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: Set up Python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v2.2.2
       with:
         python-version: 3.7
     - name: Install dependencies
@@ -16,12 +16,12 @@ jobs:
     - name: Run pre-commit autoupdate
       run: pre-commit autoupdate
     - id: generate_token
-      uses: tibdex/github-app-token@v1
+      uses: tibdex/github-app-token@v1.3
       with:
         app_id: ${{ secrets.BOT_APP_ID }}
         private_key: ${{ secrets.BOT_PRIVATE_KEY }}
     - name: Create Pull Request
-      uses: peter-evans/create-pull-request@v3.8.2
+      uses: peter-evans/create-pull-request@v3.10.0
       with:
         token: ${{ steps.generate_token.outputs.token }}
         branch: update/pre-commit-autoupdate

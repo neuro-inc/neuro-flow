@@ -1,0 +1,43 @@
+kind: batch
+name: Test batch Action
+author: Andrew Svetlov
+descr: description of test action
+inputs:
+  arg1:
+    descr: param 1
+  arg2:
+    descr: param 2
+    default: value 2
+outputs:
+  needs: [task_1, task_2]
+  res1:
+    descr: action result 1
+    value: ${{ needs.task_1.outputs.task1 }}
+  res2:
+    descr: action result 2
+    value: ${{ needs.task_2.outputs.task2 }}
+cache:
+  strategy: inherit
+  life_span: 30m
+images:
+  image_a:
+    ref: image:banana
+    context: dir
+    dockerfile: dir/Dockerfile
+    build_args:
+    - --arg1
+    - val1
+    - --arg2=val2
+    env:
+      SECRET_ENV: secret:key
+    volumes:
+      - secret:key:/var/secret/key.txt
+    build_preset: gpu-small
+tasks:
+- id: task_1
+  needs: [ ]  # checks parser
+  image: image:banana
+  bash: echo ::set-output name=task1::Task 1 ${{ inputs.arg1 }}
+- id: task_2
+  image: ubuntu
+  bash: echo ::set-output name=task2::Task 2 ${{ inputs.arg2 }}

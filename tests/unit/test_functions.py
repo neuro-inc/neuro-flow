@@ -6,7 +6,7 @@ from neuro_sdk import Client
 from re_assert import Matches
 from typing import AbstractSet, Any, AsyncIterator, Callable, Mapping
 
-from neuro_flow.context import FlowCtx, LiveContext, TagsCtx
+from neuro_flow.context import FlowCtx, LiveContext, ProjectCtx, TagsCtx
 from neuro_flow.expr import EvalError, RootABC, StrExpr, TypeT
 from neuro_flow.tokenizer import Pos
 from neuro_flow.types import LocalPath
@@ -40,10 +40,44 @@ async def test_len(client: Client) -> None:
     assert ret == "3"
 
 
+@pytest.mark.parametrize(
+    "pattern,result",
+    [
+        ("'just string'", "just string"),
+        ("True", "True"),
+        ("222", "222"),
+        ("22.22", "22.22"),
+        ("[1, 2, 3]", "[1, 2, 3]"),
+    ],
+)
+async def test_str(client: Client, pattern: str, result: str) -> None:
+    expr = StrExpr(POS, POS, "${{ str(" + pattern + ") }}")
+    ret = await expr.eval(Root({}, client))
+    assert ret == result
+
+
+async def test_replace(client: Client) -> None:
+    expr = StrExpr(POS, POS, "${{ replace('22.22', '.', '_') }}")
+    ret = await expr.eval(Root({}, client))
+    assert ret == "22_22"
+
+
+async def test_join(client: Client) -> None:
+    expr = StrExpr(POS, POS, "${{ join('_', ['x', 'y', 'z']) }}")
+    ret = await expr.eval(Root({}, client))
+    assert ret == "x_y_z"
+
+
 async def test_keys(client: Client) -> None:
     expr = StrExpr(POS, POS, "${{ keys(dct) }}")
     ret = await expr.eval(Root({"dct": {"a": 1, "b": 2}}, client))
     assert ret == "['a', 'b']"
+
+
+async def test_values(client: Client) -> None:
+    expr = StrExpr(POS, POS, "${{ values(dct) }}")
+    ret = await expr.eval(Root({"dct": {"a": 1, "b": 2}}, client))
+    assert ret == "[1, 2]"
 
 
 async def test_fmt(client: Client) -> None:
@@ -125,6 +159,11 @@ async def live_context_factory(assets: pathlib.Path) -> LiveContextFactory:
     def _factory(client: Client, tags: TagsCtx = frozenset()) -> LiveContext:
         return LiveContext(
             _client=client,
+            project=ProjectCtx(
+                id="test",
+                owner=None,
+                role=None,
+            ),
             flow=FlowCtx(
                 flow_id="live",
                 project_id="test",

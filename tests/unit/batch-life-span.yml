@@ -1,0 +1,10 @@
+kind: batch
+life_span: 30d
+tasks:
+  - image: ubuntu
+    preset: cpu-micro
+    bash: echo abc
+
+  - image: ubuntu
+    preset: cpu-micro
+    bash: echo def
