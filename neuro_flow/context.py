@@ -713,7 +713,12 @@ async def setup_batch_flow_ctx(
 async def setup_defaults_env_tags_ctx(
     ctx: WithFlowContext,
     ast_defaults: Optional[ast.FlowDefaults],
+    ast_global_defaults: Optional[ast.FlowDefaults],
 ) -> Tuple[DefaultsConf, EnvCtx, TagsCtx]:
+    if ast_defaults is not None and ast_global_defaults is not None:
+        ast_defaults = await merge_asts(ast_defaults, ast_global_defaults)
+    elif ast_global_defaults:
+        ast_defaults = ast_global_defaults
     env: EnvCtx
     tags: TagsCtx
     volumes: List[str]
@@ -1127,10 +1132,43 @@ def check_module_call_is_local(action_name: str, call_ast: ast.BaseModuleCall) -
         )
 
 
-class MixinProtocol(Protocol):
+class SupportsAstMerge(Protocol):
     @property
     def _specified_fields(self) -> AbstractSet[str]:
         ...
+
+
+_MergeTarget = TypeVar("_MergeTarget", bound=SupportsAstMerge)
+
+
+async def merge_asts(child: _MergeTarget, parent: SupportsAstMerge) -> _MergeTarget:
+    child_fields = {f.name for f in dataclasses.fields(child)}
+    for field in parent._specified_fields:
+        if field == "inherits" or field not in child_fields:
+            continue
+        field_present = field in child._specified_fields
+        child_value = getattr(child, field)
+        parent_value = getattr(parent, field)
+        merge_supported = isinstance(parent_value, BaseSequenceExpr) or isinstance(
+            parent_value, BaseMappingExpr
+        )
+        if not field_present or (child_value is None and merge_supported):
+            child = replace(
+                child,
+                **{field: parent_value},
+                _specified_fields=child._specified_fields | {field},
+            )
+        elif isinstance(parent_value, BaseSequenceExpr):
+            assert isinstance(child_value, BaseSequenceExpr)
+            child = replace(
+                child, **{field: ConcatSequenceExpr(child_value, parent_value)}
+            )
+        elif isinstance(parent_value, BaseMappingExpr):
+            assert isinstance(child_value, BaseMappingExpr)
+            child = replace(
+                child, **{field: MergeMappingsExpr(child_value, parent_value)}
+            )
+    return child
 
 
 class MixinApplyTarget(Protocol):
@@ -1147,7 +1185,7 @@ _MixinApplyTarget = TypeVar("_MixinApplyTarget", bound=MixinApplyTarget)
 
 
 async def apply_mixins(
-    base: _MixinApplyTarget, mixins: Mapping[str, MixinProtocol]
+    base: _MixinApplyTarget, mixins: Mapping[str, SupportsAstMerge]
 ) -> _MixinApplyTarget:
     if base.inherits is None:
         return base
@@ -1161,31 +1199,7 @@ async def apply_mixins(
                 start=mixin_expr.start,
                 end=mixin_expr.end,
             )
-        for field in mixin._specified_fields:
-            if field == "inherits":
-                continue  # Do not inherit 'inherits' field
-            field_present = field in base._specified_fields
-            base_value = getattr(base, field)
-            mixin_value = getattr(mixin, field)
-            merge_supported = isinstance(mixin_value, BaseSequenceExpr) or isinstance(
-                mixin_value, BaseMappingExpr
-            )
-            if not field_present or (base_value is None and merge_supported):
-                base = replace(
-                    base,
-                    **{field: mixin_value},
-                    _specified_fields=base._specified_fields | {field},
-                )
-            elif isinstance(mixin_value, BaseSequenceExpr):
-                assert isinstance(base_value, BaseSequenceExpr)
-                base = replace(
-                    base, **{field: ConcatSequenceExpr(base_value, mixin_value)}
-                )
-            elif isinstance(mixin_value, BaseMappingExpr):
-                assert isinstance(base_value, BaseMappingExpr)
-                base = replace(
-                    base, **{field: MergeMappingsExpr(base_value, mixin_value)}
-                )
+        base = await merge_asts(base, mixin)
     return base
 
 
@@ -1438,6 +1452,7 @@ class RunningLiveFlow:
         cls, config_loader: ConfigLoader, config_name: str = "live"
     ) -> "RunningLiveFlow":
         ast_flow = await config_loader.fetch_flow(config_name)
+        ast_project = await config_loader.fetch_project()
 
         assert isinstance(ast_flow, ast.LiveFlow)
 
@@ -1451,14 +1466,24 @@ class RunningLiveFlow:
         )
 
         defaults, env, tags = await setup_defaults_env_tags_ctx(
-            step_1_ctx, ast_flow.defaults
+            step_1_ctx, ast_flow.defaults, ast_project.defaults
         )
+
+        volumes = {
+            **(await setup_volumes_ctx(step_1_ctx, ast_project.volumes)),
+            **(await setup_volumes_ctx(step_1_ctx, ast_flow.volumes)),
+        }
+
+        images = {
+            **(await setup_images_ctx(step_1_ctx, step_1_ctx, ast_project.images)),
+            **(await setup_images_ctx(step_1_ctx, step_1_ctx, ast_flow.images)),
+        }
 
         live_ctx = step_1_ctx.to_live_ctx(
             env=env,
             tags=tags,
-            volumes=await setup_volumes_ctx(step_1_ctx, ast_flow.volumes),
-            images=await setup_images_ctx(step_1_ctx, step_1_ctx, ast_flow.images),
+            volumes=volumes,
+            images=images,
         )
 
         return cls(ast_flow, live_ctx, config_loader, defaults)
@@ -1963,6 +1988,7 @@ class RunningBatchFlow(RunningBatchBase[BatchContext]):
         local_info: Optional[LocallyPreparedInfo] = None,
     ) -> "RunningBatchFlow":
         ast_flow = await config_loader.fetch_flow(batch)
+        ast_project = await config_loader.fetch_project()
 
         assert isinstance(ast_flow, ast.BatchFlow)
 
@@ -1986,16 +2012,32 @@ class RunningBatchFlow(RunningBatchBase[BatchContext]):
             early_images = local_info.early_images
 
         defaults, env, tags = await setup_defaults_env_tags_ctx(
-            step_1_ctx, ast_flow.defaults
+            step_1_ctx, ast_flow.defaults, ast_project.defaults
         )
+
+        volumes = {
+            **(await setup_volumes_ctx(step_1_ctx, ast_project.volumes)),
+            **(await setup_volumes_ctx(step_1_ctx, ast_flow.volumes)),
+        }
+
+        images = {
+            **(
+                await setup_images_ctx(
+                    step_1_ctx, step_1_ctx, ast_project.images, early_images
+                )
+            ),
+            **(
+                await setup_images_ctx(
+                    step_1_ctx, step_1_ctx, ast_flow.images, early_images
+                )
+            ),
+        }
 
         step_2_ctx = step_1_ctx.to_step_2(
             env=env,
             tags=tags,
-            volumes=await setup_volumes_ctx(step_1_ctx, ast_flow.volumes),
-            images=await setup_images_ctx(
-                step_1_ctx, step_1_ctx, ast_flow.images, early_images
-            ),
+            volumes=volumes,
+            images=images,
         )
 
         if ast_flow.defaults:

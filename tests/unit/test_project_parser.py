@@ -21,7 +21,7 @@ from neuro_flow.tokenizer import Pos
 
 
 def test_parse_full(assets: pathlib.Path) -> None:
-    config_file = assets / "project-full.yml"
+    config_file = assets / "with_project_yaml" / "project.yml"
     with config_file.open() as stream:
         project = parse_project_stream(stream)
     assert project == ast.Project(
@@ -129,6 +129,18 @@ def test_parse_full(assets: pathlib.Path) -> None:
         defaults=ast.BatchFlowDefaults(
             Pos(27, 2, config_file),
             Pos(42, 0, config_file),
+            _specified_fields={
+                "fail_fast",
+                "tags",
+                "cache",
+                "env",
+                "volumes",
+                "life_span",
+                "schedule_timeout",
+                "workdir",
+                "max_parallel",
+                "preset",
+            },
             tags=SequenceItemsExpr(
                 [
                     StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "tag-a"),

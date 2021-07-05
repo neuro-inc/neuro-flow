@@ -122,6 +122,17 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
         defaults=ast.BatchFlowDefaults(
             _start=Pos(22, 2, config_file),
             _end=Pos(34, 0, config_file),
+            _specified_fields={
+                "env",
+                "fail_fast",
+                "volumes",
+                "life_span",
+                "schedule_timeout",
+                "max_parallel",
+                "preset",
+                "workdir",
+                "tags",
+            },
             tags=SequenceItemsExpr(
                 [
                     StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "tag-a"),
@@ -843,6 +854,7 @@ def test_parse_matrix_with_strategy(assets: pathlib.Path) -> None:
         defaults=ast.BatchFlowDefaults(
             Pos(2, 2, config_file),
             Pos(7, 0, config_file),
+            _specified_fields={"fail_fast", "cache", "max_parallel"},
             tags=None,
             env=None,
             volumes=None,
@@ -1095,6 +1107,7 @@ def test_parse_args(assets: pathlib.Path) -> None:
         defaults=ast.BatchFlowDefaults(
             _start=Pos(7, 2, config_file),
             _end=Pos(10, 0, config_file),
+            _specified_fields={"tags"},
             tags=SequenceItemsExpr(
                 [
                     StrExpr(

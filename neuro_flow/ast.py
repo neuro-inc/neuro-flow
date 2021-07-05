@@ -269,7 +269,7 @@ class TaskModuleCall(BaseModuleCall, TaskBase):
 
 
 @dataclass(frozen=True)
-class FlowDefaults(Base):
+class FlowDefaults(WithSpecifiedFields, Base):
     tags: Optional[BaseExpr[SequenceT]] = field(metadata={"allow_none": True})
 
     env: Optional[BaseExpr[MappingT]] = field(metadata={"allow_none": True})

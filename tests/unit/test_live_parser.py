@@ -326,6 +326,15 @@ def test_parse_full(assets: pathlib.Path) -> None:
         defaults=ast.FlowDefaults(
             Pos(26, 2, config_file),
             Pos(36, 0, config_file),
+            _specified_fields={
+                "env",
+                "volumes",
+                "life_span",
+                "schedule_timeout",
+                "preset",
+                "workdir",
+                "tags",
+            },
             tags=SequenceItemsExpr(
                 [
                     StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "tag-a"),
@@ -655,6 +664,15 @@ def test_parse_full_exprs(assets: pathlib.Path) -> None:
         defaults=ast.FlowDefaults(
             Pos(21, 2, config_file),
             Pos(28, 0, config_file),
+            _specified_fields={
+                "env",
+                "volumes",
+                "life_span",
+                "schedule_timeout",
+                "preset",
+                "workdir",
+                "tags",
+            },
             tags=SequenceExpr(
                 Pos(0, 0, config_file),
                 Pos(0, 0, config_file),
