@@ -666,7 +666,7 @@ jobs:
 
 Allows you to specify a job's name. This name becomes a part of the job's internal hostname and exposed HTTP URL, and the job can then be controlled by its name through the low-level `neuro` tool.
 
-The name is completely _optional_, the `neuro-flow` tool doesn't require it to work properly.
+The name is completely _optional_.
 
 **Example:**
 
@@ -675,6 +675,14 @@ jobs:
   my_job:
     name: my-name
 ```
+
+If the name is not specified in the `name` attribute, the default name for the job will be automatically generated as follows:
+
+```yaml
+'<PROJECT-ID>--<JOB-ID>--[<MULTI_SUFFIX>]'
+```
+
+The `--[<MULTI_SUFFIX>]` part makes sure that a job will have a unique name even if it's a multi job.
 
 **Expression contexts:** [`flow` context](live-contexts.md#flow-context), [`env` context](live-contexts.md#env-context), [`tags` context](live-contexts.md#tags-context), [`volumes` context](live-contexts.md#volumes-context), [`images` context](live-contexts.md#images-context), [`params` context](live-contexts.md#params-context), [`multi` context](live-contexts.md#multi-context) \(if [`jobs.<job-id>.multi`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-multi) is set\).
 

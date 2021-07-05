@@ -187,6 +187,8 @@ Parameter described in the [`jobs.<job-id>.params` attribute](live-workflow-synt
 | :--- | :--- | :--- |
 | `params.<param-name>` | `str` | The value of a specific parameter. |
 
+Supported parameter values: `project`, `flow`, `env`, `tags`, `volumes`, `images`.
+
 ### `tags` context
 
 A set of job tags.
