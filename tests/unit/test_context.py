@@ -8,6 +8,7 @@ from typing_extensions import AsyncIterator
 from yarl import URL
 
 from neuro_flow import ast
+from neuro_flow.ast import CacheStrategy
 from neuro_flow.config_loader import BatchLocalCL, ConfigLoader, LiveLocalCL
 from neuro_flow.context import (
     EMPTY_ROOT,
@@ -1112,6 +1113,62 @@ async def test_batch_task_with_no_image(assets: pathlib.Path, client: Client) ->
             match=r"Image for task test is not specified",
         ):
             await RunningBatchFlow.create(cl, "batch-task-no-image", "bake-id")
+
+    finally:
+        await cl.close()
+
+
+async def test_early_images_include_globals(
+    assets: pathlib.Path, client: Client
+) -> None:
+    ws = assets / "with_project_yaml"
+    config_dir = ConfigDir(
+        workspace=ws,
+        config_dir=ws,
+    )
+    cl = BatchLocalCL(config_dir, client)
+    try:
+        flow = await RunningBatchFlow.create(cl, "batch", "bake-id")
+        assert flow.early_images["image_a"].ref == "image:banana"
+        assert flow.early_images["image_a"].context == ws / "dir"
+        assert flow.early_images["image_a"].dockerfile == ws / "dir/Dockerfile"
+
+        assert flow.early_images["image_b"].ref == "image:main"
+        assert flow.early_images["image_b"].context == ws / "dir"
+        assert flow.early_images["image_b"].dockerfile == ws / "dir/Dockerfile"
+
+    finally:
+        await cl.close()
+
+
+async def test_batch_with_project_globals(assets: pathlib.Path, client: Client) -> None:
+    ws = assets / "with_project_yaml"
+    config_dir = ConfigDir(
+        workspace=ws,
+        config_dir=ws,
+    )
+    cl = BatchLocalCL(config_dir, client)
+    try:
+        flow = await RunningBatchFlow.create(cl, "batch", "bake-id")
+        task = await flow.get_task((), "task", needs={}, state={})
+        assert "tag-a" in task.tags
+        assert "tag-b" in task.tags
+        assert task.env["global_a"] == "val-a"
+        assert task.env["global_b"] == "val-b"
+        assert task.volumes == [
+            "storage:common:/mnt/common:rw",
+            "storage:dir:/var/dir:ro",
+        ]
+        assert task.workdir == RemotePath("/global/dir")
+        assert task.life_span == 100800.0
+        assert task.preset == "cpu-large"
+        assert task.schedule_timeout == 2157741.0
+        assert task.image == "image:main"
+
+        assert not task.strategy.fail_fast
+        assert task.strategy.max_parallel == 20
+        assert task.cache.strategy == CacheStrategy.NONE
+        assert task.cache.life_span == 9000.0
 
     finally:
         await cl.close()

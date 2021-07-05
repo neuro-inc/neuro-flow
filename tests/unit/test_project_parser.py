@@ -186,7 +186,9 @@ def test_parse_full(assets: pathlib.Path) -> None:
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "2h30m"
                 ),
             ),
-            fail_fast=OptBoolExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), True),
-            max_parallel=OptIntExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), 10),
+            fail_fast=OptBoolExpr(
+                Pos(0, 0, config_file), Pos(0, 0, config_file), False
+            ),
+            max_parallel=OptIntExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), 20),
         ),
     )

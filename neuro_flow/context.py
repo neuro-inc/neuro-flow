@@ -1033,7 +1033,12 @@ async def setup_params_ctx(
 async def setup_strategy_ctx(
     ctx: RootABC,
     ast_defaults: Optional[ast.BatchFlowDefaults],
+    ast_global_defaults: Optional[ast.BatchFlowDefaults],
 ) -> StrategyCtx:
+    if ast_defaults is not None and ast_global_defaults is not None:
+        ast_defaults = await merge_asts(ast_defaults, ast_global_defaults)
+    elif ast_global_defaults:
+        ast_defaults = ast_global_defaults
     if ast_defaults is None:
         return StrategyCtx()
     fail_fast = await ast_defaults.fail_fast.eval(ctx)
@@ -2005,9 +2010,12 @@ class RunningBatchFlow(RunningBatchBase[BatchContext]):
             _client=config_loader.client,
         )
         if local_info is None:
-            early_images = await setup_images_early(
-                step_1_ctx, step_1_ctx, ast_flow.images
-            )
+            early_images: Mapping[str, EarlyImageCtx] = {
+                **(
+                    await setup_images_early(step_1_ctx, step_1_ctx, ast_project.images)
+                ),
+                **(await setup_images_early(step_1_ctx, step_1_ctx, ast_flow.images)),
+            }
         else:
             early_images = local_info.early_images
 
@@ -2040,16 +2048,28 @@ class RunningBatchFlow(RunningBatchBase[BatchContext]):
             images=images,
         )
 
+        if ast_project.defaults:
+            base_cache = await setup_cache(
+                step_2_ctx,
+                CacheConf(),
+                ast_project.defaults.cache,
+                ast.CacheStrategy.INHERIT,
+            )
+        else:
+            base_cache = CacheConf()
+
         if ast_flow.defaults:
             ast_cache = ast_flow.defaults.cache
         else:
             ast_cache = None
         cache_conf = await setup_cache(
-            step_2_ctx, CacheConf(), ast_cache, ast.CacheStrategy.INHERIT
+            step_2_ctx, base_cache, ast_cache, ast.CacheStrategy.INHERIT
         )
 
         batch_ctx = step_2_ctx.to_batch_ctx(
-            strategy=await setup_strategy_ctx(step_2_ctx, ast_flow.defaults),
+            strategy=await setup_strategy_ctx(
+                step_2_ctx, ast_flow.defaults, ast_project.defaults
+            ),
         )
 
         mixins = await setup_mixins(ast_flow.mixins)
