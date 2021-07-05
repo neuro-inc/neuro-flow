@@ -1,0 +1,1 @@
+Improved performance of `neuro flow bakes` it will now print only new rows instead of re-rendering all table
