@@ -427,79 +427,6 @@ def parse_cache(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Cache:
     )
 
 
-# #### Project parser ####
-
-
-class ProjectLoader(Reader, Scanner, Parser, Composer, BaseConstructor, BaseResolver):
-    def __init__(self, stream: TextIO) -> None:
-        Reader.__init__(self, stream)
-        Scanner.__init__(self)
-        Parser.__init__(self)
-        Composer.__init__(self)
-        BaseConstructor.__init__(self)
-        BaseResolver.__init__(self)
-
-
-PROJECT = {"id": SimpleIdExpr, "owner": SimpleOptStrExpr, "role": SimpleOptStrExpr}
-
-
-def parse_project_main(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Project:
-    ret = parse_dict(
-        ctor,
-        node,
-        PROJECT,
-        ast.Project,
-    )
-    return ret
-
-
-ProjectLoader.add_path_resolver("project:main", [])  # type: ignore
-ProjectLoader.add_constructor("project:main", parse_project_main)  # type: ignore
-
-
-def parse_project_stream(stream: TextIO) -> ast.Project:
-    ret: ast.Project
-    loader = ProjectLoader(stream)
-    try:
-        ret = loader.get_single_data()
-        assert isinstance(ret, ast.Project)
-        return ret
-    finally:
-        loader.dispose()  # type: ignore[no-untyped-call]
-
-
-def make_default_project(workspace_stem: str) -> ast.Project:
-    project_id = workspace_stem.replace("-", "_")
-    if not project_id.isidentifier():
-        raise ValueError(
-            f'Workspace directory name "{workspace_stem}" is invalid identifier'
-        )
-    if project_id == project_id.upper():
-        raise ValueError(
-            f'Workspace directory name "{workspace_stem}" is invalid '
-            "identifier, uppercase names are reserved for internal usage"
-        )
-    return ast.Project(
-        _start=Pos(0, 0, LocalPath("<default>")),
-        _end=Pos(0, 0, LocalPath("<default>")),
-        id=SimpleIdExpr(
-            Pos(0, 0, LocalPath("<default>")),
-            Pos(0, 0, LocalPath("<default>")),
-            project_id,
-        ),
-        owner=SimpleOptStrExpr(
-            Pos(0, 0, LocalPath("<default>")),
-            Pos(0, 0, LocalPath("<default>")),
-            None,
-        ),
-        role=SimpleOptStrExpr(
-            Pos(0, 0, LocalPath("<default>")),
-            Pos(0, 0, LocalPath("<default>")),
-            None,
-        ),
-    )
-
-
 # #### Flow parser ####
 
 
@@ -1526,3 +1453,126 @@ def parse_bake_meta(meta_file: LocalPath) -> Mapping[str, str]:
         result = BakeMetaLoader(f).get_single_data()
         assert isinstance(result, dict)
         return result
+
+
+# #### Project parser ####
+
+
+class ProjectLoader(Reader, Scanner, Parser, Composer, BaseConstructor, BaseResolver):
+    def __init__(self, stream: TextIO) -> None:
+        Reader.__init__(self, stream)
+        Scanner.__init__(self)
+        Parser.__init__(self)
+        Composer.__init__(self)
+        BaseConstructor.__init__(self)
+        BaseResolver.__init__(self)
+
+
+PROJECT = {
+    "id": SimpleIdExpr,
+    "owner": SimpleOptStrExpr,
+    "role": SimpleOptStrExpr,
+    "images": None,
+    "volumes": None,
+    "defaults": None,
+}
+
+
+def parse_project_main(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Project:
+    ret = parse_dict(
+        ctor,
+        node,
+        PROJECT,
+        ast.Project,
+    )
+    return ret
+
+
+def parse_project_defaults(
+    ctor: FlowLoader, node: yaml.MappingNode
+) -> ast.BatchFlowDefaults:
+    return parse_dict(
+        ctor,
+        node,
+        {
+            "tags": ExprOrSeq(StrExpr, type2str),
+            "env": ExprOrMapping(StrExpr, type2str),
+            "volumes": ExprOrSeq(OptStrExpr, type2str),
+            "workdir": OptRemotePathExpr,
+            "life_span": OptTimeDeltaExpr,
+            "preset": OptStrExpr,
+            "schedule_timeout": OptTimeDeltaExpr,
+            "fail_fast": OptBoolExpr,
+            "max_parallel": OptIntExpr,
+            "cache": None,
+        },
+        ast.BatchFlowDefaults,
+    )
+
+
+ProjectLoader.add_path_resolver("project:main", [])  # type: ignore
+ProjectLoader.add_constructor("project:main", parse_project_main)  # type: ignore
+
+ProjectLoader.add_path_resolver(  # type: ignore
+    "project:cache", [(dict, "defaults"), (dict, "cache")]
+)
+ProjectLoader.add_constructor("project:cache", parse_cache)  # type: ignore
+
+ProjectLoader.add_path_resolver(  # type: ignore
+    "project:defaults", [(dict, "defaults")]
+)
+ProjectLoader.add_constructor(  # type: ignore
+    "project:defaults", parse_project_defaults
+)
+
+ProjectLoader.add_path_resolver("project:images", [(dict, "images")])  # type: ignore
+ProjectLoader.add_constructor("project:images", parse_images)  # type: ignore
+
+ProjectLoader.add_path_resolver("project:volumes", [(dict, "volumes")])  # type: ignore
+ProjectLoader.add_constructor("project:volumes", parse_volumes)  # type: ignore
+
+
+def parse_project_stream(stream: TextIO) -> ast.Project:
+    ret: ast.Project
+    loader = ProjectLoader(stream)
+    try:
+        ret = loader.get_single_data()
+        assert isinstance(ret, ast.Project)
+        return ret
+    finally:
+        loader.dispose()  # type: ignore[no-untyped-call]
+
+
+def make_default_project(workspace_stem: str) -> ast.Project:
+    project_id = workspace_stem.replace("-", "_")
+    if not project_id.isidentifier():
+        raise ValueError(
+            f'Workspace directory name "{workspace_stem}" is invalid identifier'
+        )
+    if project_id == project_id.upper():
+        raise ValueError(
+            f'Workspace directory name "{workspace_stem}" is invalid '
+            "identifier, uppercase names are reserved for internal usage"
+        )
+    return ast.Project(
+        _start=Pos(0, 0, LocalPath("<default>")),
+        _end=Pos(0, 0, LocalPath("<default>")),
+        id=SimpleIdExpr(
+            Pos(0, 0, LocalPath("<default>")),
+            Pos(0, 0, LocalPath("<default>")),
+            project_id,
+        ),
+        owner=SimpleOptStrExpr(
+            Pos(0, 0, LocalPath("<default>")),
+            Pos(0, 0, LocalPath("<default>")),
+            None,
+        ),
+        role=SimpleOptStrExpr(
+            Pos(0, 0, LocalPath("<default>")),
+            Pos(0, 0, LocalPath("<default>")),
+            None,
+        ),
+        defaults=None,
+        images=None,
+        volumes=None,
+    )
