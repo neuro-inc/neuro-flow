@@ -35,8 +35,8 @@ defaults:
   life_span: 1d4h
   preset: cpu-large
   schedule_timeout: 24d23h22m21s
-  fail_fast: true
-  max_parallel: 10
+  fail_fast: false
+  max_parallel: 20
   cache:
     strategy: none
     life_span: 2h30m
