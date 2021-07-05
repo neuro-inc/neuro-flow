@@ -134,6 +134,36 @@ async def test_images(live_config_loader: ConfigLoader) -> None:
     assert ctx.images["image_a"].build_preset == "gpu-small"
 
 
+async def test_project_level_defaults_live(
+    assets: pathlib.Path, client: Client
+) -> None:
+    ws = assets / "with_project_yaml"
+    config_dir = ConfigDir(
+        workspace=ws,
+        config_dir=ws,
+    )
+    cl = LiveLocalCL(config_dir, client)
+    try:
+        flow = await RunningLiveFlow.create(cl, "live")
+        job = await flow.get_job("test", {})
+        assert "tag-a" in job.tags
+        assert "tag-b" in job.tags
+        assert job.env["global_a"] == "val-a"
+        assert job.env["global_b"] == "val-b"
+        assert job.env["global_b"] == "val-b"
+        assert job.volumes == [
+            "storage:common:/mnt/common:rw",
+            "storage:dir:/var/dir:ro",
+        ]
+        assert job.workdir == RemotePath("/global/dir")
+        assert job.life_span == 100800.0
+        assert job.preset == "cpu-large"
+        assert job.schedule_timeout == 2157741.0
+        assert job.image == "image:banana"
+    finally:
+        await cl.close()
+
+
 async def test_local_remote_path_images(
     client: Client, live_config_loader: ConfigLoader
 ) -> None:
