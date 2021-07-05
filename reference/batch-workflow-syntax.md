@@ -358,7 +358,7 @@ images:
 
 ### `images.<image-name>.force_rebuild`
 
-If this flag is enabled, the referernced image will be rebuilt from scratch for each bake.
+If this flag is enabled, the referenced image will be rebuilt from scratch for each bake.
 
 **Example:**
 
