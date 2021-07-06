@@ -8,7 +8,6 @@ from typing_extensions import AsyncIterator
 from yarl import URL
 
 from neuro_flow import ast
-from neuro_flow.ast import CacheStrategy
 from neuro_flow.config_loader import BatchLocalCL, ConfigLoader, LiveLocalCL
 from neuro_flow.context import (
     EMPTY_ROOT,
@@ -85,7 +84,6 @@ async def test_env_from_job(live_config_loader: ConfigLoader) -> None:
         "global_b": "val-b",
         "local_a": "val-1",
         "local_b": "val-2",
-        "local_c": "val-mixin-3",
     }
 
 
@@ -133,36 +131,6 @@ async def test_images(live_config_loader: ConfigLoader) -> None:
     assert ctx.images["image_a"].env == {"SECRET_ENV": "secret:key"}
     assert ctx.images["image_a"].volumes == ["secret:key:/var/secret/key.txt"]
     assert ctx.images["image_a"].build_preset == "gpu-small"
-
-
-async def test_project_level_defaults_live(
-    assets: pathlib.Path, client: Client
-) -> None:
-    ws = assets / "with_project_yaml"
-    config_dir = ConfigDir(
-        workspace=ws,
-        config_dir=ws,
-    )
-    cl = LiveLocalCL(config_dir, client)
-    try:
-        flow = await RunningLiveFlow.create(cl, "live")
-        job = await flow.get_job("test", {})
-        assert "tag-a" in job.tags
-        assert "tag-b" in job.tags
-        assert job.env["global_a"] == "val-a"
-        assert job.env["global_b"] == "val-b"
-        assert job.env["global_b"] == "val-b"
-        assert job.volumes == [
-            "storage:common:/mnt/common:rw",
-            "storage:dir:/var/dir:ro",
-        ]
-        assert job.workdir == RemotePath("/global/dir")
-        assert job.life_span == 100800.0
-        assert job.preset == "cpu-large"
-        assert job.schedule_timeout == 2157741.0
-        assert job.image == "image:banana"
-    finally:
-        await cl.close()
 
 
 async def test_local_remote_path_images(
@@ -772,51 +740,6 @@ async def test_job_with_live_call_to_remote_module_invalid(
         await flow.get_job("test", {})
 
 
-async def test_job_with_mixins(live_config_loader: ConfigLoader) -> None:
-    flow = await RunningLiveFlow.create(live_config_loader, "live-mixins")
-    job = await flow.get_job("test", {})
-
-    assert job.id == "test"
-    assert job.image == "ubuntu"
-    assert job.preset == "cpu-micro"
-    assert job.env == {
-        "env1": "val1",
-        "env2": "val2",
-        "env3": "val-mixin2-3",
-        "env4": "val-mixin2-4",
-    }
-
-    job = await flow.get_job("test2", {})
-
-    assert job.id == "test2"
-    assert job.image == "ubuntu2"
-
-    job = await flow.get_job("test3", {})
-
-    assert job.id == "test3"
-    assert job.image == "ubuntu"
-    assert job.volumes == ["storage:dir2:/var/dir2:ro", "storage:dir1:/var/dir1:ro"]
-
-    job = await flow.get_job("test4", {"test_expr": "test_name"})
-
-    assert job.id == "test4"
-    assert job.image == "ubuntu"
-    assert job.name == "test_name"
-
-
-async def test_job_with_sub_mixins(live_config_loader: ConfigLoader) -> None:
-    flow = await RunningLiveFlow.create(live_config_loader, "live-sub-mixins")
-    job = await flow.get_job("test", {})
-
-    assert job.id == "test"
-    assert job.image == "ubuntu"
-    assert job.env == {
-        "env1": "val-mixin1-1",
-        "env2": "val-mixin2-2",
-        "env3": "val-mixin2-3",
-    }
-
-
 async def test_job_with_params(live_config_loader: ConfigLoader) -> None:
     flow = await RunningLiveFlow.create(live_config_loader, "live-params")
     job = await flow.get_job("test", {"arg1": "value"})
@@ -1013,162 +936,5 @@ async def test_batch_module_call_to_remote_invalid(
             r"is forbidden",
         ):
             await RunningBatchFlow.create(cl, "batch-module-remote-call", "bake-id")
-    finally:
-        await cl.close()
-
-
-async def test_batch_with_mixins(batch_config_loader: ConfigLoader) -> None:
-    flow = await RunningBatchFlow.create(batch_config_loader, "batch-mixin", "bake-id")
-    task = await flow.get_task((), "task-1", needs={}, state={})
-
-    assert task.image == "ubuntu"
-    assert task.preset == "cpu-micro"
-    assert task.cmd == "bash -euo pipefail -c 'echo abc'"
-
-    task = await flow.get_task(
-        (), "task-2", needs={"task-1": DepCtx(TaskStatus.SUCCEEDED, {})}, state={}
-    )
-    assert task.image == "ubuntu"
-    assert task.preset == "cpu-micro"
-    assert task.cmd == "bash -euo pipefail -c 'echo def'"
-
-
-async def test_batch_with_sub_mixins(batch_config_loader: ConfigLoader) -> None:
-    flow = await RunningBatchFlow.create(
-        batch_config_loader, "batch-sub-mixin", "bake-id"
-    )
-    task = await flow.get_task((), "task-1", needs={}, state={})
-
-    assert task.image == "ubuntu"
-    assert task.preset == "cpu-micro"
-    assert task.cmd == "bash -euo pipefail -c 'echo abc'"
-    assert task.env == {
-        "env1": "val-mixin1-1",
-        "env2": "val-mixin1-2",
-    }
-
-    task = await flow.get_task(
-        (), "task-2", needs={"task-1": DepCtx(TaskStatus.SUCCEEDED, {})}, state={}
-    )
-    assert task.image == "ubuntu"
-    assert task.preset == "cpu-micro"
-    assert task.cmd == "bash -euo pipefail -c 'echo def'"
-    assert task.env == {
-        "env1": "val-mixin1-1",
-        "env2": "val-mixin2-2",
-        "env3": "val-mixin2-3",
-    }
-
-
-async def test_batch_module_with_mixin(assets: pathlib.Path, client: Client) -> None:
-    ws = assets / "batch_mixins"
-    config_dir = ConfigDir(
-        workspace=ws,
-        config_dir=ws,
-    )
-    cl = BatchLocalCL(config_dir, client)
-    try:
-        flow = await RunningBatchFlow.create(cl, "batch-module-call", "bake-id")
-        module_flow = await flow.get_action("test", needs={})
-        task = await module_flow.get_task(("test",), "task_1", needs={}, state={})
-
-        assert task.image == "ubuntu"
-        assert task.preset == "cpu-micro"
-        assert task.cmd == "bash -euo pipefail -c 'echo abc'"
-    finally:
-        await cl.close()
-
-
-async def test_batch_action_no_access_to_mixin(
-    assets: pathlib.Path, client: Client
-) -> None:
-    ws = assets / "batch_mixins"
-    config_dir = ConfigDir(
-        workspace=ws,
-        config_dir=ws,
-    )
-    cl = BatchLocalCL(config_dir, client)
-    try:
-        flow = await RunningBatchFlow.create(cl, "batch-action-call", "bake-id")
-        with pytest.raises(
-            EvalError,
-            match=r"Unknown mixin 'basic'",
-        ):
-            await flow.get_action("test", needs={})
-
-    finally:
-        await cl.close()
-
-
-async def test_batch_task_with_no_image(assets: pathlib.Path, client: Client) -> None:
-    ws = assets / "batch_mixins"
-    config_dir = ConfigDir(
-        workspace=ws,
-        config_dir=ws,
-    )
-    cl = BatchLocalCL(config_dir, client)
-    try:
-        with pytest.raises(
-            EvalError,
-            match=r"Image for task test is not specified",
-        ):
-            await RunningBatchFlow.create(cl, "batch-task-no-image", "bake-id")
-
-    finally:
-        await cl.close()
-
-
-async def test_early_images_include_globals(
-    assets: pathlib.Path, client: Client
-) -> None:
-    ws = assets / "with_project_yaml"
-    config_dir = ConfigDir(
-        workspace=ws,
-        config_dir=ws,
-    )
-    cl = BatchLocalCL(config_dir, client)
-    try:
-        flow = await RunningBatchFlow.create(cl, "batch", "bake-id")
-        assert flow.early_images["image_a"].ref == "image:banana"
-        assert flow.early_images["image_a"].context == ws / "dir"
-        assert flow.early_images["image_a"].dockerfile == ws / "dir/Dockerfile"
-
-        assert flow.early_images["image_b"].ref == "image:main"
-        assert flow.early_images["image_b"].context == ws / "dir"
-        assert flow.early_images["image_b"].dockerfile == ws / "dir/Dockerfile"
-
-    finally:
-        await cl.close()
-
-
-async def test_batch_with_project_globals(assets: pathlib.Path, client: Client) -> None:
-    ws = assets / "with_project_yaml"
-    config_dir = ConfigDir(
-        workspace=ws,
-        config_dir=ws,
-    )
-    cl = BatchLocalCL(config_dir, client)
-    try:
-        flow = await RunningBatchFlow.create(cl, "batch", "bake-id")
-        task = await flow.get_task((), "task", needs={}, state={})
-        assert "tag-a" in task.tags
-        assert "tag-b" in task.tags
-        assert task.env["global_a"] == "val-a"
-        assert task.env["global_b"] == "val-b"
-        assert task.volumes == [
-            "storage:common:/mnt/common:rw",
-            "storage:dir:/var/dir:ro",
-        ]
-        assert task.workdir == RemotePath("/global/dir")
-        assert task.life_span == 100800.0
-        assert task.preset == "cpu-large"
-        assert task.schedule_timeout == 2157741.0
-        assert task.image == "image:main"
-
-        assert not task.strategy.fail_fast
-        assert task.strategy.max_parallel == 20
-        assert task.cache.strategy == CacheStrategy.NONE
-        assert task.cache.life_span == 9000.0
-
     finally:
         await cl.close()

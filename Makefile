@@ -55,7 +55,3 @@ build:
 .PHONY: docs
 docs:
 	build-tools/cli-help-generator.py CLI.in.md reference/cli.md
-
-.PHONY: docs
-check-mixins:
-	build-tools/check-mixins.py

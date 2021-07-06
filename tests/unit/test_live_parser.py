@@ -53,17 +53,12 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
         images=None,
         volumes=None,
         defaults=None,
-        mixins=None,
         jobs={
             "test": ast.Job(
                 Pos(3, 4, config_file),
                 Pos(5, 0, config_file),
-                _specified_fields={"cmd", "image"},
-                inherits=None,
                 name=OptStrExpr(Pos(3, 4, config_file), Pos(5, 0, config_file), None),
-                image=OptStrExpr(
-                    Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"
-                ),
+                image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
                 preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 schedule_timeout=OptTimeDeltaExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
@@ -130,17 +125,12 @@ def test_parse_params(assets: pathlib.Path) -> None:
         images=None,
         volumes=None,
         defaults=None,
-        mixins=None,
         jobs={
             "test": ast.Job(
                 Pos(3, 4, config_file),
                 Pos(11, 0, config_file),
-                _specified_fields={"cmd", "image", "params"},
-                inherits=None,
                 name=OptStrExpr(Pos(3, 4, config_file), Pos(5, 0, config_file), None),
-                image=OptStrExpr(
-                    Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"
-                ),
+                image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
                 preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 schedule_timeout=OptTimeDeltaExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
@@ -227,7 +217,7 @@ def test_parse_full(assets: pathlib.Path) -> None:
     flow = parse_live(workspace, config_file)
     assert flow == ast.LiveFlow(
         Pos(0, 0, config_file),
-        Pos(69, 0, config_file),
+        Pos(63, 0, config_file),
         id=SimpleOptIdExpr(
             Pos(0, 0, config_file),
             Pos(0, 0, config_file),
@@ -326,15 +316,6 @@ def test_parse_full(assets: pathlib.Path) -> None:
         defaults=ast.FlowDefaults(
             Pos(26, 2, config_file),
             Pos(36, 0, config_file),
-            _specified_fields={
-                "env",
-                "volumes",
-                "life_span",
-                "schedule_timeout",
-                "preset",
-                "workdir",
-                "tags",
-            },
             tags=SequenceItemsExpr(
                 [
                     StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "tag-a"),
@@ -373,103 +354,14 @@ def test_parse_full(assets: pathlib.Path) -> None:
                 Pos(0, 0, config_file), Pos(0, 0, config_file), "24d23h22m21s"
             ),
         ),
-        mixins={
-            "envs": ast.JobMixin(
-                Pos(38, 4, config_file),
-                Pos(41, 0, config_file),
-                _specified_fields={"env"},
-                inherits=None,
-                name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
-                image=OptStrExpr(
-                    Pos(0, 0, config_file),
-                    Pos(0, 0, config_file),
-                    None,
-                ),
-                preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
-                schedule_timeout=OptTimeDeltaExpr(
-                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
-                ),
-                entrypoint=OptStrExpr(
-                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
-                ),
-                cmd=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
-                workdir=OptRemotePathExpr(
-                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
-                ),
-                env=MappingItemsExpr(
-                    {
-                        "local_b": StrExpr(
-                            Pos(0, 0, config_file),
-                            Pos(0, 0, config_file),
-                            "val-mixin-2",
-                        ),
-                        "local_c": StrExpr(
-                            Pos(0, 0, config_file),
-                            Pos(0, 0, config_file),
-                            "val-mixin-3",
-                        ),
-                    }
-                ),
-                volumes=None,
-                tags=None,
-                life_span=OptTimeDeltaExpr(
-                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
-                ),
-                title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
-                detach=OptBoolExpr(
-                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
-                ),
-                browse=OptBoolExpr(
-                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
-                ),
-                http_port=OptIntExpr(
-                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
-                ),
-                http_auth=OptBoolExpr(
-                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
-                ),
-                pass_config=OptBoolExpr(
-                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
-                ),
-                port_forward=None,
-                multi=SimpleOptBoolExpr(
-                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
-                ),
-                params=None,
-            )
-        },
         jobs={
             "test_a": ast.Job(
-                Pos(43, 4, config_file),
-                Pos(69, 0, config_file),
-                _specified_fields={
-                    "workdir",
-                    "http_auth",
-                    "preset",
-                    "port_forward",
-                    "life_span",
-                    "title",
-                    "http_port",
-                    "cmd",
-                    "schedule_timeout",
-                    "env",
-                    "pass_config",
-                    "detach",
-                    "name",
-                    "tags",
-                    "image",
-                    "inherits",
-                    "browse",
-                    "volumes",
-                    "entrypoint",
-                },
-                inherits=[
-                    StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "envs")
-                ],
+                Pos(38, 4, config_file),
+                Pos(63, 0, config_file),
                 name=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "job-name"
                 ),
-                image=OptStrExpr(
+                image=StrExpr(
                     Pos(0, 0, config_file),
                     Pos(0, 0, config_file),
                     "${{ images.image_a.ref }}",
@@ -664,15 +556,6 @@ def test_parse_full_exprs(assets: pathlib.Path) -> None:
         defaults=ast.FlowDefaults(
             Pos(21, 2, config_file),
             Pos(28, 0, config_file),
-            _specified_fields={
-                "env",
-                "volumes",
-                "life_span",
-                "schedule_timeout",
-                "preset",
-                "workdir",
-                "tags",
-            },
             tags=SequenceExpr(
                 Pos(0, 0, config_file),
                 Pos(0, 0, config_file),
@@ -704,36 +587,14 @@ def test_parse_full_exprs(assets: pathlib.Path) -> None:
                 Pos(0, 0, config_file), Pos(0, 0, config_file), "24d23h22m21s"
             ),
         ),
-        mixins=None,
         jobs={
             "test_a": ast.Job(
                 Pos(30, 4, config_file),
                 Pos(48, 0, config_file),
-                _specified_fields={
-                    "pass_config",
-                    "image",
-                    "life_span",
-                    "http_port",
-                    "title",
-                    "cmd",
-                    "schedule_timeout",
-                    "tags",
-                    "preset",
-                    "http_auth",
-                    "env",
-                    "browse",
-                    "workdir",
-                    "name",
-                    "entrypoint",
-                    "port_forward",
-                    "volumes",
-                    "detach",
-                },
-                inherits=None,
                 name=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "job-name"
                 ),
-                image=OptStrExpr(
+                image=StrExpr(
                     Pos(0, 0, config_file),
                     Pos(0, 0, config_file),
                     "${{ images.image_a.ref }}",
@@ -828,17 +689,12 @@ def test_parse_bash(assets: pathlib.Path) -> None:
         images=None,
         volumes=None,
         defaults=None,
-        mixins=None,
         jobs={
             "test": ast.Job(
                 Pos(3, 4, config_file),
                 Pos(7, 0, config_file),
-                _specified_fields={"cmd", "image"},
-                inherits=None,
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
-                image=OptStrExpr(
-                    Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"
-                ),
+                image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
                 preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 schedule_timeout=OptTimeDeltaExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
@@ -907,17 +763,12 @@ def test_parse_python(assets: pathlib.Path) -> None:
         images=None,
         volumes=None,
         defaults=None,
-        mixins=None,
         jobs={
             "test": ast.Job(
                 Pos(3, 4, config_file),
                 Pos(7, 0, config_file),
-                _specified_fields={"cmd", "image"},
-                inherits=None,
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
-                image=OptStrExpr(
-                    Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"
-                ),
+                image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
                 preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 schedule_timeout=OptTimeDeltaExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
@@ -1034,17 +885,12 @@ def test_parse_multi(assets: pathlib.Path) -> None:
         images=None,
         volumes=None,
         defaults=None,
-        mixins=None,
         jobs={
             "test": ast.Job(
                 Pos(3, 4, config_file),
                 Pos(6, 0, config_file),
-                _specified_fields={"cmd", "multi", "image"},
-                inherits=None,
                 name=OptStrExpr(Pos(3, 4, config_file), Pos(5, 0, config_file), None),
-                image=OptStrExpr(
-                    Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"
-                ),
+                image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
                 preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 schedule_timeout=OptTimeDeltaExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
@@ -1111,17 +957,12 @@ def test_parse_explicit_flow_id(assets: pathlib.Path) -> None:
         images=None,
         volumes=None,
         defaults=None,
-        mixins=None,
         jobs={
             "test": ast.Job(
                 Pos(4, 4, config_file),
                 Pos(6, 0, config_file),
-                _specified_fields={"cmd", "image"},
-                inherits=None,
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
-                image=OptStrExpr(
-                    Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"
-                ),
+                image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
                 preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 schedule_timeout=OptTimeDeltaExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
