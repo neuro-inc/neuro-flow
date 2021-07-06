@@ -1301,24 +1301,7 @@ class PortPairExpr(StrExpr):
         return port_pair_item(arg)
 
 
-class BaseSequenceExpr(BaseExpr[SequenceT], abc.ABC):
-    pass
-
-
-class ConcatSequenceExpr(BaseSequenceExpr):
-    def __init__(self, *seqs: BaseSequenceExpr):
-        self._seqs = seqs
-
-    async def eval(self, root: RootABC) -> SequenceT:
-        ret: List[TypeT] = []
-        for seq in self._seqs:
-            value = await seq.eval(root)
-            if value:
-                ret.extend(value)
-        return cast(SequenceT, ret)
-
-
-class SequenceExpr(BaseSequenceExpr, Expr[SequenceT]):
+class SequenceExpr(Expr[SequenceT]):
     type = SequenceT
 
     def __init__(
@@ -1340,7 +1323,7 @@ class SequenceExpr(BaseSequenceExpr, Expr[SequenceT]):
         return cast(SequenceT, ret)
 
 
-class SequenceItemsExpr(BaseSequenceExpr, Generic[_IT]):
+class SequenceItemsExpr(BaseExpr[SequenceT], Generic[_IT]):
     def __init__(self, items: Sequence[Expr[_IT]]) -> None:
         self._items = items
 
@@ -1363,25 +1346,7 @@ class SequenceItemsExpr(BaseSequenceExpr, Generic[_IT]):
         return hash((self.__class__.__name__, self._items))
 
 
-class BaseMappingExpr(BaseExpr[MappingT]):
-    pass
-
-
-class MergeMappingsExpr(BaseMappingExpr):
-    def __init__(self, *mappings: BaseMappingExpr):
-        self._mappings = mappings
-
-    async def eval(self, root: RootABC) -> MappingT:
-        ret = {}
-        for mapping in reversed(self._mappings):
-            value = await mapping.eval(root)
-            if value:
-                for key in value:
-                    ret[key] = value[key]
-        return cast(MappingT, ret)
-
-
-class MappingExpr(BaseMappingExpr, StrictExpr[MappingT]):
+class MappingExpr(StrictExpr[MappingT]):
     type = MappingT
 
     def __init__(
@@ -1405,7 +1370,7 @@ class MappingExpr(BaseMappingExpr, StrictExpr[MappingT]):
         return cast(MappingT, ret)
 
 
-class MappingItemsExpr(BaseMappingExpr, Generic[_IT]):
+class MappingItemsExpr(BaseExpr[MappingT], Generic[_IT]):
     def __init__(self, items: Mapping[str, Expr[_IT]]) -> None:
         self._items = items
 

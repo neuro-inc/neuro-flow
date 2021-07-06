@@ -1,6 +1,0 @@
-kind: live
-jobs:
-  test:
-    image: ${{ images.image_a.ref }}
-    volumes:
-      - ${{ volumes.volume_a.ref }}
