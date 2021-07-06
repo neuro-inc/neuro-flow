@@ -34,9 +34,15 @@ defaults:
   life_span: 1d4h
   preset: cpu-large
   schedule_timeout: 24d23h22m21s
+mixins:
+  envs:
+    env:
+      local_b: val-mixin-2
+      local_c: val-mixin-3
 jobs:
   test_a:
     name: job-name
+    inherits: [ envs ]
     image: ${{ images.image_a.ref }}
     preset: cpu-micro
     schedule_timeout: 1d2h3m4s

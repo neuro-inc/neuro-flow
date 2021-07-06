@@ -1,0 +1,12 @@
+kind: batch
+images:
+  image_b:
+    ref: image:main
+    context: dir
+    dockerfile: dir/Dockerfile
+tasks:
+- id: task
+  image: image:main
+  bash: echo OK
+  volumes:
+    - ${{ volumes.volume_a.ref }}
