@@ -38,6 +38,7 @@ def check_mixin(
             print(f"Type of {base.__name__} and {mixin.__name__} field differ:")
             print(f"{base.__name__}.{field_name} is {base_field.type}")
             print(f"{mixin.__name__}.{field_name} is {mixin_field.type}")
+            exit(1)
 
 
 if __name__ == "__main__":
