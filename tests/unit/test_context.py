@@ -84,6 +84,7 @@ async def test_env_from_job(live_config_loader: ConfigLoader) -> None:
         "global_b": "val-b",
         "local_a": "val-1",
         "local_b": "val-2",
+        "local_c": "val-mixin-3",
     }
 
 
@@ -740,6 +741,51 @@ async def test_job_with_live_call_to_remote_module_invalid(
         await flow.get_job("test", {})
 
 
+async def test_job_with_mixins(live_config_loader: ConfigLoader) -> None:
+    flow = await RunningLiveFlow.create(live_config_loader, "live-mixins")
+    job = await flow.get_job("test", {})
+
+    assert job.id == "test"
+    assert job.image == "ubuntu"
+    assert job.preset == "cpu-micro"
+    assert job.env == {
+        "env1": "val1",
+        "env2": "val2",
+        "env3": "val-mixin2-3",
+        "env4": "val-mixin2-4",
+    }
+
+    job = await flow.get_job("test2", {})
+
+    assert job.id == "test2"
+    assert job.image == "ubuntu2"
+
+    job = await flow.get_job("test3", {})
+
+    assert job.id == "test3"
+    assert job.image == "ubuntu"
+    assert job.volumes == ["storage:dir2:/var/dir2:ro", "storage:dir1:/var/dir1:ro"]
+
+    job = await flow.get_job("test4", {"test_expr": "test_name"})
+
+    assert job.id == "test4"
+    assert job.image == "ubuntu"
+    assert job.name == "test_name"
+
+
+async def test_job_with_sub_mixins(live_config_loader: ConfigLoader) -> None:
+    flow = await RunningLiveFlow.create(live_config_loader, "live-sub-mixins")
+    job = await flow.get_job("test", {})
+
+    assert job.id == "test"
+    assert job.image == "ubuntu"
+    assert job.env == {
+        "env1": "val-mixin1-1",
+        "env2": "val-mixin2-2",
+        "env3": "val-mixin2-3",
+    }
+
+
 async def test_job_with_params(live_config_loader: ConfigLoader) -> None:
     flow = await RunningLiveFlow.create(live_config_loader, "live-params")
     job = await flow.get_job("test", {"arg1": "value"})
@@ -936,5 +982,106 @@ async def test_batch_module_call_to_remote_invalid(
             r"is forbidden",
         ):
             await RunningBatchFlow.create(cl, "batch-module-remote-call", "bake-id")
+    finally:
+        await cl.close()
+
+
+async def test_batch_with_mixins(batch_config_loader: ConfigLoader) -> None:
+    flow = await RunningBatchFlow.create(batch_config_loader, "batch-mixin", "bake-id")
+    task = await flow.get_task((), "task-1", needs={}, state={})
+
+    assert task.image == "ubuntu"
+    assert task.preset == "cpu-micro"
+    assert task.cmd == "bash -euo pipefail -c 'echo abc'"
+
+    task = await flow.get_task(
+        (), "task-2", needs={"task-1": DepCtx(TaskStatus.SUCCEEDED, {})}, state={}
+    )
+    assert task.image == "ubuntu"
+    assert task.preset == "cpu-micro"
+    assert task.cmd == "bash -euo pipefail -c 'echo def'"
+
+
+async def test_batch_with_sub_mixins(batch_config_loader: ConfigLoader) -> None:
+    flow = await RunningBatchFlow.create(
+        batch_config_loader, "batch-sub-mixin", "bake-id"
+    )
+    task = await flow.get_task((), "task-1", needs={}, state={})
+
+    assert task.image == "ubuntu"
+    assert task.preset == "cpu-micro"
+    assert task.cmd == "bash -euo pipefail -c 'echo abc'"
+    assert task.env == {
+        "env1": "val-mixin1-1",
+        "env2": "val-mixin1-2",
+    }
+
+    task = await flow.get_task(
+        (), "task-2", needs={"task-1": DepCtx(TaskStatus.SUCCEEDED, {})}, state={}
+    )
+    assert task.image == "ubuntu"
+    assert task.preset == "cpu-micro"
+    assert task.cmd == "bash -euo pipefail -c 'echo def'"
+    assert task.env == {
+        "env1": "val-mixin1-1",
+        "env2": "val-mixin2-2",
+        "env3": "val-mixin2-3",
+    }
+
+
+async def test_batch_module_with_mixin(assets: pathlib.Path, client: Client) -> None:
+    ws = assets / "batch_mixins"
+    config_dir = ConfigDir(
+        workspace=ws,
+        config_dir=ws,
+    )
+    cl = BatchLocalCL(config_dir, client)
+    try:
+        flow = await RunningBatchFlow.create(cl, "batch-module-call", "bake-id")
+        module_flow = await flow.get_action("test", needs={})
+        task = await module_flow.get_task(("test",), "task_1", needs={}, state={})
+
+        assert task.image == "ubuntu"
+        assert task.preset == "cpu-micro"
+        assert task.cmd == "bash -euo pipefail -c 'echo abc'"
+    finally:
+        await cl.close()
+
+
+async def test_batch_action_no_access_to_mixin(
+    assets: pathlib.Path, client: Client
+) -> None:
+    ws = assets / "batch_mixins"
+    config_dir = ConfigDir(
+        workspace=ws,
+        config_dir=ws,
+    )
+    cl = BatchLocalCL(config_dir, client)
+    try:
+        flow = await RunningBatchFlow.create(cl, "batch-action-call", "bake-id")
+        with pytest.raises(
+            EvalError,
+            match=r"Unknown mixin 'basic'",
+        ):
+            await flow.get_action("test", needs={})
+
+    finally:
+        await cl.close()
+
+
+async def test_batch_task_with_no_image(assets: pathlib.Path, client: Client) -> None:
+    ws = assets / "batch_mixins"
+    config_dir = ConfigDir(
+        workspace=ws,
+        config_dir=ws,
+    )
+    cl = BatchLocalCL(config_dir, client)
+    try:
+        with pytest.raises(
+            EvalError,
+            match=r"Image for task test is not specified",
+        ):
+            await RunningBatchFlow.create(cl, "batch-task-no-image", "bake-id")
+
     finally:
         await cl.close()

@@ -345,7 +345,9 @@ def parse_dict(
     field_names = set()
     for f in dataclasses.fields(res_type):
         field_names.add(f.name)
-        if f.name not in found_fields:
+        if f.name == "_specified_fields":
+            optional_fields[f.name] = set(data.keys())
+        elif f.name not in found_fields:
             key = f.name
             item_ctor = keys[key]
             if (
@@ -689,7 +691,7 @@ FlowLoader.add_constructor("flow:cache", parse_cache)  # type: ignore
 EXEC_UNIT = {
     "title": OptStrExpr,
     "name": OptStrExpr,
-    "image": StrExpr,
+    "image": OptStrExpr,
     "preset": OptStrExpr,
     "schedule_timeout": OptTimeDeltaExpr,
     "entrypoint": OptStrExpr,
@@ -706,14 +708,24 @@ EXEC_UNIT = {
     "pass_config": OptBoolExpr,
 }
 
-
-JOB = {
+JOB_MIXIN = {
+    **EXEC_UNIT,
     "detach": OptBoolExpr,
     "browse": OptBoolExpr,
     "port_forward": ExprOrSeq(PortPairExpr, port_pair_item),
     "multi": SimpleOptBoolExpr,
     "params": None,
+    "inherits": SimpleSeq(StrExpr),
+}
+
+JOB: Dict[str, Any] = {
     **EXEC_UNIT,
+    "detach": OptBoolExpr,
+    "browse": OptBoolExpr,
+    "port_forward": ExprOrSeq(PortPairExpr, port_pair_item),
+    "multi": SimpleOptBoolExpr,
+    "params": None,
+    "inherits": SimpleSeq(StrExpr),
 }
 
 JOB_ACTION_CALL = {
@@ -818,8 +830,43 @@ def parse_jobs(
     return ret
 
 
+def parse_mixin(
+    ctor: FlowLoader, node: yaml.MappingNode
+) -> Union[ast.JobMixin, ast.TaskMixin]:
+    if ctor._kind == ast.FlowKind.LIVE:
+        return parse_dict(
+            ctor,
+            node,
+            JOB_MIXIN,
+            ast.JobMixin,
+        )
+    elif ctor._kind == ast.FlowKind.BATCH:
+        return parse_dict(
+            ctor,
+            node,
+            TASK_MIXIN,
+            ast.TaskMixin,
+        )
+    else:
+        raise ValueError(f"Unknown kind {ctor._kind}")
+
+
+def parse_mixins(
+    ctor: FlowLoader, node: yaml.MappingNode
+) -> Dict[str, Union[ast.JobMixin, ast.TaskMixin]]:
+    ret = {}
+    for k, v in node.value:
+        key = ctor.construct_id(k)
+        value = parse_mixin(ctor, v)
+        ret[key] = value
+    return ret
+
+
 FlowLoader.add_path_resolver("flow:jobs", [(dict, "jobs")])  # type: ignore
 FlowLoader.add_constructor("flow:jobs", parse_jobs)  # type: ignore
+
+FlowLoader.add_path_resolver("flow:mixins", [(dict, "mixins")])  # type: ignore
+FlowLoader.add_constructor("flow:mixins", parse_mixins)  # type: ignore
 
 TASK_BASE = {
     "id": OptIdExpr,
@@ -832,6 +879,16 @@ TASK_BASE = {
 TASK: Mapping[str, Any] = {
     **TASK_BASE,
     **EXEC_UNIT,
+    "inherits": SimpleSeq(StrExpr),
+}
+
+TASK_MIXIN: Mapping[str, Any] = {
+    **EXEC_UNIT,
+    "needs": None,
+    "strategy": None,
+    "enable": EnableExpr,
+    "cache": None,
+    "inherits": SimpleSeq(StrExpr),
 }
 
 
@@ -888,6 +945,7 @@ def parse_task(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Base:
         ast.Base,
         preprocess=select_task_or_action_or_module,
         find_res_type=find_task_type,
+        ret_name="Task",
     )
 
 
@@ -951,6 +1009,7 @@ FLOW = {
     "id": SimpleOptIdExpr,
     "title": SimpleOptStrExpr,
     "life_span": OptTimeDeltaExpr,
+    "mixins": None,
     "images": None,
     "volumes": None,
     "defaults": None,

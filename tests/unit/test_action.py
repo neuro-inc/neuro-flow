@@ -72,8 +72,10 @@ def test_parse_live_action(assets: LocalPath) -> None:
         job=ast.Job(
             Pos(11, 2, config_file),
             Pos(13, 0, config_file),
+            _specified_fields={"cmd", "image"},
+            inherits=None,
             name=OptStrExpr(Pos(3, 4, config_file), Pos(5, 0, config_file), None),
-            image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
+            image=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
             preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
             schedule_timeout=OptTimeDeltaExpr(
                 Pos(0, 0, config_file), Pos(0, 0, config_file), None
@@ -260,9 +262,11 @@ def test_parse_batch_action(assets: LocalPath) -> None:
             ast.Task(
                 Pos(36, 2, config_file),
                 Pos(40, 0, config_file),
+                _specified_fields={"needs", "image", "cmd", "id"},
+                inherits=None,
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
-                image=StrExpr(
+                image=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "image:banana"
                 ),
                 preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
@@ -308,9 +312,13 @@ def test_parse_batch_action(assets: LocalPath) -> None:
             ast.Task(
                 Pos(40, 2, config_file),
                 Pos(43, 0, config_file),
+                _specified_fields={"image", "cmd", "id"},
+                inherits=None,
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
-                image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
+                image=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"
+                ),
                 preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 schedule_timeout=OptTimeDeltaExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
@@ -414,7 +422,7 @@ def test_parse_stateful_action(assets: LocalPath) -> None:
             Pos(16, 0, config_file),
             title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
             name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
-            image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
+            image=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
             preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
             schedule_timeout=OptTimeDeltaExpr(
                 Pos(0, 0, config_file), Pos(0, 0, config_file), None
@@ -445,7 +453,7 @@ def test_parse_stateful_action(assets: LocalPath) -> None:
             Pos(19, 0, config_file),
             title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
             name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
-            image=StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
+            image=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
             preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
             schedule_timeout=OptTimeDeltaExpr(
                 Pos(0, 0, config_file), Pos(0, 0, config_file), None
@@ -494,6 +502,7 @@ def test_parse_live_call(assets: LocalPath) -> None:
         images=None,
         volumes=None,
         defaults=None,
+        mixins=None,
         jobs={
             "test": ast.JobActionCall(
                 Pos(3, 4, config_file),
@@ -535,6 +544,7 @@ def test_parse_live_module_call(assets: LocalPath) -> None:
         images=None,
         volumes=None,
         defaults=ANY,
+        mixins=None,
         jobs={
             "test": ast.JobModuleCall(
                 Pos(13, 4, config_file),
@@ -580,6 +590,7 @@ def test_parse_batch_call(assets: LocalPath) -> None:
         images=None,
         volumes=None,
         defaults=None,
+        mixins=None,
         tasks=[
             ast.TaskActionCall(
                 Pos(2, 2, config_file),

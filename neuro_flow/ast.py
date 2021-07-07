@@ -2,7 +2,7 @@
 from dataclasses import dataclass, field
 
 import enum
-from typing import Mapping, Optional, Sequence, Union
+from typing import AbstractSet, Mapping, Optional, Sequence, Union
 
 from .expr import (
     BaseExpr,
@@ -33,6 +33,11 @@ from .tokenizer import Pos
 class Base:
     _start: Pos
     _end: Pos
+
+
+@dataclass(frozen=True)
+class WithSpecifiedFields(Base):
+    _specified_fields: AbstractSet[str]
 
 
 class CacheStrategy(enum.Enum):
@@ -90,7 +95,7 @@ class Image(Base):
 class ExecUnit(Base):
     title: OptStrExpr  # Autocalculated if not passed explicitly
     name: OptStrExpr
-    image: StrExpr
+    image: OptStrExpr
     preset: OptStrExpr
     schedule_timeout: OptTimeDeltaExpr
     entrypoint: OptStrExpr
@@ -140,13 +145,39 @@ class JobBase(Base):
 
 
 @dataclass(frozen=True)
-class Job(ExecUnit, JobBase):
+class JobMixin(WithSpecifiedFields, Base):
+    title: OptStrExpr  # Autocalculated if not passed explicitly
+    name: OptStrExpr
+    image: OptStrExpr
+    preset: OptStrExpr
+    schedule_timeout: OptTimeDeltaExpr
+    entrypoint: OptStrExpr
+    cmd: OptStrExpr
+    workdir: OptRemotePathExpr
+    env: Optional[BaseExpr[MappingT]] = field(metadata={"allow_none": True})
+    volumes: Optional[BaseExpr[SequenceT]] = field(metadata={"allow_none": True})
+    tags: Optional[BaseExpr[SequenceT]] = field(metadata={"allow_none": True})
+    life_span: OptTimeDeltaExpr
+    http_port: OptIntExpr
+    http_auth: OptBoolExpr
+    pass_config: OptBoolExpr
+    detach: OptBoolExpr
+    browse: OptBoolExpr
+    port_forward: Optional[BaseExpr[SequenceT]] = field(metadata={"allow_none": True})
+    multi: SimpleOptBoolExpr
+    params: Optional[Mapping[str, Param]] = field(metadata={"allow_none": True})
+    inherits: Optional[Sequence[StrExpr]] = field(metadata={"allow_none": True})
+
+
+@dataclass(frozen=True)
+class Job(ExecUnit, WithSpecifiedFields, JobBase):
     # Interactive job used by Kind.Live flow
 
     detach: OptBoolExpr
     browse: OptBoolExpr
     port_forward: Optional[BaseExpr[SequenceT]] = field(metadata={"allow_none": True})
     multi: SimpleOptBoolExpr
+    inherits: Optional[Sequence[StrExpr]] = field(metadata={"allow_none": True})
 
 
 class NeedsLevel(enum.Enum):
@@ -173,8 +204,32 @@ class TaskBase(Base):
 
 
 @dataclass(frozen=True)
-class Task(ExecUnit, TaskBase):
-    pass
+class Task(ExecUnit, WithSpecifiedFields, TaskBase):
+    inherits: Optional[Sequence[StrExpr]] = field(metadata={"allow_none": True})
+
+
+@dataclass(frozen=True)
+class TaskMixin(WithSpecifiedFields, Base):
+    title: OptStrExpr
+    name: OptStrExpr
+    image: OptStrExpr
+    preset: OptStrExpr
+    schedule_timeout: OptTimeDeltaExpr
+    entrypoint: OptStrExpr
+    cmd: OptStrExpr
+    workdir: OptRemotePathExpr
+    env: Optional[BaseExpr[MappingT]] = field(metadata={"allow_none": True})
+    volumes: Optional[BaseExpr[SequenceT]] = field(metadata={"allow_none": True})
+    tags: Optional[BaseExpr[SequenceT]] = field(metadata={"allow_none": True})
+    life_span: OptTimeDeltaExpr
+    http_port: OptIntExpr
+    http_auth: OptBoolExpr
+    pass_config: OptBoolExpr
+    needs: Optional[Mapping[IdExpr, NeedsLevel]] = field(metadata={"allow_none": True})
+    strategy: Optional[Strategy] = field(metadata={"allow_none": True})
+    enable: EnableExpr = field(metadata={"default_expr": "${{ success() }}"})
+    cache: Optional[Cache] = field(metadata={"allow_none": True})
+    inherits: Optional[Sequence[StrExpr]] = field(metadata={"allow_none": True})
 
 
 @dataclass(frozen=True)
@@ -245,6 +300,7 @@ class BaseFlow(Base):
 @dataclass(frozen=True)
 class LiveFlow(BaseFlow):
     # self.kind == Kind.Job
+    mixins: Optional[Mapping[str, JobMixin]] = field(metadata={"allow_none": True})
     jobs: Mapping[str, Union[Job, JobActionCall, JobModuleCall]]
 
 
@@ -253,6 +309,7 @@ class BatchFlow(BaseFlow):
     # self.kind == Kind.Batch
     life_span: OptTimeDeltaExpr = field(metadata={"allow_none": True})
     params: Optional[Mapping[str, Param]] = field(metadata={"allow_none": True})
+    mixins: Optional[Mapping[str, TaskMixin]] = field(metadata={"allow_none": True})
     tasks: Sequence[Union[Task, TaskActionCall, TaskModuleCall]]
 
     defaults: Optional[BatchFlowDefaults] = field(metadata={"allow_none": True})
