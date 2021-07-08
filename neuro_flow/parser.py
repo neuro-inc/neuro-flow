@@ -9,6 +9,7 @@ import dataclasses
 
 import abc
 import enum
+import logging
 import yaml
 from typing import (
     Any,
@@ -33,7 +34,7 @@ from yaml.resolver import Resolver as BaseResolver
 from yaml.scanner import Scanner
 
 from . import ast
-from .ast import BatchActionOutputs, NeedsLevel
+from .ast import NeedsLevel
 from .expr import (
     BaseExpr,
     EnableExpr,
@@ -68,6 +69,9 @@ from .expr import (
 )
 from .tokenizer import Pos
 from .types import LocalPath
+
+
+log = logging.getLogger(__name__)
 
 
 _T = TypeVar("_T", bound=TypeT)
@@ -341,7 +345,9 @@ def parse_dict(
     field_names = set()
     for f in dataclasses.fields(res_type):
         field_names.add(f.name)
-        if f.name not in found_fields:
+        if f.name == "_specified_fields":
+            optional_fields[f.name] = set(data.keys())
+        elif f.name not in found_fields:
             key = f.name
             item_ctor = keys[key]
             if (
@@ -421,69 +427,6 @@ def parse_cache(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Cache:
     )
 
 
-# #### Project parser ####
-
-
-class ProjectLoader(Reader, Scanner, Parser, Composer, BaseConstructor, BaseResolver):
-    def __init__(self, stream: TextIO) -> None:
-        Reader.__init__(self, stream)
-        Scanner.__init__(self)
-        Parser.__init__(self)
-        Composer.__init__(self)
-        BaseConstructor.__init__(self)
-        BaseResolver.__init__(self)
-
-
-PROJECT = {"id": SimpleIdExpr}
-
-
-def parse_project_main(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Project:
-    ret = parse_dict(
-        ctor,
-        node,
-        PROJECT,
-        ast.Project,
-    )
-    return ret
-
-
-ProjectLoader.add_path_resolver("project:main", [])  # type: ignore
-ProjectLoader.add_constructor("project:main", parse_project_main)  # type: ignore
-
-
-def parse_project_stream(stream: TextIO) -> ast.Project:
-    ret: ast.Project
-    loader = ProjectLoader(stream)
-    try:
-        ret = loader.get_single_data()  # type: ignore[no-untyped-call]
-        assert isinstance(ret, ast.Project)
-        return ret
-    finally:
-        loader.dispose()  # type: ignore[no-untyped-call]
-
-
-def make_default_project(workspace_stem: str) -> ast.Project:
-    project_id = workspace_stem.replace("-", "_")
-    if not project_id.isidentifier():
-        raise ValueError(
-            f'Workspace directory name "{workspace_stem}" is invalid identifier'
-        )
-    if project_id == project_id.upper():
-        raise ValueError(
-            f'Workspace directory name "{workspace_stem}" is invalid '
-            "identifier, uppercase names are reserved for internal usage"
-        )
-    return ast.Project(
-        _start=Pos(0, 0, LocalPath("<default>")),
-        _end=Pos(0, 0, LocalPath("<default>")),
-        id=SimpleIdExpr(
-            Pos(0, 0, LocalPath("<default>")),
-            Pos(0, 0, LocalPath("<default>")),
-            project_id,
-        ),
-    )
-
-
 # #### Flow parser ####
 
 
@@ -533,12 +476,13 @@ def parse_image(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Image:
         node,
         {
             "ref": StrExpr,
-            "context": OptLocalPathExpr,
-            "dockerfile": OptLocalPathExpr,
+            "context": OptStrExpr,
+            "dockerfile": OptStrExpr,
             "build_args": ExprOrSeq(StrExpr, type2str),
             "env": ExprOrMapping(StrExpr, type2str),
             "volumes": ExprOrSeq(OptStrExpr, type2str),
             "build_preset": OptStrExpr,
+            "force_rebuild": OptBoolExpr,
         },
         ast.Image,
     )
@@ -557,8 +501,9 @@ FlowLoader.add_path_resolver("flow:images", [(dict, "images")])  # type: ignore
 FlowLoader.add_constructor("flow:images", parse_images)  # type: ignore
 
 
-def parse_needs_key(ctor: BaseConstructor, node: yaml.Node) -> IdExpr:
-    tmp = ctor.construct_scalar(node)  # type: ignore[no-untyped-call]
+def parse_needs_key(ctor: BaseConstructor, node: yaml.ScalarNode) -> IdExpr:
+    tmp = ctor.construct_scalar(node)
+    assert tmp is None or isinstance(tmp, str)
     return IdExpr(mark2pos(node.start_mark), mark2pos(node.end_mark), tmp)
 
 
@@ -673,7 +618,7 @@ FlowLoader.add_constructor("flow:cache", parse_cache)  # type: ignore
 EXEC_UNIT = {
     "title": OptStrExpr,
     "name": OptStrExpr,
-    "image": StrExpr,
+    "image": OptStrExpr,
     "preset": OptStrExpr,
     "schedule_timeout": OptTimeDeltaExpr,
     "entrypoint": OptStrExpr,
@@ -690,18 +635,34 @@ EXEC_UNIT = {
     "pass_config": OptBoolExpr,
 }
 
-
-JOB = {
+JOB_MIXIN = {
+    **EXEC_UNIT,
     "detach": OptBoolExpr,
     "browse": OptBoolExpr,
     "port_forward": ExprOrSeq(PortPairExpr, port_pair_item),
     "multi": SimpleOptBoolExpr,
     "params": None,
+    "inherits": SimpleSeq(StrExpr),
+}
+
+JOB: Dict[str, Any] = {
     **EXEC_UNIT,
+    "detach": OptBoolExpr,
+    "browse": OptBoolExpr,
+    "port_forward": ExprOrSeq(PortPairExpr, port_pair_item),
+    "multi": SimpleOptBoolExpr,
+    "params": None,
+    "inherits": SimpleSeq(StrExpr),
 }
 
 JOB_ACTION_CALL = {
     "action": SimpleStrExpr,
+    "args": SimpleMapping(StrExpr),
+    "params": None,
+}
+
+JOB_MODULE_CALL = {
+    "module": SimpleStrExpr,
     "args": SimpleMapping(StrExpr),
     "params": None,
 }
@@ -737,10 +698,13 @@ def select_shells(
     return dct
 
 
-def select_job_or_action(
+def select_job_or_action_or_module(
     ctor: BaseConstructor, node: yaml.MappingNode, dct: Dict[str, Any]
 ) -> Dict[str, Any]:
-    if "action" in dct:
+    if "module" in dct:
+        ret = {k: v for k, v in dct.items() if k in JOB_MODULE_CALL}
+        check_extra(node, dct, ret, "module call")
+    elif "action" in dct:
         ret = {k: v for k, v in dct.items() if k in JOB_ACTION_CALL}
         check_extra(node, dct, ret, "action call")
     else:
@@ -750,7 +714,7 @@ def select_job_or_action(
     return ret
 
 
-JOB_OR_ACTION = {**JOB, **JOB_ACTION_CALL}
+JOB_OR_ACTION_OR_MODULE = {**JOB, **JOB_ACTION_CALL, **JOB_MODULE_CALL}
 
 
 def find_job_type(
@@ -758,25 +722,25 @@ def find_job_type(
     node: yaml.MappingNode,
     res_type: Type[ast.Base],
     arg: Dict[str, Any],
-) -> Union[Type[ast.Job], Type[ast.JobActionCall]]:
-    action = arg.get("action")
-    if action is None:
-        return ast.Job
-    else:
+) -> Union[Type[ast.Job], Type[ast.JobActionCall], Type[ast.JobModuleCall]]:
+    if arg.get("module") is not None:
+        return ast.JobModuleCall
+    if arg.get("action") is not None:
         return ast.JobActionCall
+    return ast.Job
 
 
 def parse_job(
     ctor: BaseConstructor, node: yaml.MappingNode
-) -> Union[ast.Job, ast.JobActionCall]:
+) -> Union[ast.Job, ast.JobActionCall, ast.JobModuleCall]:
     return cast(
-        Union[ast.Job, ast.JobActionCall],
+        Union[ast.Job, ast.JobActionCall, ast.JobModuleCall],
         parse_dict(
             ctor,
             node,
-            JOB_OR_ACTION,
-            ast.Base,
-            preprocess=select_job_or_action,
+            JOB_OR_ACTION_OR_MODULE,
+            ast.JobBase,
+            preprocess=select_job_or_action_or_module,
             find_res_type=find_job_type,
         ),
     )
@@ -784,7 +748,7 @@ def parse_job(
 
 def parse_jobs(
     ctor: BaseConstructor, node: yaml.MappingNode
-) -> Dict[str, Union[ast.Job, ast.JobActionCall]]:
+) -> Dict[str, Union[ast.Job, ast.JobActionCall, ast.JobModuleCall]]:
     ret = {}
     for k, v in node.value:
         key = ctor.construct_id(k)
@@ -793,38 +757,91 @@ def parse_jobs(
     return ret
 
 
+def parse_mixin(
+    ctor: FlowLoader, node: yaml.MappingNode
+) -> Union[ast.JobMixin, ast.TaskMixin]:
+    if ctor._kind == ast.FlowKind.LIVE:
+        return parse_dict(
+            ctor,
+            node,
+            JOB_MIXIN,
+            ast.JobMixin,
+        )
+    elif ctor._kind == ast.FlowKind.BATCH:
+        return parse_dict(
+            ctor,
+            node,
+            TASK_MIXIN,
+            ast.TaskMixin,
+        )
+    else:
+        raise ValueError(f"Unknown kind {ctor._kind}")
+
+
+def parse_mixins(
+    ctor: FlowLoader, node: yaml.MappingNode
+) -> Dict[str, Union[ast.JobMixin, ast.TaskMixin]]:
+    ret = {}
+    for k, v in node.value:
+        key = ctor.construct_id(k)
+        value = parse_mixin(ctor, v)
+        ret[key] = value
+    return ret
+
+
 FlowLoader.add_path_resolver("flow:jobs", [(dict, "jobs")])  # type: ignore
 FlowLoader.add_constructor("flow:jobs", parse_jobs)  # type: ignore
 
+FlowLoader.add_path_resolver("flow:mixins", [(dict, "mixins")])  # type: ignore
+FlowLoader.add_constructor("flow:mixins", parse_mixins)  # type: ignore
 
-TASK: Mapping[str, Any] = {
+TASK_BASE = {
     "id": OptIdExpr,
     "needs": None,
     "strategy": None,
     "enable": EnableExpr,
     "cache": None,
+}
+
+TASK: Mapping[str, Any] = {
+    **TASK_BASE,
     **EXEC_UNIT,
+    "inherits": SimpleSeq(StrExpr),
+}
+
+TASK_MIXIN: Mapping[str, Any] = {
+    **EXEC_UNIT,
+    "needs": None,
+    "strategy": None,
+    "enable": EnableExpr,
+    "cache": None,
+    "inherits": SimpleSeq(StrExpr),
 }
 
 
 TASK_ACTION_CALL = {
-    "id": OptIdExpr,
-    "needs": None,
-    "strategy": None,
-    "enable": EnableExpr,
-    "cache": None,
+    **TASK_BASE,
     "action": SimpleStrExpr,
     "args": SimpleMapping(StrExpr),
 }
 
+TASK_MODULE_CALL = {
+    **TASK_BASE,
+    "module": SimpleStrExpr,
+    "args": SimpleMapping(StrExpr),
+}
 
-TASK_OR_ACTION = {**TASK, **TASK_ACTION_CALL}
+
+TASK_OR_ACTION_OR_MODULE = {**TASK, **TASK_ACTION_CALL, **TASK_MODULE_CALL}
 
 
-def select_task_or_action(
+def select_task_or_action_or_module(
     ctor: BaseConstructor, node: yaml.MappingNode, dct: Dict[str, Any]
 ) -> Dict[str, Any]:
-    if "action" in dct:
+    if "module" in dct:
+        ret = {k: v for k, v in dct.items() if k in TASK_MODULE_CALL}
+        check_extra(node, dct, ret, "module call")
+    elif "action" in dct:
         ret = {k: v for k, v in dct.items() if k in TASK_ACTION_CALL}
         check_extra(node, dct, ret, "action call")
     else:
@@ -839,22 +856,23 @@ def find_task_type(
     node: yaml.MappingNode,
     res_type: Type[ast.Base],
     arg: Dict[str, Any],
-) -> Union[Type[ast.Task], Type[ast.TaskActionCall]]:
-    action = arg.get("action")
-    if action is None:
-        return ast.Task
-    else:
+) -> Union[Type[ast.Task], Type[ast.TaskActionCall], Type[ast.TaskModuleCall]]:
+    if arg.get("module") is not None:
+        return ast.TaskModuleCall
+    if arg.get("action") is not None:
         return ast.TaskActionCall
+    return ast.Task
 
 
 def parse_task(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Base:
     return parse_dict(
         ctor,
         node,
-        TASK_OR_ACTION,
+        TASK_OR_ACTION_OR_MODULE,
         ast.Base,
-        preprocess=select_task_or_action,
+        preprocess=select_task_or_action_or_module,
         find_res_type=find_task_type,
+        ret_name="Task",
     )
 
 
@@ -876,6 +894,7 @@ def parse_flow_defaults(ctor: FlowLoader, node: yaml.MappingNode) -> ast.FlowDef
             {
                 "tags": ExprOrSeq(StrExpr, type2str),
                 "env": ExprOrMapping(StrExpr, type2str),
+                "volumes": ExprOrSeq(OptStrExpr, type2str),
                 "workdir": OptRemotePathExpr,
                 "life_span": OptTimeDeltaExpr,
                 "preset": OptStrExpr,
@@ -890,6 +909,7 @@ def parse_flow_defaults(ctor: FlowLoader, node: yaml.MappingNode) -> ast.FlowDef
             {
                 "tags": ExprOrSeq(StrExpr, type2str),
                 "env": ExprOrMapping(StrExpr, type2str),
+                "volumes": ExprOrSeq(OptStrExpr, type2str),
                 "workdir": OptRemotePathExpr,
                 "life_span": OptTimeDeltaExpr,
                 "preset": OptStrExpr,
@@ -915,6 +935,8 @@ FLOW = {
     "kind": ast.FlowKind,
     "id": SimpleOptIdExpr,
     "title": SimpleOptStrExpr,
+    "life_span": OptTimeDeltaExpr,
+    "mixins": None,
     "images": None,
     "volumes": None,
     "defaults": None,
@@ -924,7 +946,7 @@ FLOW = {
 }
 
 
-PARAMS = {"default": SimpleOptStrExpr, "descr": SimpleOptStrExpr}
+PARAMS = {"default": OptStrExpr, "descr": OptStrExpr}
 
 
 def parse_param(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Param:
@@ -942,8 +964,8 @@ def parse_params(ctor: BaseConstructor, node: yaml.MappingNode) -> Dict[str, ast
             ret[key] = ast.Param(
                 _start=start,
                 _end=end,
-                default=SimpleOptStrExpr(start, end, default),
-                descr=SimpleOptStrExpr(start, end, None),
+                default=OptStrExpr(start, end, default),
+                descr=OptStrExpr(start, end, None),
             )
         else:
             arg = parse_param(ctor, v)
@@ -1001,7 +1023,7 @@ FlowLoader.add_constructor("flow:main", parse_flow_main)  # type: ignore
 def parse_live_stream(stream: TextIO) -> ast.LiveFlow:
     loader = FlowLoader(stream, kind=ast.FlowKind.LIVE)
     try:
-        ret = loader.get_single_data()  # type: ignore[no-untyped-call]
+        ret = loader.get_single_data()
         assert isinstance(ret, ast.LiveFlow)
         assert ret.kind == ast.FlowKind.LIVE
         return ret
@@ -1018,7 +1040,7 @@ def parse_live(workspace: LocalPath, config_file: LocalPath) -> ast.LiveFlow:
 def parse_batch_stream(stream: TextIO) -> ast.BatchFlow:
     loader = FlowLoader(stream, kind=ast.FlowKind.BATCH)
     try:
-        ret = loader.get_single_data()  # type: ignore[no-untyped-call]
+        ret = loader.get_single_data()
         assert isinstance(ret, ast.BatchFlow)
         assert ret.kind == ast.FlowKind.BATCH
         return ret
@@ -1185,6 +1207,10 @@ ActionLoader.add_path_resolver(  # type: ignore
 ActionLoader.add_constructor("action:cache", parse_cache)  # type: ignore
 
 
+ActionLoader.add_path_resolver("action:images", [(dict, "images")])  # type: ignore
+ActionLoader.add_constructor("action:images", parse_images)  # type: ignore
+
+
 ActionLoader.add_path_resolver(  # type: ignore[no-untyped-call]
     "action:task", [(dict, "tasks"), (list, None)]
 )
@@ -1229,7 +1255,12 @@ BASE_ACTION = {
 
 LIVE_ACTION: Dict[str, Any] = {"job": None, **BASE_ACTION}
 
-BATCH_ACTION: Dict[str, Any] = {"cache": None, "tasks": None, **BASE_ACTION}
+BATCH_ACTION: Dict[str, Any] = {
+    "cache": None,
+    "images": None,
+    "tasks": None,
+    **BASE_ACTION,
+}
 
 STATEFUL_ACTION: Dict[str, Any] = {
     "cache": None,
@@ -1250,6 +1281,18 @@ ACTION = {
     **STATEFUL_ACTION,
     **LOCAL_ACTION,
 }
+
+
+def _deep_get(node: yaml.Node, path: Sequence[str]) -> Optional[yaml.Node]:
+    if not path:
+        return node
+    if not isinstance(node, yaml.MappingNode):
+        return None
+    key, *subpath = path
+    for k, v in node.value:
+        if k.value == key:
+            return _deep_get(v, subpath)
+    return None
 
 
 def select_action(
@@ -1280,24 +1323,26 @@ def select_action(
                 node.start_mark,
             )
 
-    outputs_tmp: Optional[BatchActionOutputs] = dct.get("outputs")
+    outputs_tmp: Optional[ParsedActionOutputs] = dct.get("outputs")
+    needs_list_node = _deep_get(node, ("outputs", "needs"))
+
     if outputs_tmp and kind != ast.ActionKind.BATCH:
         if outputs_tmp.needs is not None:
             raise ConnectionError(
-                f"outputs.needs list is not supported " f"for {kind.value} action kind",
-                node.start_mark,
+                f"outputs.needs list is not supported for {kind.value} action kind",
+                (needs_list_node or node).start_mark,
             )
         ret["outputs"] = outputs_tmp.values
     elif outputs_tmp:
-        if outputs_tmp.needs is None:
-            raise ConnectionError(
-                f"outputs.needs list is required " f"for {kind.value} action kind",
-                node.start_mark,
+        if outputs_tmp.needs is not None:
+            log.warning(
+                "outputs.needs is deprecated and will have no effect. "
+                "All action tasks are available in actions outputs expressions."
+                f"\n{(needs_list_node or node).start_mark}"
             )
         ret["outputs"] = ast.BatchActionOutputs(
             _start=outputs_tmp._start,
             _end=outputs_tmp._end,
-            needs=outputs_tmp.needs,
             values=outputs_tmp.values,
         )
     return ret
@@ -1353,11 +1398,44 @@ ActionLoader.add_path_resolver("action:main", [])  # type: ignore
 ActionLoader.add_constructor("action:main", parse_action_main)  # type: ignore
 
 
+# #### Action parser ####
+
+
+class BakeMetaLoader(Reader, Scanner, Parser, Composer, BaseConstructor, BaseResolver):
+    def __init__(self, stream: TextIO) -> None:
+        Reader.__init__(self, stream)
+        Scanner.__init__(self)
+        Parser.__init__(self)
+        Composer.__init__(self)
+        BaseConstructor.__init__(self)
+        BaseResolver.__init__(self)
+
+
+def parse_meta_main(ctor: BaseConstructor, node: yaml.MappingNode) -> Mapping[str, str]:
+    if not isinstance(node, yaml.MappingNode):
+        raise ConstructorError(
+            None,
+            None,
+            f"expected a mapping node, but found {node.id}",
+            node.start_mark,
+        )
+    ret = {}
+    for k, v in node.value:
+        key = str(ctor.construct_scalar(k))
+        value = str(ctor.construct_scalar(v))
+        ret[key] = value
+    return ret
+
+
+BakeMetaLoader.add_path_resolver("bake_meta:main", [])  # type: ignore
+BakeMetaLoader.add_constructor("bake_meta:main", parse_meta_main)  # type: ignore
+
+
 def parse_action_stream(stream: TextIO) -> ast.BaseAction:
     ret: ast.Project
     loader = ActionLoader(stream)
     try:
-        ret = loader.get_single_data()  # type: ignore[no-untyped-call]
+        ret = loader.get_single_data()
         assert isinstance(ret, ast.BaseAction)
         return ret
     finally:
@@ -1368,3 +1446,133 @@ def parse_action(action_file: LocalPath) -> ast.BaseAction:
     # Parse project config file
     with action_file.open() as f:
         return parse_action_stream(f)
+
+
+def parse_bake_meta(meta_file: LocalPath) -> Mapping[str, str]:
+    with meta_file.open() as f:
+        result = BakeMetaLoader(f).get_single_data()
+        assert isinstance(result, dict)
+        return result
+
+
+# #### Project parser ####
+
+
+class ProjectLoader(Reader, Scanner, Parser, Composer, BaseConstructor, BaseResolver):
+    def __init__(self, stream: TextIO) -> None:
+        Reader.__init__(self, stream)
+        Scanner.__init__(self)
+        Parser.__init__(self)
+        Composer.__init__(self)
+        BaseConstructor.__init__(self)
+        BaseResolver.__init__(self)
+
+
+PROJECT = {
+    "id": SimpleIdExpr,
+    "owner": SimpleOptStrExpr,
+    "role": SimpleOptStrExpr,
+    "images": None,
+    "volumes": None,
+    "defaults": None,
+}
+
+
+def parse_project_main(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Project:
+    ret = parse_dict(
+        ctor,
+        node,
+        PROJECT,
+        ast.Project,
+    )
+    return ret
+
+
+def parse_project_defaults(
+    ctor: FlowLoader, node: yaml.MappingNode
+) -> ast.BatchFlowDefaults:
+    return parse_dict(
+        ctor,
+        node,
+        {
+            "tags": ExprOrSeq(StrExpr, type2str),
+            "env": ExprOrMapping(StrExpr, type2str),
+            "volumes": ExprOrSeq(OptStrExpr, type2str),
+            "workdir": OptRemotePathExpr,
+            "life_span": OptTimeDeltaExpr,
+            "preset": OptStrExpr,
+            "schedule_timeout": OptTimeDeltaExpr,
+            "fail_fast": OptBoolExpr,
+            "max_parallel": OptIntExpr,
+            "cache": None,
+        },
+        ast.BatchFlowDefaults,
+    )
+
+
+ProjectLoader.add_path_resolver("project:main", [])  # type: ignore
+ProjectLoader.add_constructor("project:main", parse_project_main)  # type: ignore
+
+ProjectLoader.add_path_resolver(  # type: ignore
+    "project:cache", [(dict, "defaults"), (dict, "cache")]
+)
+ProjectLoader.add_constructor("project:cache", parse_cache)  # type: ignore
+
+ProjectLoader.add_path_resolver(  # type: ignore
+    "project:defaults", [(dict, "defaults")]
+)
+ProjectLoader.add_constructor(  # type: ignore
+    "project:defaults", parse_project_defaults
+)
+
+ProjectLoader.add_path_resolver("project:images", [(dict, "images")])  # type: ignore
+ProjectLoader.add_constructor("project:images", parse_images)  # type: ignore
+
+ProjectLoader.add_path_resolver("project:volumes", [(dict, "volumes")])  # type: ignore
+ProjectLoader.add_constructor("project:volumes", parse_volumes)  # type: ignore
+
+
+def parse_project_stream(stream: TextIO) -> ast.Project:
+    ret: ast.Project
+    loader = ProjectLoader(stream)
+    try:
+        ret = loader.get_single_data()
+        assert isinstance(ret, ast.Project)
+        return ret
+    finally:
+        loader.dispose()  # type: ignore[no-untyped-call]
+
+
+def make_default_project(workspace_stem: str) -> ast.Project:
+    project_id = workspace_stem.replace("-", "_")
+    if not project_id.isidentifier():
+        raise ValueError(
+            f'Workspace directory name "{workspace_stem}" is invalid identifier'
+        )
+    if project_id == project_id.upper():
+        raise ValueError(
+            f'Workspace directory name "{workspace_stem}" is invalid '
+            "identifier, uppercase names are reserved for internal usage"
+        )
+    return ast.Project(
+        _start=Pos(0, 0, LocalPath("<default>")),
+        _end=Pos(0, 0, LocalPath("<default>")),
+        id=SimpleIdExpr(
+            Pos(0, 0, LocalPath("<default>")),
+            Pos(0, 0, LocalPath("<default>")),
+            project_id,
+        ),
+        owner=SimpleOptStrExpr(
+            Pos(0, 0, LocalPath("<default>")),
+            Pos(0, 0, LocalPath("<default>")),
+            None,
+        ),
+        role=SimpleOptStrExpr(
+            Pos(0, 0, LocalPath("<default>")),
+            Pos(0, 0, LocalPath("<default>")),
+            None,
+        ),
+        defaults=None,
+        images=None,
+        volumes=None,
+    )

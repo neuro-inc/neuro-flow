@@ -1,5 +1,6 @@
 import pathlib
 import pytest
+from datetime import timedelta
 from neuro_sdk import Client
 from textwrap import dedent
 from typing import Mapping, Optional
@@ -7,6 +8,7 @@ from typing_extensions import AsyncIterator
 from yarl import URL
 
 from neuro_flow import ast
+from neuro_flow.ast import CacheStrategy
 from neuro_flow.config_loader import BatchLocalCL, ConfigLoader, LiveLocalCL
 from neuro_flow.context import (
     EMPTY_ROOT,
@@ -15,6 +17,7 @@ from neuro_flow.context import (
     NotAvailable,
     RunningBatchFlow,
     RunningLiveFlow,
+    sanitize_name,
     setup_inputs_ctx,
 )
 from neuro_flow.expr import EvalError, SimpleOptStrExpr, SimpleStrExpr, StrExpr
@@ -82,6 +85,7 @@ async def test_env_from_job(live_config_loader: ConfigLoader) -> None:
         "global_b": "val-b",
         "local_a": "val-1",
         "local_b": "val-2",
+        "local_c": "val-mixin-3",
     }
 
 
@@ -120,19 +124,68 @@ async def test_images(live_config_loader: ConfigLoader) -> None:
 
     assert ctx.images["image_a"].id == "image_a"
     assert ctx.images["image_a"].ref == "image:banana"
-    assert ctx.images["image_a"].context == LocalPath("dir")
+    assert ctx.images["image_a"].context == live_config_loader.workspace / "dir"
     assert (
-        ctx.images["image_a"].full_context_path == live_config_loader.workspace / "dir"
-    )
-    assert ctx.images["image_a"].dockerfile == LocalPath("dir/Dockerfile")
-    assert (
-        ctx.images["image_a"].full_dockerfile_path
+        ctx.images["image_a"].dockerfile
         == live_config_loader.workspace / "dir/Dockerfile"
     )
     assert ctx.images["image_a"].build_args == ["--arg1", "val1", "--arg2=val2"]
     assert ctx.images["image_a"].env == {"SECRET_ENV": "secret:key"}
     assert ctx.images["image_a"].volumes == ["secret:key:/var/secret/key.txt"]
     assert ctx.images["image_a"].build_preset == "gpu-small"
+
+
+async def test_project_level_defaults_live(
+    assets: pathlib.Path, client: Client
+) -> None:
+    ws = assets / "with_project_yaml"
+    config_dir = ConfigDir(
+        workspace=ws,
+        config_dir=ws,
+    )
+    cl = LiveLocalCL(config_dir, client)
+    try:
+        flow = await RunningLiveFlow.create(cl, "live")
+        job = await flow.get_job("test", {})
+        assert "tag-a" in job.tags
+        assert "tag-b" in job.tags
+        assert job.env["global_a"] == "val-a"
+        assert job.env["global_b"] == "val-b"
+        assert job.env["global_b"] == "val-b"
+        assert job.volumes == [
+            "storage:common:/mnt/common:rw",
+            "storage:dir:/var/dir:ro",
+        ]
+        assert job.workdir == RemotePath("/global/dir")
+        assert job.life_span == 100800.0
+        assert job.preset == "cpu-large"
+        assert job.schedule_timeout == 2157741.0
+        assert job.image == "image:banana"
+    finally:
+        await cl.close()
+
+
+async def test_local_remote_path_images(
+    client: Client, live_config_loader: ConfigLoader
+) -> None:
+    flow = await RunningLiveFlow.create(live_config_loader, "live-different-images")
+    ctx = flow._ctx
+    assert ctx.images.keys() == {"image_local", "image_remote"}
+
+    assert ctx.images["image_local"].context == live_config_loader.workspace / "dir"
+    assert (
+        ctx.images["image_local"].dockerfile
+        == live_config_loader.workspace / "dir/Dockerfile"
+    )
+    assert ctx.images["image_local"].dockerfile_rel == LocalPath("Dockerfile")
+
+    assert ctx.images["image_remote"].context == URL(
+        f"storage://{client.cluster_name}/{client.username}/dir"
+    )
+    assert ctx.images["image_remote"].dockerfile == URL(
+        f"storage://{client.cluster_name}/{client.username}/dir/Dockerfile"
+    )
+    assert ctx.images["image_remote"].dockerfile_rel == RemotePath("Dockerfile")
 
 
 async def test_defaults(live_config_loader: ConfigLoader) -> None:
@@ -159,7 +212,11 @@ async def test_job(live_config_loader: ConfigLoader) -> None:
     assert job.entrypoint == "bash"
     assert job.cmd == "echo abc"
     assert job.workdir == RemotePath("/local/dir")
-    assert job.volumes == ["storage:dir:/var/dir:ro", "storage:dir:/var/dir:ro"]
+    assert job.volumes == [
+        "storage:common:/mnt/common:rw",
+        "storage:dir:/var/dir:ro",
+        "storage:dir:/var/dir:ro",
+    ]
     assert job.tags == {
         "tag-1",
         "tag-2",
@@ -182,15 +239,18 @@ async def test_bad_expr_type_after_eval(live_config_loader: ConfigLoader) -> Non
 
     with pytest.raises(EvalError) as cm:
         await flow.get_job("test", {})
+    config_file = live_config_loader.workspace / "live-bad-expr-type-after-eval.yml"
     assert str(cm.value) == dedent(
-        """\
+        f"""\
         invalid literal for int() with base 10: 'abc def'
-          in line 5, column 19"""
+          in "{config_file}", line 6, column 20"""
     )
 
 
 async def test_pipeline_minimal_ctx(batch_config_loader: ConfigLoader) -> None:
-    flow = await RunningBatchFlow.create(batch_config_loader, "batch-minimal")
+    flow = await RunningBatchFlow.create(
+        batch_config_loader, "batch-minimal", "bake-id"
+    )
     task = await flow.get_task((), "test_a", needs={}, state={})
     assert task.id == "test_a"
     assert task.title == "Batch title"
@@ -202,7 +262,11 @@ async def test_pipeline_minimal_ctx(batch_config_loader: ConfigLoader) -> None:
     assert task.entrypoint == "bash"
     assert task.cmd == "echo abc"
     assert task.workdir == RemotePath("/local/dir")
-    assert task.volumes == ["storage:dir:/var/dir:ro", "storage:dir:/var/dir:ro"]
+    assert task.volumes == [
+        "storage:common:/mnt/common:rw",
+        "storage:dir:/var/dir:ro",
+        "storage:dir:/var/dir:ro",
+    ]
     assert task.tags == {
         "tag-1",
         "tag-2",
@@ -211,6 +275,7 @@ async def test_pipeline_minimal_ctx(batch_config_loader: ConfigLoader) -> None:
         "task:test-a",
         "project:unit",
         "flow:batch-minimal",
+        "bake_id:bake-id",
     }
     assert task.life_span == 10500.0
     assert task.strategy.max_parallel == 10
@@ -220,7 +285,7 @@ async def test_pipeline_minimal_ctx(batch_config_loader: ConfigLoader) -> None:
 
 
 async def test_pipeline_seq(batch_config_loader: ConfigLoader) -> None:
-    flow = await RunningBatchFlow.create(batch_config_loader, "batch-seq")
+    flow = await RunningBatchFlow.create(batch_config_loader, "batch-seq", "bake-id")
 
     task = await flow.get_task(
         (), "task-2", needs={"task-1": DepCtx(TaskStatus.SUCCEEDED, {})}, state={}
@@ -236,7 +301,13 @@ async def test_pipeline_seq(batch_config_loader: ConfigLoader) -> None:
     assert task.cmd == "bash -euo pipefail -c 'echo def'"
     assert task.workdir is None
     assert task.volumes == []
-    assert task.tags == {"project:unit", "flow:batch-seq", "task:task-2"}
+    assert task.tags == {
+        "project:unit",
+        "flow:batch-seq",
+        "task:task-2",
+        "bake_id:bake-id",
+        "bake_id:bake-id",
+    }
     assert task.life_span is None
     assert task.strategy.max_parallel == 10
     assert task.strategy.fail_fast
@@ -245,7 +316,7 @@ async def test_pipeline_seq(batch_config_loader: ConfigLoader) -> None:
 
 
 async def test_pipeline_needs(batch_config_loader: ConfigLoader) -> None:
-    flow = await RunningBatchFlow.create(batch_config_loader, "batch-needs")
+    flow = await RunningBatchFlow.create(batch_config_loader, "batch-needs", "bake-id")
 
     task = await flow.get_task(
         (), "task-2", needs={"task_a": DepCtx(TaskStatus.SUCCEEDED, {})}, state={}
@@ -261,7 +332,12 @@ async def test_pipeline_needs(batch_config_loader: ConfigLoader) -> None:
     assert task.cmd == "bash -euo pipefail -c 'echo def'"
     assert task.workdir is None
     assert task.volumes == []
-    assert task.tags == {"project:unit", "flow:batch-needs", "task:task-2"}
+    assert task.tags == {
+        "project:unit",
+        "flow:batch-needs",
+        "task:task-2",
+        "bake_id:bake-id",
+    }
     assert task.life_span is None
     assert task.strategy.max_parallel == 10
     assert task.strategy.fail_fast
@@ -270,7 +346,7 @@ async def test_pipeline_needs(batch_config_loader: ConfigLoader) -> None:
 
 
 async def test_pipeline_matrix(batch_config_loader: ConfigLoader) -> None:
-    flow = await RunningBatchFlow.create(batch_config_loader, "batch-matrix")
+    flow = await RunningBatchFlow.create(batch_config_loader, "batch-matrix", "bake-id")
 
     assert flow.graph == {
         "task-1-o3-t3": {},
@@ -298,7 +374,12 @@ async def test_pipeline_matrix(batch_config_loader: ConfigLoader) -> None:
         assert task.cmd == "echo abc"
         assert task.workdir is None
         assert task.volumes == []
-        assert task.tags == {"project:unit", "flow:batch-matrix", f"task:{task_id}"}
+        assert task.tags == {
+            "project:unit",
+            "flow:batch-matrix",
+            f"task:{task_id}",
+            "bake_id:bake-id",
+        }
         assert task.life_span is None
         assert task.strategy.max_parallel == 10
         assert task.strategy.fail_fast
@@ -306,7 +387,7 @@ async def test_pipeline_matrix(batch_config_loader: ConfigLoader) -> None:
 
 async def test_pipeline_matrix_with_strategy(batch_config_loader: ConfigLoader) -> None:
     flow = await RunningBatchFlow.create(
-        batch_config_loader, "batch-matrix-with-strategy"
+        batch_config_loader, "batch-matrix-with-strategy", "bake-id"
     )
 
     assert flow.graph == {
@@ -354,6 +435,7 @@ async def test_pipeline_matrix_with_strategy(batch_config_loader: ConfigLoader) 
         "project:unit",
         "flow:batch-matrix-with-strategy",
         "task:task-1-o3-t3",
+        "bake_id:bake-id",
     }
     assert task.life_span is None
 
@@ -366,7 +448,9 @@ async def test_pipeline_matrix_with_strategy(batch_config_loader: ConfigLoader) 
 
 
 async def test_pipeline_matrix_2(batch_config_loader: ConfigLoader) -> None:
-    flow = await RunningBatchFlow.create(batch_config_loader, "batch-matrix-with-deps")
+    flow = await RunningBatchFlow.create(
+        batch_config_loader, "batch-matrix-with-deps", "bake-id"
+    )
 
     assert flow.graph == {
         "task-2-a-1": {"task_a": ast.NeedsLevel.COMPLETED},
@@ -405,6 +489,7 @@ async def test_pipeline_matrix_2(batch_config_loader: ConfigLoader) -> None:
         "project:unit",
         "flow:batch-matrix-with-deps",
         "task:task-2-a-1",
+        "bake_id:bake-id",
     }
     assert task.life_span is None
 
@@ -412,6 +497,19 @@ async def test_pipeline_matrix_2(batch_config_loader: ConfigLoader) -> None:
         strategy=ast.CacheStrategy.DEFAULT,
         life_span=1209600,
     )
+
+
+async def test_pipeline_matrix_with_doubles(batch_config_loader: ConfigLoader) -> None:
+    flow = await RunningBatchFlow.create(
+        batch_config_loader, "batch-matrix-doubles", "bake-id"
+    )
+
+    assert flow.graph == {
+        "task_0_1__0_3": {},
+        "task_0_1__0_5": {},
+        "task_0_2__0_3": {},
+        "task_0_2__0_5": {},
+    }
 
 
 async def test_pipeline_matrix_incomplete_include(
@@ -423,12 +521,12 @@ async def test_pipeline_matrix_incomplete_include(
         r"are not the same as matrix keys: missing keys: param2",
     ):
         await RunningBatchFlow.create(
-            batch_config_loader, "batch-matrix-incomplete-include"
+            batch_config_loader, "batch-matrix-incomplete-include", "bake-id"
         )
 
 
 async def test_pipeline_args_defautls_only(batch_config_loader: ConfigLoader) -> None:
-    flow = await RunningBatchFlow.create(batch_config_loader, "batch-params")
+    flow = await RunningBatchFlow.create(batch_config_loader, "batch-params", "bake-id")
     ctx = flow._ctx
 
     assert ctx.params == {"arg1": "val1", "arg2": "val2"}
@@ -436,7 +534,7 @@ async def test_pipeline_args_defautls_only(batch_config_loader: ConfigLoader) ->
 
 async def test_pipeline_args_replaced(batch_config_loader: ConfigLoader) -> None:
     flow = await RunningBatchFlow.create(
-        batch_config_loader, "batch-params", {"arg1": "new-val"}
+        batch_config_loader, "batch-params", "bake-id", {"arg1": "new-val"}
     )
     ctx = flow._ctx
 
@@ -446,7 +544,7 @@ async def test_pipeline_args_replaced(batch_config_loader: ConfigLoader) -> None
 async def test_pipeline_args_extra(batch_config_loader: ConfigLoader) -> None:
     with pytest.raises(ValueError, match=r"Unsupported arg\(s\): arg3"):
         await RunningBatchFlow.create(
-            batch_config_loader, "batch-params", {"arg3": "new-val"}
+            batch_config_loader, "batch-params", "bake-id", {"arg3": "new-val"}
         )
 
 
@@ -456,12 +554,14 @@ async def test_pipeline_args_missing_required(
     with pytest.raises(
         EvalError, match=r"Param arg2 is not initialized and has no default value"
     ):
-        await RunningBatchFlow.create(batch_config_loader, "batch-params-required", {})
+        await RunningBatchFlow.create(
+            batch_config_loader, "batch-params-required", "bake-id", {}
+        )
 
 
 async def test_pipeline_args_required_set(batch_config_loader: ConfigLoader) -> None:
     flow = await RunningBatchFlow.create(
-        batch_config_loader, "batch-params-required", {"arg2": "val2"}
+        batch_config_loader, "batch-params-required", "bake-id", {"arg2": "val2"}
     )
     ctx = flow._ctx
 
@@ -469,7 +569,9 @@ async def test_pipeline_args_required_set(batch_config_loader: ConfigLoader) -> 
 
 
 async def test_batch_action_default(batch_config_loader: ConfigLoader) -> None:
-    flow = await RunningBatchFlow.create(batch_config_loader, "batch-action-call")
+    flow = await RunningBatchFlow.create(
+        batch_config_loader, "batch-action-call", "bake-id"
+    )
     flow2 = await flow.get_action("test", needs={})
     ctx = flow2._ctx
     assert ctx.inputs == {"arg1": "val 1", "arg2": "value 2"}
@@ -516,7 +618,7 @@ async def test_setup_inputs_ctx(
     batch_config_loader: ConfigLoader,
 ) -> None:
 
-    with pytest.raises(EvalError, match=r"Unsupported input\(s\): other,unknown"):
+    with pytest.raises(EvalError, match=r"Required input\(s\): expected"):
         await setup_inputs_ctx(
             EMPTY_ROOT,
             _make_ast_call({"other": "1", "unknown": "2"}),
@@ -583,7 +685,7 @@ async def test_local_call_with_cache_invalid(
         match=r"Specifying cache in action call to the action "
         r"ws:cp of kind local is not supported.",
     ):
-        await RunningBatchFlow.create(cl, "bad-call-with-cache", {})
+        await RunningBatchFlow.create(cl, "bad-call-with-cache", "bake-id", {})
 
 
 async def test_stateful_call_with_cache_invalid(
@@ -601,7 +703,7 @@ async def test_stateful_call_with_cache_invalid(
         match=r"Specifying cache in action call to the action "
         r"ws:with-state of kind stateful is not supported.",
     ):
-        await RunningBatchFlow.create(cl, "bad-call-with-cache", {})
+        await RunningBatchFlow.create(cl, "bad-call-with-cache", "bake-id", {})
 
 
 async def test_job_with_live_action(live_config_loader: ConfigLoader) -> None:
@@ -630,6 +732,91 @@ async def test_job_with_live_action(live_config_loader: ConfigLoader) -> None:
     assert not job.browse
 
 
+async def test_job_with_live_module(live_config_loader: ConfigLoader) -> None:
+    flow = await RunningLiveFlow.create(live_config_loader, "live-module-call")
+    job = await flow.get_job("test", {})
+
+    assert job.id == "test"
+    assert job.title == "live_module_call.test"
+    assert job.name is None
+    assert job.image == "ubuntu"
+    assert job.preset == "test-preset"
+    assert job.http_port is None
+    assert not job.http_auth
+    assert job.entrypoint is None
+    assert job.cmd == "bash -euo pipefail -c 'echo A val 1 B live_module_call C'"
+    assert job.workdir == pathlib.PurePosixPath("/some/dir")
+    assert job.volumes == ["storage:test:/volume"]
+    assert job.tags == {
+        "project:unit",
+        "flow:live-module-call",
+        "job:test",
+        "test-tag",
+    }
+    assert job.env == {"TEST": "test_value"}
+    assert job.life_span == timedelta(days=2).total_seconds()
+    assert job.schedule_timeout == timedelta(minutes=60).total_seconds()
+    assert job.port_forward == []
+    assert not job.detach
+    assert not job.browse
+
+
+async def test_job_with_live_call_to_remote_module_invalid(
+    live_config_loader: ConfigLoader,
+) -> None:
+    flow = await RunningLiveFlow.create(live_config_loader, "live-module-remote-call")
+    with pytest.raises(
+        EvalError,
+        match=r"Module call to non local action 'gh:username/repo@tag' is forbidden",
+    ):
+        await flow.get_job("test", {})
+
+
+async def test_job_with_mixins(live_config_loader: ConfigLoader) -> None:
+    flow = await RunningLiveFlow.create(live_config_loader, "live-mixins")
+    job = await flow.get_job("test", {})
+
+    assert job.id == "test"
+    assert job.image == "ubuntu"
+    assert job.preset == "cpu-micro"
+    assert job.env == {
+        "env1": "val1",
+        "env2": "val2",
+        "env3": "val-mixin2-3",
+        "env4": "val-mixin2-4",
+    }
+
+    job = await flow.get_job("test2", {})
+
+    assert job.id == "test2"
+    assert job.image == "ubuntu2"
+
+    job = await flow.get_job("test3", {})
+
+    assert job.id == "test3"
+    assert job.image == "ubuntu"
+    assert job.volumes == ["storage:dir2:/var/dir2:ro", "storage:dir1:/var/dir1:ro"]
+
+    job = await flow.get_job("test4", {"test_expr": "test_name"})
+
+    assert job.id == "test4"
+    assert job.image == "ubuntu"
+    assert job.name == "test_name"
+
+
+async def test_job_with_sub_mixins(live_config_loader: ConfigLoader) -> None:
+    flow = await RunningLiveFlow.create(live_config_loader, "live-sub-mixins")
+    job = await flow.get_job("test", {})
+
+    assert job.id == "test"
+    assert job.image == "ubuntu"
+    assert job.env == {
+        "env1": "val-mixin1-1",
+        "env2": "val-mixin2-2",
+        "env3": "val-mixin2-3",
+    }
+
+
 async def test_job_with_params(live_config_loader: ConfigLoader) -> None:
     flow = await RunningLiveFlow.create(live_config_loader, "live-params")
     job = await flow.get_job("test", {"arg1": "value"})
@@ -642,7 +829,7 @@ async def test_job_with_params(live_config_loader: ConfigLoader) -> None:
     assert job.http_port is None
     assert not job.http_auth
     assert job.entrypoint is None
-    assert job.cmd == "bash -euo pipefail -c 'echo value val2'"
+    assert job.cmd == "bash -euo pipefail -c 'echo value val2 live_params'"
     assert job.workdir is None
     assert job.volumes == []
     assert job.tags == {
@@ -659,7 +846,7 @@ async def test_job_with_params(live_config_loader: ConfigLoader) -> None:
 async def test_pipeline_enable_default_no_needs(
     batch_config_loader: ConfigLoader,
 ) -> None:
-    flow = await RunningBatchFlow.create(batch_config_loader, "batch-enable")
+    flow = await RunningBatchFlow.create(batch_config_loader, "batch-enable", "bake-id")
     meta = await flow.get_meta("task_a", needs={}, state={})
 
     assert meta.enable
@@ -668,21 +855,21 @@ async def test_pipeline_enable_default_no_needs(
 async def test_pipeline_enable_default_with_needs(
     batch_config_loader: ConfigLoader,
 ) -> None:
-    flow = await RunningBatchFlow.create(batch_config_loader, "batch-needs")
+    flow = await RunningBatchFlow.create(batch_config_loader, "batch-needs", "bake-id")
     meta = await flow.get_meta(
         "task-2", needs={"task_a": DepCtx(TaskStatus.FAILED, {})}, state={}
     )
 
     assert not meta.enable
 
-    flow = await RunningBatchFlow.create(batch_config_loader, "batch-needs")
+    flow = await RunningBatchFlow.create(batch_config_loader, "batch-needs", "bake-id")
     meta = await flow.get_meta(
         "task-2", needs={"task_a": DepCtx(TaskStatus.SKIPPED, {})}, state={}
     )
 
     assert not meta.enable
 
-    flow = await RunningBatchFlow.create(batch_config_loader, "batch-needs")
+    flow = await RunningBatchFlow.create(batch_config_loader, "batch-needs", "bake-id")
     meta = await flow.get_meta(
         "task-2", needs={"task_a": DepCtx(TaskStatus.SUCCEEDED, {})}, state={}
     )
@@ -691,21 +878,21 @@ async def test_pipeline_enable_default_with_needs(
 
 
 async def test_pipeline_enable_success(batch_config_loader: ConfigLoader) -> None:
-    flow = await RunningBatchFlow.create(batch_config_loader, "batch-enable")
+    flow = await RunningBatchFlow.create(batch_config_loader, "batch-enable", "bake-id")
     meta = await flow.get_meta(
         "task-2", needs={"task_a": DepCtx(TaskStatus.FAILED, {})}, state={}
     )
 
     assert not meta.enable
 
-    flow = await RunningBatchFlow.create(batch_config_loader, "batch-enable")
+    flow = await RunningBatchFlow.create(batch_config_loader, "batch-enable", "bake-id")
     meta = await flow.get_meta(
         "task-2", needs={"task_a": DepCtx(TaskStatus.SKIPPED, {})}, state={}
     )
 
     assert not meta.enable
 
-    flow = await RunningBatchFlow.create(batch_config_loader, "batch-enable")
+    flow = await RunningBatchFlow.create(batch_config_loader, "batch-enable", "bake-id")
     meta = await flow.get_meta(
         "task-2", needs={"task_a": DepCtx(TaskStatus.SUCCEEDED, {})}, state={}
     )
@@ -715,7 +902,9 @@ async def test_pipeline_enable_success(batch_config_loader: ConfigLoader) -> Non
 
 async def test_pipeline_with_batch_action(batch_config_loader: ConfigLoader) -> None:
 
-    flow = await RunningBatchFlow.create(batch_config_loader, "batch-action-call")
+    flow = await RunningBatchFlow.create(
+        batch_config_loader, "batch-action-call", "bake-id"
+    )
 
     assert await flow.is_action("test")
     flow2 = await flow.get_action("test", needs={})
@@ -734,7 +923,12 @@ async def test_pipeline_with_batch_action(batch_config_loader: ConfigLoader) -> 
     )
     assert task.workdir is None
     assert task.volumes == []
-    assert task.tags == {"project:unit", "flow:batch-action-call", "task:test.task-1"}
+    assert task.tags == {
+        "project:unit",
+        "flow:batch-action-call",
+        "task:test.task-1",
+        "bake_id:bake-id",
+    }
     assert task.life_span is None
     assert task.strategy.max_parallel == 10
     assert task.strategy.fail_fast
@@ -745,14 +939,236 @@ async def test_pipeline_with_batch_action(batch_config_loader: ConfigLoader) -> 
     }
 
 
-async def test_pipeline_with_batch_action_bad_output_needs(
+async def test_wrong_needs(
+    batch_config_loader: ConfigLoader,
+) -> None:
+    with pytest.raises(
+        EvalError,
+        match=r"Task task-2 needs unknown task something_wrong.*",
+    ):
+        await RunningBatchFlow.create(
+            batch_config_loader, "batch-wrong-need", "bake-id"
+        )
+
+
+async def test_pipeline_life_span(
     batch_config_loader: ConfigLoader,
 ) -> None:
     flow = await RunningBatchFlow.create(
-        batch_config_loader, "batch-action-call-bad-output-needs"
+        batch_config_loader, "batch-life-span", "bake-id"
     )
-    with pytest.raises(
-        EvalError, match=r"Action does not contain task 'task_2_bad_suffix'"
-    ):
-        assert await flow.is_action("test")
-        await flow.get_action_early("test")
+    assert flow.life_span == timedelta(days=30)
+
+
+async def test_early_images(assets: pathlib.Path, client: Client) -> None:
+    ws = assets / "batch_images"
+    config_dir = ConfigDir(
+        workspace=ws,
+        config_dir=ws,
+    )
+    cl = BatchLocalCL(config_dir, client)
+    try:
+        flow = await RunningBatchFlow.create(cl, "batch", "bake-id")
+        assert flow.early_images["image1"].ref == "image:main"
+        assert flow.early_images["image1"].context == ws / "dir"
+        assert flow.early_images["image1"].dockerfile == ws / "dir/Dockerfile"
+
+        action = await flow.get_action_early("action")
+
+        assert action.early_images["image_early"].ref == "image:banana1"
+        assert action.early_images["image_early"].context == ws / "dir"
+        assert action.early_images["image_early"].dockerfile == ws / "dir/Dockerfile"
+
+        assert action.early_images["image_late"].ref == "image:banana2"
+        assert action.early_images["image_late"].context is None
+        assert action.early_images["image_late"].dockerfile is None
+    finally:
+        await cl.close()
+
+
+def test_sanitize_name() -> None:
+    assert sanitize_name("myproject") == "myproject"
+    assert sanitize_name("проект") == "проект"
+    assert sanitize_name("my project") == "my_project"
+    assert sanitize_name("my:project") == "my_project"
+    assert sanitize_name("my/project") == "my/project"
+    assert sanitize_name("my//project") == "my/project"
+    assert sanitize_name("/my/project/") == "my/project"
+    assert sanitize_name("") == "_"
+
+
+async def test_batch_module_call_to_remote_invalid(
+    assets: pathlib.Path, client: Client
+) -> None:
+    ws = assets / "batch_module"
+    config_dir = ConfigDir(
+        workspace=ws,
+        config_dir=ws,
+    )
+    cl = BatchLocalCL(config_dir, client)
+    try:
+        with pytest.raises(
+            EvalError,
+            match=r"Module call to non local action 'gh:username/repo@tag' "
+            r"is forbidden",
+        ):
+            await RunningBatchFlow.create(cl, "batch-module-remote-call", "bake-id")
+    finally:
+        await cl.close()
+
+
+async def test_batch_with_mixins(batch_config_loader: ConfigLoader) -> None:
+    flow = await RunningBatchFlow.create(batch_config_loader, "batch-mixin", "bake-id")
+    task = await flow.get_task((), "task-1", needs={}, state={})
+
+    assert task.image == "ubuntu"
+    assert task.preset == "cpu-micro"
+    assert task.cmd == "bash -euo pipefail -c 'echo abc'"
+
+    task = await flow.get_task(
+        (), "task-2", needs={"task-1": DepCtx(TaskStatus.SUCCEEDED, {})}, state={}
+    )
+    assert task.image == "ubuntu"
+    assert task.preset == "cpu-micro"
+    assert task.cmd == "bash -euo pipefail -c 'echo def'"
+
+
+async def test_batch_with_sub_mixins(batch_config_loader: ConfigLoader) -> None:
+    flow = await RunningBatchFlow.create(
+        batch_config_loader, "batch-sub-mixin", "bake-id"
+    )
+    task = await flow.get_task((), "task-1", needs={}, state={})
+
+    assert task.image == "ubuntu"
+    assert task.preset == "cpu-micro"
+    assert task.cmd == "bash -euo pipefail -c 'echo abc'"
+    assert task.env == {
+        "env1": "val-mixin1-1",
+        "env2": "val-mixin1-2",
+    }
+
+    task = await flow.get_task(
+        (), "task-2", needs={"task-1": DepCtx(TaskStatus.SUCCEEDED, {})}, state={}
+    )
+    assert task.image == "ubuntu"
+    assert task.preset == "cpu-micro"
+    assert task.cmd == "bash -euo pipefail -c 'echo def'"
+    assert task.env == {
+        "env1": "val-mixin1-1",
+        "env2": "val-mixin2-2",
+        "env3": "val-mixin2-3",
+    }
+
+
+async def test_batch_module_with_mixin(assets: pathlib.Path, client: Client) -> None:
+    ws = assets / "batch_mixins"
+    config_dir = ConfigDir(
+        workspace=ws,
+        config_dir=ws,
+    )
+    cl = BatchLocalCL(config_dir, client)
+    try:
+        flow = await RunningBatchFlow.create(cl, "batch-module-call", "bake-id")
+        module_flow = await flow.get_action("test", needs={})
+        task = await module_flow.get_task(("test",), "task_1", needs={}, state={})
+
+        assert task.image == "ubuntu"
+        assert task.preset == "cpu-micro"
+        assert task.cmd == "bash -euo pipefail -c 'echo abc'"
+    finally:
+        await cl.close()
+
+
+async def test_batch_action_no_access_to_mixin(
+    assets: pathlib.Path, client: Client
+) -> None:
+    ws = assets / "batch_mixins"
+    config_dir = ConfigDir(
+        workspace=ws,
+        config_dir=ws,
+    )
+    cl = BatchLocalCL(config_dir, client)
+    try:
+        flow = await RunningBatchFlow.create(cl, "batch-action-call", "bake-id")
+        with pytest.raises(
+            EvalError,
+            match=r"Unknown mixin 'basic'",
+        ):
+            await flow.get_action("test", needs={})
+
+    finally:
+        await cl.close()
+
+
+async def test_batch_task_with_no_image(assets: pathlib.Path, client: Client) -> None:
+    ws = assets / "batch_mixins"
+    config_dir = ConfigDir(
+        workspace=ws,
+        config_dir=ws,
+    )
+    cl = BatchLocalCL(config_dir, client)
+    try:
+        with pytest.raises(
+            EvalError,
+            match=r"Image for task test is not specified",
+        ):
+            await RunningBatchFlow.create(cl, "batch-task-no-image", "bake-id")
+
+    finally:
+        await cl.close()
+
+
+async def test_early_images_include_globals(
+    assets: pathlib.Path, client: Client
+) -> None:
+    ws = assets / "with_project_yaml"
+    config_dir = ConfigDir(
+        workspace=ws,
+        config_dir=ws,
+    )
+    cl = BatchLocalCL(config_dir, client)
+    try:
+        flow = await RunningBatchFlow.create(cl, "batch", "bake-id")
+        assert flow.early_images["image_a"].ref == "image:banana"
+        assert flow.early_images["image_a"].context == ws / "dir"
+        assert flow.early_images["image_a"].dockerfile == ws / "dir/Dockerfile"
+
+        assert flow.early_images["image_b"].ref == "image:main"
+        assert flow.early_images["image_b"].context == ws / "dir"
+        assert flow.early_images["image_b"].dockerfile == ws / "dir/Dockerfile"
+
+    finally:
+        await cl.close()
+
+
+async def test_batch_with_project_globals(assets: pathlib.Path, client: Client) -> None:
+    ws = assets / "with_project_yaml"
+    config_dir = ConfigDir(
+        workspace=ws,
+        config_dir=ws,
+    )
+    cl = BatchLocalCL(config_dir, client)
+    try:
+        flow = await RunningBatchFlow.create(cl, "batch", "bake-id")
+        task = await flow.get_task((), "task", needs={}, state={})
+        assert "tag-a" in task.tags
+        assert "tag-b" in task.tags
+        assert task.env["global_a"] == "val-a"
+        assert task.env["global_b"] == "val-b"
+        assert task.volumes == [
+            "storage:common:/mnt/common:rw",
+            "storage:dir:/var/dir:ro",
+        ]
+        assert task.workdir == RemotePath("/global/dir")
+        assert task.life_span == 100800.0
+        assert task.preset == "cpu-large"
+        assert task.schedule_timeout == 2157741.0
+        assert task.image == "image:main"
+
+        assert not task.strategy.fail_fast
+        assert task.strategy.max_parallel == 20
+        assert task.cache.strategy == CacheStrategy.NONE
+        assert task.cache.life_span == 9000.0
+
+    finally:
+        await cl.close()

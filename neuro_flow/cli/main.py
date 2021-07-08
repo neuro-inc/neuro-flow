@@ -9,8 +9,10 @@ from typing import Any, List, Optional
 import neuro_flow
 from neuro_flow.cli import batch, completion, images, live, storage
 from neuro_flow.parser import ConfigDir, find_workspace
-from neuro_flow.types import LocalPath
+from neuro_flow.types import LocalPath, TaskStatus
 
+from ..batch_runner import BakeFailedError
+from ..expr import MultiError
 from .root import Root
 
 
@@ -66,17 +68,23 @@ class MainGroup(click.Group):
 
         console = Console(highlight=False, log_path=False)
 
-        setup_logging(color=bool(console.color_system), verbosity=verbose - quiet)
+        verbosity = verbose - quiet
+        setup_logging(color=bool(console.color_system), verbosity=verbosity)
 
         global LOG_ERROR
         if show_traceback:
             LOG_ERROR = log.exception
 
-        ctx.obj = Root(config_dir=config_dir, console=console)
+        ctx.obj = Root(
+            config_dir=config_dir,
+            console=console,
+            verbosity=verbosity,
+            show_traceback=show_traceback,
+        )
 
     def make_context(
         self,
-        info_name: str,
+        info_name: Optional[str],
         args: List[str],
         parent: Optional[click.Context] = None,
         **extra: Any,
@@ -84,7 +92,7 @@ class MainGroup(click.Group):
         ctx = super().make_context(info_name, args, parent, **extra)
         kwargs = {}
         for param in self.params:
-            if param.expose_value:
+            if param.expose_value and param.name:
                 val = ctx.params.get(param.name)
                 if val is not None:
                     kwargs[param.name] = val
@@ -189,10 +197,19 @@ def main(args: Optional[List[str]] = None) -> None:
         e.show()
         sys.exit(e.exit_code)
     except ClickExit as e:
-        sys.exit(e.exit_code)  # type: ignore
+        sys.exit(e.exit_code)
+    except BakeFailedError as e:
+        if e.status == TaskStatus.CANCELLED:
+            sys.exit(130)
+        sys.exit(1)
 
     except SystemExit:
         raise
+
+    except MultiError as e:
+        for error in e.errors:
+            LOG_ERROR(f"{error}")
+        sys.exit(1)
 
     except Exception as e:
         LOG_ERROR(f"{e}")

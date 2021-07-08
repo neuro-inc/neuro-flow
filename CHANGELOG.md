@@ -5,6 +5,375 @@
 
 [comment]: # (towncrier release notes start)
 
+Neuro_Flow 21.7.7 (2021-7-7)
+============================
+
+Features
+--------
+
+
+- Added modules feature: a module is simillar to action but has following differneces:
+  - only local files support (`ws:` scheme), github located modules are forbidden.
+  - the module content has access to workflow global defaults. The default env/volumes/preset
+  is inherited, and expressions can access top level contexts such as `flow`.
+
+  Calling a module is similar to calling an action, except for use of `module` property
+  instead of `action` property:
+
+  Live module call:
+  ```
+  jobs:
+    test:
+      module: ws:live-module
+      args:
+        arg1: val 1
+  ```
+
+  Batch module call:
+  ```
+  tasks:
+    - id: test
+      module: ws:batch-module
+      args:
+        arg1: val 1
+  ``` ([#464](https://github.com/neuro-inc/neuro-flow/issues/464))
+
+- Add support of mixins in live and batch mode.
+
+  Mixins allow to define and reuse some common parts of jobs in live mode and tasks in batch mode.
+  To define a mixin, use top level `mixins` sections:
+  ```
+  ...
+  mixins:
+    credentials:
+      volumes:
+        - secret:some_key:/var/some_key
+      env:
+        KEY_LOCATION: /var/some_key
+  ...
+  ```
+
+  Mixins can define the same properties as "job" and "task" do, except for "id" field in batch mode.
+  To apply a mixin, use `inherits` property:
+
+  ```
+  ...
+  jobs:
+    test_a:
+      inherits: [ credentials ]
+  ...
+  ```
+
+  When applied, all fields defined in mixin will be merged into job definition.
+  You can apply multiple mixins simultaneously. If some of applied mixins share the same property,
+  or/and it is defined in task, the following rules are applied:
+  - If property is scalar (int/string/bool), then job will use value defined in job definition. If it is absent,
+  the value from the rightmost of the mixins that define this property will be used:
+  ```
+  mixins:
+    mix1:
+      image: example_mix1
+    mix2:
+      image: example_mix2
+  jobs:
+    job1:
+      inherits: [mix1, mix2]
+      image: example
+    job2:
+      inherits: [mix1, mix2]
+  ```
+  The `job1` will use `example` image, and `job2` will use `example_mix2` image.
+  - If property is list, that all lists will be concatenated.
+  - If property is dict, that rule for scalars will be applied for dict values separately.
+
+  Mixins can inherit from each other:
+  ```
+  mixins:
+    mix1:
+      env:
+        TEST: 1
+    mix2:
+      inherits: [ mix1 ]
+      image: example
+  ``` ([#498](https://github.com/neuro-inc/neuro-flow/issues/498))
+
+
+Bugfixes
+--------
+
+
+- Improved performance of `neuro flow bakes` it will now print only new rows instead of re-rendering all table ([#501](https://github.com/neuro-inc/neuro-flow/issues/501))
+
+
+Neuro_Flow 21.6.23 (2021-6-23)
+==============================
+
+Features
+--------
+
+
+- Implement retry on NDJSON errors ([#493](https://github.com/neuro-inc/neuro-flow/issues/493))
+
+
+Neuro_Flow 21.6.18.1 (2021-6-18)
+================================
+
+Bugfixes
+--------
+
+
+- Fix cache key calculation: now it doesn't depend on top-level contexts but on a task calculated parameters plus "needs" and "state" for stateful actions only.
+
+
+Neuro_Flow 21.6.18 (2021-6-18)
+==============================
+
+Bugfixes
+--------
+
+
+- Fix READ retry logic: increase delay between retries (was decreasing to zero in
+  21.6.17 release by mistake).
+
+
+Neuro_Flow 21.6.17 (2021-6-17)
+==============================
+
+Features
+--------
+
+
+- Added command to clear cache of a single task: `neuro-flow clear-cache <batch> <task_id>`. ([#452](https://github.com/neuro-inc/neuro-flow/issues/452))
+
+- Added support in live jobs params. The following contexts are now available under `jobs.<job-id>.params`:
+  `project`, `flow`, `env`, `tags`, `volumes`, `images`. ([#457](https://github.com/neuro-inc/neuro-flow/issues/457))
+
+- Generate default live job name as '<PROJECT-ID>-<JOB-ID>-[<MULTI_SUFFIX>]' if not set. ([#462](https://github.com/neuro-inc/neuro-flow/issues/462))
+
+- Retry operations inside a batch runner if possible; it increase baking stability. ([#483](https://github.com/neuro-inc/neuro-flow/issues/483))
+
+
+Bugfixes
+--------
+
+
+- Fixed bug when executor ignored bake cancellation. ([#449](https://github.com/neuro-inc/neuro-flow/issues/449))
+
+- Fixed wrong filename of action config file in logs. ([#450](https://github.com/neuro-inc/neuro-flow/issues/450))
+
+- Fixed missing id of initial job for cached tasks. ([#451](https://github.com/neuro-inc/neuro-flow/issues/451))
+
+- Don't attach to live job in dry-run mode. ([#463](https://github.com/neuro-inc/neuro-flow/issues/463))
+
+
+Neuro_Flow 21.6.2 (2021-6-2)
+============================
+
+Bugfixes
+--------
+
+
+- Fixed hanging when executor tried to build an image in batch mode. ([#448](https://github.com/neuro-inc/neuro-flow/issues/448))
+
+
+Neuro_Flow 21.5.31 (2021-05-31)
+===============================
+
+Bugfixes
+--------
+
+
+- Fix broken cache when using images: now remote context dir name is based on image ref instead of random name. ([#422](https://github.com/neuro-inc/neuro-flow/issues/422))
+
+- Fix a error that leads to bakes cache check miss even if the record is present in cache actually. ([#441](https://github.com/neuro-inc/neuro-flow/issues/441))
+
+
+Neuro_Flow 21.5.25 (2021-05-25)
+===============================
+
+
+Features
+--------
+
+
+- Support shared projects. Shared project should have parameters `owner` or `role` set in `project.yml`. ([#373](https://github.com/neuro-inc/neuro-flow/issues/373))
+
+- Add bake id to `neuro-flow inspect`. ([#396](https://github.com/neuro-inc/neuro-flow/issues/396))
+
+- Added support of `storage:` urls in `images.<image-id>.context` and `images.<image-id>.dockerfile`. ([#402](https://github.com/neuro-inc/neuro-flow/issues/402))
+
+- Added image building functionality to batch mode.
+  The `images` yaml section entries with `context` and `dockerfile` are now allowed
+  both in batch and batch action config files.
+  Image build starts automatically when task that uses it is ready to be run. ([#412](https://github.com/neuro-inc/neuro-flow/issues/412))
+
+- Added automatic creation of parent directories in `neuro-flow upload` command. ([#416](https://github.com/neuro-inc/neuro-flow/issues/416))
+
+- Added cancellation of image build jobs if bake is cancelled or failed. ([#423](https://github.com/neuro-inc/neuro-flow/issues/423))
+
+- Added `force_rebuild` flag to image section in yaml config. ([#424](https://github.com/neuro-inc/neuro-flow/issues/424))
+
+- Added new options to neuro-flow bakes:
+  - `--since DATE_OR_TIMEDELTA` to show bakes that were created after specified moment
+  - `--until DATE_OR_TIMEDELTA` to show bakes that were created before specified moment
+  - `--recent-first/--recent-last` to alter ordering in the result table ([#428](https://github.com/neuro-inc/neuro-flow/issues/428))
+
+- Pre-fetch the last attempt in bakes list to speed up the command. ([#429](https://github.com/neuro-inc/neuro-flow/issues/429))
+
+
+Bugfixes
+--------
+
+
+- Fixed auto-generation of suffixes for multi jobs in live mode. ([#415](https://github.com/neuro-inc/neuro-flow/issues/415))
+
+- Fixed overriding param with empty value, `--param name ""` works properly now. ([#417](https://github.com/neuro-inc/neuro-flow/issues/417))
+
+- Fixed EvalError when tried to access `ref`, `ref_rw`, `ref_ro` of volume context. ([#418](https://github.com/neuro-inc/neuro-flow/issues/418))
+
+
+Neuro_Flow 21.5.19 (2021-05-19)
+===============================
+
+Bugfixes
+--------
+
+- Fix a bug with processing SKIPPED task
+
+
+Neuro_Flow 21.5.17 (2021-05-17)
+===============================
+
+Features
+--------
+
+- Neuro Flow now uses the dedicated Platform API to store the flow database. The storage is still supported but will be removed in a few months.
+
+- Added new expressions functions:
+  - `values(dict_instance)`: get values of dictionary (similar to python's `dict_instance.values()`)
+  - `str(any)`: convert any object to string
+  - `replace(string, old, new)`: replace all occurrences of `old` in `string` with `new`.
+  - `join(separator, array)`: concatenate array of strings inserting `separator` in between. ([#357](https://github.com/neuro-inc/neuro-flow/issues/357))
+
+- Added support of default volumes similar to default env: both in live and batch modes, you can
+  specify them under `defaults` section:
+  ```
+  defaults:
+    volumes:
+      - storage:some/dir:/mnt/some/dir
+      - storage:some/another/dir:/mnt/some/another/dir
+  ```
+  - In live mode such volumes will be added to all jobs.
+  - In batch mode such volumes will be added to all tasks.
+
+  Default volumes are not passed to actions (same as default env). ([#359](https://github.com/neuro-inc/neuro-flow/issues/359))
+
+- Added passing of global options (`-v`, `-q`, `--show-traceback`) to neuro cli and executor. ([#360](https://github.com/neuro-inc/neuro-flow/issues/360))
+
+- Added `--dry-run` flag for `neuro-flow run` that enables prints job command instead of running it. ([#362](https://github.com/neuro-inc/neuro-flow/issues/362))
+
+- Added support of tagging bakes.
+
+  To tag a bake:
+  ```
+  neuro bake --tag tag1 --tag tag2 batch_name
+  ```
+  To retrieve bakes by tags:
+  ```
+  neuro bakes --tag tag1
+  ``` ([#382](https://github.com/neuro-inc/neuro-flow/issues/382))
+
+
+Bugfixes
+--------
+
+
+- Fixed bug that led to crash in `neuro-flow inspect` when bake had cached task. ([#358](https://github.com/neuro-inc/neuro-flow/issues/358))
+
+- Support click 8.0 ([#407](https://github.com/neuro-inc/neuro-flow/issues/407))
+
+Neuro_Flow 21.4.5 (2021-04-05)
+==============================
+
+Features
+--------
+
+
+- Mark cached task in `neuro-flow inspect <bake>` as "cached" instead of "succeeded". ([#318](https://github.com/neuro-inc/neuro-flow/issues/318))
+
+- Auto create parent directories in "upload()" expression function. ([#319](https://github.com/neuro-inc/neuro-flow/issues/319))
+
+- Add bake_id tag to jobs started by bake inside neuro platform. ([#320](https://github.com/neuro-inc/neuro-flow/issues/320))
+
+- Add tags to remote executor jobs. The tags are: "project:project_id", "flow:flow_name", "bake:bake_id",
+  "remote_executor". ([#321](https://github.com/neuro-inc/neuro-flow/issues/321))
+
+- Print name of the action in error about unexpected needs entry, for example:
+  ```
+  ERROR: Action 'ws:some_action' does not contain task 'wrong_task_name'
+  ``` ([#323](https://github.com/neuro-inc/neuro-flow/issues/323))
+
+- Added printing of filename in expression evaluation errors. ([#324](https://github.com/neuro-inc/neuro-flow/issues/324))
+
+- Dropped `outputs.needs` in batch actions. Made all action task results available for calculation action needs.
+  This avoids confusing behavior when action can succeed even when some of its tasks have failed. ([#325](https://github.com/neuro-inc/neuro-flow/issues/325))
+
+- Add support of empty list and dict (`[]` and `{}`) in expressions. ([#333](https://github.com/neuro-inc/neuro-flow/issues/333))
+
+- Added validation of tasks `needs` property. ([#334](https://github.com/neuro-inc/neuro-flow/issues/334))
+
+- Added validation of action arguments before starting a bake. ([#336](https://github.com/neuro-inc/neuro-flow/issues/336))
+
+- Implemented marking of bake as failed when an error happens during the batch execution. If the error is caused
+  because of SIGINT, the bake will be marked as cancelled instead of failed. ([#338](https://github.com/neuro-inc/neuro-flow/issues/338))
+
+- Allow to specify timeout for executor job in yaml and increase default lifespan to 7d. Example:
+  ```
+  kind: batch
+  life_span: 30d
+  tasks:
+    ...
+  ``` ([#339](https://github.com/neuro-inc/neuro-flow/issues/339))
+
+- Add support of local actions inside of batch actions if they do not depend on any remote tasks. ([#340](https://github.com/neuro-inc/neuro-flow/issues/340))
+
+
+Bugfixes
+--------
+
+
+- Use 1-based indexes instead of 0-based for lines and columns in error messages. ([#335](https://github.com/neuro-inc/neuro-flow/issues/335))
+
+
+Neuro_Flow 21.3.17 (2021-03-17)
+===============================
+
+Bugfixes
+--------
+
+
+- Fix executor restart when there is a action that should be marked as ready. ([#315](https://github.com/neuro-inc/neuro-flow/issues/315))
+
+
+Neuro_Flow 21.3.3 (2021-03-03)
+==============================
+
+Features
+--------
+
+
+- Add support of parsing batch params from file. ([#295](https://github.com/neuro-inc/neuro-flow/issues/295))
+
+
+Bugfixes
+--------
+
+
+- Added proper error message for the hosted on GitHub actions, which reference is wrong (URL leads to 404). ([#294](https://github.com/neuro-inc/neuro-flow/issues/294))
+
+- Fix processing of bake that has actions that use another bake action. ([#302](https://github.com/neuro-inc/neuro-flow/issues/302))
+
+
 Neuro_Flow 21.2.16 (2021-02-16)
 ===============================
 

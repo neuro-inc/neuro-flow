@@ -1,0 +1,15 @@
+kind: live
+title: Global title
+images:
+  image_local:
+    ref: image:banana
+    context: dir
+    dockerfile: dir/Dockerfile
+  image_remote:
+    ref: image:banana4
+    context: storage:dir
+    dockerfile: storage:dir/Dockerfile
+jobs:
+  test:
+    image: ${{ images.image_a.ref }}
+    cmd: echo 123

@@ -1,0 +1,23 @@
+kind: batch
+inputs:
+  arg1:
+    descr: param 1
+  arg2:
+    descr: param 2
+    default: value 2
+images:
+  image_early:
+    ref: image:banana1
+    context: dir
+    dockerfile: dir/Dockerfile
+  image_late:
+    ref: image:banana2
+    context: storage://default/foo/${{ inputs.arg1 }}
+    dockerfile: storage://default/foo/${{ inputs.arg1 }}/Dockerfile
+tasks:
+- id: task_1
+  image: image:banana1
+  bash: echo ::set-output name=task1::Task 1 ${{ inputs.arg1 }}
+- id: task_2
+  image: image:banana2
+  bash: echo ::set-output name=task1::Task 1 ${{ inputs.arg1 }}

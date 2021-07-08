@@ -2,6 +2,7 @@ import dataclasses
 
 import abc
 import aiohttp
+import logging
 import secrets
 import sys
 import tarfile
@@ -43,6 +44,30 @@ if sys.version_info >= (3, 7):  # pragma: no cover
     from contextlib import asynccontextmanager
 else:
     from async_generator import asynccontextmanager
+
+
+log = logging.getLogger(__name__)
+
+
+@dataclasses.dataclass(frozen=True)
+class ActionSpec:
+    scheme: str
+    spec: str
+
+    @property
+    def is_local(self) -> bool:
+        return self.scheme in ("ws", "workspace")
+
+    @property
+    def is_github(self) -> bool:
+        return self.scheme in ("gh", "github")
+
+    @classmethod
+    def parse(cls, action_name: str) -> "ActionSpec":
+        scheme, sep, spec = action_name.partition(":")
+        if not sep:
+            raise ValueError(f"{action_name} has no schema")
+        return ActionSpec(scheme, spec)
 
 
 class ConfigLoader(abc.ABC):
@@ -182,13 +207,20 @@ class LocalCL(StreamCL, abc.ABC):
 
     @asynccontextmanager
     async def project_stream(self) -> AsyncIterator[Optional[TextIO]]:
-        for ext in (".yml", ".yaml"):
-            path = self._workspace / "project"
-            path = path.with_suffix(ext)
-            if path.exists():
-                with path.open() as f:
-                    yield f
-                    return
+        for dir in (self._config_dir, self._workspace):
+            for ext in (".yml", ".yaml"):
+                path = dir / "project"
+                path = path.with_suffix(ext)
+                if path.exists():
+                    with path.open() as f:
+                        if dir == self._workspace:
+                            log.warning(
+                                f"Using project yaml file from workspace instead"
+                                f" of config directory {self._config_dir}. Please move "
+                                "it there, reading from workspace will be removed soon."
+                            )
+                        yield f
+                        return
         yield None
 
     def flow_path(self, name: str) -> LocalPath:
@@ -210,11 +242,9 @@ class LocalCL(StreamCL, abc.ABC):
 
     @asynccontextmanager
     async def action_stream(self, action_name: str) -> AsyncIterator[TextIO]:
-        scheme, sep, spec = action_name.partition(":")
-        if not sep:
-            raise ValueError(f"{action_name} has no schema")
-        if scheme in ("ws", "workspace"):
-            path = self._workspace / spec
+        action = ActionSpec.parse(action_name)
+        if action.is_local:
+            path = self._workspace / action.spec
             if not path.exists():
                 path = path.with_suffix(".yml")
             if not path.exists():
@@ -223,8 +253,8 @@ class LocalCL(StreamCL, abc.ABC):
                 raise ValueError(f"Action {action_name} does not exist")
             with path.open() as f:
                 yield f
-        elif scheme in ("gh", "github"):
-            repo, sep, version = spec.partition("@")
+        elif action.is_github:
+            repo, sep, version = action.spec.partition("@")
             if not sep:
                 raise ValueError(f"{action_name} is github action, but has no version")
             async with self._tarball_from_github(repo, version) as tarball:
@@ -247,7 +277,7 @@ class LocalCL(StreamCL, abc.ABC):
                             # https://github.com/python/typeshed/issues/4349
                             yield TextIOWrapper(cast(BinaryIO, file_obj))
         else:
-            raise ValueError(f"Unsupported scheme '{scheme}'")
+            raise ValueError(f"Unsupported scheme '{action.scheme}'")
 
     @asynccontextmanager
     async def _tarball_from_github(
@@ -321,7 +351,7 @@ class BatchLocalCL(
 
     async def _collect_actions(
         self,
-        tasks: Sequence[Union[ast.Task, ast.TaskActionCall]],
+        tasks: Sequence[Union[ast.Task, ast.TaskActionCall, ast.TaskModuleCall]],
         collect_to: Dict[str, Tuple["ConfigFile", "ConfigOnStorage"]],
     ) -> None:
         from neuro_flow.context import EMPTY_ROOT
@@ -334,13 +364,17 @@ class BatchLocalCL(
         for task in tasks:
             if isinstance(task, ast.BaseActionCall):
                 action_name = await task.action.eval(EMPTY_ROOT)
-                if action_name in collect_to:
-                    continue
-                async with self.action_stream(action_name) as stream:
-                    collect_to[action_name] = self._stream_to_config(stream)
-                action_ast = await self.fetch_action(action_name)
-                if isinstance(action_ast, ast.BatchAction):
-                    await self._collect_actions(action_ast.tasks, collect_to)
+            elif isinstance(task, ast.BaseModuleCall):
+                action_name = await task.module.eval(EMPTY_ROOT)
+            else:
+                continue
+            if action_name in collect_to:
+                continue
+            async with self.action_stream(action_name) as stream:
+                collect_to[action_name] = self._stream_to_config(stream)
+            action_ast = await self.fetch_action(action_name)
+            if isinstance(action_ast, ast.BatchAction):
+                await self._collect_actions(action_ast.tasks, collect_to)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -389,7 +423,7 @@ class ConfigsMeta:
 
     @classmethod
     def from_json(cls, data: Mapping[str, Any]) -> "ConfigsMeta":
-        if data["project_config"]:
+        if data.get("project_config"):
             project_config: Optional[ConfigOnStorage] = ConfigOnStorage.from_json(
                 data["project_config"]
             )

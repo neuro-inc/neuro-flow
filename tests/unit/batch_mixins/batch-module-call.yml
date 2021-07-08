@@ -1,0 +1,8 @@
+kind: batch
+mixins:
+  basic:
+    image: ubuntu
+    preset: cpu-micro
+tasks:
+- id: test
+  module: ws:batch-module-uses-mixin

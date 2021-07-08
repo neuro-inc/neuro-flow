@@ -1,0 +1,4 @@
+kind: local
+author: Roman Skurikhin
+descr: Just fails with bad expr
+cmd: ${{ from_json("sfdf") }}

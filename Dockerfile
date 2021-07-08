@@ -1,14 +1,16 @@
-FROM python:3.7-stretch as requirements
+FROM python:3.9-buster as requirements
 
 ARG NEURO_FLOW_VERSION
 
 ENV PATH=/root/.local/bin:$PATH
 
+RUN pip install --user --upgrade pip
+
 RUN pip install --user \
     neuro-flow==$NEURO_FLOW_VERSION
 
 
-FROM python:3.7-stretch
+FROM python:3.9-buster
 
 COPY --from=requirements /root/.local /root/.local
 COPY docker.entrypoint.sh /var/lib/neuro/entrypoint.sh

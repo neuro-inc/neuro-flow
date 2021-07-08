@@ -43,7 +43,7 @@ test:
 .PHONY: test-e2e
 test-e2e:
 	# E2E test are bound by IO, so it's OK to run a lot in parallel
-	pytest -n 10 tests/e2e
+	pytest -n 10 tests/e2e -v
 
 
 .PHONY: build
@@ -55,3 +55,7 @@ build:
 .PHONY: docs
 docs:
 	build-tools/cli-help-generator.py CLI.in.md reference/cli.md
+
+.PHONY: docs
+check-mixins:
+	build-tools/check-mixins.py

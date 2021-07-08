@@ -9,6 +9,7 @@ images:
     - --arg1
     - val1
     - --arg2=val2
+    force_rebuild: True
 volumes:
   volume_a:
     remote: storage:dir
@@ -23,6 +24,8 @@ defaults:
   env:
     global_a: val-a
     global_b: val-b
+  volumes:
+    - storage:common:/mnt/common:rw
   workdir: /global/dir
   life_span: 1d4h
   preset: cpu-large

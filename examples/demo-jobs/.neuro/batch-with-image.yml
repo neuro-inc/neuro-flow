@@ -1,0 +1,13 @@
+kind: batch
+images:
+  img:
+    ref: image:${{ flow.project_id }}:v1.0
+    dockerfile: ${{ flow.workspace }}/Dockerfile
+    context: ${{ flow.workspace }}
+    build_preset: cpu-small
+tasks:
+  - id: task_a
+    image: ${{ images.img.ref }}
+    preset: cpu-small
+    bash: |
+      echo "Task A"

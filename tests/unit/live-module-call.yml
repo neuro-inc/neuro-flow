@@ -1,0 +1,16 @@
+kind: live
+defaults:
+  env:
+    TEST: test_value
+  life_span: 2d
+  preset: test-preset
+  volumes:
+    - storage:test:/volume
+  schedule_timeout: 60m
+  tags: [test-tag]
+  workdir: /some/dir
+jobs:
+  test:
+    module: workspace:live-module
+    args:
+      arg1: val 1

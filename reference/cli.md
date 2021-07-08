@@ -77,7 +77,7 @@ Provide instruction for shell completion generation.
 **Usage:**
 
 ```bash
-neuro-flow completion generate [OPTIONS] [bash|zsh]
+neuro-flow completion generate [OPTIONS] {bash|zsh}
 ```
 
 **Options:**
@@ -93,7 +93,7 @@ Automatically patch shell configuration profile to enable completion
 **Usage:**
 
 ```bash
-neuro-flow completion patch [OPTIONS] [bash|zsh]
+neuro-flow completion patch [OPTIONS] {bash|zsh}
 ```
 
 **Options:**
@@ -120,6 +120,9 @@ neuro-flow bake [OPTIONS] BATCH
 | :--- | :--- |
 | _--local-executor_ | Run primary job locally |
 | _--param &lt;TEXT TEXT&gt;..._ | Set params of the batch config |
+| _-n, --name NAME_ | Optional bake name |
+| _--meta-from-file FILE_ | File with params for batch. |
+| _-t, --tag TAG_ | Optional bake tag, multiple values allowed |
 | _--help_ | Show this message and exit. |
 
 ### neuro-flow bakes
@@ -136,6 +139,10 @@ neuro-flow bakes [OPTIONS]
 
 | Name | Description |
 | :--- | :--- |
+| _-t, --tag TAG_ | Filter out bakes by tag \(multiple option\) |
+| _--since DATE\_OR\_TIMEDELTA_ | Show bakes created after a specific date \(including\). Use value of format '1d2h3m4s' to specify moment in past relatively to current time. |
+| _--until DATE\_OR\_TIMEDELTA_ | Show bakes created before a specific date \(including\). Use value of format '1d2h3m4s' to specify moment in past relatively to current time. |
+| _--recent-first / --recent-last_ | Show newer bakes first or last |
 | _--help_ | Show this message and exit. |
 
 ### neuro-flow build
@@ -166,7 +173,7 @@ Cancel a bake execution by stopping all started tasks.
 **Usage:**
 
 ```bash
-neuro-flow cancel [OPTIONS] BAKE_ID
+neuro-flow cancel [OPTIONS] BAKE
 ```
 
 **Options:**
@@ -198,14 +205,14 @@ neuro-flow clean [OPTIONS] VOLUME
 
 Clear cache.
 
-Use `neuro-flow clear-cache <BATCH>` for cleaning up the cache for BATCH;
+Use `neuro-flow clear-cache <BATCH>` for cleaning up the cache for BATCH; Use `neuro-flow clear-cache <BATCH> <TASK_ID>` for cleaning up the cache for TASK_ID in BATCH;
 
 `neuro-flow clear-cache ALL` clears all caches.
 
 **Usage:**
 
 ```bash
-neuro-flow clear-cache [OPTIONS] BATCH
+neuro-flow clear-cache [OPTIONS] BATCH [TASK_ID]
 ```
 
 **Options:**
@@ -241,7 +248,7 @@ Display a list of started/finished tasks of BAKE\_ID.
 **Usage:**
 
 ```bash
-neuro-flow inspect [OPTIONS] BAKE_ID
+neuro-flow inspect [OPTIONS] BAKE
 ```
 
 **Options:**
@@ -332,7 +339,7 @@ Run BATCH pipeline remotely on the cluster.
 **Usage:**
 
 ```bash
-neuro-flow restart [OPTIONS] BAKE_ID
+neuro-flow restart [OPTIONS] BAKE
 ```
 
 **Options:**
@@ -364,6 +371,7 @@ neuro-flow run [OPTIONS] JOB_ID [ARGS]...
 | :--- | :--- |
 | _-s, --suffix TEXT_ | Optional suffix for multi-jobs |
 | _--param &lt;TEXT TEXT&gt;..._ | Set params of the batch config |
+| _--dry-run_ | Print run command instead of starting job. |
 | _--help_ | Show this message and exit. |
 
 ### neuro-flow show
@@ -375,7 +383,7 @@ Display a logged output of TASK\_ID from BAKE\_ID.
 **Usage:**
 
 ```bash
-neuro-flow show [OPTIONS] BAKE_ID TASK_ID
+neuro-flow show [OPTIONS] BAKE TASK_ID
 ```
 
 **Options:**

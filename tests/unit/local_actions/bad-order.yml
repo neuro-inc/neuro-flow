@@ -1,0 +1,10 @@
+kind: batch
+tasks:
+- id: remote
+  image: ubuntu
+  bash: echo ${{ needs.copy_file.outputs.status_code }}
+- id: local
+  needs: [remote]
+  action: ws:shell
+  args:
+    shell: echo "test" > file

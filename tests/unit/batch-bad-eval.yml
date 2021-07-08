@@ -1,0 +1,5 @@
+kind: batch
+tasks:
+  - image: ${{ needs['fff'].outputs.foo }}
+    preset: cpu-micro
+    bash: echo abc

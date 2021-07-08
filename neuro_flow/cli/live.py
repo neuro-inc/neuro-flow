@@ -6,7 +6,7 @@ from typing import List, Optional, Tuple
 from neuro_flow.cli.click_types import LIVE_JOB, LIVE_JOB_OR_ALL, SUFFIX_AFTER_LIVE_JOB
 from neuro_flow.cli.utils import argument, option, wrap_async
 from neuro_flow.live_runner import LiveRunner
-from neuro_flow.storage import FSStorage, NeuroStorageFS, Storage
+from neuro_flow.storage import APIStorage, NeuroStorageFS, Storage
 
 from .root import Root
 
@@ -26,18 +26,24 @@ async def ps(
     async with AsyncExitStack() as stack:
         client = await stack.enter_async_context(neuro_sdk.get())
         storage: Storage = await stack.enter_async_context(
-            FSStorage(NeuroStorageFS(client))
+            APIStorage(client, NeuroStorageFS(client))
         )
         runner = await stack.enter_async_context(
-            LiveRunner(root.config_dir, root.console, client, storage)
+            LiveRunner(root.config_dir, root.console, client, storage, root)
         )
         await runner.ps()
 
 
 @click.command()
 @option("-s", "--suffix", help="Optional suffix for multi-jobs")
-@click.option(
+@option(
     "--param", type=(str, str), multiple=True, help="Set params of the batch config"
+)
+@option(
+    "--dry-run",
+    is_flag=True,
+    default=False,
+    help="Print run command instead of starting job.",
 )
 @argument("job-id", type=LIVE_JOB)
 @argument("args", nargs=-1)
@@ -46,6 +52,7 @@ async def run(
     root: Root,
     job_id: str,
     suffix: Optional[str],
+    dry_run: bool,
     args: Optional[Tuple[str]],
     param: List[Tuple[str, str]],
 ) -> None:
@@ -62,12 +69,18 @@ async def run(
     async with AsyncExitStack() as stack:
         client = await stack.enter_async_context(neuro_sdk.get())
         storage: Storage = await stack.enter_async_context(
-            FSStorage(NeuroStorageFS(client))
+            APIStorage(client, NeuroStorageFS(client))
         )
         runner = await stack.enter_async_context(
-            LiveRunner(root.config_dir, root.console, client, storage)
+            LiveRunner(root.config_dir, root.console, client, storage, root)
         )
-        await runner.run(job_id, suffix, args, {key: value for key, value in param})
+        await runner.run(
+            job_id,
+            suffix=suffix,
+            args=args,
+            params={key: value for key, value in param},
+            dry_run=dry_run,
+        )
 
 
 @click.command()
@@ -86,10 +99,10 @@ async def logs(
     async with AsyncExitStack() as stack:
         client = await stack.enter_async_context(neuro_sdk.get())
         storage: Storage = await stack.enter_async_context(
-            FSStorage(NeuroStorageFS(client))
+            APIStorage(client, NeuroStorageFS(client))
         )
         runner = await stack.enter_async_context(
-            LiveRunner(root.config_dir, root.console, client, storage)
+            LiveRunner(root.config_dir, root.console, client, storage, root)
         )
         await runner.logs(job_id, suffix)
 
@@ -110,10 +123,10 @@ async def status(
     async with AsyncExitStack() as stack:
         client = await stack.enter_async_context(neuro_sdk.get())
         storage: Storage = await stack.enter_async_context(
-            FSStorage(NeuroStorageFS(client))
+            APIStorage(client, NeuroStorageFS(client))
         )
         runner = await stack.enter_async_context(
-            LiveRunner(root.config_dir, root.console, client, storage)
+            LiveRunner(root.config_dir, root.console, client, storage, root)
         )
         await runner.status(job_id, suffix)
 
@@ -133,10 +146,10 @@ async def kill(
     async with AsyncExitStack() as stack:
         client = await stack.enter_async_context(neuro_sdk.get())
         storage: Storage = await stack.enter_async_context(
-            FSStorage(NeuroStorageFS(client))
+            APIStorage(client, NeuroStorageFS(client))
         )
         runner = await stack.enter_async_context(
-            LiveRunner(root.config_dir, root.console, client, storage)
+            LiveRunner(root.config_dir, root.console, client, storage, root)
         )
         if job_id != "ALL":
             await runner.kill(job_id, suffix)

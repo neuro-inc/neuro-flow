@@ -6,7 +6,16 @@ import datetime
 import secrets
 import shlex
 import sys
-from neuro_sdk import Client, JobDescription, JobStatus, ResourceNotFound
+from neuro_sdk import (
+    Action,
+    Client,
+    IllegalArgumentError,
+    JobDescription,
+    JobStatus,
+    Permission,
+    ResourceNotFound,
+)
+from neuro_sdk.storage import normalize_storage_path_uri  # type: ignore
 from rich import box
 from rich.console import Console
 from rich.table import Table
@@ -22,6 +31,7 @@ from typing import (
     Type,
 )
 from typing_extensions import AsyncContextManager
+from yarl import URL
 
 from .config_loader import LiveLocalCL
 from .context import ImageCtx, JobMeta, RunningLiveFlow, UnknownJob, VolumeCtx
@@ -31,9 +41,11 @@ from .types import TaskStatus
 from .utils import (
     RUNNING_JOB_STATUSES,
     TERMINATED_JOB_STATUSES,
+    GlobalOptions,
+    encode_global_options,
     fmt_datetime,
     fmt_id,
-    run_subproc,
+    make_cmd_exec,
 )
 
 
@@ -53,6 +65,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
         console: Console,
         client: Client,
         storage: Storage,
+        global_options: GlobalOptions,
     ) -> None:
         self._config_dir = config_dir
         self._console = console
@@ -60,6 +73,11 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
         self._flow: Optional[RunningLiveFlow] = None
         self._client = client
         self._storage = storage
+        self._is_projet_role_created = False
+        self._run_neuro_cli = make_cmd_exec(
+            "neuro", global_options=encode_global_options(global_options)
+        )
+        self._run_extras_cli = make_cmd_exec("neuro-extras")
 
     async def post_init(self) -> None:
         if self._flow is not None:
@@ -116,7 +134,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
             return meta
         except UnknownJob:
             self._console.print(f"[red]Unknown job [b]{job_id}[/b]")
-            jobs_str = ",".join(self.flow.job_ids)
+            jobs_str = ", ".join(self.flow.job_ids)
             self._console.print(f"[dim]Existing jobs: {jobs_str}")
             sys.exit(1)
 
@@ -124,10 +142,27 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
         self, meta: JobMeta, suffix: Optional[str]
     ) -> AsyncIterator[JobDescription]:
         found = False
+        since = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(
+            days=7
+        )
         if meta.multi and not suffix:
             async for job in self.client.jobs.list(
                 tags=meta.tags,
                 reverse=True,
+                statuses=(JobStatus.PENDING, JobStatus.RUNNING),
+            ):
+                found = True
+                yield job
+            async for job in self.client.jobs.list(
+                tags=meta.tags,
+                reverse=True,
+                statuses=(
+                    JobStatus.SUSPENDED,
+                    JobStatus.SUCCEEDED,
+                    JobStatus.FAILED,
+                    JobStatus.CANCELLED,
+                ),
+                since=since,
             ):
                 found = True
                 yield job
@@ -139,6 +174,22 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
                 tags=tags,
                 reverse=True,
                 limit=1,
+                statuses=(JobStatus.PENDING, JobStatus.RUNNING),
+            ):
+                found = True
+                yield job
+                return
+            async for job in self.client.jobs.list(
+                tags=tags,
+                reverse=True,
+                limit=1,
+                statuses=(
+                    JobStatus.SUSPENDED,
+                    JobStatus.SUCCEEDED,
+                    JobStatus.FAILED,
+                    JobStatus.CANCELLED,
+                ),
+                since=since,
             ):
                 found = True
                 yield job
@@ -221,7 +272,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
         meta_ctx = await self._ensure_meta(job_id, suffix)
         try:
             async for descr in self._resolve_jobs(meta_ctx, suffix):
-                await run_subproc("neuro", "status", descr.id)
+                await self._run_neuro_cli("status", descr.id)
         except ResourceNotFound:
             self._console.print(f"Job [b]{job_id}[/b] is not running")
             sys.exit(1)
@@ -270,9 +321,9 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
                         job = await self.flow.get_multi_job(job_id, suffix, (), params)
                     # attach to job if needed, browse first
                     if job.browse:
-                        await run_subproc("neuro", "job", "browse", descr.id)
+                        await self._run_neuro_cli("job", "browse", descr.id)
                     if not job.detach:
-                        await run_subproc("neuro", "attach", descr.id)
+                        await self._run_neuro_cli("attach", descr.id)
                     return True
                 # Here the status is SUCCEED, CANCELLED or FAILED, restart
             except ResourceNotFound:
@@ -286,17 +337,22 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
         suffix: Optional[str],
         args: Optional[Tuple[str]],
         params: Mapping[str, str],
+        dry_run: bool,
     ) -> None:
         """Run a named job"""
+        assert self._flow is not None
 
-        is_multi = await self.flow.is_multi(job_id)
+        meta_ctx = await self._ensure_meta(job_id, suffix, skip_check=True)
+        is_multi = meta_ctx.multi
 
         if not is_multi and args:
             raise click.BadArgumentUsage(
                 "Additional job arguments are supported by multi-jobs only"
             )
 
-        if await self._try_attach_to_running(job_id, suffix, args, params):
+        if not dry_run and await self._try_attach_to_running(
+            job_id, suffix, args, params
+        ):
             return  # Attached to running job
 
         if not is_multi:
@@ -310,7 +366,23 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
         if job.title:
             run_args.append(f"--description={job.title}")
         if job.name:
-            run_args.append(f"--name={job.name}")
+            name = job.name
+        else:
+            first_part = self._flow.project.id.replace("_", "-").strip("-")
+            while "--" in first_part:
+                first_part = first_part.replace("--", "-")
+            second_part = job_id
+            if is_multi:
+                second_part += f"-{suffix}"
+            second_part = second_part.replace("_", "-").strip("-")
+            while "--" in second_part:
+                second_part = second_part.replace("--", "-")
+
+            first_part = first_part[: 40 - len(second_part) - 1]
+            name = first_part + "-" + second_part
+            while "--" in name:
+                name = name.replace("--", "-")
+        run_args.append(f"--name={name}")
         if job.preset is not None:
             run_args.append(f"--preset={job.preset}")
         if job.schedule_timeout is not None:
@@ -342,6 +414,10 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
             run_args.append(f"--port-forward={pf}")
         if job.pass_config:
             run_args.append(f"--pass-config")
+        project_role = self._flow.project.role
+        if project_role is not None:
+            await self._create_project_role(project_role)
+            run_args.append(f"--share={project_role}")
 
         run_args.append(job.image)
         if job.cmd:
@@ -349,19 +425,28 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
 
         if job.multi and args:
             run_args.extend(args)
+
+        if dry_run:
+            run_args = ["neuro", *run_args]
+            self._console.print(
+                " ".join(shlex.quote(arg) for arg in run_args), soft_wrap=True
+            )
+            return
+
         jobs = []
         for job_id in self.flow.job_ids:
             job_meta = await self.flow.get_meta(job_id)
             jobs.append(job_meta)
+        await self._storage.ensure_project(self.flow.flow.project_id)
         await self._storage.write_live(self.flow.flow.project_id, jobs)
-        await run_subproc("neuro", *run_args)
+        await self._run_neuro_cli(*run_args)
 
     async def logs(self, job_id: str, suffix: Optional[str]) -> None:
         """Return job logs"""
         meta_ctx = await self._ensure_meta(job_id, suffix)
         try:
             async for descr in self._resolve_jobs(meta_ctx, suffix):
-                await run_subproc("neuro", "logs", descr.id)
+                await self._run_neuro_cli("logs", descr.id)
         except ResourceNotFound:
             self._console.print(f"Job {fmt_id(job_id)} is not running")
             sys.exit(1)
@@ -430,7 +515,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
         volume_ctx = self.flow.volumes.get(volume)
         if volume_ctx is None:
             self._console.print(f"[red]Unknown volume [b]{volume}[/b]")
-            volumes = sorted([volume for volume in self.flow.volumes.keys()])
+            volumes = sorted(volume for volume in self.flow.volumes.keys())
             volumes_str = ",".join(volumes)
             self._console.print(f"[dim]Existing volumes: {volumes_str}")
             sys.exit(1)
@@ -441,8 +526,12 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
 
     async def upload(self, volume: str) -> None:
         volume_ctx = await self.find_volume(volume)
-        await run_subproc(
-            "neuro",
+        await self._run_neuro_cli(
+            "mkdir",
+            "--parents",
+            str(volume_ctx.remote.parent),
+        )
+        await self._run_neuro_cli(
             "cp",
             "--recursive",
             "--update",
@@ -450,11 +539,14 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
             str(volume_ctx.full_local_path),
             str(volume_ctx.remote),
         )
+        uri = normalize_storage_path_uri(
+            volume_ctx.remote, self._client.username, self._client.cluster_name
+        )
+        await self._add_resource(uri)
 
     async def download(self, volume: str) -> None:
         volume_ctx = await self.find_volume(volume)
-        await run_subproc(
-            "neuro",
+        await self._run_neuro_cli(
             "cp",
             "--recursive",
             "--update",
@@ -465,7 +557,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
 
     async def clean(self, volume: str) -> None:
         volume_ctx = await self.find_volume(volume)
-        await run_subproc("neuro", "rm", "--recursive", str(volume_ctx.remote))
+        await self._run_neuro_cli("rm", "--recursive", str(volume_ctx.remote))
 
     async def upload_all(self) -> None:
         for volume in self.flow.volumes.values():
@@ -487,12 +579,15 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
             if volume.local is not None:
                 volume_ctx = await self.find_volume(volume.id)
                 self._console.print(f"Create volume [b]{volume.id}[/b]")
-                await run_subproc(
-                    "neuro",
+                await self._run_neuro_cli(
                     "mkdir",
                     "--parents",
                     str(volume_ctx.remote),
                 )
+                uri = normalize_storage_path_uri(
+                    volume_ctx.remote, self._client.username, self._client.cluster_name
+                )
+                await self._add_resource(uri)
 
     # images subsystem
 
@@ -500,7 +595,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
         image_ctx = self.flow.images.get(image)
         if image_ctx is None:
             self._console.print(f"[red]Unknown image [b]{image}[/b]")
-            images = sorted([image for image in self.flow.images.keys()])
+            images = sorted(image for image in self.flow.images.keys())
             images_str = ",".join(images)
             self._console.print(f"[dim]Existing images: {images_str}")
             sys.exit(1)
@@ -515,27 +610,54 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
     async def build(self, image: str, force_overwrite: bool) -> None:
         image_ctx = await self.find_image(image)
         cmd = []
-        assert image_ctx.full_dockerfile_path is not None
-        assert image_ctx.full_context_path is not None
-        rel_dockerfile_path = image_ctx.full_dockerfile_path.relative_to(
-            image_ctx.full_context_path
-        )
-        cmd.append(f"--file={rel_dockerfile_path}")
+        assert image_ctx.dockerfile_rel is not None
+        assert image_ctx.context is not None
+        cmd.append(f"--file={image_ctx.dockerfile_rel.as_posix()}")
         for arg in image_ctx.build_args:
             cmd.append(f"--build-arg={arg}")
         for vol in image_ctx.volumes:
             cmd.append(f"--volume={vol}")
         for k, v in image_ctx.env.items():
             cmd.append(f"--env={k}={v}")
-        if force_overwrite:
+        if force_overwrite or image_ctx.force_rebuild:
             cmd.append("--force-overwrite")
         if image_ctx.build_preset is not None:
             cmd.append(f"--preset={image_ctx.build_preset}")
-        cmd.append(str(image_ctx.full_context_path))
+        cmd.append(str(image_ctx.context))
         cmd.append(str(image_ctx.ref))
-        await run_subproc("neuro-extras", "image", "build", *cmd)
+        await self._run_extras_cli("image", "build", *cmd)
+        image_ref = self._client.parse.remote_image(image_ctx.ref)
+        image_ref = dataclasses.replace(image_ref, tag=None)
+        await self._add_resource(URL(str(image_ref)))
 
     async def build_all(self, force_overwrite: bool) -> None:
         for image, image_ctx in self.flow.images.items():
             if image_ctx.context is not None:
                 await self.build(image, force_overwrite=force_overwrite)
+
+    async def _create_project_role(self, project_role: str) -> None:
+        if self._is_projet_role_created:
+            return
+        try:
+            await self._client.users.add(project_role)
+        except IllegalArgumentError as e:
+            if "already exists" not in str(e):
+                raise
+        self._is_projet_role_created = True
+
+    async def _add_storage_resource(self, uri: URL) -> None:
+        uri = normalize_storage_path_uri(
+            uri, self._client.username, self._client.cluster_name
+        )
+
+    async def _add_resource(self, uri: URL) -> None:
+        assert self._flow is not None
+        project_role = self._flow.project.role
+        if project_role is None:
+            return
+        await self._create_project_role(project_role)
+        permission = Permission(uri, Action.WRITE)
+        try:
+            await self._client.users.share(project_role, permission)
+        except ValueError:
+            self._console.print(f"[red]Cannot share [b]{uri!s}[/b]")
