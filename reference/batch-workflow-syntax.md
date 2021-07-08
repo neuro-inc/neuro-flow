@@ -257,7 +257,7 @@ images:
 
 ### `images.<image-id>.context`
 
-The Docker _context_ used to build an image. Can be either local path (e.g. `${{ flow.workspace / 'some/dir' }}`) or a remote volume spec (e.g. `storage:subdir/${{ flow.flow_id }}`). 
+The Docker _context_ used to build an image. Can be either local path (e.g. `${{ flow.workspace / 'some/dir' }}`) or a remote volume spec (e.g. `storage:subdir/${{ flow.flow_id }}`).
 If it's a local path, it cannot use anything that's not available at the beginning of a bake (for example, action inputs). 
 If it's a remote path, usage of dynamic values is allowed. Local context will be automatically uploaded to storage during the "local actions" step of the bake.
 
