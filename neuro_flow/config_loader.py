@@ -2,6 +2,7 @@ import dataclasses
 
 import abc
 import aiohttp
+import logging
 import secrets
 import sys
 import tarfile
@@ -43,6 +44,9 @@ if sys.version_info >= (3, 7):  # pragma: no cover
     from contextlib import asynccontextmanager
 else:
     from async_generator import asynccontextmanager
+
+
+log = logging.getLogger(__name__)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -203,13 +207,20 @@ class LocalCL(StreamCL, abc.ABC):
 
     @asynccontextmanager
     async def project_stream(self) -> AsyncIterator[Optional[TextIO]]:
-        for ext in (".yml", ".yaml"):
-            path = self._workspace / "project"
-            path = path.with_suffix(ext)
-            if path.exists():
-                with path.open() as f:
-                    yield f
-                    return
+        for dir in (self._config_dir, self._workspace):
+            for ext in (".yml", ".yaml"):
+                path = dir / "project"
+                path = path.with_suffix(ext)
+                if path.exists():
+                    with path.open() as f:
+                        if dir == self._workspace:
+                            log.warning(
+                                f"Using project yaml file from workspace instead"
+                                f" of config directory {self._config_dir}. Please move "
+                                "it there, reading from workspace will be removed soon."
+                            )
+                        yield f
+                        return
         yield None
 
     def flow_path(self, name: str) -> LocalPath:
