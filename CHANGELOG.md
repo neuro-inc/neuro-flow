@@ -5,6 +5,15 @@
 
 [comment]: # (towncrier release notes start)
 
+Neuro_Flow 21.7.9 (2021-07-09)
+==============================
+
+Features
+--------
+
+- Added new sections `defaults`, `images`, `volumes` to the `project.yml` file. The work the same as the do in `live`/`batch` except they are global -- everything defined in `project.yml` applies to all workflows. (#506)
+
+
 Neuro_Flow 21.7.7 (2021-7-7)
 ============================
 
