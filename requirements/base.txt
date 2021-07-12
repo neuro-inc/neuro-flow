@@ -6,7 +6,7 @@ dataclasses==0.7; python_version<"3.7"
 funcparserlib==0.3.6
 graphviz==0.16
 humanize==3.10.0
-neuro-cli==21.6.23
+neuro-cli==21.7.9
 neuro-extras==21.7.2
 pyyaml==5.4.1
 rich==10.5.0
