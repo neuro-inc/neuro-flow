@@ -281,7 +281,7 @@ class Storage(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def store_executor_id(self, attempt: Attempt, executor_id: str) -> None:
+    async def mark_attempt_running(self, attempt: Attempt, executor_id: str) -> None:
         pass
 
     @abc.abstractmethod
@@ -877,7 +877,7 @@ class FSStorage(Storage):
         assert finished.keys() <= started.keys()
         return started, finished
 
-    async def store_executor_id(self, attempt: Attempt, executor_id: str) -> None:
+    async def mark_attempt_running(self, attempt: Attempt, executor_id: str) -> None:
         pass  # Noop for FS based storage
 
     async def finish_attempt(self, attempt: Attempt, result: TaskStatus) -> None:
@@ -1563,7 +1563,7 @@ class APIStorage(Storage):
         assert finished.keys() <= started.keys()
         return started, finished
 
-    async def store_executor_id(self, attempt: Attempt, executor_id: str) -> None:
+    async def mark_attempt_running(self, attempt: Attempt, executor_id: str) -> None:
         attempt_data = await self._find_attempt_data(attempt.bake, attempt.number)
         auth = await self._config._api_auth()
         url = self._base_url / "api/v1/flow/attempts/replace"
@@ -1573,7 +1573,7 @@ class APIStorage(Storage):
             json={
                 "bake_id": attempt_data["bake_id"],
                 "number": attempt_data["number"],
-                "result": attempt_data["result"],
+                "result": TaskStatus.RUNNING.value,
                 "configs_meta": attempt_data["configs_meta"],
                 "executor_id": executor_id,
             },
@@ -2295,8 +2295,10 @@ class RetryReadStorage(Storage, RetryConfig):
     ) -> Tuple[Dict[FullID, StartedTask], Dict[FullID, FinishedTask]]:
         return await self._storage.fetch_attempt(attempt=attempt)
 
-    async def store_executor_id(self, attempt: Attempt, executor_id: str) -> None:
-        await self._storage.store_executor_id(attempt=attempt, executor_id=executor_id)
+    async def mark_attempt_running(self, attempt: Attempt, executor_id: str) -> None:
+        await self._storage.mark_attempt_running(
+            attempt=attempt, executor_id=executor_id
+        )
 
     async def finish_attempt(self, attempt: Attempt, result: TaskStatus) -> None:
         await self._storage.finish_attempt(attempt=attempt, result=result)
