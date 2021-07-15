@@ -12,7 +12,7 @@ Batch workflows are located in the `.neuro/<batch-name>.yml` or `.neuro/<batch-n
 
 **Expression contexts:** This attribute cannot contain expressions.
 
-Identifier of the workflow. By default, the `id` is generated from the filename of the workflow config, with hyphens being \(`-`\) replaced with underscores \(`_`\).
+Identifier of the workflow. By default, the `id` is generated from the filename of the workflow config, with hyphens being \(`-`\) replaced with underscores \(`_`\). It's available as a `${{ flow.flow_id }}` in experssions.
 
 ## `title`
 
@@ -208,8 +208,7 @@ cache:
 
 A mapping of image definitions used by the _batch_ workflow.
 
-If the specified image reference is available at the Neu.ro registry and the [`.force_rebuild`](batch-workflow-syntax.md#images-less-than-image-id-greater-than-force-rebuild) flag is not set, then Neu.ro Flow will not attempt to build the image from scratch. 
-If this flag is set or the image is not in the registry, then the platform will start buliding the image.
+If the specified image reference is available at the Neu.ro registry and the [`.force_rebuild`](batch-workflow-syntax.md#images-less-than-image-id-greater-than-force-rebuild) flag is not set, then Neu.ro Flow will not attempt to build the image from scratch. If this flag is set or the image is not in the registry, then the platform will start buliding the image.
 
 {% hint style="info" %}
 The `images` section is not required. A task can specify the image name in a plain string without referring to the `${{ images.my_image.ref }}` context.
@@ -231,7 +230,7 @@ images:
     ref: image:my_image:latest
 ```
 
-This can only use locally accessible functions (such as `hash_files`). Its value will be calculated before the remote executor starts.
+This can only use locally accessible functions \(such as `hash_files`\). Its value will be calculated before the remote executor starts.
 
 **Example of external image:**
 
@@ -257,9 +256,7 @@ images:
 
 ### `images.<image-id>.context`
 
-The Docker _context_ used to build an image. Can be either local path (e.g. `${{ flow.workspace / 'some/dir' }}`) or a remote volume spec (e.g. `storage:subdir/${{ flow.flow_id }}`).
-If it's a local path, it cannot use anything that's not available at the beginning of a bake (for example, action inputs). 
-If it's a remote path, usage of dynamic values is allowed. Local context will be automatically uploaded to storage during the "local actions" step of the bake.
+The Docker _context_ used to build an image. Can be either local path \(e.g. `${{ flow.workspace / 'some/dir' }}`\) or a remote volume spec \(e.g. `storage:subdir/${{ flow.flow_id }}`\). If it's a local path, it cannot use anything that's not available at the beginning of a bake \(for example, action inputs\). If it's a remote path, usage of dynamic values is allowed. Local context will be automatically uploaded to storage during the "local actions" step of the bake.
 
 **Example:**
 
@@ -1129,3 +1126,4 @@ tasks:
 ```
 
 **Expression contexts:** [`flow` context](batch-contexts.md#flow-context), [`params` context](batch-contexts.md#params-context), [`env` context](batch-contexts.md#env-context), [`tags` context](batch-contexts.md#tags-context), [`volumes` context](batch-contexts.md#volumes-context), [`images` context](batch-contexts.md#images-context), [`matrix` context](batch-contexts.md#matrix-context), [`strategy` context](batch-contexts.md#strategy-context), [`needs` context](batch-contexts.md#needs-context).
+

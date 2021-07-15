@@ -12,7 +12,7 @@ The live workflow is always located at the `.neuro/live.yml` or `.neuro/live.yam
 
 ## `id`
 
-Identifier of the workflow. By default, the `id` is `live`.
+Identifier of the workflow. By default, the `id` is `live`. It's available as a `${{ flow.flow_id }}` in experssions.
 
 **Expression contexts:** This attribute only allows expressions that don't access contexts.
 

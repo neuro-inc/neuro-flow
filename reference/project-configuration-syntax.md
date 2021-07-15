@@ -12,13 +12,14 @@ Project `id` available as a `${{ project.id }}` or `${{ flow.project_id }}` cont
 
 ## owner
 
-Optional owner name available as a `${{ project.owner }}` context.  Shared projects require `owner` or `role`.
+Optional owner name available as a `${{ project.owner }}` context. Shared projects require `owner` or `role`.
 
 ## role
 
-Optional project role name available as a `${{ project.role }}` context.  By default the `role` is `{owner}/projects/{id}` if `owner` is defined.  Shared projects require `owner` or `role`.
+Optional project role name available as a `${{ project.role }}` context. By default the `role` is `{owner}/projects/{id}` if `owner` is defined. Shared projects require `owner` or `role`.
 
 See also:
 
 * [live contexts: `flow`](live-contexts.md#project-context)
 * [batch contexts: `flow`](batch-contexts.md#project-context)
+

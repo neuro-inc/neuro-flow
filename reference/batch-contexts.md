@@ -24,7 +24,7 @@ The `flow`context contains information about the workflow: its ID, title, etc.
 | Property name | Type | Description |
 | :--- | :--- | :--- |
 | `flow.flow_id` | `str` | The workflow's ID. It is automatically generated based on the workflow's YAML filename with a dropped suffix. You can override the property by setting the [`flow.id`](batch-workflow-syntax.md#id) attribute. |
-| `flow.project_id` | `str` | The project's ID.  |
+| `flow.project_id` | `str` | The project's ID. |
 | `flow.workspace` | `LocalPath` | A path to the workspace \(the root folder of the project\). |
 | `flow.title` | `str` | The workflow's title. Set the [`flow.title`](batch-workflow-syntax.md#title) attribute to override the auto-calculated value. |
 

@@ -205,7 +205,7 @@ neuro-flow clean [OPTIONS] VOLUME
 
 Clear cache.
 
-Use `neuro-flow clear-cache <BATCH>` for cleaning up the cache for BATCH; Use `neuro-flow clear-cache <BATCH> <TASK_ID>` for cleaning up the cache for TASK_ID in BATCH;
+Use `neuro-flow clear-cache <BATCH>` for cleaning up the cache for BATCH; Use `neuro-flow clear-cache <BATCH> <TASK_ID>` for cleaning up the cache for TASK\_ID in BATCH;
 
 `neuro-flow clear-cache ALL` clears all caches.
 
