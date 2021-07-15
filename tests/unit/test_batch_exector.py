@@ -1483,6 +1483,7 @@ async def test_image_builds_skip_if_present(
     run_executor: Callable[[Path, str], Awaitable[None]],
     images_mock: ImagesMock,
     client: Client,
+    batch_storage: Storage,
 ) -> None:
     images_mock.known_images = {
         f"image://{client.cluster_name}/{client.username}/banana1:latest": Tag(
@@ -1508,6 +1509,10 @@ async def test_image_builds_skip_if_present(
     await jobs_mock.mark_done("task")
 
     await asyncio.wait_for(executor_task, timeout=1)
+
+    bake = [bake async for bake in batch_storage.list_bakes("batch_images")][0]
+    image = await batch_storage.get_bake_image(bake, "image:main")
+    assert image.status == ImageStatus.CACHED
 
 
 async def test_image_builds_if_present_but_force(
