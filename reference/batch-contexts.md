@@ -24,7 +24,7 @@ The `flow`context contains information about the workflow: its ID, title, etc.
 | Property name | Type | Description |
 | :--- | :--- | :--- |
 | `flow.flow_id` | `str` | The workflow's ID. It is automatically generated based on the workflow's YAML filename with a dropped suffix. You can override the property by setting the [`flow.id`](batch-workflow-syntax.md#id) attribute. |
-| `flow.project_id` | `str` | The project's ID. |
+| `flow.project_id` | `str` | The project's ID. It is automatically generated based on the name of the project folder. You can override it using [`project.id`](project-configuration-syntax.md#id) attribute. Check [the project configuration](project-configuration-syntax.md) for details. |
 | `flow.workspace` | `LocalPath` | A path to the workspace \(the root folder of the project\). |
 | `flow.title` | `str` | The workflow's title. Set the [`flow.title`](batch-workflow-syntax.md#title) attribute to override the auto-calculated value. |
 
@@ -34,7 +34,7 @@ The `project`context contains information about the project: its ID, owner, etc.
 
 | Property name | Type | Description |
 | :--- | :--- | :--- |
-| `project.id` | `str` | The project's ID. See also: [the project configuration](project-configuration-syntax.md#id). |
+| `project.id` | `str` | The project's ID. It is automatically generated based on the name of the project folder. You can override it using [`project.id`](project-configuration-syntax.md#id) attribute. Check [the project configuration](project-configuration-syntax.md) for details. This context property is an alias to `flow.project_id` . |
 | `project.owner` | `str` | The project's owner. See also: [the project configuration](project-configuration-syntax.md#owner). |
 | `project.role` | `str` | The project's role. Set the [`project.role`](project-configuration-syntax.md#role) attribute to override the auto-calculated value. |
 
