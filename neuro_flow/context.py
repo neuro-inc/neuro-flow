@@ -1941,6 +1941,7 @@ class RunningBatchFlow(RunningBatchBase[BatchContext]):
         bake_id: str,
         local_info: Optional[LocallyPreparedInfo],
         ast_flow: ast.BatchFlow,
+        ast_project: ast.Project,
         mixins: Optional[Mapping[str, ast.TaskMixin]],
     ):
         super().__init__(
@@ -1954,12 +1955,18 @@ class RunningBatchFlow(RunningBatchBase[BatchContext]):
             local_info,
         )
         self._ast_flow = ast_flow
+        self._ast_project = ast_project
         self._mixins = mixins
 
     def get_image_ast(self, image_id: str) -> ast.Image:
-        if self._ast_flow.images is None:
-            raise KeyError(image_id)
-        return self._ast_flow.images[image_id]
+        try:
+            if self._ast_flow.images is None:
+                raise KeyError(image_id)
+            return self._ast_flow.images[image_id]
+        except KeyError:
+            if self._ast_project.images is not None:
+                return self._ast_project.images[image_id]
+            raise
 
     @property
     def mixins(self) -> Optional[Mapping[str, ast.TaskMixin]]:
@@ -2085,6 +2092,7 @@ class RunningBatchFlow(RunningBatchBase[BatchContext]):
             bake_id,
             local_info,
             ast_flow,
+            ast_project,
             mixins,
         )
 
