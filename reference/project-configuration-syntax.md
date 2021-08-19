@@ -9,6 +9,7 @@ To override this, you can put the `project.yml`\(or `project.yaml`\) file into t
 ## id
 
 Project `id` available as a `${{ project.id }}` or `${{ flow.project_id }}` context.
+Default value - folder name, where '.neuro' folder is located.
 
 ## owner
 
@@ -17,6 +18,7 @@ Optional owner name available as a `${{ project.owner }}` context. Shared projec
 ## role
 
 Optional project role name available as a `${{ project.role }}` context. By default the `role` is `{owner}/projects/{id}` if `owner` is defined. Shared projects require `owner` or `role`.
+This role name might be used to share the project with other platform `<user>` via `neuro acl grant <role> <user>`
 
 See also:
 

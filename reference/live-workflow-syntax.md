@@ -12,23 +12,26 @@ The live workflow is always located at the `.neuro/live.yml` or `.neuro/live.yam
 
 ## `id`
 
-Identifier of the workflow. By default, the `id` is `live`. It's available as a `${{ flow.flow_id }}` in experssions.
+**Optional** Identifier of the workflow. By default, the `id` is `live`. It's available as a `${{ flow.flow_id }}` in experssions.
+
+Note: don't mess it up with the `${{ flow.project_id }}` which is defined in [project configuration](project-configuration-syntax.md#id) file!
 
 **Expression contexts:** This attribute only allows expressions that don't access contexts.
 
 ## `title`
 
-Workflow title
+**Optional** Workflow title, any valid string is allowed. It is accessible via `${{ flow.title }}`.
+If not set, the workflow title equals to `live`.
 
 **Expression contexts:** This attribute only allows expressions that don't access contexts.
 
 ## `defaults`
 
-A map of default settings that will apply to all jobs in the workflow. You can override these global default settings for specific jobs.
+**Optional section** A map of default settings that will apply to all jobs in the workflow. You can override these global default settings for specific jobs.
 
 ### `defaults.env`
 
-A mapping of environment variables that are available to all jobs in the workflow. You can also set environment variables that are only available to specific jobs. For more information, see [`jobs.<job-id>.env`](live-workflow-syntax.md#jobs-job-id-env-1).
+A mapping of environment variables that will be set in all jobs of the workflow. You can also set environment variables that are only available to specific jobs. For more information, see [`jobs.<job-id>.env`](live-workflow-syntax.md#jobs-job-id-env-1).
 
 When two or more environment variables are defined with the same name, `neuro-flow` uses the most specific environment variable. For example, an environment variable defined in a job will override the workflow's default.
 
@@ -147,7 +150,7 @@ defaults:
 
 ## `images`
 
-A mapping of image definitions used by the _live_ workflow.
+**Optional section**  A mapping of image definitions used by the _live_ workflow.
 
 `neuro-flow build <image-id>` creates an image from the passed `Dockerfile` and uploads it to the Neu.ro Registry. The `${{ images.img_id.ref }}` expression can be used for pointing the image from a [`jobs.<job-id>.image`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-image).
 
@@ -199,7 +202,7 @@ images:
 
 ### `images.<image-id>.context`
 
-The Docker _context_ used to build an image, a local path relative to the project's root folder. The context should contain the `Dockerfile` and any additional files and folders that should be copied to the image.
+**Optional** The Docker _context_ used to build an image, a local path relative to the project's root folder. The context should contain the `Dockerfile` and any additional files and folders that should be copied to the image.
 
 **Example:**
 
@@ -210,21 +213,40 @@ images:
 ```
 
 {% hint style="info" %}
-`neuro-flow` cannot build images without the context, but can address _pre-built_ images using [`images.<image-id>.ref`](live-workflow-syntax.md#images-less-than-image-id-greater-than-ref)
+The project's root folder is the folder where '.neuro' directory is located. It's path might be referenced via `${{ flow.workspace }}/`.
+{% endhint %}
+
+{% hint style="warning" %}
+`neuro-flow` cannot build images without the context.
 {% endhint %}
 
 **Expression contexts:** [`flow` context](live-contexts.md#flow-context).
 
 ### `images.<image-id>.dockerfile`
 
-An optional docker file name used for building images, `Dockerfile` by default.
+**Optional** An docker file name used to build the image. If not set, a `Dockerfile` name will be used by default.
 
 **Example:**
 
 ```yaml
 images:
   my_image:
-    dockerfile: MyDockerfile
+    dockerfile: ${{ flow.workspace }}/MyDockerfile
+```
+
+**Expression contexts:** [`flow` context](live-contexts.md#flow-context).
+
+### `images.<image-id>.build_preset`
+
+**Optional** A name of the resource preset used to build the docker image.
+Consider using it if, for instance, a GPU is required to build dependencies within the image.
+
+**Example:**
+
+```yaml
+images:
+  my_image:
+    build_preset: gpu-small
 ```
 
 **Expression contexts:** [`flow` context](live-contexts.md#flow-context).
@@ -267,6 +289,13 @@ images:
     env: ${{ {'ENV1': 'val1', 'ENV2': 'val2'} }}
 ```
 
+{% hint style="info" %}
+You could also map platform secrets as the values of env variable and later utilize them during the image build.
+
+For instance, you have `secret:github_password` which gives you an access to needed private repository.
+In this case, map it as env `GH_PASS: secret:github_password` into the builder job and pass it further as a `--build-arg GH_PASS=$GH_PASS` while building the container.
+{% endhint %}
+
 **Expression contexts:** [`flow` context](live-contexts.md#flow-context).
 
 ### `images.<image-id>.volumes`
@@ -292,11 +321,19 @@ images:
     volumes: ${{ ['storage:folder1:/mnt/folder1:ro', volumes.volume_id.ref] }}
 ```
 
+{% hint style="info" %}
+You could also map platform secrets as files and later utilize them during the image build.
+
+For instance, you have `secret:aws_account_credentials` file, which gives you an access to needed during the build S3 bucket.
+In this case, attach it as volume `- secret:aws_account_credentials:/kaniko_context/aws_account_credentials` into the builder job.
+And the file with credentials will appear in a root of the build context, since the build context is mounted in `/kaniko_context` folder within the builder job.
+{% endhint %}
+
 **Expression contexts:** [`flow` context](live-contexts.md#flow-context).
 
 ## `volumes`
 
-A mapping of volume definitions available in the _live_ workflow. A volume defines a link between the Neu.ro storage folder, a remote folder that can be mounted to a _live_ job, and a local folder.
+**Optional section** A mapping of volume definitions available in the _live_ workflow. A volume defines a link between the Neu.ro storage folder, a remote folder that can be mounted to a _live_ job, and a local folder.
 
 Volumes can be synchronized between local and storage versions with the `neuro-flow upload` and `neuro-flow download` commands and they can be mounted to a job by using the [`jobs.<job-id>.volumes`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-volumes) attribute.
 
@@ -312,7 +349,7 @@ The key `volume-id` is a string and its value is a map of the volume's configura
 
 ### `volumes.<volume-id>.remote`
 
-**Required** The volume URI on the Neu.ro Storage.
+**Required** The volume URI on the [Neu.ro Storage](https://docs.neu.ro/core/platform-storage/storage) ('storage:path/on/storage') or [Neu.ro Disk](https://docs.neu.ro/core/platform-storage/disks) ('disk:<disk-id>').
 
 **Example:**
 
@@ -320,6 +357,14 @@ The key `volume-id` is a string and its value is a map of the volume's configura
 volumes:
   folder:
     remote: storage:path/to/folder
+```
+
+```yaml
+volumes:
+  folder1:
+    remote: disk:disk-a78c0319-d69b-4fe9-8a2d-fc4a0cdffe04
+  folder2:
+    remote: disk:named-disk
 ```
 
 **Expression contexts:** [`flow` context](live-contexts.md#flow-context).
@@ -340,7 +385,8 @@ volumes:
 
 ### `volumes.<volume-id>.local`
 
-A _local_ path relative to the project's root. Used for uploading/downloading content to the storage.
+**Optional** Volumes could also be assotiated with folder on a local machine.
+A _local_ path should be relative to the project's root. Used for uploading/downloading content to the storage.
 
 Volumes without a set `local` attribute cannot be used by the `neuro-flow upload` and `neuro-flow download` commands.
 
@@ -352,11 +398,15 @@ volumes:
     local: path/to/folder
 ```
 
+{% hint style="warning" %}
+`neuro-flow upload` and `neuro-flow download` will not work for volumes, where remote is the Neu.ro Disk due to Disks specifics.
+{% endhint %}
+
 **Expression contexts:** [`flow` context](live-contexts.md#flow-context).
 
 ### `volumes.<volume-id>.read_only`
 
-The volume is mounted as _read-only_ by default if this attribute is set, _read-write_ mode is used otherwise.
+**Optional** The volume is mounted as _read-only_ by default if this attribute is set, _read-write_ mode is used otherwise.
 
 **Example:**
 
@@ -371,7 +421,7 @@ volumes:
 ## `jobs`
 
 A _live_ workflow can run jobs by their identifiers using the `neuro-flow run <job-id>` command. Each job runs remotely on the Neu.ro Platform.
-
+Jobs could be defined in two different ways: (1) directly in this file or in a separate file and called as an [`action`](actions-syntax.md).
 ### `jobs.<job-id>` <a id="jobs-job-id-env"></a>
 
 Each job must have an associated ID. The key `job-id` is a string and its value is a map of the job's configuration data or action call. You must replace `<job-id>` with a string that is unique to the `jobs` object. The `<job-id>` must start with a letter and contain only alphanumeric characters or underscore symbols `_`. Dash `-` is not allowed.
@@ -438,7 +488,7 @@ The attributes described in this section are only applicable to plain jobs that 
 
 ### `jobs.<job-id>.image`
 
-**Required** Each job is executed remotely on the Neu.ro cluster using a _Docker image_. This image can be hosted on [_Docker Hub_](https://hub.docker.com/search?q=&type=image) \(`python:3.9` or `ubuntu:20.04`\) or on the Neu.ro Registry \(`image:my_image:v2.3`\).
+**Required** Each job is executed remotely on the Neu.ro cluster using a _Docker image_. This image can be hosted on [_Docker Hub_](https://hub.docker.com/search?q=&type=image) \(`python:3.9` or `ubuntu:20.04`\) or on the Neu.ro Registry \(`image:my_image:v2.3`\). If the image is hosted on the Neu.ro Registry, the image name must start with the `image:` preffix.
 
 **Example with a constant image string:**
 
@@ -462,7 +512,7 @@ jobs:
 
 ### `jobs.<job-id>.cmd`
 
-A job executes either a _command_, a _bash_ script, or a _python_ script. The `cmd`, `bash,` and `python` are **mutually exclusive**: only one of the three is allowed at the same time. If none of these three attributes are specified, the [`CMD`](https://docs.docker.com/engine/reference/builder/#cmd) from the [`jobs.<job-id>.image`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-image) is used.
+**Optional** A job executes either a _command_, a _bash_ script, or a _python_ script. The `cmd`, `bash,` and `python` are **mutually exclusive**: only one of the three is allowed at the same time. If none of these three attributes are specified, the [`CMD`](https://docs.docker.com/engine/reference/builder/#cmd) from the [`jobs.<job-id>.image`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-image) is used.
 
 The `cmd` attribute points to the command with optional arguments that is available in the executed [`jobs.<job-id>.image`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-image).
 
@@ -478,7 +528,7 @@ jobs:
 
 ### `jobs.<job-id>.bash`
 
-This attribute contains a `bash` script to run.
+**Optional** This attribute contains a `bash` script to run.
 
 Using `cmd` to run bash scripts can be tedious: you need to apply quotas to the executed script and set proper bash flags allowing to fail on error.
 
@@ -531,7 +581,7 @@ jobs:
 
 ### `jobs.<job-id>.browse`
 
-Open a job's _Http URL_ in a browser. Off by default.
+**Optional** Open a job's _Http URL_ in a browser after the job startup. `false` by default.
 
 Use this attribute in scenarios like starting a Jupyter Notebook job and opening the notebook session in a browser.
 
@@ -547,7 +597,7 @@ jobs:
 
 ### `jobs.<job-id>.detach`
 
-By default, `neuro-flow run <job-id>` keeps the terminal attached to the spawned job. This can help with viewing the job's logs and running commands in its embedded bash session.
+**Optional** By default, `neuro-flow run <job-id>` keeps the terminal attached to the spawned job. This can help with viewing the job's logs and running commands in its embedded bash session.
 
 Enable the `detach` attribute to disable this behavior.
 
@@ -563,7 +613,7 @@ jobs:
 
 ### `jobs.<job-id>.entrypoint`
 
-You can override a Docker image [`ENTRYPOINT`](https://docs.docker.com/engine/reference/builder/#entrypoint) if needed or set it if one wasn't already specified. Unlike the Docker `ENTRYPOINT` instruction which has a shell and exec form, the `entrypoint` attribute only accepts a single string defining an executable to be run.
+**Optional** You can override a Docker image [`ENTRYPOINT`](https://docs.docker.com/engine/reference/builder/#entrypoint) if needed or set it if one wasn't already specified. Unlike the Docker `ENTRYPOINT` instruction which has a shell and exec form, the `entrypoint` attribute only accepts a single string defining an executable to be run.
 
 **Example:**
 
@@ -577,7 +627,7 @@ jobs:
 
 ### `jobs.<job-id>.env` <a id="jobs-job-id-env"></a>
 
-Set environment variables for `<job-id>` to use in the executed job. You can also set environment variables for the entire workflow. For more information, see [`defaults.env`](live-workflow-syntax.md#defaults-env).
+**Optional** Set environment variables for `<job-id>` to use in the executed job. You can also set environment variables for the entire workflow. For more information, see [`defaults.env`](live-workflow-syntax.md#defaults-env).
 
 When two ore more environment variables are defined with the same name, `neuro-flow` uses the most specific environment variable. For example, an environment variable defined in a task will override the [workflow default](live-workflow-syntax.md#defaults-env).
 
@@ -603,7 +653,7 @@ jobs:
 
 ### `jobs.<job-id>.http_auth`
 
-Control whether the HTTP port exposed by the job requires the Neu.ro Platform authentication for access.
+**Optional** Control whether the HTTP port exposed by the job requires the Neu.ro Platform authentication for access.
 
 You may want to disable the authentication to allow everybody to access your job's exposed web resource.
 
@@ -621,7 +671,7 @@ jobs:
 
 ### `jobs.<job-id>.http_port`
 
-The number of the job's HTTP port that will be exposed globally.
+**Optional** The job's HTTP port number that will be exposed globally via platform.
 
 By default, the Neu.ro Platform exposes the job's internal `80` port as an HTTPS-protected resource. This will be listed in the oputput of the `neuro-flow status <job-id>` command as _Http URL_.
 
@@ -635,11 +685,15 @@ jobs:
     http_port: 8080
 ```
 
+{% hint style="warning" %}
+Only HTTP trafic is allowed. The platform will encapsulate it into the TLS (to provide HTTPS) automaticaly.
+{% endhint %}
+
 **Expression contexts:** [`flow` context](live-contexts.md#flow-context), [`env` context](live-contexts.md#env-context), [`tags` context](live-contexts.md#tags-context), [`volumes` context](live-contexts.md#volumes-context), [`images` context](live-contexts.md#images-context), [`params` context](live-contexts.md#params-context), [`multi` context](live-contexts.md#multi-context) \(if [`jobs.<job-id>.multi`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-multi) is set\).
 
 ### `jobs.<job-id>.life_span`
 
-The time period after which a job will be automatically killed.
+**Optional**  The time period after which a job will be automatically killed.
 
 By default, jobs live 1 day. You may want to change this period by customizing the attribute.
 
@@ -664,7 +718,7 @@ jobs:
 
 ### `jobs.<job-id>.name`
 
-Allows you to specify a job's name. This name becomes a part of the job's internal hostname and exposed HTTP URL, and the job can then be controlled by its name through the low-level `neuro` tool.
+**Optional** Allows you to specify a job's name. This name becomes a part of the job's internal hostname and exposed HTTP URL, and the job can then be controlled by its name through the low-level `neuro` tool.
 
 The name is completely _optional_.
 
@@ -679,16 +733,16 @@ jobs:
 If the name is not specified in the `name` attribute, the default name for the job will be automatically generated as follows:
 
 ```yaml
-'<PROJECT-ID>--<JOB-ID>--[<MULTI_SUFFIX>]'
+'<PROJECT-ID>-<JOB-ID>[-<MULTI_SUFFIX>]'
 ```
 
-The `--[<MULTI_SUFFIX>]` part makes sure that a job will have a unique name even if it's a multi job.
+The `[-<MULTI_SUFFIX>]` part makes sure that a job will have a unique name even if it's a multi job.
 
 **Expression contexts:** [`flow` context](live-contexts.md#flow-context), [`env` context](live-contexts.md#env-context), [`tags` context](live-contexts.md#tags-context), [`volumes` context](live-contexts.md#volumes-context), [`images` context](live-contexts.md#images-context), [`params` context](live-contexts.md#params-context), [`multi` context](live-contexts.md#multi-context) \(if [`jobs.<job-id>.multi`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-multi) is set\).
 
 ### `jobs.<job-id>.multi`
 
-By default, a job can only have one running instance at a time. Calling `neuro-flow run <job-id>` for the same job ID will attach to the already running job instead of creating a new one. This can be overridden by enabling the `multi` attribute.
+**Optional**  By default, a job can only have one running instance at a time. Calling `neuro-flow run <job-id>` for the same job ID will attach to the already running job instead of creating a new one. This can be overridden by enabling the `multi` attribute.
 
 **Example:**
 
@@ -702,7 +756,7 @@ jobs:
 
 ### `jobs.<job-id>.pass_config`
 
-Set this attribute to `true` if you want to pass the Neu.ro config used to execute `neuro-flow run ...` command into the spawned job. This can be useful if you use a job image with Neuro CLI installed and want to execute `neuro ...` commands _inside_ the running job.
+**Optional**  Set this attribute to `true` if you want to pass the Neu.ro config used to execute `neuro-flow run ...` command into the spawned job. This can be useful if you use a job image with Neuro CLI installed and want to execute `neuro ...` commands _inside_ the running job.
 
 By default, the config is not passed.
 
@@ -714,11 +768,16 @@ jobs:
     pass_config: true
 ```
 
+{% hint style="warning" %}
+The lifetime of passed credentials is bounded to the job's lifetime.
+It will be impossible to use them when the job is terminated.
+{% endhint %}
+
 **Expression contexts:** [`flow` context](live-contexts.md#flow-context), [`env` context](live-contexts.md#env-context), [`tags` context](live-contexts.md#tags-context), [`volumes` context](live-contexts.md#volumes-context), [`images` context](live-contexts.md#images-context), [`params` context](live-contexts.md#params-context), [`multi` context](live-contexts.md#multi-context) \(if [`jobs.<job-id>.multi`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-multi) is set\).
 
 ### `jobs.<job-id>.port-forward`
 
-You can define a list of TCP tunnels for the job.
+**Optional** You can define a list of TCP tunnels for the job.
 
 Each port forward entry is a string with a `<LOCAL_PORT>:<REMOTE_PORT>` format.
 
@@ -746,13 +805,13 @@ jobs:
 
 ### `jobs.<job-id>.preset`
 
-The preset to execute the job with. [`defaults.preset`](live-workflow-syntax.md#defaults-preset) is used if the preset is not specified for the job.
+**Optional** The preset to execute the job with. [`defaults.preset`](live-workflow-syntax.md#defaults-preset) is used if the preset is not specified for the job.
 
 **Expression contexts:** [`flow` context](live-contexts.md#flow-context), [`env` context](live-contexts.md#env-context), [`tags` context](live-contexts.md#tags-context), [`volumes` context](live-contexts.md#volumes-context), [`images` context](live-contexts.md#images-context), [`params` context](live-contexts.md#params-context), [`multi` context](live-contexts.md#multi-context) \(if [`jobs.<job-id>.multi`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-multi) is set\).
 
 ### `jobs.<job-id>.schedule_timeout`
 
-Use this attribute if you want to increase the _schedule timeout_. This will prevent a job from failing if the Neu.ro cluster is under high load and requested resources are likely to not be available at the moment.
+**Optional** Use this attribute if you want to increase the _schedule timeout_. This will prevent a job from failing if the Neu.ro cluster is under high load and requested resources are likely to not be available at the moment.
 
 If the Neu.ro cluster has no resources to launch a job immediately, this job is pushed into the waiting queue. If the job is not started yet at the end of the _schedule timeout_, it will be failed.
 
@@ -777,7 +836,7 @@ jobs:
 
 ### `jobs.<job-id>.tags`
 
-A list of additional job tags.
+**Optional** A list of additional job tags.
 
 Each _live_ job is tagged. A job's tags are taken from this attribute, [`defaults.tags`](live-workflow-syntax.md#defaults-tags), and system tags \(`project:<project-id>` and `job:<job-id>`\).
 
@@ -801,13 +860,13 @@ jobs:
 
 ### `jobs.<job-id>.title`
 
-A job's title. The title is equal to `<job-id>` if not overridden.
+**Optional** A job's title. The title is equal to `<job-id>` if not overridden.
 
 **Expression contexts:** [`flow` context](live-contexts.md#flow-context), [`env` context](live-contexts.md#env-context), [`tags` context](live-contexts.md#tags-context), [`volumes` context](live-contexts.md#volumes-context), [`images` context](live-contexts.md#images-context), [`params` context](live-contexts.md#params-context), [`multi` context](live-contexts.md#multi-context) \(if [`jobs.<job-id>.multi`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-multi) is set\).
 
 ### `jobs.<job-id>.volumes`
 
-A list of job volumes. You can specify a plain string for the volume reference or use the `${{ volumes.<volume-id>.ref }}` expression.
+**Optional** A list of job volumes. You can specify a plain string for the volume reference or use the `${{ volumes.<volume-id>.ref }}` expression.
 
 **Example:**
 
@@ -831,7 +890,7 @@ jobs:
 
 ### `jobs.<job-id>.workdir`
 
-A working directory to use inside the job.
+**Optional** A working directory to use inside the job.
 
 This attribute takes precedence if specified. Otherwise, [`defaults.workdir`](live-workflow-syntax.md#defaults-workdir) takes priority. If none of the previous are specified, a [`WORKDIR`](https://docs.docker.com/engine/reference/builder/#workdir) definition from the image is used.
 
@@ -851,7 +910,7 @@ The attributes described in this section are only applicable to action calls. An
 
 ### `jobs.<job-id>.action`
 
-A URL that selects an action to run. It supports two schemes:
+**Required** A URL that selects an action to run. It supports two schemes:
 
 * `workspace:` or `ws:` for action files that are stored locally
 * `github:` or `gh:` for actions that are bound to a Github repository
@@ -880,7 +939,8 @@ jobs:
 
 ### `jobs.<job-id>.args`
 
-Mapping of values that will be passed to the actions as arguments. This should correspond to [`inputs`](actions-syntax.md#inputs) defined in the action file.
+**Optional** Mapping of values that will be passed to the actions as arguments. This should correspond to [`inputs`](actions-syntax.md#inputs) defined in the action file.
+Each value should be a string.
 
 **Example:**
 
