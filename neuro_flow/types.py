@@ -53,6 +53,7 @@ class ImageStatus(str, enum.Enum):
     BUILDING = "building"
     BUILT = "built"
     BUILD_FAILED = "build_failed"
+    CACHED = "cached"
 
     def __rich__(self) -> str:
         return f"[{IMAGE_STATUS_COLORS[self]}]{self}"

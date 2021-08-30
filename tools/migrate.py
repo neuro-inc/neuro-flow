@@ -11,6 +11,7 @@ from neuro_sdk import (
     ResourceNotFound,
     get as api_get,
 )
+from neuro_sdk.utils import asyncgeneratorcontextmanager
 from typing import AsyncIterator
 from yarl import URL
 
@@ -33,6 +34,7 @@ class FakeFS(FileSystem):
     async def stat(self, uri: URL) -> FileStatus:
         raise NotImplementedError
 
+    @asyncgeneratorcontextmanager
     async def ls(self, uri: URL) -> AsyncIterator[FileStatus]:
         return
         yield FileStatus()
