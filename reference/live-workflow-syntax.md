@@ -488,7 +488,7 @@ The attributes described in this section are only applicable to plain jobs that 
 
 ### `jobs.<job-id>.image`
 
-**Required** Each job is executed remotely on the Neu.ro cluster using a _Docker image_. This image can be hosted on [_Docker Hub_](https://hub.docker.com/search?q=&type=image) \(`python:3.9` or `ubuntu:20.04`\) or on the Neu.ro Registry \(`image:my_image:v2.3`\). If the image is hosted on the Neu.ro Registry, the image name must start with the `image:` preffix.
+**Required** Each job is executed remotely on the Neu.ro cluster using a _Docker image_. This image can be hosted on [_Docker Hub_](https://hub.docker.com/search?q=&type=image) \(`python:3.9` or `ubuntu:20.04`\) or on the Neu.ro Registry \(`image:my_image:v2.3`\). If the image is hosted on the Neu.ro Registry, the image name must start with the `image:` prefix.
 
 **Example with a constant image string:**
 
