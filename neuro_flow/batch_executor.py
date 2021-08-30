@@ -867,7 +867,7 @@ class BatchExecutor:
         job_id = os.environ.get("NEURO_JOB_ID")
         if job_id:
             # store job id as executor id
-            await self._storage.store_executor_id(self._attempt, job_id)
+            await self._storage.mark_attempt_running(self._attempt, job_id)
 
         if self._attempt.result in TERMINATED_TASK_STATUSES:
             # If attempt is already terminated, just clean up tasks
