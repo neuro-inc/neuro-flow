@@ -19,11 +19,13 @@ from neuro_sdk import (
     NDJSONError,
     ResourceNotFound,
 )
+from neuro_sdk.utils import asyncgeneratorcontextmanager
 from operator import attrgetter, itemgetter
 from types import TracebackType
 from typing import (
     AbstractSet,
     Any,
+    AsyncContextManager,
     AsyncIterator,
     Dict,
     Iterable,
@@ -485,8 +487,8 @@ class FileSystem(abc.ABC):
         pass
 
     @abstractmethod
-    async def ls(self, uri: URL) -> AsyncIterator[FileStatus]:
-        yield cast(FileStatus, None)  # For type check
+    def ls(self, uri: URL) -> AsyncContextManager[AsyncIterator[FileStatus]]:
+        pass
 
     @abstractmethod
     async def mkdir(
@@ -539,6 +541,7 @@ class LocalFS(FileSystem):
     async def stat(self, uri: URL) -> FileStatus:
         return self._path_to_fstatus(self._to_path(uri))
 
+    @asyncgeneratorcontextmanager
     async def ls(self, uri: URL) -> AsyncIterator[FileStatus]:
         path = self._to_path(uri)
         for path in path.iterdir():
@@ -579,8 +582,8 @@ class NeuroStorageFS(FileSystem):
     async def stat(self, uri: URL) -> FileStatus:
         return await self._client.storage.stat(uri)
 
-    def ls(self, uri: URL) -> AsyncIterator[FileStatus]:
-        return self._client.storage.ls(uri)
+    def ls(self, uri: URL) -> AsyncContextManager[AsyncIterator[FileStatus]]:
+        return self._client.storage.list(uri)
 
     async def mkdir(
         self, uri: URL, *, parents: bool = False, exist_ok: bool = False
@@ -679,24 +682,25 @@ class FSStorage(Storage):
         except ValueError:
             raise ValueError(f"Cannot find remote project {url}")
 
-        async for fs in self._fs.ls(url):
-            name = fs.name
-            if name.startswith("."):
-                # Ignore hidden names
-                continue
-            if not fs.is_dir():
-                # Ignore files, bake is always a folder
-                continue
-            try:
-                data = await self._read_json(url / name / "00.init.json")
-                bake = _bake_from_json(data)
-                if tags is not None and not set(bake.tags).issuperset(tags):
+        async with self._fs.ls(url) as it:
+            async for fs in it:
+                name = fs.name
+                if name.startswith("."):
+                    # Ignore hidden names
                     continue
-                yield bake
-            except (ValueError, LookupError):
-                # Not a bake folder, happens by incident
-                log.warning("Invalid record %s", url / fs.name)
-                continue
+                if not fs.is_dir():
+                    # Ignore files, bake is always a folder
+                    continue
+                try:
+                    data = await self._read_json(url / name / "00.init.json")
+                    bake = _bake_from_json(data)
+                    if tags is not None and not set(bake.tags).issuperset(tags):
+                        continue
+                    yield bake
+                except (ValueError, LookupError):
+                    # Not a bake folder, happens by incident
+                    log.warning("Invalid record %s", url / fs.name)
+                    continue
 
     async def create_bake(
         self,
@@ -797,8 +801,9 @@ class FSStorage(Storage):
         bake_uri = _mk_bake_uri(self._fs, bake)
         if attempt_no == -1:
             files = set()
-            async for fi in self._fs.ls(bake_uri):
-                files.add(fi.name)
+            async with self._fs.ls(bake_uri) as it:
+                async for fi in it:
+                    files.add(fi.name)
             for attempt_no in range(99, 0, -1):
                 fname = f"{attempt_no:02d}.attempt"
                 if fname in files:
@@ -831,12 +836,13 @@ class FSStorage(Storage):
         started = {}
         finished = {}
         files = []
-        async for fs in self._fs.ls(attempt_url):
-            if fs.name == init_name:
-                continue
-            if fs.name == result_name:
-                continue
-            files.append(fs.name)
+        async with self._fs.ls(attempt_url) as it:
+            async for fs in it:
+                if fs.name == init_name:
+                    continue
+                if fs.name == result_name:
+                    continue
+                files.append(fs.name)
 
         files.sort()
 
@@ -1052,8 +1058,9 @@ class FSStorage(Storage):
         # guarantee at all.
         if not overwrite:
             files = set()
-            async for fi in self._fs.ls(url.parent):
-                files.add(fi.name)
+            async with self._fs.ls(url.parent) as it:
+                async for fi in it:
+                    files.add(fi.name)
             if url.name in files:
                 raise ValueError(f"File {url} already exists")
         await self._fs.create(url, body.encode("utf-8"))
