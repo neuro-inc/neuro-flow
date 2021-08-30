@@ -4,6 +4,7 @@ import asyncio
 import base64
 import datetime
 import json
+import logging
 import os
 import sys
 import textwrap
@@ -94,6 +95,9 @@ if sys.version_info >= (3, 7):  # pragma: no cover
     from contextlib import asynccontextmanager
 else:
     from async_generator import asynccontextmanager
+
+
+log = logging.getLogger(__name__)
 
 
 class NotFinished(ValueError):
@@ -206,6 +210,7 @@ class Graph(Generic[_T]):
 
     @property
     def is_active(self) -> bool:
+        log.debug(f"Graph: is_active check, self._ready={self._ready}")
         return bool(self._ready)
 
     def get_ready(self) -> AbstractSet[FullID]:
@@ -233,6 +238,7 @@ class Graph(Generic[_T]):
         return self._sizes[prefix]
 
     def _mark_node(self, node: FullID, level: ast.NeedsLevel) -> None:
+        log.debug(f"Graph: marking node {node} with {level}")
         if node in self._topos:
             assert node in self._ready_to_mark_embeds[level], (
                 f"Node '{node}' cannot be marked to {level} when "
@@ -259,6 +265,7 @@ class Graph(Generic[_T]):
     def embed(
         self, node: FullID, graph: Mapping[str, Mapping[str, ast.NeedsLevel]], meta: _T
     ) -> None:
+        log.debug(f"Graph: embedding to node {node} graph {graph}")
         prefix = node[:-1]
         assert node not in self._done, f"Cannot embed to already done node {node}"
         assert prefix in self._topos, f"Parent graph for node {node} not found"
@@ -316,12 +323,15 @@ class BakeTasksManager:
         )
 
     def add_started(self, task: StartedTask) -> None:
+        log.debug(f"BakeTasksManager: adding started {task}")
         self._started[task.id] = task
 
     def add_running(self, task: StartedTask) -> None:
+        log.debug(f"BakeTasksManager: adding running {task}")
         self._running[task.id] = task
 
     def add_finished(self, task: FinishedTask) -> None:
+        log.debug(f"BakeTasksManager: adding finished {task}")
         self._finished[task.id] = task
 
     def build_needs(self, prefix: FullID, deps: AbstractSet[str]) -> NeedsCtx:
@@ -363,6 +373,7 @@ class ImageBuildCommandError(Exception):
 
 
 async def start_image_build(*cmd: str) -> str:
+    log.debug(f"start_image_build: executing {cmd}")
     subprocess = await asyncio.create_subprocess_exec(
         *cmd,
         stdout=asyncio.subprocess.PIPE,
@@ -372,7 +383,9 @@ async def start_image_build(*cmd: str) -> str:
     assert subprocess.stderr
     stdout = ""
     while subprocess.returncode is None:
+        log.debug(f"start_image_build: reading line...")
         line = (await subprocess.stdout.readline()).decode()
+        log.debug(f"start_image_build: read line: {line}")
         stdout += line
         if line.startswith("Job ID: "):
             # Job is started, we can freely kill neuro-cli
@@ -711,6 +724,7 @@ class BatchExecutor:
     # New tasks processers
 
     async def _skip_task(self, full_id: FullID) -> None:
+        log.debug(f"BatchExecutor: skipping task {full_id}")
         st, ft = await self._storage.skip_task(self._attempt, full_id)
         self._mark_started(st)
         self._mark_finished(ft, advance=2)
@@ -720,13 +734,14 @@ class BatchExecutor:
         raise ValueError("Processing of local actions is not supported")
 
     async def _process_action(self, full_id: FullID) -> None:
+        log.debug(f"BatchExecutor: processing action {full_id}")
         st = await self._storage.start_action(self._attempt, full_id)
         self._mark_started(st)
         await self._embed_action(full_id)
         self._progress.log(f"Action", fmt_id(st.id), "is", TaskStatus.PENDING)
 
     async def _process_task(self, full_id: FullID) -> None:
-
+        log.debug(f"BatchExecutor: processing task {full_id}")
         task = await self._get_task(full_id)
 
         # Check is is task fits in max_parallel
@@ -767,6 +782,7 @@ class BatchExecutor:
                 )
 
     async def _load_previous_run(self) -> None:
+        log.debug(f"BatchExecutor: loading previous run")
         # Loads tasks that previous executor run processed.
         # Do not handles fail fast option.
 
@@ -797,6 +813,7 @@ class BatchExecutor:
         while (started.keys() != self._tasks_mgr.started.keys()) or (
             finished.keys() != self._tasks_mgr.finished.keys()
         ):
+            log.debug(f"BatchExecutor: rebuilding data...")
             for full_id, ctx in self._graphs.get_ready_with_meta():
                 if full_id in self._tasks_mgr.started or full_id not in started:
                     continue
@@ -850,7 +867,7 @@ class BatchExecutor:
         job_id = os.environ.get("NEURO_JOB_ID")
         if job_id:
             # store job id as executor id
-            await self._storage.store_executor_id(self._attempt, job_id)
+            await self._storage.mark_attempt_running(self._attempt, job_id)
 
         if self._attempt.result in TERMINATED_TASK_STATUSES:
             # If attempt is already terminated, just clean up tasks
@@ -859,6 +876,13 @@ class BatchExecutor:
             return self._attempt.result
 
         while await self._should_continue():
+            _mgr = self._tasks_mgr
+            log.debug(
+                f"BatchExecutor: main loop start:\n"
+                f"started={', '.join('.'.join(it) for it in _mgr.started)}\n"
+                f"running={', '.join('.'.join(it) for it in _mgr.running)}\n"
+                f"finished={', '.join('.'.join(it) for it in _mgr.finished)}\n"
+            )
             for full_id, flow in self._graphs.get_ready_with_meta():
                 tid = full_id[-1]
                 if full_id in self._tasks_mgr.started:
@@ -921,6 +945,7 @@ class BatchExecutor:
                 await self._client.job_kill(image.builder_job_id)
 
     async def _store_to_cache(self, ft: FinishedTask) -> None:
+        log.debug(f"BatchExecutor: storing to cache {ft}")
         task = await self._get_task(ft.id)
         cache_strategy = task.cache.strategy
         if cache_strategy == ast.CacheStrategy.NONE:
@@ -931,9 +956,11 @@ class BatchExecutor:
         await self._storage.write_cache(self._attempt, ft, task.caching_key)
 
     async def _process_started(self) -> bool:
+        log.debug(f"BatchExecutor: processing started")
         # Process tasks
         for full_id, st in self._tasks_mgr.unfinished_tasks.items():
             job_descr = await self._client.job_status(st.raw_id)
+            log.debug(f"BatchExecutor: got description {job_descr} for task {full_id}")
             if (
                 job_descr.status in {JobStatus.RUNNING, JobStatus.SUCCEEDED}
                 and full_id not in self._tasks_mgr.running
@@ -947,12 +974,14 @@ class BatchExecutor:
                     TaskStatus.RUNNING,
                 )
             if job_descr.status in TERMINATED_JOB_STATUSES:
+                log.debug(f"BatchExecutor: processing logs for task {full_id}")
                 async with CmdProcessor() as proc:
                     async for chunk in self._client.job_logs(st.raw_id):
                         async for line in proc.feed_chunk(chunk):
                             pass
                     async for line in proc.feed_eof():
                         pass
+                log.debug(f"BatchExecutor: finished processing logs for task {full_id}")
                 ft = await self._storage.finish_task(
                     self._attempt, st, job_descr, proc.outputs, proc.states
                 )
@@ -976,6 +1005,7 @@ class BatchExecutor:
                     return False
         # Process batch actions
         for full_id in self._graphs.get_ready_to_mark_running_embeds():
+            log.debug(f"BatchExecutor: marking action {full_id} as ready")
             st = self._tasks_mgr.started[full_id]
             self._mark_running(st)
             self._progress.log(
@@ -987,6 +1017,7 @@ class BatchExecutor:
             )
 
         for full_id in self._graphs.get_ready_to_mark_done_embeds():
+            log.debug(f"BatchExecutor: marking action {full_id} as ready")
             # done action, make it finished
             ctx = await self._get_action(full_id)
 
@@ -1033,7 +1064,9 @@ class BatchExecutor:
         return True
 
     async def _start_task(self, full_id: FullID, task: Task) -> Optional[StartedTask]:
+        log.debug(f"BatchExecutor: checking should we build image for {full_id}")
         remote_image = self._client.parse_remote_image(task.image)
+        log.debug(f"BatchExecutor: image name is {remote_image}")
         if remote_image.cluster_name is None:  # Not a neuro registry image
             return await self._run_task(full_id, task)
         try:
@@ -1052,6 +1085,12 @@ class BatchExecutor:
         if not image_ctx.force_rebuild and await self._is_image_in_registry(
             remote_image
         ):
+            if bake_image.status == ImageStatus.PENDING:
+                await self._storage.update_bake_image(
+                    self._attempt.bake,
+                    bake_image.ref,
+                    status=ImageStatus.CACHED,
+                )
             return await self._run_task(full_id, task)
 
         if bake_image.status == ImageStatus.PENDING:
@@ -1064,6 +1103,7 @@ class BatchExecutor:
             return await self._run_task(full_id, task)
 
     async def _run_task(self, full_id: FullID, task: Task) -> StartedTask:
+        log.debug(f"BatchExecutor: starting job for {full_id}")
         preset_name = task.preset
         if preset_name is None:
             preset_name = next(iter(self._client.config_presets))
@@ -1104,6 +1144,7 @@ class BatchExecutor:
     async def _start_image_build(
         self, bake_image: BakeImage, image_ctx: ImageCtx
     ) -> None:
+        log.debug(f"BatchExecutor: starting image build for {bake_image}")
         context = bake_image.context_on_storage or image_ctx.context
         dockerfile_rel = bake_image.dockerfile_rel or image_ctx.dockerfile_rel
 
@@ -1141,10 +1182,13 @@ class BatchExecutor:
         self._progress.log("  builder job:", fmt_raw_id(builder_job_id))
 
     async def _process_running_builds(self) -> None:
+        log.debug(f"BatchExecutor: checking running build")
         async for image in self._storage.list_bake_images(self._attempt.bake):
+            log.debug(f"BatchExecutor: processing image {image}")
             if image.status == ImageStatus.BUILDING:
                 assert image.builder_job_id
                 descr = await self._client.job_status(image.builder_job_id)
+                log.debug(f"BatchExecutor: got job description {descr}")
                 if descr.status == JobStatus.SUCCEEDED:
                     await self._storage.update_bake_image(
                         self._attempt.bake,
@@ -1167,6 +1211,7 @@ class BatchExecutor:
     async def _create_project_role(self, project_role: str) -> None:
         if self._is_projet_role_created:
             return
+        log.debug(f"BatchExecutor: creating project role {project_role}")
         try:
             await self._client.user_add(project_role)
         except IllegalArgumentError as e:
@@ -1175,6 +1220,7 @@ class BatchExecutor:
         self._is_projet_role_created = True
 
     async def _add_resource(self, uri: URL) -> None:
+        log.debug(f"BatchExecutor: adding resource {uri}")
         project_role = self._project_role
         if project_role is None:
             return
