@@ -14,14 +14,14 @@ The live workflow is always located at the `.neuro/live.yml` or `.neuro/live.yam
 
 **Optional** Identifier of the workflow. By default, the `id` is `live`. It's available as a `${{ flow.flow_id }}` in experssions.
 
-Note: don't mess it up with the `${{ flow.project_id }}` which is defined in [project configuration](project-configuration-syntax.md#id) file!
+Note: Don't confuse this with `${{ flow.project_id }}`, which is defined in the [project configuration](project-configuration-syntax.md#id) file.
 
 **Expression contexts:** This attribute only allows expressions that don't access contexts.
 
 ## `title`
 
-**Optional** Workflow title, any valid string is allowed. It is accessible via `${{ flow.title }}`.
-If not set, the workflow title equals to `live`.
+**Optional** Workflow title, any valid string is allowed. It's accessible via `${{ flow.title }}`.
+If this is not set manually, the default workflow title `live` will be used.
 
 **Expression contexts:** This attribute only allows expressions that don't access contexts.
 
@@ -52,7 +52,7 @@ env: ${{ {'SERVER': 'production'} }}
 
 ### `defaults.life_span`
 
-The default lifespan for jobs ran by the workflow. It can be overridden by [`jobs.<job-id>.life_span`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-life_span). If not set, the default job lifespan is 1 day. The lifespan value can be one of the following:
+The default lifespan for jobs ran by the workflow. It can be overridden by [`jobs.<job-id>.life_span`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-life_span). If not set manually, the default job lifespan is 1 day. The lifespan value can be one of the following:
 
 * A `float` number representing the amount of seconds \(`3600` represents an hour\)
 * A string of the following format: `1d6h15m` \(1 day, 6 hours, 15 minutes\)
@@ -152,7 +152,7 @@ defaults:
 
 **Optional section**  A mapping of image definitions used by the _live_ workflow.
 
-`neuro-flow build <image-id>` creates an image from the passed `Dockerfile` and uploads it to the Neu.ro Registry. The `${{ images.img_id.ref }}` expression can be used for pointing the image from a [`jobs.<job-id>.image`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-image).
+`neuro-flow build <image-id>` creates an image from the passed `Dockerfile` and uploads it to the Neu.ro Registry. The `${{ images.img_id.ref }}` expression can be used for pointing an image from a [`jobs.<job-id>.image`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-image).
 
 {% hint style="info" %}
 The `images` section is not required. A job can specify the image name in a plain string without referring to the `${{ images.my_image.ref }}` context.
@@ -162,7 +162,7 @@ However, this section exists for convenience: there is no need to repeat yoursel
 
 ### `images.<image-id>`
 
-The key `image-id` is a string and its value is a map of the job's configuration data. You must replace `<image-id>` with a string that is unique to the `images` object. `<image-id>` must start with a letter and contain only alphanumeric characters or underscore symbols `_`. Dash `-` is not allowed.
+The key `image-id` is a string and its value is a map of the job's configuration data. You must replace `<image-id>` with a string that is unique to the `images` object. `<image-id>` must start with a letter and contain only alphanumeric characters or underscore symbols `_`. Dashes `-` are not allowed.
 
 ### `images.<image-id>.ref`
 
@@ -213,7 +213,7 @@ images:
 ```
 
 {% hint style="info" %}
-The project's root folder is the folder where '.neuro' directory is located. It's path might be referenced via `${{ flow.workspace }}/`.
+The project's root folder is the folder that contains the '.neuro' directory. Its path might be referenced via `${{ flow.workspace }}/`.
 {% endhint %}
 
 {% hint style="warning" %}
@@ -290,10 +290,10 @@ images:
 ```
 
 {% hint style="info" %}
-You could also map platform secrets as the values of env variable and later utilize them during the image build.
+You can also map platform secrets as the values of environment variables and later utilize them when building an image.
 
-For instance, you have `secret:github_password` which gives you an access to needed private repository.
-In this case, map it as env `GH_PASS: secret:github_password` into the builder job and pass it further as a `--build-arg GH_PASS=$GH_PASS` while building the container.
+Let's assume you have a `secret:github_password` which gives you access to a needed private repository.
+In this case, map it as an environment variable `GH_PASS: secret:github_password` into the builder job and pass it further as `--build-arg GH_PASS=$GH_PASS` while building the container.
 {% endhint %}
 
 **Expression contexts:** [`flow` context](live-contexts.md#flow-context).
@@ -322,11 +322,11 @@ images:
 ```
 
 {% hint style="info" %}
-You could also map platform secrets as files and later utilize them during the image build.
+You can also map platform secrets as files and later utilize them when building an image.
 
-For instance, you have `secret:aws_account_credentials` file, which gives you an access to needed during the build S3 bucket.
-In this case, attach it as volume `- secret:aws_account_credentials:/kaniko_context/aws_account_credentials` into the builder job.
-And the file with credentials will appear in a root of the build context, since the build context is mounted in `/kaniko_context` folder within the builder job.
+Let's assume you have a `secret:aws_account_credentials` file which gives you access to an S3 bucket needed during building.
+In this case, attach it as a volume `- secret:aws_account_credentials:/kaniko_context/aws_account_credentials` into the builder job.
+A file with credentials will appear in the root of the build context, since the build context is mounted in the `/kaniko_context` folder within the builder job.
 {% endhint %}
 
 **Expression contexts:** [`flow` context](live-contexts.md#flow-context).
@@ -345,7 +345,7 @@ However, this section is very handy to use in a bundle with `run`, `upload`, and
 
 ### `volumes.<volume-id>`
 
-The key `volume-id` is a string and its value is a map of the volume's configuration data. You must replace `<volume-id>` with a string that is unique to the `volumes` object. The `<volume-id>` must start with a letter and contain only alphanumeric characters or underscore symbols `_`. Dash `-` is not allowed.
+The key `volume-id` is a string and its value is a map of the volume's configuration data. You must replace `<volume-id>` with a string that is unique to the `volumes` object. The `<volume-id>` must start with a letter and contain only alphanumeric characters or underscore symbols `_`. Dashes `-` are not allowed.
 
 ### `volumes.<volume-id>.remote`
 
@@ -385,8 +385,8 @@ volumes:
 
 ### `volumes.<volume-id>.local`
 
-**Optional** Volumes could also be assotiated with folder on a local machine.
-A _local_ path should be relative to the project's root. Used for uploading/downloading content to the storage.
+**Optional** Volumes can also be associated with folders on a local machine.
+A _local_ path should be relative to the project's root and will be used for uploading/downloading content to the storage.
 
 Volumes without a set `local` attribute cannot be used by the `neuro-flow upload` and `neuro-flow download` commands.
 
@@ -399,7 +399,7 @@ volumes:
 ```
 
 {% hint style="warning" %}
-`neuro-flow upload` and `neuro-flow download` will not work for volumes, where remote is the Neu.ro Disk due to Disks specifics.
+`neuro-flow upload` and `neuro-flow download` will not work for volumes whose remote is the Neu.ro Disk due to specifics of how disks work.
 {% endhint %}
 
 **Expression contexts:** [`flow` context](live-contexts.md#flow-context).
@@ -449,7 +449,7 @@ jobs:
       name3: ""  # Empty string by default
 ```
 
-The long form allows to also specify parameter descriptions. This can be useful for `neuro-flow run` command introspection, shell autocompletion, and generation of more detailed error messages.
+The long form also allows to specify parameter descriptions. This can be useful for `neuro-flow run` command introspection, shell autocompletion, and generation of more detailed error messages.
 
 ```yaml
 jobs:
@@ -671,7 +671,7 @@ jobs:
 
 ### `jobs.<job-id>.http_port`
 
-**Optional** The job's HTTP port number that will be exposed globally via platform.
+**Optional** The job's HTTP port number that will be exposed globally on the platform.
 
 By default, the Neu.ro Platform exposes the job's internal `80` port as an HTTPS-protected resource. This will be listed in the oputput of the `neuro-flow status <job-id>` command as _Http URL_.
 
@@ -686,7 +686,7 @@ jobs:
 ```
 
 {% hint style="warning" %}
-Only HTTP trafic is allowed. The platform will encapsulate it into the TLS (to provide HTTPS) automaticaly.
+Only HTTP traffic is allowed. The platform will automatically encapsulate it into TLS to provide an HTTPS connection.
 {% endhint %}
 
 **Expression contexts:** [`flow` context](live-contexts.md#flow-context), [`env` context](live-contexts.md#env-context), [`tags` context](live-contexts.md#tags-context), [`volumes` context](live-contexts.md#volumes-context), [`images` context](live-contexts.md#images-context), [`params` context](live-contexts.md#params-context), [`multi` context](live-contexts.md#multi-context) \(if [`jobs.<job-id>.multi`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-multi) is set\).
@@ -756,7 +756,7 @@ jobs:
 
 ### `jobs.<job-id>.pass_config`
 
-**Optional**  Set this attribute to `true` if you want to pass the Neu.ro config used to execute `neuro-flow run ...` command into the spawned job. This can be useful if you use a job image with Neuro CLI installed and want to execute `neuro ...` commands _inside_ the running job.
+**Optional**  Set this attribute to `true` if you want to pass the Neu.ro config used to execute the `neuro-flow run ...` command into the spawned job. This can be useful if you're using a job image with Neuro CLI installed and want to execute `neuro ...` commands _inside_ the running job.
 
 By default, the config is not passed.
 
@@ -769,7 +769,7 @@ jobs:
 ```
 
 {% hint style="warning" %}
-The lifetime of passed credentials is bounded to the job's lifetime.
+The lifetime of passed credentials is bound to the job's lifetime.
 It will be impossible to use them when the job is terminated.
 {% endhint %}
 
@@ -779,11 +779,11 @@ It will be impossible to use them when the job is terminated.
 
 **Optional** You can define a list of TCP tunnels for the job.
 
-Each port forward entry is a string with a `<LOCAL_PORT>:<REMOTE_PORT>` format.
+Each port forward entry is a string of a `<LOCAL_PORT>:<REMOTE_PORT>` format.
 
-When the job starts, all enumerated _remote ports_ on the job's side are bound with the developer's box and are available under the corresponding _local port_ numbers.
+When the job starts, all enumerated _remote ports_ on the job's side are bound to the developer's box and are available under the corresponding _local port_ numbers.
 
-You can use this feature, for example, for remote debugging or accessing a database running in the job.
+You can use this feature for remote debugging, accessing a database running in the job, etc.
 
 **Example:**
 
@@ -813,7 +813,7 @@ jobs:
 
 **Optional** Use this attribute if you want to increase the _schedule timeout_. This will prevent a job from failing if the Neu.ro cluster is under high load and requested resources are likely to not be available at the moment.
 
-If the Neu.ro cluster has no resources to launch a job immediately, this job is pushed into the waiting queue. If the job is not started yet at the end of the _schedule timeout_, it will be failed.
+If the Neu.ro cluster has no resources to launch a job immediately, this job is pushed into the waiting queue. If the job is still not started at the end of the _schedule timeout_, it will be failed.
 
 The default system-wide _schedule timeout_ is controlled by the cluster administrator and is usually about 5-10 minutes.
 
@@ -860,13 +860,13 @@ jobs:
 
 ### `jobs.<job-id>.title`
 
-**Optional** A job's title. The title is equal to `<job-id>` if not overridden.
+**Optional** A job's title. Equal to `<job-id>` by default if not overridden.
 
 **Expression contexts:** [`flow` context](live-contexts.md#flow-context), [`env` context](live-contexts.md#env-context), [`tags` context](live-contexts.md#tags-context), [`volumes` context](live-contexts.md#volumes-context), [`images` context](live-contexts.md#images-context), [`params` context](live-contexts.md#params-context), [`multi` context](live-contexts.md#multi-context) \(if [`jobs.<job-id>.multi`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-multi) is set\).
 
 ### `jobs.<job-id>.volumes`
 
-**Optional** A list of job volumes. You can specify a plain string for the volume reference or use the `${{ volumes.<volume-id>.ref }}` expression.
+**Optional** A list of job volumes. You can specify a plain string for a volume reference or use the `${{ volumes.<volume-id>.ref }}` expression.
 
 **Example:**
 
