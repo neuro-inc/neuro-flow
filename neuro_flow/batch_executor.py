@@ -1085,6 +1085,12 @@ class BatchExecutor:
         if not image_ctx.force_rebuild and await self._is_image_in_registry(
             remote_image
         ):
+            if bake_image.status == ImageStatus.PENDING:
+                await self._storage.update_bake_image(
+                    self._attempt.bake,
+                    bake_image.ref,
+                    status=ImageStatus.CACHED,
+                )
             return await self._run_task(full_id, task)
 
         if bake_image.status == ImageStatus.PENDING:
