@@ -1,9 +1,9 @@
 -r base.txt
 -r mypy.txt
-black==21.7b0
+black==21.8b0
 flake8==3.9.2
 isort==5.9.3
-pre-commit==2.14.0
+pre-commit==2.14.1
 pytest==6.2.4
 pytest-aiohttp==0.3.0
 pytest-xdist==2.3.0
