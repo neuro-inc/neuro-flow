@@ -31,7 +31,7 @@ setup(
         "humanize>=0.5.1",
         'backports-datetime-fromisoformat>=1.0.0; python_version<"3.7"',
         'async_exit_stack>=1.0.1; python_version<"3.7"',
-        "neuro-extras>=20.12.16",
+        "neuro-extras>=21.9.3",
         "graphviz>=0.14",
         "yarl>=1.6.2,<1.7",
         "multidict>=5.0,<6.0",
