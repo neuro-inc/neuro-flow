@@ -165,6 +165,22 @@ async def test_project_level_defaults_live(
         await cl.close()
 
 
+async def test_project_level_mixins_live(assets: pathlib.Path, client: Client) -> None:
+    ws = assets / "with_project_yaml"
+    config_dir = ConfigDir(
+        workspace=ws,
+        config_dir=ws,
+    )
+    cl = LiveLocalCL(config_dir, client)
+    try:
+        flow = await RunningLiveFlow.create(cl, "live")
+        job = await flow.get_job("test_mixin", {})
+        assert job.image == "mixin-image"
+        assert job.preset == "mixin-preset"
+    finally:
+        await cl.close()
+
+
 async def test_local_remote_path_images(
     client: Client, live_config_loader: ConfigLoader
 ) -> None:
@@ -1169,6 +1185,23 @@ async def test_batch_with_project_globals(assets: pathlib.Path, client: Client) 
         assert task.strategy.max_parallel == 20
         assert task.cache.strategy == CacheStrategy.NONE
         assert task.cache.life_span == 9000.0
+
+    finally:
+        await cl.close()
+
+
+async def test_batch_with_project_mixins(assets: pathlib.Path, client: Client) -> None:
+    ws = assets / "with_project_yaml"
+    config_dir = ConfigDir(
+        workspace=ws,
+        config_dir=ws,
+    )
+    cl = BatchLocalCL(config_dir, client)
+    try:
+        flow = await RunningBatchFlow.create(cl, "batch", "bake-id")
+        task = await flow.get_task((), "test_mixin", needs={}, state={})
+        assert task.image == "mixin-image"
+        assert task.preset == "mixin-preset"
 
     finally:
         await cl.close()

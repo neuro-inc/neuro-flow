@@ -26,7 +26,7 @@ def test_parse_full(assets: pathlib.Path) -> None:
         project = parse_project_stream(stream)
     assert project == ast.Project(
         Pos(0, 0, config_file),
-        Pos(42, 0, config_file),
+        Pos(46, 0, config_file),
         id=SimpleIdExpr(
             Pos(0, 0, config_file),
             Pos(0, 0, config_file),
@@ -191,4 +191,47 @@ def test_parse_full(assets: pathlib.Path) -> None:
             ),
             max_parallel=OptIntExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), 20),
         ),
+        mixins={
+            "basic": ast.ExecUnitMixin(
+                Pos(44, 4, config_file),
+                Pos(46, 0, config_file),
+                _specified_fields={"image", "preset"},
+                mixins=None,
+                name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                image=OptStrExpr(
+                    Pos(0, 0, config_file),
+                    Pos(0, 0, config_file),
+                    "mixin-image",
+                ),
+                preset=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "mixin-preset"
+                ),
+                schedule_timeout=OptTimeDeltaExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                entrypoint=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                cmd=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                workdir=OptRemotePathExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                env=None,
+                volumes=None,
+                tags=None,
+                life_span=OptTimeDeltaExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                http_port=OptIntExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                http_auth=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                pass_config=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+            ),
+        },
     )
