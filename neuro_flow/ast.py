@@ -170,7 +170,7 @@ class JobMixin(WithSpecifiedFields, Base):
     port_forward: Optional[BaseExpr[SequenceT]] = field(metadata={"allow_none": True})
     multi: SimpleOptBoolExpr
     params: Optional[Mapping[str, Param]] = field(metadata={"allow_none": True})
-    inherits: Optional[Sequence[StrExpr]] = field(metadata={"allow_none": True})
+    mixins: Optional[Sequence[StrExpr]] = field(metadata={"allow_none": True})
 
 
 @dataclass(frozen=True)
@@ -181,7 +181,7 @@ class Job(ExecUnit, WithSpecifiedFields, JobBase):
     browse: OptBoolExpr
     port_forward: Optional[BaseExpr[SequenceT]] = field(metadata={"allow_none": True})
     multi: SimpleOptBoolExpr
-    inherits: Optional[Sequence[StrExpr]] = field(metadata={"allow_none": True})
+    mixins: Optional[Sequence[StrExpr]] = field(metadata={"allow_none": True})
 
 
 class NeedsLevel(enum.Enum):
@@ -209,7 +209,7 @@ class TaskBase(Base):
 
 @dataclass(frozen=True)
 class Task(ExecUnit, WithSpecifiedFields, TaskBase):
-    inherits: Optional[Sequence[StrExpr]] = field(metadata={"allow_none": True})
+    mixins: Optional[Sequence[StrExpr]] = field(metadata={"allow_none": True})
 
 
 @dataclass(frozen=True)
@@ -233,7 +233,7 @@ class TaskMixin(WithSpecifiedFields, Base):
     strategy: Optional[Strategy] = field(metadata={"allow_none": True})
     enable: EnableExpr = field(metadata={"default_expr": "${{ success() }}"})
     cache: Optional[Cache] = field(metadata={"allow_none": True})
-    inherits: Optional[Sequence[StrExpr]] = field(metadata={"allow_none": True})
+    mixins: Optional[Sequence[StrExpr]] = field(metadata={"allow_none": True})
 
 
 @dataclass(frozen=True)

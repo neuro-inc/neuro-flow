@@ -73,7 +73,7 @@ def test_parse_live_action(assets: LocalPath) -> None:
             Pos(11, 2, config_file),
             Pos(13, 0, config_file),
             _specified_fields={"cmd", "image"},
-            inherits=None,
+            mixins=None,
             name=OptStrExpr(Pos(3, 4, config_file), Pos(5, 0, config_file), None),
             image=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
             preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
@@ -263,7 +263,7 @@ def test_parse_batch_action(assets: LocalPath) -> None:
                 Pos(36, 2, config_file),
                 Pos(40, 0, config_file),
                 _specified_fields={"needs", "image", "cmd", "id"},
-                inherits=None,
+                mixins=None,
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 image=OptStrExpr(
@@ -313,7 +313,7 @@ def test_parse_batch_action(assets: LocalPath) -> None:
                 Pos(40, 2, config_file),
                 Pos(43, 0, config_file),
                 _specified_fields={"image", "cmd", "id"},
-                inherits=None,
+                mixins=None,
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 image=OptStrExpr(

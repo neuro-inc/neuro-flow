@@ -1149,7 +1149,7 @@ _MergeTarget = TypeVar("_MergeTarget", bound=SupportsAstMerge)
 async def merge_asts(child: _MergeTarget, parent: SupportsAstMerge) -> _MergeTarget:
     child_fields = {f.name for f in dataclasses.fields(child)}
     for field in parent._specified_fields:
-        if field == "inherits" or field not in child_fields:
+        if field == "mixins" or field not in child_fields:
             continue
         field_present = field in child._specified_fields
         child_value = getattr(child, field)
@@ -1178,7 +1178,7 @@ async def merge_asts(child: _MergeTarget, parent: SupportsAstMerge) -> _MergeTar
 
 class MixinApplyTarget(Protocol):
     @property
-    def inherits(self) -> Optional[Sequence[StrExpr]]:
+    def mixins(self) -> Optional[Sequence[StrExpr]]:
         ...
 
     @property
@@ -1192,9 +1192,9 @@ _MixinApplyTarget = TypeVar("_MixinApplyTarget", bound=MixinApplyTarget)
 async def apply_mixins(
     base: _MixinApplyTarget, mixins: Mapping[str, SupportsAstMerge]
 ) -> _MixinApplyTarget:
-    if base.inherits is None:
+    if base.mixins is None:
         return base
-    for mixin_expr in reversed(base.inherits):
+    for mixin_expr in reversed(base.mixins):
         mixin_name = await mixin_expr.eval(EMPTY_ROOT)
         try:
             mixin = mixins[mixin_name]
@@ -1215,10 +1215,8 @@ async def setup_mixins(
         return {}
     graph: Dict[str, Dict[str, int]] = {}
     for mixin_name, mixin in raw_mixins.items():
-        inherits = mixin.inherits or []
-        graph[mixin_name] = {
-            await dep_expr.eval(EMPTY_ROOT): 1 for dep_expr in inherits
-        }
+        mixins = mixin.mixins or []
+        graph[mixin_name] = {await dep_expr.eval(EMPTY_ROOT): 1 for dep_expr in mixins}
     topo = ColoredTopoSorter(graph)
     result: Dict[str, _MixinApplyTarget] = {}
     while not topo.is_all_colored(1):
