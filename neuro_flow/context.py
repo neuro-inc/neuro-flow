@@ -1973,6 +1973,10 @@ class RunningBatchFlow(RunningBatchBase[BatchContext]):
         return self._mixins
 
     @property
+    def params(self) -> Mapping[str, str]:
+        return self._ctx.params
+
+    @property
     def project_id(self) -> str:
         return self._ctx.flow.project_id
 
