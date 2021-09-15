@@ -26,7 +26,7 @@ setup(
     install_requires=[
         "neuro-cli>=21.8.27",
         "pyyaml>=5.4",
-        "funcparserlib>=0.3",
+        "funcparserlib>=1.0.0a0",
         'dataclasses>=0.5; python_version<"3.7"',
         "humanize>=0.5.1",
         'backports-datetime-fromisoformat>=1.0.0; python_version<"3.7"',
