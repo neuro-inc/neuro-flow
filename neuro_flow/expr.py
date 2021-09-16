@@ -475,11 +475,18 @@ class Literal(Item):
         return self.val
 
 
-def literal(toktype: str) -> Parser:
-    def f(tok: Token) -> Any:
+def make_toktype_predicate(toktype: str) -> Callable[[Token], bool]:
+    def _predicate(token: Token) -> bool:
+        return token.type == toktype
+
+    return _predicate
+
+
+def literal(toktype: str) -> "Parser[Token, Literal]":
+    def f(tok: Token) -> Literal:
         return Literal(tok.start, tok.end, literal_eval(tok.value))
 
-    return some(lambda tok: tok.type == toktype) >> f
+    return some(make_toktype_predicate(toktype)) >> f
 
 
 class Getter(Entity):
@@ -756,7 +763,7 @@ def make_list(args: Tuple[Item, List[Item]]) -> ListMaker:
     return ListMaker(lst[0].start, lst[-1].end, lst)
 
 
-def make_empty_list(args: Tuple[Item, Item]) -> ListMaker:
+def make_empty_list(args: Tuple[Token, Token]) -> ListMaker:
     return ListMaker(args[0].start, args[1].end, [])
 
 
@@ -778,23 +785,29 @@ class DictMaker(Item):
             yield entry[1]
 
 
-def make_dict(args: Tuple[Item, Item, List[Tuple[Item, Item]]]) -> DictMaker:
+def make_dict(
+    args: Union[Tuple[Item, Item, List[Tuple[Item, Item]]], Tuple[Item, Item]]
+) -> DictMaker:
     lst = [(args[0], args[1])]
     if len(args) > 2:
-        lst += args[2]
+        lst += args[2]  # type: ignore
     return DictMaker(lst[0][0].start, lst[-1][1].end, lst)
 
 
-def make_empty_dict(args: Tuple[Item, Item]) -> DictMaker:
+def make_empty_dict(args: Tuple[Token, Token]) -> DictMaker:
     return DictMaker(args[0].start, args[0].end, [])
 
 
-def a(value: str) -> Parser:
+def a(value: str) -> "Parser[Token, Token]":
     """Eq(a) -> Parser(a, a)
 
     Returns a parser that parses a token that is equal to the value value.
     """
-    return some(lambda t: t.value == value).named(f'(a "{value}")')
+
+    def _is_value_eq(token: Token) -> bool:
+        return token.value == value
+
+    return some(_is_value_eq).named(f'(a "{value}")')
 
 
 DOT: Final = skip(a("."))
@@ -837,7 +850,7 @@ NONE: Final = literal("NONE")
 
 LITERAL: Final = NONE | BOOL | REAL | INT | STR
 
-NAME: Final = some(lambda tok: tok.type == "NAME")
+NAME: Final = some(make_toktype_predicate("NAME"))
 
 LIST_MAKER: Final = forward_decl()
 
@@ -937,13 +950,13 @@ DICT_MAKER.define(
         + maybe(COMMA)
         + RBRACE
     )
-    >> make_dict
+    >> make_dict  # type: ignore
     | (a("{") + a("}")) >> make_empty_dict
 )
 
 TMPL: Final = (OPEN_TMPL + EXPR + CLOSE_TMPL) | (OPEN_TMPL2 + EXPR + CLOSE_TMPL2)
 
-TEXT: Final = some(lambda tok: tok.type == "TEXT") >> make_text
+TEXT: Final = some(make_toktype_predicate("TEXT")) >> make_text
 
 PARSER: Final = oneplus(TMPL | TEXT) + skip(finished)
 
