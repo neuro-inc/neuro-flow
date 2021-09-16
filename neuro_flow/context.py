@@ -1230,7 +1230,7 @@ class RunningLiveFlow:
     _ast_flow: ast.LiveFlow
     _ctx: LiveContext
     _cl: ConfigLoader
-    _mixins: Optional[Mapping[str, ast.JobMixin]] = None
+    _mixins: Mapping[str, SupportsAstMerge]
 
     def __init__(
         self,
@@ -1238,11 +1238,13 @@ class RunningLiveFlow:
         ctx: LiveContext,
         config_loader: ConfigLoader,
         defaults: DefaultsConf,
+        mixins: Mapping[str, SupportsAstMerge],
     ):
         self._ast_flow = ast_flow
         self._ctx = ctx
         self._cl = config_loader
         self._defaults = defaults
+        self._mixins = mixins
 
     @property
     def job_ids(self) -> Iterable[str]:
@@ -1272,18 +1274,13 @@ class RunningLiveFlow:
         # Simple shortcut
         return (await self.get_meta(job_id)).multi
 
-    async def get_mixins(self) -> Mapping[str, ast.JobMixin]:
-        if self._mixins is None:
-            self._mixins = await setup_mixins(self._ast_flow.mixins)
-        return self._mixins
-
     async def _get_job_ast(
         self, job_id: str
     ) -> Union[ast.Job, ast.JobActionCall, ast.JobModuleCall]:
         try:
             base = self._ast_flow.jobs[job_id]
             if isinstance(base, ast.Job):
-                base = await apply_mixins(base, await self.get_mixins())
+                base = await apply_mixins(base, self._mixins)
             return base
         except KeyError:
             raise UnknownJob(job_id)
@@ -1489,7 +1486,13 @@ class RunningLiveFlow:
             images=images,
         )
 
-        return cls(ast_flow, live_ctx, config_loader, defaults)
+        raw_mixins: Mapping[str, MixinApplyTarget] = {
+            **(ast_project.mixins or {}),
+            **(ast_flow.mixins or {}),
+        }
+        mixins = await setup_mixins(raw_mixins)
+
+        return cls(ast_flow, live_ctx, config_loader, defaults, mixins)
 
 
 _T = TypeVar("_T", bound=BaseBatchContext, covariant=True)
@@ -1512,7 +1515,7 @@ class EarlyBatch:
 
     @property
     @abstractmethod
-    def mixins(self) -> Optional[Mapping[str, ast.TaskMixin]]:
+    def mixins(self) -> Optional[Mapping[str, SupportsAstMerge]]:
         pass
 
     @property
@@ -1645,7 +1648,7 @@ class EarlyBatchAction(EarlyBatch):
         config_loader: ConfigLoader,
         action: ast.BatchAction,
         parent_ctx_class: Type[RootABC],
-        mixins: Optional[Mapping[str, ast.TaskMixin]],
+        mixins: Optional[Mapping[str, SupportsAstMerge]],
     ):
         super().__init__(ctx, tasks, config_loader)
         self._action = action
@@ -1658,7 +1661,7 @@ class EarlyBatchAction(EarlyBatch):
         return self._early_images
 
     @property
-    def mixins(self) -> Optional[Mapping[str, ast.TaskMixin]]:
+    def mixins(self) -> Optional[Mapping[str, SupportsAstMerge]]:
         return self._mixins
 
     def get_image_ast(self, image_id: str) -> ast.Image:
@@ -1940,7 +1943,7 @@ class RunningBatchFlow(RunningBatchBase[BatchContext]):
         local_info: Optional[LocallyPreparedInfo],
         ast_flow: ast.BatchFlow,
         ast_project: ast.Project,
-        mixins: Optional[Mapping[str, ast.TaskMixin]],
+        mixins: Optional[Mapping[str, SupportsAstMerge]],
     ):
         super().__init__(
             ctx,
@@ -1967,7 +1970,7 @@ class RunningBatchFlow(RunningBatchBase[BatchContext]):
             raise
 
     @property
-    def mixins(self) -> Optional[Mapping[str, ast.TaskMixin]]:
+    def mixins(self) -> Optional[Mapping[str, SupportsAstMerge]]:
         return self._mixins
 
     @property
@@ -2081,7 +2084,11 @@ class RunningBatchFlow(RunningBatchBase[BatchContext]):
             ),
         )
 
-        mixins = await setup_mixins(ast_flow.mixins)
+        raw_mixins: Mapping[str, MixinApplyTarget] = {
+            **(ast_project.mixins or {}),
+            **(ast_flow.mixins or {}),
+        }
+        mixins = await setup_mixins(raw_mixins)
         tasks = await TaskGraphBuilder(
             batch_ctx, config_loader, cache_conf, ast_flow.tasks, mixins
         ).build()
@@ -2111,7 +2118,7 @@ class RunningBatchActionFlow(RunningBatchBase[BatchActionContext[RootABC]]):
         action: ast.BatchAction,
         bake_id: str,
         local_info: Optional[LocallyPreparedInfo],
-        mixins: Optional[Mapping[str, ast.TaskMixin]],
+        mixins: Optional[Mapping[str, SupportsAstMerge]],
     ):
         super().__init__(
             flow_ctx,
@@ -2132,7 +2139,7 @@ class RunningBatchActionFlow(RunningBatchBase[BatchActionContext[RootABC]]):
         return self._action.images[image_id]
 
     @property
-    def mixins(self) -> Optional[Mapping[str, ast.TaskMixin]]:
+    def mixins(self) -> Optional[Mapping[str, SupportsAstMerge]]:
         return self._mixins
 
     async def calc_outputs(self, task_results: NeedsCtx) -> DepCtx:
@@ -2164,7 +2171,7 @@ class RunningBatchActionFlow(RunningBatchBase[BatchActionContext[RootABC]]):
         bake_id: str,
         local_info: Optional[LocallyPreparedInfo],
         defaults: DefaultsConf = DefaultsConf(),
-        mixins: Optional[Mapping[str, ast.TaskMixin]] = None,
+        mixins: Optional[Mapping[str, SupportsAstMerge]] = None,
     ) -> "RunningBatchActionFlow":
         step_1_ctx = BatchActionContextStep1(
             inputs=inputs,
@@ -2505,7 +2512,7 @@ class EarlyTaskGraphBuilder:
         self,
         config_loader: ConfigLoader,
         ast_tasks: Sequence[Union[ast.Task, ast.TaskActionCall, ast.TaskModuleCall]],
-        mixins: Optional[Mapping[str, ast.TaskMixin]],
+        mixins: Optional[Mapping[str, SupportsAstMerge]],
     ):
         self._cl = config_loader
         self._ast_tasks = ast_tasks
@@ -2698,7 +2705,7 @@ class TaskGraphBuilder(EarlyTaskGraphBuilder):
         config_loader: ConfigLoader,
         default_cache: CacheConf,
         ast_tasks: Sequence[Union[ast.Task, ast.TaskActionCall, ast.TaskModuleCall]],
-        mixins: Optional[Mapping[str, ast.TaskMixin]],
+        mixins: Optional[Mapping[str, SupportsAstMerge]],
     ):
         super().__init__(config_loader, ast_tasks, mixins)
         self._ctx = ctx

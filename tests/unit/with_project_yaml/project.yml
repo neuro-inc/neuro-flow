@@ -40,3 +40,7 @@ defaults:
   cache:
     strategy: none
     life_span: 2h30m
+mixins:
+  basic:
+    image: mixin-image
+    preset: mixin-preset

@@ -635,6 +635,11 @@ EXEC_UNIT = {
     "pass_config": OptBoolExpr,
 }
 
+EXEC_UNIT_MIXIN: Dict[str, Any] = {
+    **EXEC_UNIT,
+    "mixins": SimpleSeq(StrExpr),
+}
+
 JOB_MIXIN = {
     **EXEC_UNIT,
     "detach": OptBoolExpr,
@@ -1475,6 +1480,7 @@ PROJECT = {
     "images": None,
     "volumes": None,
     "defaults": None,
+    "mixins": None,
 }
 
 
@@ -1510,6 +1516,22 @@ def parse_project_defaults(
     )
 
 
+def parse_project_mixins(
+    ctor: FlowLoader, node: yaml.MappingNode
+) -> Dict[str, ast.ExecUnitMixin]:
+    ret = {}
+    for k, v in node.value:
+        key = ctor.construct_id(k)
+        value = parse_dict(
+            ctor,
+            v,
+            EXEC_UNIT_MIXIN,
+            ast.ExecUnitMixin,
+        )
+        ret[key] = value
+    return ret
+
+
 ProjectLoader.add_path_resolver("project:main", [])  # type: ignore
 ProjectLoader.add_constructor("project:main", parse_project_main)  # type: ignore
 
@@ -1530,6 +1552,9 @@ ProjectLoader.add_constructor("project:images", parse_images)  # type: ignore
 
 ProjectLoader.add_path_resolver("project:volumes", [(dict, "volumes")])  # type: ignore
 ProjectLoader.add_constructor("project:volumes", parse_volumes)  # type: ignore
+
+ProjectLoader.add_path_resolver("project:mixins", [(dict, "mixins")])  # type: ignore
+ProjectLoader.add_constructor("project:mixins", parse_project_mixins)  # type: ignore
 
 
 def parse_project_stream(stream: TextIO) -> ast.Project:
@@ -1575,4 +1600,5 @@ def make_default_project(workspace_stem: str) -> ast.Project:
         defaults=None,
         images=None,
         volumes=None,
+        mixins=None,
     )

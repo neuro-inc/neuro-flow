@@ -64,6 +64,9 @@ class Project(Base):
     images: Optional[Mapping[str, "Image"]] = field(metadata={"allow_none": True})
     volumes: Optional[Mapping[str, "Volume"]] = field(metadata={"allow_none": True})
     defaults: Optional["BatchFlowDefaults"] = field(metadata={"allow_none": True})
+    mixins: Optional[Mapping[str, "ExecUnitMixin"]] = field(
+        metadata={"allow_none": True}
+    )
 
 
 # There are 'batch' for pipelined mode and 'live' for interactive one
@@ -93,6 +96,26 @@ class Image(Base):
     volumes: Optional[BaseExpr[SequenceT]] = field(metadata={"allow_none": True})
     build_preset: OptStrExpr
     force_rebuild: OptBoolExpr
+
+
+@dataclass(frozen=True)
+class ExecUnitMixin(WithSpecifiedFields, Base):
+    title: OptStrExpr  # Autocalculated if not passed explicitly
+    name: OptStrExpr
+    image: OptStrExpr
+    preset: OptStrExpr
+    schedule_timeout: OptTimeDeltaExpr
+    entrypoint: OptStrExpr
+    cmd: OptStrExpr
+    workdir: OptRemotePathExpr
+    env: Optional[BaseExpr[MappingT]] = field(metadata={"allow_none": True})
+    volumes: Optional[BaseExpr[SequenceT]] = field(metadata={"allow_none": True})
+    tags: Optional[BaseExpr[SequenceT]] = field(metadata={"allow_none": True})
+    life_span: OptTimeDeltaExpr
+    http_port: OptIntExpr
+    http_auth: OptBoolExpr
+    pass_config: OptBoolExpr
+    mixins: Optional[Sequence[StrExpr]] = field(metadata={"allow_none": True})
 
 
 @dataclass(frozen=True)
