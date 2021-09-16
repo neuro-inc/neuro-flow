@@ -12,6 +12,8 @@ RUN pip install --user \
 
 FROM python:3.9-buster
 
+LABEL org.opencontainers.image.source = "https://github.com/neuro-inc/neuro-flow"
+
 COPY --from=requirements /root/.local /root/.local
 COPY docker.entrypoint.sh /var/lib/neuro/entrypoint.sh
 RUN chmod u+x /var/lib/neuro/entrypoint.sh
