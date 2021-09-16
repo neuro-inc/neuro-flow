@@ -394,7 +394,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             config_meta,
             configs,
             graphs=graphs,
-            params=params,
+            params=flow.params,
             name=name,
             tags=tags,
         )
