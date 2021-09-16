@@ -5,7 +5,7 @@ mixins:
       env1: val-mixin1-1
       env2: val-mixin1-2
   envs2:
-    inherits: [envs1]
+    mixins: [envs1]
     env:
       env2: val-mixin2-2
       env3: val-mixin2-3
@@ -13,8 +13,8 @@ mixins:
     image: ubuntu
     preset: cpu-micro
 tasks:
-  - inherits: [basic, envs1]
+  - mixins: [basic, envs1]
     bash: echo abc
 
-  - inherits: [basic, envs2]
+  - mixins: [basic, envs2]
     bash: echo def

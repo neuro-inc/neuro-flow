@@ -5,7 +5,7 @@ mixins:
       env1: val-mixin1-1
       env2: val-mixin1-2
   envs2:
-    inherits: [envs1]
+    mixins: [envs1]
     env:
       env2: val-mixin2-2
       env3: val-mixin2-3
@@ -13,4 +13,4 @@ jobs:
   test:
     name: job-name
     image: ubuntu
-    inherits: [ envs2]
+    mixins: [ envs2]

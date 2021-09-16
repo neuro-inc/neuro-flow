@@ -13,13 +13,13 @@ mixins:
 ...
 ```
 
-Mixins can define the same properties as "job" and "task" do, except for the "id" field in batch mode. To apply a mixin, use the `inherits` property:
+Mixins can define the same properties as "job" and "task" do, except for the "id" field in batch mode. To apply a mixin, use the `mixins` property:
 
 ```yaml
 ...
 jobs:
   test_a:
-    inherits: [ credentials ]
+    mixins: [ credentials ]
 ...
 ```
 
@@ -35,10 +35,10 @@ mixins:
     image: example_mix2
 jobs:
   job1:
-    inherits: [mix1, mix2]
+    mixins: [mix1, mix2]
     image: example
   job2:
-    inherits: [mix1, mix2]
+    mixins: [mix1, mix2]
 ```
 
 In this case, `job1` will use the `example` image and `job2` will use the `example_mix2` image.
@@ -54,7 +54,7 @@ mixins:
     env:
       TEST: 1
   mix2:
-    inherits: [ mix1 ]
+    mixins: [ mix1 ]
     image: example
 ``` ([#498](https://github.com/neuro-inc/neuro-flow/issues/498))
 ```

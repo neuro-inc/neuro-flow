@@ -59,7 +59,7 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
                 Pos(3, 4, config_file),
                 Pos(5, 0, config_file),
                 _specified_fields={"cmd", "image"},
-                inherits=None,
+                mixins=None,
                 name=OptStrExpr(Pos(3, 4, config_file), Pos(5, 0, config_file), None),
                 image=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"
@@ -136,7 +136,7 @@ def test_parse_params(assets: pathlib.Path) -> None:
                 Pos(3, 4, config_file),
                 Pos(11, 0, config_file),
                 _specified_fields={"cmd", "image", "params"},
-                inherits=None,
+                mixins=None,
                 name=OptStrExpr(Pos(3, 4, config_file), Pos(5, 0, config_file), None),
                 image=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"
@@ -378,7 +378,7 @@ def test_parse_full(assets: pathlib.Path) -> None:
                 Pos(38, 4, config_file),
                 Pos(41, 0, config_file),
                 _specified_fields={"env"},
-                inherits=None,
+                mixins=None,
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 image=OptStrExpr(
                     Pos(0, 0, config_file),
@@ -458,12 +458,12 @@ def test_parse_full(assets: pathlib.Path) -> None:
                     "name",
                     "tags",
                     "image",
-                    "inherits",
+                    "mixins",
                     "browse",
                     "volumes",
                     "entrypoint",
                 },
-                inherits=[
+                mixins=[
                     StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "envs")
                 ],
                 name=OptStrExpr(
@@ -729,7 +729,7 @@ def test_parse_full_exprs(assets: pathlib.Path) -> None:
                     "volumes",
                     "detach",
                 },
-                inherits=None,
+                mixins=None,
                 name=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "job-name"
                 ),
@@ -834,7 +834,7 @@ def test_parse_bash(assets: pathlib.Path) -> None:
                 Pos(3, 4, config_file),
                 Pos(7, 0, config_file),
                 _specified_fields={"cmd", "image"},
-                inherits=None,
+                mixins=None,
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 image=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"
@@ -913,7 +913,7 @@ def test_parse_python(assets: pathlib.Path) -> None:
                 Pos(3, 4, config_file),
                 Pos(7, 0, config_file),
                 _specified_fields={"cmd", "image"},
-                inherits=None,
+                mixins=None,
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 image=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"
@@ -1040,7 +1040,7 @@ def test_parse_multi(assets: pathlib.Path) -> None:
                 Pos(3, 4, config_file),
                 Pos(6, 0, config_file),
                 _specified_fields={"cmd", "multi", "image"},
-                inherits=None,
+                mixins=None,
                 name=OptStrExpr(Pos(3, 4, config_file), Pos(5, 0, config_file), None),
                 image=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"
@@ -1117,7 +1117,7 @@ def test_parse_explicit_flow_id(assets: pathlib.Path) -> None:
                 Pos(4, 4, config_file),
                 Pos(6, 0, config_file),
                 _specified_fields={"cmd", "image"},
-                inherits=None,
+                mixins=None,
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 image=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"
