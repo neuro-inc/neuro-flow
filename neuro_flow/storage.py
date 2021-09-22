@@ -43,8 +43,8 @@ from yarl import URL
 
 from neuro_flow.types import ImageStatus, LocalPath
 
-from .config_loader import ConfigFile
 from .context import DepCtx, JobMeta
+from .storage_base import ConfigFile
 from .types import FullID, TaskStatus
 from .utils import RetryConfig, async_retried, retry
 

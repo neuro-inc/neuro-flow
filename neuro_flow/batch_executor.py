@@ -1,14 +1,10 @@
-import dataclasses
-
 import asyncio
-import base64
-import datetime
-import json
 import logging
 import os
 import sys
 import textwrap
 from collections import defaultdict
+from datetime import datetime, timezone
 from neuro_sdk import (
     Action,
     Client,
@@ -45,7 +41,9 @@ from typing import (
     Sequence,
     Set,
     Tuple,
+    Type,
     TypeVar,
+    Union,
 )
 from yarl import URL
 
@@ -69,20 +67,23 @@ from .context import (
     TaskMeta,
 )
 from .expr import EvalError
-from .storage import (
+from .storage_base import (
     Attempt,
+    AttemptStorage,
     Bake,
     BakeImage,
-    FinishedTask,
-    RetryReadStorage,
-    StartedTask,
-    Storage,
-    _dt2str,
+    BakeImageStorage,
+    BakeStorage,
+    ConfigsMeta,
+    ProjectStorage,
+    Storage2,
+    Task as StorageTask,
+    TaskStatusItem,
+    _Unset,
 )
 from .types import AlwaysT, FullID, ImageStatus, RemotePath, TaskStatus
 from .utils import (
     TERMINATED_JOB_STATUSES,
-    TERMINATED_TASK_STATUSES,
     RetryConfig,
     fmt_id,
     fmt_raw_id,
@@ -104,45 +105,19 @@ class NotFinished(ValueError):
     pass
 
 
-@dataclasses.dataclass(frozen=True)
-class ExecutorData:
-    project: str
-    batch: str
-    when: datetime.datetime
-    suffix: str
-
-    def serialize(self) -> str:
-        data = dataclasses.asdict(self)
-        data["when"] = self.when.isoformat()
-        return base64.b64encode(json.dumps(data).encode()).decode()
-
-    @classmethod
-    def parse(cls, raw: str) -> "ExecutorData":
-        raw_json = base64.b64decode(raw).decode()
-        data = json.loads(raw_json)
-        data["when"] = datetime.datetime.fromisoformat(data["when"])
-        return cls(**data)
-
-    def get_bake_id(self) -> str:
-        # Todo: this is duplication with code in storage.py,
-        # remove when platform service will be added
-        return "_".join([self.batch, _dt2str(self.when), self.suffix])
-
-
 async def get_running_flow(
-    bake: Bake, client: Client, storage: Storage
+    bake: Bake, client: Client, storage: BakeStorage, configs_meta: ConfigsMeta
 ) -> RunningBatchFlow:
-    meta = await storage.fetch_configs_meta(bake)
     config_loader = BatchRemoteCL(
-        meta,
-        load_from_storage=lambda name: storage.fetch_config(bake, name),
+        configs_meta,
         client=client,
+        bake_storage=storage,
     )
     local_info = LocallyPreparedInfo(
         children_info={},
         early_images={},
     )
-    async for image in storage.list_bake_images(bake):
+    async for image in storage.list_bake_images():
         for yaml_def in image.yaml_defs:
             *prefix, image_id = yaml_def
             sub = local_info
@@ -171,7 +146,7 @@ async def get_running_flow(
     return await RunningBatchFlow.create(
         config_loader=config_loader,
         batch=bake.batch,
-        bake_id=bake.bake_id,
+        bake_id=bake.id,
         params=bake.params,
         local_info=local_info,
     )
@@ -239,15 +214,20 @@ class Graph(Generic[_T]):
 
     def _mark_node(self, node: FullID, level: ast.NeedsLevel) -> None:
         log.debug(f"Graph: marking node {node} with {level}")
+
+        prefix, item = node[:-1], node[-1]
+        assert prefix in self._topos, f"Parent graph for node {node} not found"
+        topo = self._topos[prefix]
+        if topo.is_colored(item, level):
+            return
+
         if node in self._topos:
             assert node in self._ready_to_mark_embeds[level], (
                 f"Node '{node}' cannot be marked to {level} when "
                 f"embeded graph is not all marked with {level}"
             )
             self._ready_to_mark_embeds[level].remove(node)
-        prefix, item = node[:-1], node[-1]
-        assert prefix in self._topos, f"Parent graph for node {node} not found"
-        topo = self._topos[prefix]
+
         topo.mark(item, level)
         if topo.is_all_colored(level) and prefix != ():
             self._ready_to_mark_embeds[level].add(prefix)
@@ -286,61 +266,38 @@ class Graph(Generic[_T]):
 
 class BakeTasksManager:
     def __init__(self) -> None:
-        self._started: Dict[FullID, StartedTask] = {}
-        self._running: Dict[FullID, StartedTask] = {}
-        self._finished: Dict[FullID, FinishedTask] = {}
+        self._tasks: Dict[FullID, StorageTask] = {}
 
     @property
-    def started(self) -> Mapping[FullID, StartedTask]:
-        return self._started
+    def tasks(self) -> Mapping[FullID, StorageTask]:
+        return self._tasks
 
-    @property
-    def running(self) -> Mapping[FullID, StartedTask]:
-        return self._running
+    def list_unfinished_raw_tasks(self) -> Iterable[Tuple[StorageTask, str]]:
+        for task in self._tasks.values():
+            if not task.status.is_finished and task.raw_id:
+                yield task, task.raw_id
 
-    @property
-    def finished(self) -> Mapping[FullID, FinishedTask]:
-        return self._finished
-
-    @property
-    def unfinished_tasks(self) -> Mapping[FullID, StartedTask]:
-        return {
-            key: value
-            for key, value in self.started.items()
-            if key not in self.finished and value.raw_id
-        }
+    def update(self, task: StorageTask) -> None:
+        self._tasks[task.yaml_id] = task
 
     def count_unfinished(self, prefix: FullID = ()) -> int:
         def _with_prefix(full_id: FullID) -> bool:
             return all(x == y for x, y in zip(prefix, full_id))
 
-        return len(
-            {
-                k: v
-                for k, v in self._started.items()
-                if k not in self._finished and v.raw_id and _with_prefix(k)
-            }
+        return sum(
+            1
+            for v in self._tasks.values()
+            if v.raw_id and _with_prefix(v.yaml_id) and not v.status.is_finished
         )
-
-    def add_started(self, task: StartedTask) -> None:
-        log.debug(f"BakeTasksManager: adding started {task}")
-        self._started[task.id] = task
-
-    def add_running(self, task: StartedTask) -> None:
-        log.debug(f"BakeTasksManager: adding running {task}")
-        self._running[task.id] = task
-
-    def add_finished(self, task: FinishedTask) -> None:
-        log.debug(f"BakeTasksManager: adding finished {task}")
-        self._finished[task.id] = task
 
     def build_needs(self, prefix: FullID, deps: AbstractSet[str]) -> NeedsCtx:
         needs = {}
         for dep_id in deps:
             full_id = prefix + (dep_id,)
-            dep = self._finished.get(full_id)
-            if dep is None:
+            dep = self._tasks.get(full_id)
+            if dep is None or not dep.status.is_finished:
                 raise NotFinished(full_id)
+            assert dep.outputs is not None
             status = TaskStatus(dep.status)
             if status == TaskStatus.CACHED:
                 status = TaskStatus.SUCCEEDED
@@ -351,9 +308,10 @@ class BakeTasksManager:
         if state_from is None:
             return {}
         full_id = prefix + (state_from,)
-        dep = self._finished.get(full_id)
-        if dep is None:
+        dep = self._tasks.get(full_id)
+        if dep is None or not dep.status.is_finished:
             raise NotFinished(full_id)
+        assert dep.state is not None
         return dep.state
 
 
@@ -506,9 +464,12 @@ class BatchExecutor:
         self,
         console: Console,
         flow: RunningBatchFlow,
+        bake: Bake,
         attempt: Attempt,
         client: RetryReadNeuroClient,
-        storage: Storage,
+        storage: AttemptStorage,
+        bake_storage: BakeStorage,
+        project_storage: ProjectStorage,
         *,
         polling_timeout: float = 1,
         transient_progress: bool = False,
@@ -525,9 +486,12 @@ class BatchExecutor:
             transient=transient_progress,
         )
         self._top_flow = flow
+        self._bake = bake
         self._attempt = attempt
         self._client = client
         self._storage = storage
+        self._project_storage = project_storage
+        self._bake_storage = bake_storage
         self._graphs: Graph[RunningBatchBase[BaseBatchContext]] = Graph(
             flow.graph, flow
         )
@@ -551,38 +515,40 @@ class BatchExecutor:
     async def create(
         cls,
         console: Console,
-        executor_data: ExecutorData,
+        bake_id: str,
         client: Client,
-        storage: Storage,
+        storage: Storage2,
         *,
         polling_timeout: float = 1,
         transient_progress: bool = False,
         project_role: Optional[str] = None,
         run_builder_job: Callable[..., Awaitable[str]] = start_image_build,
     ) -> AsyncIterator["BatchExecutor"]:
-        storage = RetryReadStorage(storage)
 
         console.log("Fetch bake data")
-        bake = await storage.fetch_bake(
-            executor_data.project,
-            executor_data.batch,
-            executor_data.when,
-            executor_data.suffix,
-        )
+        bake_storage = storage.bake(id=bake_id)
+        bake = await bake_storage.get()
+        if bake.last_attempt:
+            attempt = bake.last_attempt
+            attempt_storage = bake_storage.attempt(id=bake.last_attempt.id)
+        else:
+            attempt_storage = bake_storage.last_attempt()
+            attempt = await attempt_storage.get()
 
         console.log("Fetch configs metadata")
-        flow = await get_running_flow(bake, client, storage)
+        flow = await get_running_flow(bake, client, bake_storage, attempt.configs_meta)
 
-        console.log("Find last attempt")
-        attempt = await storage.find_attempt(bake)
         console.log(f"Execute attempt #{attempt.number}")
 
         ret = cls(
-            console,
-            flow,
-            attempt,
-            RetryReadNeuroClient(client),
-            storage,
+            console=console,
+            flow=flow,
+            bake=bake,
+            attempt=attempt,
+            client=RetryReadNeuroClient(client),
+            storage=attempt_storage,
+            bake_storage=bake_storage,
+            project_storage=storage.project(id=bake.project_id),
             polling_timeout=polling_timeout,
             transient_progress=transient_progress,
             project_role=project_role,
@@ -601,12 +567,7 @@ class BatchExecutor:
         pass
 
     async def _refresh_attempt(self) -> None:
-        # TODO: Drop force_no_cache when storage is refactored
-        self._attempt = await self._storage.find_attempt(
-            self._attempt.bake,
-            self._attempt.number,
-            force_no_cache=True,
-        )
+        self._attempt = await self._storage.get()
 
     def _only_completed_needs(
         self, needs: Mapping[str, ast.NeedsLevel]
@@ -704,41 +665,109 @@ class BatchExecutor:
         )
         self._bars[full_id] = task_id
 
-    def _mark_started(self, st: StartedTask) -> None:
-        self._tasks_mgr.add_started(st)
-        task_id = self._bars[st.id[:-1]]
-        self._progress.update(task_id, advance=1, refresh=True)
+    def _advance_progress_bar(
+        self, old_task: Optional[StorageTask], task: StorageTask
+    ) -> None:
+        def _state_to_progress(status: TaskStatus) -> int:
+            if status.is_pending:
+                return 1
+            if status.is_running:
+                return 2
+            return 3
 
-    def _mark_running(self, st: StartedTask) -> None:
-        self._tasks_mgr.add_running(st)
-        self._graphs.mark_running(st.id)
-        task_id = self._bars[st.id[:-1]]
-        self._progress.update(task_id, advance=1, refresh=True)
+        if old_task:
+            advance = _state_to_progress(task.status) - _state_to_progress(
+                old_task.status
+            )
+        else:
+            advance = _state_to_progress(task.status)
+        progress_bar_id = self._bars[task.yaml_id[:-1]]
+        self._progress.update(progress_bar_id, advance=advance, refresh=True)
 
-    def _mark_finished(self, ft: FinishedTask, advance: int = 1) -> None:
-        self._tasks_mgr.add_finished(ft)
-        self._graphs.mark_done(ft.id)
-        task_id = self._bars[ft.id[:-1]]
-        self._progress.update(task_id, advance=advance, refresh=True)
+    def _update_graph_coloring(self, task: StorageTask) -> None:
+        if task.status.is_running or task.status.is_finished:
+            self._graphs.mark_running(task.yaml_id)
+        if task.status.is_finished:
+            self._graphs.mark_done(task.yaml_id)
+
+    async def _log_task_status_change(self, task: StorageTask) -> None:
+        flow = self._graphs.get_meta(task.yaml_id)
+        if await flow.is_action(task.yaml_id[-1]):
+            log_args = ["Action"]
+        else:
+            log_args = ["Task"]
+        log_args.append(fmt_id(task.yaml_id))
+        if task.raw_id:
+            log_args.append(fmt_raw_id(task.raw_id))
+        log_args += ["is", fmt_status(task.status)]
+        if task.status.is_finished:
+            if task.outputs:
+                log_args += ["with following outputs:"]
+            else:
+                log_args += ["(no outputs)"]
+        self._progress.log(*log_args)
+        if task.outputs:
+            for key, value in task.outputs.items():
+                self._progress.log(f"  {key}: {value}")
+
+    async def _create_task(
+        self,
+        yaml_id: FullID,
+        raw_id: Optional[str],
+        status: Union[TaskStatusItem, TaskStatus],
+        outputs: Optional[Mapping[str, str]] = None,
+        state: Optional[Mapping[str, str]] = None,
+    ) -> StorageTask:
+        task = await self._storage.create_task(yaml_id, raw_id, status, outputs, state)
+        self._advance_progress_bar(None, task)
+        self._update_graph_coloring(task)
+        await self._log_task_status_change(task)
+        self._tasks_mgr.update(task)
+        return task
+
+    async def _update_task(
+        self,
+        yaml_id: FullID,
+        *,
+        outputs: Union[Optional[Mapping[str, str]], Type[_Unset]] = _Unset,
+        state: Union[Optional[Mapping[str, str]], Type[_Unset]] = _Unset,
+        new_status: Optional[Union[TaskStatusItem, TaskStatus]] = None,
+    ) -> StorageTask:
+        old_task = self._tasks_mgr.tasks[yaml_id]
+        task = await self._storage.task(id=old_task.id).update(
+            outputs=outputs,
+            state=state,
+            new_status=new_status,
+        )
+        self._advance_progress_bar(old_task, task)
+        self._update_graph_coloring(task)
+        await self._log_task_status_change(task)
+        self._tasks_mgr.update(task)
+        return task
 
     # New tasks processers
 
     async def _skip_task(self, full_id: FullID) -> None:
         log.debug(f"BatchExecutor: skipping task {full_id}")
-        st, ft = await self._storage.skip_task(self._attempt, full_id)
-        self._mark_started(st)
-        self._mark_finished(ft, advance=2)
-        self._progress.log("Task", fmt_id(full_id), "is", TaskStatus.SKIPPED)
+        await self._create_task(
+            yaml_id=full_id,
+            status=TaskStatus.SKIPPED,
+            raw_id=None,
+            outputs={},
+            state={},
+        )
 
     async def _process_local(self, full_id: FullID) -> None:
         raise ValueError("Processing of local actions is not supported")
 
     async def _process_action(self, full_id: FullID) -> None:
         log.debug(f"BatchExecutor: processing action {full_id}")
-        st = await self._storage.start_action(self._attempt, full_id)
-        self._mark_started(st)
+        await self._create_task(
+            yaml_id=full_id,
+            status=TaskStatus.PENDING,
+            raw_id=None,
+        )
         await self._embed_action(full_id)
-        self._progress.log(f"Action", fmt_id(st.id), "is", TaskStatus.PENDING)
 
     async def _process_task(self, full_id: FullID) -> None:
         log.debug(f"BatchExecutor: processing task {full_id}")
@@ -752,34 +781,26 @@ class BatchExecutor:
                 return
 
         cache_strategy = task.cache.strategy
-        if cache_strategy == ast.CacheStrategy.NONE:
-            ft = None
-        else:
-            assert cache_strategy == ast.CacheStrategy.DEFAULT
-            ft = await self._storage.check_cache(
-                self._attempt,
-                full_id,
-                task.caching_key,
-                datetime.timedelta(task.cache.life_span),
-            )
-
-        if ft is not None:
-            self._progress.log(
-                "Task", fmt_id(ft.id), fmt_raw_id(ft.raw_id), "is", TaskStatus.CACHED
-            )
-            assert ft.status == TaskStatus.CACHED
-            self._mark_finished(ft, advance=3)
-        else:
-            st = await self._start_task(full_id, task)
-            if st:
-                self._mark_started(st)
-                self._progress.log(
-                    "Task",
-                    fmt_id(st.id),
-                    fmt_raw_id(st.raw_id),
-                    "is",
-                    TaskStatus.PENDING,
+        storage_task: Optional[StorageTask] = None
+        if cache_strategy == ast.CacheStrategy.DEFAULT:
+            try:
+                cache_entry = await self._project_storage.cache_entry(
+                    task_id=full_id, batch=self._bake.batch, key=task.caching_key
+                ).get()
+                # TODO: CHECK EXPIRATION!
+            except ResourceNotFound:
+                pass
+            else:
+                storage_task = await self._create_task(
+                    yaml_id=full_id,
+                    raw_id=cache_entry.raw_id,
+                    status=TaskStatus.CACHED,
+                    outputs=cache_entry.outputs,
+                    state=cache_entry.state,
                 )
+
+        if storage_task is None:
+            await self._start_task(full_id, task)
 
     async def _load_previous_run(self) -> None:
         log.debug(f"BatchExecutor: loading previous run")
@@ -788,48 +809,42 @@ class BatchExecutor:
 
         root_id = ()
         task_id = self._progress.add_task(
-            f"<{self._attempt.bake.batch}>",
+            f"<{self._bake.batch}>",
             completed=0,
             total=self._graphs.get_size(root_id) * 3,
         )
         self._bars[root_id] = task_id
 
-        started, finished = await self._storage.fetch_attempt(self._attempt)
-        # Fetch info about running from server
-        running: Dict[FullID, StartedTask] = {
-            ft.id: started[ft.id] for ft in finished.values()
-        }  # All finished are considered as running
-        for st in started.values():
-            if not st.raw_id:
-                continue
-            try:
-                job_descr = await self._client.job_status(st.raw_id)
-            except ResourceNotFound:
-                pass
-            else:
-                if job_descr.status in {JobStatus.RUNNING, JobStatus.SUCCEEDED}:
-                    running[st.id] = st
+        tasks = {task.yaml_id: task async for task in self._storage.list_tasks()}
+
+        def _set_task_info(task: StorageTask) -> None:
+            self._update_graph_coloring(task)
+            self._advance_progress_bar(None, task)
+            self._tasks_mgr.update(task)
+
         # Rebuild data in graph and task_mgr
-        while (started.keys() != self._tasks_mgr.started.keys()) or (
-            finished.keys() != self._tasks_mgr.finished.keys()
-        ):
+        while tasks.keys() != self._tasks_mgr.tasks.keys():
             log.debug(f"BatchExecutor: rebuilding data...")
             for full_id, ctx in self._graphs.get_ready_with_meta():
-                if full_id in self._tasks_mgr.started or full_id not in started:
+                if full_id not in tasks or full_id in self._tasks_mgr.tasks:
                     continue
-                self._mark_started(started[full_id])
+                task = tasks[full_id]
                 if await ctx.is_action(full_id[-1]):
                     await self._embed_action(full_id)
+                    if task.status.is_pending:
+                        _set_task_info(task)
                 else:
-                    if full_id in running:
-                        self._mark_running(running[full_id])
-                    if full_id in finished:
-                        self._mark_finished(finished[full_id])
+                    _set_task_info(task)
             for full_id in self._graphs.get_ready_to_mark_running_embeds():
-                self._mark_running(started[full_id])
+                task = tasks[full_id]
+                if task.status.is_finished:
+                    self._graphs.mark_running(full_id)
+                elif task.status.is_running:
+                    _set_task_info(task)
             for full_id in self._graphs.get_ready_to_mark_done_embeds():
-                if full_id in finished:
-                    self._mark_finished(finished[full_id])
+                task = tasks[full_id]
+                if task.status.is_finished:
+                    _set_task_info(task)
 
     async def _should_continue(self) -> bool:
         return self._graphs.is_active
@@ -866,26 +881,33 @@ class BatchExecutor:
 
         job_id = os.environ.get("NEURO_JOB_ID")
         if job_id:
-            # store job id as executor id
-            await self._storage.mark_attempt_running(self._attempt, job_id)
+            await self._storage.update(
+                executor_id=job_id,
+            )
 
-        if self._attempt.result in TERMINATED_TASK_STATUSES:
+        if self._attempt.result.is_finished:
             # If attempt is already terminated, just clean up tasks
             # and exit
             await self._cancel_unfinished()
             return self._attempt.result
 
+        await self._storage.update(
+            result=TaskStatus.RUNNING,
+        )
+
         while await self._should_continue():
             _mgr = self._tasks_mgr
+
+            def _fmt_debug(task: StorageTask) -> str:
+                return ".".join(task.yaml_id) + f" - {task.status}"
+
             log.debug(
                 f"BatchExecutor: main loop start:\n"
-                f"started={', '.join('.'.join(it) for it in _mgr.started)}\n"
-                f"running={', '.join('.'.join(it) for it in _mgr.running)}\n"
-                f"finished={', '.join('.'.join(it) for it in _mgr.finished)}\n"
+                f"tasks={', '.join(_fmt_debug(it) for it in _mgr.tasks.values())}\n"
             )
             for full_id, flow in self._graphs.get_ready_with_meta():
                 tid = full_id[-1]
-                if full_id in self._tasks_mgr.started:
+                if full_id in self._tasks_mgr.tasks:
                     continue  # Already started
                 meta = await self._get_meta(full_id)
                 if not meta.enable or (
@@ -916,8 +938,8 @@ class BatchExecutor:
         return self._accumulate_result()
 
     async def _finish_run(self, attempt_status: TaskStatus) -> None:
-        if self._attempt.result not in TERMINATED_TASK_STATUSES:
-            await self._storage.finish_attempt(self._attempt, attempt_status)
+        if not self._attempt.result.is_finished:
+            await self._storage.update(result=attempt_status)
         self._progress.print(
             Panel(
                 f"[b]Attempt #{self._attempt.number}[/b] {fmt_status(attempt_status)}"
@@ -929,126 +951,115 @@ class BatchExecutor:
                 "[blue b]Hint:[/blue b] you can restart bake starting "
                 "from first failed task "
                 "by the following command:\n"
-                f"[b]neuro-flow restart {self._attempt.bake.bake_id}[/b]"
+                f"[b]neuro-flow restart {self._bake.id}[/b]"
             )
 
     async def _cancel_unfinished(self) -> None:
         self._is_cancelling = True
-        for full_id, st in self._tasks_mgr.unfinished_tasks.items():
-            task = await self._get_task(full_id)
-            if task.enable is not AlwaysT():
-                self._progress.log(f"Task {fmt_id(st.id)} is being killed")
-                await self._client.job_kill(st.raw_id)
-        async for image in self._storage.list_bake_images(self._attempt.bake):
+        for task, raw_id in self._tasks_mgr.list_unfinished_raw_tasks():
+            task_ctx = await self._get_task(task.yaml_id)
+            if task_ctx.enable is not AlwaysT():
+                self._progress.log(f"Task {fmt_id(task.yaml_id)} is being killed")
+                await self._client.job_kill(raw_id)
+        async for image in self._bake_storage.list_bake_images():
             if image.status == ImageStatus.BUILDING:
                 assert image.builder_job_id
                 await self._client.job_kill(image.builder_job_id)
 
-    async def _store_to_cache(self, ft: FinishedTask) -> None:
-        log.debug(f"BatchExecutor: storing to cache {ft}")
-        task = await self._get_task(ft.id)
-        cache_strategy = task.cache.strategy
-        if cache_strategy == ast.CacheStrategy.NONE:
-            return
-        if ft.status != TaskStatus.SUCCEEDED:
+    async def _store_to_cache(self, task: StorageTask) -> None:
+        log.debug(f"BatchExecutor: storing to cache {task.yaml_id}")
+        task_ctx = await self._get_task(task.yaml_id)
+        cache_strategy = task_ctx.cache.strategy
+        if (
+            cache_strategy == ast.CacheStrategy.NONE
+            or task.status != TaskStatus.SUCCEEDED
+            or task.raw_id is None
+            or task.outputs is None
+            or task.state is None
+        ):
             return
 
-        await self._storage.write_cache(self._attempt, ft, task.caching_key)
+        await self._project_storage.create_cache_entry(
+            key=task_ctx.caching_key,
+            batch=self._bake.batch,
+            task_id=task.yaml_id,
+            raw_id=task.raw_id,
+            outputs=task.outputs,
+            state=task.state,
+        )
 
     async def _process_started(self) -> bool:
         log.debug(f"BatchExecutor: processing started")
         # Process tasks
-        for full_id, st in self._tasks_mgr.unfinished_tasks.items():
-            job_descr = await self._client.job_status(st.raw_id)
-            log.debug(f"BatchExecutor: got description {job_descr} for task {full_id}")
+        for task, raw_id in self._tasks_mgr.list_unfinished_raw_tasks():
+            job_descr = await self._client.job_status(task.raw_id)
+            log.debug(
+                f"BatchExecutor: got description {job_descr} for task {task.yaml_id}"
+            )
             if (
                 job_descr.status in {JobStatus.RUNNING, JobStatus.SUCCEEDED}
-                and full_id not in self._tasks_mgr.running
+                and task.status.is_pending
             ):
-                self._mark_running(st)
-                self._progress.log(
-                    "Task",
-                    fmt_id(st.id),
-                    fmt_raw_id(st.raw_id),
-                    "is",
-                    TaskStatus.RUNNING,
+                task = await self._update_task(
+                    task.yaml_id,
+                    new_status=TaskStatusItem(
+                        when=job_descr.history.started_at,
+                        status=TaskStatus.RUNNING,
+                    ),
                 )
             if job_descr.status in TERMINATED_JOB_STATUSES:
-                log.debug(f"BatchExecutor: processing logs for task {full_id}")
+                log.debug(f"BatchExecutor: processing logs for task {task.yaml_id}")
                 async with CmdProcessor() as proc:
-                    async for chunk in self._client.job_logs(st.raw_id):
+                    async for chunk in self._client.job_logs(raw_id):
                         async for line in proc.feed_chunk(chunk):
                             pass
                     async for line in proc.feed_eof():
                         pass
-                log.debug(f"BatchExecutor: finished processing logs for task {full_id}")
-                ft = await self._storage.finish_task(
-                    self._attempt, st, job_descr, proc.outputs, proc.states
+                log.debug(
+                    f"BatchExecutor: finished processing logs for task {task.yaml_id}"
                 )
-                self._mark_finished(ft)
-
-                await self._store_to_cache(ft)
-
-                self._progress.log(
-                    "Task",
-                    fmt_id(ft.id),
-                    fmt_raw_id(ft.raw_id),
-                    "is",
-                    ft.status,
-                    (" with following outputs:" if ft.outputs else ""),
+                task = await self._update_task(
+                    task.yaml_id,
+                    new_status=TaskStatusItem(
+                        when=job_descr.history.finished_at,
+                        status=TaskStatus(job_descr.status),
+                    ),
+                    outputs=proc.outputs,
+                    state=proc.states,
                 )
-                for key, value in ft.outputs.items():
-                    self._progress.log(f"  {key}: {value}")
-
-                task_meta = await self._get_meta(full_id)
-                if ft.status != TaskStatus.SUCCEEDED and task_meta.strategy.fail_fast:
+                await self._store_to_cache(task)
+                task_meta = await self._get_meta(task.yaml_id)
+                if task.status != TaskStatus.SUCCEEDED and task_meta.strategy.fail_fast:
                     return False
         # Process batch actions
         for full_id in self._graphs.get_ready_to_mark_running_embeds():
             log.debug(f"BatchExecutor: marking action {full_id} as ready")
-            st = self._tasks_mgr.started[full_id]
-            self._mark_running(st)
-            self._progress.log(
-                "Action",
-                fmt_id(st.id),
-                fmt_raw_id(st.raw_id),
-                "is",
-                TaskStatus.RUNNING,
-            )
+            await self._update_task(full_id, new_status=TaskStatus.RUNNING)
 
         for full_id in self._graphs.get_ready_to_mark_done_embeds():
-            log.debug(f"BatchExecutor: marking action {full_id} as ready")
+            log.debug(f"BatchExecutor: marking action {full_id} as done")
             # done action, make it finished
             ctx = await self._get_action(full_id)
-
             results = self._tasks_mgr.build_needs(full_id, ctx.graph.keys())
-            outputs = await ctx.calc_outputs(results)
+            res_ctx = await ctx.calc_outputs(results)
 
-            ft = await self._storage.finish_action(
-                self._attempt,
-                self._tasks_mgr.started[full_id],
-                outputs,
+            task = await self._update_task(
+                full_id,
+                new_status=TaskStatus(res_ctx.result),
+                outputs=res_ctx.outputs,
+                state={},
             )
-            self._mark_finished(ft)
-
-            self._progress.log(
-                f"Action {fmt_id(ft.id)} is",
-                ft.status,
-                (" with following outputs:" if ft.outputs else ""),
-            )
-            for key, value in ft.outputs.items():
-                self._progress.log(f"  {key}: {value}")
 
             task_id = self._bars[full_id]
             self._progress.remove_task(task_id)
 
             task_meta = await self._get_meta(full_id)
-            if ft.status != TaskStatus.SUCCEEDED and task_meta.strategy.fail_fast:
+            if task.status != TaskStatus.SUCCEEDED and task_meta.strategy.fail_fast:
                 return False
         return True
 
     def _accumulate_result(self) -> TaskStatus:
-        for task in self._tasks_mgr.finished.values():
+        for task in self._tasks_mgr.tasks.values():
             if task.status == TaskStatus.CANCELLED:
                 return TaskStatus.CANCELLED
             elif task.status == TaskStatus.FAILED:
@@ -1063,16 +1074,16 @@ class BatchExecutor:
             return False
         return True
 
-    async def _start_task(self, full_id: FullID, task: Task) -> Optional[StartedTask]:
+    async def _start_task(self, full_id: FullID, task: Task) -> Optional[StorageTask]:
         log.debug(f"BatchExecutor: checking should we build image for {full_id}")
         remote_image = self._client.parse_remote_image(task.image)
         log.debug(f"BatchExecutor: image name is {remote_image}")
         if remote_image.cluster_name is None:  # Not a neuro registry image
             return await self._run_task(full_id, task)
+
+        image_storage = self._bake_storage.bake_image(ref=task.image)
         try:
-            bake_image = await self._storage.get_bake_image(
-                self._attempt.bake, task.image
-            )
+            bake_image = await image_storage.get()
         except ResourceNotFound:
             # Not defined in the bake
             return await self._run_task(full_id, task)
@@ -1086,15 +1097,13 @@ class BatchExecutor:
             remote_image
         ):
             if bake_image.status == ImageStatus.PENDING:
-                await self._storage.update_bake_image(
-                    self._attempt.bake,
-                    bake_image.ref,
+                await image_storage.update(
                     status=ImageStatus.CACHED,
                 )
             return await self._run_task(full_id, task)
 
         if bake_image.status == ImageStatus.PENDING:
-            await self._start_image_build(bake_image, image_ctx)
+            await self._start_image_build(bake_image, image_ctx, image_storage)
             return None  # wait for next pulling interval
         elif bake_image.status == ImageStatus.BUILDING:
             return None  # wait for next pulling interval
@@ -1102,7 +1111,7 @@ class BatchExecutor:
             # Image is already build (maybe with an error, just try to run a job)
             return await self._run_task(full_id, task)
 
-    async def _run_task(self, full_id: FullID, task: Task) -> StartedTask:
+    async def _run_task(self, full_id: FullID, task: Task) -> StorageTask:
         log.debug(f"BatchExecutor: starting job for {full_id}")
         preset_name = task.preset
         if preset_name is None:
@@ -1139,10 +1148,20 @@ class BatchExecutor:
             pass_config=bool(task.pass_config),
         )
         await self._add_resource(job.uri)
-        return await self._storage.start_task(self._attempt, full_id, job)
+        return await self._create_task(
+            yaml_id=full_id,
+            raw_id=job.id,
+            status=TaskStatusItem(
+                when=job.history.created_at or datetime.now(timezone.utc),
+                status=TaskStatus.PENDING,
+            ),
+        )
 
     async def _start_image_build(
-        self, bake_image: BakeImage, image_ctx: ImageCtx
+        self,
+        bake_image: BakeImage,
+        image_ctx: ImageCtx,
+        image_storage: BakeImageStorage,
     ) -> None:
         log.debug(f"BatchExecutor: starting image build for {bake_image}")
         context = bake_image.context_on_storage or image_ctx.context
@@ -1172,9 +1191,7 @@ class BatchExecutor:
         cmd.append(str(context))
         cmd.append(str(bake_image.ref))
         builder_job_id = await self._run_builder_job(*cmd)
-        await self._storage.update_bake_image(
-            self._attempt.bake,
-            bake_image.ref,
+        await image_storage.update(
             builder_job_id=builder_job_id,
             status=ImageStatus.BUILDING,
         )
@@ -1183,25 +1200,22 @@ class BatchExecutor:
 
     async def _process_running_builds(self) -> None:
         log.debug(f"BatchExecutor: checking running build")
-        async for image in self._storage.list_bake_images(self._attempt.bake):
+        async for image in self._bake_storage.list_bake_images():
             log.debug(f"BatchExecutor: processing image {image}")
+            image_storage = self._bake_storage.bake_image(id=image.id)
             if image.status == ImageStatus.BUILDING:
                 assert image.builder_job_id
                 descr = await self._client.job_status(image.builder_job_id)
                 log.debug(f"BatchExecutor: got job description {descr}")
                 if descr.status == JobStatus.SUCCEEDED:
-                    await self._storage.update_bake_image(
-                        self._attempt.bake,
-                        image.ref,
+                    await image_storage.update(
                         status=ImageStatus.BUILT,
                     )
                     self._progress.log(
                         "Image", fmt_id(image.ref), "is", ImageStatus.BUILT
                     )
                 elif descr.status in TERMINATED_JOB_STATUSES:
-                    await self._storage.update_bake_image(
-                        self._attempt.bake,
-                        image.ref,
+                    await image_storage.update(
                         status=ImageStatus.BUILD_FAILED,
                     )
                     self._progress.log(
@@ -1238,9 +1252,9 @@ class LocalsBatchExecutor(BatchExecutor):
     async def create(
         cls,
         console: Console,
-        executor_data: ExecutorData,
+        bake_id: str,
         client: Client,
-        storage: Storage,
+        storage: Storage2,
         *,
         polling_timeout: Optional[float] = None,
         project_role: Optional[str] = None,
@@ -1250,7 +1264,7 @@ class LocalsBatchExecutor(BatchExecutor):
         ), "polling_timeout is disabled for LocalsBatchExecutor"
         async with super(cls, LocalsBatchExecutor).create(
             console,
-            executor_data,
+            bake_id,
             client,
             storage,
             polling_timeout=0,
@@ -1261,9 +1275,12 @@ class LocalsBatchExecutor(BatchExecutor):
 
     async def _process_local(self, full_id: FullID) -> None:
         local = await self._get_local(full_id)
-        st = await self._storage.start_action(self._attempt, full_id)
-        self._mark_started(st)
-        self._progress.log(f"Local action {fmt_id(st.id)} is", TaskStatus.PENDING)
+        task = await self._create_task(
+            yaml_id=full_id,
+            status=TaskStatus.PENDING,
+            raw_id=None,
+        )
+        self._progress.log(f"Local action {fmt_id(full_id)} is", TaskStatus.PENDING)
         subprocess = await asyncio.create_subprocess_shell(
             local.cmd,
             stdout=asyncio.subprocess.PIPE,
@@ -1282,23 +1299,12 @@ class LocalsBatchExecutor(BatchExecutor):
             result_status = TaskStatus.SUCCEEDED
         else:
             result_status = TaskStatus.FAILED
-        ft = await self._storage.finish_action(
-            self._attempt,
-            st,
-            DepCtx(
-                result=result_status,
-                outputs=proc.outputs,
-            ),
+        task = await self._update_task(
+            task.yaml_id,
+            new_status=result_status,
+            outputs=proc.outputs,
+            state={},
         )
-        self._mark_finished(ft)
-
-        self._progress.log(
-            f"Action {fmt_id(ft.id)} is",
-            ft.status,
-            (" with following outputs:" if ft.outputs else ""),
-        )
-        for key, value in ft.outputs.items():
-            self._progress.log(f"  {key}: {value}")
 
     async def _process_task(self, full_id: FullID) -> None:
         pass  # Skip for local
@@ -1309,7 +1315,7 @@ class LocalsBatchExecutor(BatchExecutor):
                 return True  # Has local action
             if (
                 await flow.is_action(full_id[-1])
-                and full_id not in self._tasks_mgr.started
+                and full_id not in self._tasks_mgr.tasks
             ):
                 return True  # Has unchecked batch action
         return False

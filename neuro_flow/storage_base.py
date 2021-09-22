@@ -2,9 +2,13 @@ from dataclasses import dataclass
 
 import abc
 import datetime
+from neuro_sdk import ResourceNotFound
+from neuro_sdk.jobs import JobStatusItem
+from types import TracebackType
 from typing import (
     AbstractSet,
     AsyncIterator,
+    Iterable,
     Mapping,
     Optional,
     Sequence,
@@ -12,6 +16,7 @@ from typing import (
     Union,
     overload,
 )
+from yarl import URL
 
 from neuro_flow.types import FullID, ImageStatus, TaskStatus
 
@@ -19,7 +24,7 @@ from neuro_flow.types import FullID, ImageStatus, TaskStatus
 @dataclass(frozen=True)
 class Project:
     id: str
-    name: str
+    yaml_id: str
     owner: str
     cluster: str
 
@@ -72,6 +77,12 @@ class TaskStatusItem:
     when: datetime.datetime
     status: TaskStatus
 
+    @classmethod
+    def from_job_transition(cls, transition: JobStatusItem) -> "TaskStatusItem":
+        return cls(
+            when=transition.transition_time, status=TaskStatus(transition.status)
+        )
+
 
 @dataclass(frozen=True)
 class Task:
@@ -82,6 +93,20 @@ class Task:
     outputs: Optional[Mapping[str, str]]
     state: Optional[Mapping[str, str]]
     statuses: Sequence[TaskStatusItem]
+
+    @property
+    def status(self) -> TaskStatus:
+        return self.statuses[-1].status
+
+    @property
+    def created_at(self) -> datetime.datetime:
+        return self.statuses[0].when
+
+    @property
+    def finished_at(self) -> Optional[datetime.datetime]:
+        if self.status.is_finished:
+            return self.statuses[-1].when
+        return None
 
 
 @dataclass(frozen=True)
@@ -112,7 +137,7 @@ class BakeImage:
     yaml_defs: Sequence[FullID]
     ref: str
     status: ImageStatus
-    context_on_storage: Optional[str] = None
+    context_on_storage: Optional[URL] = None
     dockerfile_rel: Optional[str] = None
     builder_job_id: Optional[str] = None
 
@@ -121,13 +146,30 @@ class _Unset:
     pass
 
 
-class Storage(abc.ABC):
+class Storage2(abc.ABC):
+    async def __aenter__(self) -> "Storage2":
+        return self
+
+    async def __aexit__(
+        self,
+        exc_typ: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -> None:
+        await self.close()
+
+    @abc.abstractmethod
+    async def close(self) -> None:
+        pass
+
     @overload
     def project(self, *, id: str) -> "ProjectStorage":
         pass
 
     @overload
-    def project(self, *, name: str, cluster: Optional[str] = None) -> "ProjectStorage":
+    def project(
+        self, *, yaml_id: str, cluster: Optional[str] = None
+    ) -> "ProjectStorage":
         pass
 
     @abc.abstractmethod
@@ -135,13 +177,19 @@ class Storage(abc.ABC):
         self,
         *,
         id: Optional[str] = None,
-        name: Optional[str] = None,
+        yaml_id: Optional[str] = None,
         cluster: Optional[str] = None,
     ) -> "ProjectStorage":
         pass
 
     @abc.abstractmethod
-    async def create_project(self, name: str, cluster: Optional[str] = None) -> Project:
+    def bake(self, *, id: str) -> "BakeStorage":
+        pass
+
+    @abc.abstractmethod
+    async def create_project(
+        self, yaml_id: str, cluster: Optional[str] = None
+    ) -> Project:
         pass
 
     @abc.abstractmethod
@@ -149,6 +197,14 @@ class Storage(abc.ABC):
         self, name: str, cluster: Optional[str] = None
     ) -> AsyncIterator[Project]:
         pass
+
+    async def get_or_create_project(
+        self, yaml_id: str, cluster: Optional[str] = None
+    ) -> Project:
+        try:
+            return await self.project(yaml_id=yaml_id, cluster=cluster).get()
+        except ResourceNotFound:
+            return await self.create_project(yaml_id, cluster)
 
 
 class ProjectStorage(abc.ABC):
@@ -251,7 +307,7 @@ class ProjectStorage(abc.ABC):
         self,
         yaml_id: str,
         multi: bool,
-        tags: Sequence[str],
+        tags: Iterable[str],
         raw_id: Optional[str] = None,
     ) -> LiveJob:
         pass
@@ -261,7 +317,7 @@ class ProjectStorage(abc.ABC):
         self,
         yaml_id: str,
         multi: bool,
-        tags: Sequence[str],
+        tags: Iterable[str],
         raw_id: Optional[str] = None,
     ) -> LiveJob:
         pass
@@ -320,12 +376,12 @@ class BakeStorage(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def create_bake_images(
+    async def create_bake_image(
         self,
         yaml_defs: Sequence[FullID],
         ref: str,
         status: ImageStatus = ImageStatus.PENDING,
-        context_on_storage: Optional[str] = None,
+        context_on_storage: Optional[URL] = None,
         dockerfile_rel: Optional[str] = None,
         builder_job_id: Optional[str] = None,
     ) -> BakeImage:
@@ -348,6 +404,11 @@ class BakeStorage(abc.ABC):
     ) -> "AttemptStorage":
         pass
 
+    def last_attempt(
+        self,
+    ) -> "AttemptStorage":
+        return self.attempt(number=-1)
+
     @abc.abstractmethod
     def config_file(
         self,
@@ -356,11 +417,20 @@ class BakeStorage(abc.ABC):
     ) -> "ConfigFileStorage":
         pass
 
+    @overload
+    def bake_image(self, *, id: str) -> "BakeImageStorage":
+        pass
+
+    @overload
+    def bake_image(self, *, ref: str) -> "BakeImageStorage":
+        pass
+
     @abc.abstractmethod
     def bake_image(
         self,
         *,
-        id: str,
+        id: Optional[str] = None,
+        ref: Optional[str] = None,
     ) -> "BakeImageStorage":
         pass
 
@@ -388,7 +458,7 @@ class AttemptStorage(abc.ABC):
         self,
         yaml_id: FullID,
         raw_id: Optional[str],
-        status: TaskStatusItem,
+        status: Union[TaskStatusItem, TaskStatus],
         outputs: Optional[Mapping[str, str]] = None,
         state: Optional[Mapping[str, str]] = None,
     ) -> Task:
@@ -423,7 +493,7 @@ class TaskStorage(abc.ABC):
         *,
         outputs: Union[Optional[Mapping[str, str]], Type[_Unset]] = _Unset,
         state: Union[Optional[Mapping[str, str]], Type[_Unset]] = _Unset,
-        new_status: Optional[TaskStatusItem] = None,
+        new_status: Optional[Union[TaskStatusItem, TaskStatus]] = None,
     ) -> Task:
         pass
 

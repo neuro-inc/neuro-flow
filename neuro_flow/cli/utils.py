@@ -1,6 +1,6 @@
 import click
-import datetime
 import functools
+import re
 import sys
 from asyncio import iscoroutinefunction
 from click.types import convert_type
@@ -9,7 +9,7 @@ from neuro_cli.asyncio_utils import Runner
 from neuro_sdk import ResourceNotFound
 from typing import Any, Awaitable, Callable, Iterator, TypeVar
 
-from neuro_flow.storage import Storage
+from neuro_flow.storage_base import Storage2
 
 
 @contextmanager
@@ -63,23 +63,14 @@ def argument(*param_decls: Any, **attrs: Any) -> Callable[..., Any]:
     return click.argument(*param_decls, **arg_attrs)
 
 
-BAKE_ID_PATTERN = r"job-[0-9a-z]{8}-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{12}"
+BAKE_ID_PATTERN = r"bake-[0-9a-z]{8}-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{12}"
 
 
-def _is_bake_id_maybe(id_or_name: str) -> bool:
-    try:
-        batch, whenstr, suffix = id_or_name.split("_")
-        datetime.datetime.fromisoformat(whenstr)
-        return len(suffix) == 6
-    except ValueError:
-        return False
-
-
-async def resolve_bake(id_or_name: str, *, project: str, storage: Storage) -> str:
-    if _is_bake_id_maybe(id_or_name):
+async def resolve_bake(id_or_name: str, *, project: str, storage: Storage2) -> str:
+    if re.fullmatch(BAKE_ID_PATTERN, id_or_name):
         return id_or_name
     try:
-        bake = await storage.fetch_bake_by_name(project, id_or_name)
-        return bake.bake_id
+        bake = await storage.project(yaml_id=project).bake(name=id_or_name).get()
+        return bake.id
     except ResourceNotFound:
         return id_or_name

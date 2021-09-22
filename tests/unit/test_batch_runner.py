@@ -3,8 +3,7 @@ import pytest
 import sys
 import textwrap
 from neuro_sdk import Client
-from tempfile import TemporaryDirectory
-from typing import AsyncContextManager, AsyncIterator, Callable, Iterator, Mapping
+from typing import AsyncContextManager, AsyncIterator, Callable, Mapping
 
 from neuro_flow.batch_runner import (
     ImageRefNotUniqueError,
@@ -19,9 +18,9 @@ from neuro_flow.colored_topo_sorter import CycleError
 from neuro_flow.config_loader import BatchLocalCL, ConfigLoader
 from neuro_flow.context import EarlyBatchAction, RunningBatchFlow
 from neuro_flow.expr import MultiError
+from neuro_flow.in_memory_storage import InMemoryStorage
 from neuro_flow.parser import ConfigDir
-from neuro_flow.storage import BakeImage, LocalFS, Storage
-from tests.unit.test_batch_exector import MockStorage
+from neuro_flow.storage_base import BakeImage, Storage2
 
 
 if sys.version_info >= (3, 7):  # pragma: no cover
@@ -52,10 +51,8 @@ async def batch_cl_factory(
 
 
 @pytest.fixture()
-def batch_storage(loop: None) -> Iterator[Storage]:
-    with TemporaryDirectory() as tmpdir:
-        fs = LocalFS(pathlib.Path(tmpdir))
-        yield MockStorage(fs)
+def batch_storage(loop: None) -> Storage2:
+    return InMemoryStorage()
 
 
 async def test_iter_flows(batch_cl_factory: BatchClFactory) -> None:
@@ -194,31 +191,31 @@ async def test_check_image_refs_unique_same_defs(
 
 async def test_upload_image_data(
     batch_cl_factory: BatchClFactory,
-    batch_storage: Storage,
+    batch_storage: Storage2,
     assets: pathlib.Path,
 ) -> None:
     async with batch_cl_factory("batch_images") as cl:
         flow = await RunningBatchFlow.create(cl, "batch", "bake-id")
-        bake = await batch_storage.create_bake(
-            "test",
-            "batch",
-            configs_meta={},
-            configs=[],
-            graphs={},
+        project = await batch_storage.get_or_create_project("test")
+        project_storage = batch_storage.project(id=project.id)
+        bake = await project_storage.create_bake(
+            batch="batch",
             params=None,
             name=None,
+            graphs={},
             tags=[],
         )
+        bake_storage = project_storage.bake(id=bake.id)
 
         runs = []
 
         async def _fake_run_cli(*args: str) -> None:
             runs.append(args)
 
-        await upload_image_data(flow, bake, _fake_run_cli, batch_storage)
+        await upload_image_data(flow, _fake_run_cli, bake_storage)
 
         ref2img: Mapping[str, BakeImage] = {
-            image.ref: image async for image in batch_storage.list_bake_images(bake)
+            image.ref: image async for image in bake_storage.list_bake_images()
         }
         assert ref2img.keys() == {"image:main", "image:banana1", "image:banana2"}
         for ref in {"image:main", "image:banana1"}:

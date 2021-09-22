@@ -7,7 +7,6 @@ from dateutil.parser import isoparse
 from neuro_cli.parse_utils import parse_timedelta
 from typing import List, Optional, Sequence, Tuple
 
-from neuro_flow.batch_executor import ExecutorData
 from neuro_flow.batch_runner import BatchRunner
 from neuro_flow.cli.click_types import (
     BAKE,
@@ -16,10 +15,11 @@ from neuro_flow.cli.click_types import (
     FINISHED_TASK_AFTER_BAKE,
 )
 from neuro_flow.cli.utils import argument, option, resolve_bake, wrap_async
-from neuro_flow.storage import APIStorage, NeuroStorageFS, Storage
+from neuro_flow.storage_api import ApiStorage
 from neuro_flow.types import LocalPath
 
 from ..parser import parse_bake_meta
+from ..storage_base import Storage2
 from .root import Root
 
 
@@ -72,9 +72,7 @@ async def bake(
     """
     async with AsyncExitStack() as stack:
         client = await stack.enter_async_context(neuro_sdk.get())
-        storage: Storage = await stack.enter_async_context(
-            APIStorage(client, NeuroStorageFS(client))
-        )
+        storage: Storage2 = await stack.enter_async_context(ApiStorage(client))
         runner = await stack.enter_async_context(
             BatchRunner(root.config_dir, root.console, client, storage, root)
         )
@@ -92,11 +90,11 @@ async def bake(
 
 
 @click.command(hidden=True)
-@click.argument("executor_data")
+@click.argument("bake_id")
 @wrap_async()
 async def execute(
     root: Root,
-    executor_data: str,
+    bake_id: str,
 ) -> None:
     """Start a batch.
 
@@ -117,15 +115,12 @@ async def execute(
         # ignore everything, use neuro-flow cancel to stop the master job.
         signal.signal(signame, signal.SIG_IGN)
     async with AsyncExitStack() as stack:
-        data = ExecutorData.parse(executor_data)
         client = await stack.enter_async_context(neuro_sdk.get())
-        storage: Storage = await stack.enter_async_context(
-            APIStorage(client, NeuroStorageFS(client))
-        )
+        storage: Storage2 = await stack.enter_async_context(ApiStorage(client))
         runner = await stack.enter_async_context(
             BatchRunner(root.config_dir, root.console, client, storage, root)
         )
-        await runner.process(data)
+        await runner.process(bake_id)
 
 
 @click.command()
@@ -168,9 +163,7 @@ async def bakes(
     """List existing bakes."""
     async with AsyncExitStack() as stack:
         client = await stack.enter_async_context(neuro_sdk.get())
-        storage: Storage = await stack.enter_async_context(
-            APIStorage(client, NeuroStorageFS(client))
-        )
+        storage: Storage2 = await stack.enter_async_context(ApiStorage(client))
         runner = await stack.enter_async_context(
             BatchRunner(root.config_dir, root.console, client, storage, root)
         )
@@ -231,9 +224,7 @@ async def inspect(
     """
     async with AsyncExitStack() as stack:
         client = await stack.enter_async_context(neuro_sdk.get())
-        storage: Storage = await stack.enter_async_context(
-            APIStorage(client, NeuroStorageFS(client))
-        )
+        storage: Storage2 = await stack.enter_async_context(ApiStorage(client))
         runner = await stack.enter_async_context(
             BatchRunner(root.config_dir, root.console, client, storage, root)
         )
@@ -286,9 +277,7 @@ async def show(
     """
     async with AsyncExitStack() as stack:
         client = await stack.enter_async_context(neuro_sdk.get())
-        storage: Storage = await stack.enter_async_context(
-            APIStorage(client, NeuroStorageFS(client))
-        )
+        storage: Storage2 = await stack.enter_async_context(ApiStorage(client))
         runner = await stack.enter_async_context(
             BatchRunner(root.config_dir, root.console, client, storage, root)
         )
@@ -317,9 +306,7 @@ async def cancel(
     """
     async with AsyncExitStack() as stack:
         client = await stack.enter_async_context(neuro_sdk.get())
-        storage: Storage = await stack.enter_async_context(
-            APIStorage(client, NeuroStorageFS(client))
-        )
+        storage: Storage2 = await stack.enter_async_context(ApiStorage(client))
         runner = await stack.enter_async_context(
             BatchRunner(root.config_dir, root.console, client, storage, root)
         )
@@ -346,9 +333,7 @@ async def clear_cache(
     """
     async with AsyncExitStack() as stack:
         client = await stack.enter_async_context(neuro_sdk.get())
-        storage: Storage = await stack.enter_async_context(
-            APIStorage(client, NeuroStorageFS(client))
-        )
+        storage: Storage2 = await stack.enter_async_context(ApiStorage(client))
         runner = await stack.enter_async_context(
             BatchRunner(root.config_dir, root.console, client, storage, root)
         )
@@ -388,9 +373,7 @@ async def restart(
     """
     async with AsyncExitStack() as stack:
         client = await stack.enter_async_context(neuro_sdk.get())
-        storage: Storage = await stack.enter_async_context(
-            APIStorage(client, NeuroStorageFS(client))
-        )
+        storage: Storage2 = await stack.enter_async_context(ApiStorage(client))
         runner = await stack.enter_async_context(
             BatchRunner(root.config_dir, root.console, client, storage, root)
         )

@@ -9,7 +9,8 @@ from typing import Callable, Generic, List, Optional, Sequence, Tuple, TypeVar, 
 from neuro_flow.batch_runner import BatchRunner
 from neuro_flow.cli.root import Root
 from neuro_flow.live_runner import LiveRunner
-from neuro_flow.storage import APIStorage, NeuroStorageFS, Storage
+from neuro_flow.storage_api import ApiStorage
+from neuro_flow.storage_base import Storage2
 
 
 if sys.version_info >= (3, 7):
@@ -84,9 +85,7 @@ class LiveJobType(AsyncType[str]):
     ) -> List[Tuple[str, Optional[str]]]:
         async with AsyncExitStack() as stack:
             client = await stack.enter_async_context(neuro_sdk.get())
-            storage: Storage = await stack.enter_async_context(
-                APIStorage(client, NeuroStorageFS(client))
-            )
+            storage: Storage2 = await stack.enter_async_context(ApiStorage(client))
             runner = await stack.enter_async_context(
                 LiveRunner(root.config_dir, root.console, client, storage, root)
             )
@@ -127,9 +126,7 @@ class LiveJobSuffixType(AsyncType[str]):
         job_id = self._args_to_job_id(args)
         async with AsyncExitStack() as stack:
             client = await stack.enter_async_context(neuro_sdk.get())
-            storage: Storage = await stack.enter_async_context(
-                APIStorage(client, NeuroStorageFS(client))
-            )
+            storage: Storage2 = await stack.enter_async_context(ApiStorage(client))
             runner = await stack.enter_async_context(
                 LiveRunner(root.config_dir, root.console, client, storage, root)
             )
@@ -167,9 +164,7 @@ class LiveImageType(AsyncType[str]):
     ) -> List[Tuple[str, Optional[str]]]:
         async with AsyncExitStack() as stack:
             client = await stack.enter_async_context(neuro_sdk.get())
-            storage: Storage = await stack.enter_async_context(
-                APIStorage(client, NeuroStorageFS(client))
-            )
+            storage: Storage2 = await stack.enter_async_context(ApiStorage(client))
             runner = await stack.enter_async_context(
                 LiveRunner(root.config_dir, root.console, client, storage, root)
             )
@@ -210,9 +205,7 @@ class LiveVolumeType(AsyncType[str]):
     ) -> List[Tuple[str, Optional[str]]]:
         async with AsyncExitStack() as stack:
             client = await stack.enter_async_context(neuro_sdk.get())
-            storage: Storage = await stack.enter_async_context(
-                APIStorage(client, NeuroStorageFS(client))
-            )
+            storage: Storage2 = await stack.enter_async_context(ApiStorage(client))
             runner = await stack.enter_async_context(
                 LiveRunner(root.config_dir, root.console, client, storage, root)
             )
@@ -288,15 +281,13 @@ class BakeType(AsyncType[str]):
         variants = []
         async with AsyncExitStack() as stack:
             client = await stack.enter_async_context(neuro_sdk.get())
-            storage: Storage = await stack.enter_async_context(
-                APIStorage(client, NeuroStorageFS(client))
-            )
+            storage: Storage2 = await stack.enter_async_context(ApiStorage(client))
             runner: BatchRunner = await stack.enter_async_context(
                 BatchRunner(root.config_dir, root.console, client, storage, root)
             )
             try:
                 async for bake in runner.get_bakes():
-                    variants.append(bake.bake_id)
+                    variants.append(bake.id)
                     if bake.name is not None:
                         variants.append(bake.name)
             except ValueError:
@@ -344,19 +335,24 @@ class BakeTaskType(AsyncType[str]):
         attempt_no = self._args_to_attempt(args)
         async with AsyncExitStack() as stack:
             client = await stack.enter_async_context(neuro_sdk.get())
-            storage: Storage = await stack.enter_async_context(
-                APIStorage(client, NeuroStorageFS(client))
-            )
+            storage: Storage2 = await stack.enter_async_context(ApiStorage(client))
             runner: BatchRunner = await stack.enter_async_context(
                 BatchRunner(root.config_dir, root.console, client, storage, root)
             )
             attempt = await runner.get_bake_attempt(bake_id, attempt_no=attempt_no)
-            started, finished = await storage.fetch_attempt(attempt)
+            tasks = [
+                task
+                async for task in storage.bake(id=bake_id)
+                .attempt(id=attempt.id)
+                .list_tasks()
+            ]
             if self._include_finished:
-                variants.extend(".".join(parts) for parts in finished.keys())
+                variants.extend(
+                    ".".join(task.yaml_id) for task in tasks if task.status.is_finished
+                )
             if self._include_started:
                 variants.extend(
-                    ".".join(parts) for parts in started.keys() if parts not in finished
+                    ".".join(task.yaml_id) for task in tasks if task.status.is_finished
                 )
         return [(task, None) for task in variants if task.startswith(incomplete)]
 
