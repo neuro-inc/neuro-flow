@@ -693,8 +693,11 @@ class BatchExecutor:
 
     async def _log_task_status_change(self, task: StorageTask) -> None:
         flow = self._graphs.get_meta(task.yaml_id)
-        if await flow.is_action(task.yaml_id[-1]):
+        in_flow_id = task.yaml_id[-1]
+        if await flow.is_action(in_flow_id):
             log_args = ["Action"]
+        elif await flow.is_local(in_flow_id):
+            log_args = ["Local action"]
         else:
             log_args = ["Task"]
         log_args.append(fmt_id(task.yaml_id))
@@ -1283,7 +1286,6 @@ class LocalsBatchExecutor(BatchExecutor):
             status=TaskStatus.PENDING,
             raw_id=None,
         )
-        self._progress.log(f"Local action {fmt_id(full_id)} is", TaskStatus.PENDING)
         subprocess = await asyncio.create_subprocess_shell(
             local.cmd,
             stdout=asyncio.subprocess.PIPE,
