@@ -4,7 +4,7 @@ import os
 import sys
 import textwrap
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from neuro_sdk import (
     Action,
     Client,
@@ -787,17 +787,19 @@ class BatchExecutor:
                 cache_entry = await self._project_storage.cache_entry(
                     task_id=full_id, batch=self._bake.batch, key=task.caching_key
                 ).get()
-                # TODO: CHECK EXPIRATION!
             except ResourceNotFound:
                 pass
             else:
-                storage_task = await self._create_task(
-                    yaml_id=full_id,
-                    raw_id=cache_entry.raw_id,
-                    status=TaskStatus.CACHED,
-                    outputs=cache_entry.outputs,
-                    state=cache_entry.state,
-                )
+                now = datetime.now(timezone.utc)
+                eol = cache_entry.created_at + timedelta(task.cache.life_span)
+                if now < eol:
+                    storage_task = await self._create_task(
+                        yaml_id=full_id,
+                        raw_id=cache_entry.raw_id,
+                        status=TaskStatus.CACHED,
+                        outputs=cache_entry.outputs,
+                        state=cache_entry.state,
+                    )
 
         if storage_task is None:
             await self._start_task(full_id, task)
