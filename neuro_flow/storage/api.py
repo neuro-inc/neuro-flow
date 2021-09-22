@@ -201,8 +201,6 @@ class RawApiClient:
         self._config = client.config
         self._base_url = client.config.api_url
 
-    E = TypeVar("E")
-
     @asynccontextmanager
     async def _request(
         self,
@@ -223,6 +221,8 @@ class RawApiClient:
             params=params,
         ) as resp:
             yield resp
+
+    E = TypeVar("E")
 
     async def list(
         self,
