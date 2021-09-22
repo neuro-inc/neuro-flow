@@ -90,7 +90,7 @@ def _parse_live_job_payload(data: Mapping[str, Any]) -> LiveJob:
         id=data["id"],
         yaml_id=data["yaml_id"],
         project_id=data["project_id"],
-        multi=data["multe"],
+        multi=data["multi"],
         tags=data["tags"],
         raw_id=data.get("raw_id", None),
     )
@@ -548,9 +548,10 @@ class ApiProjectStorage(DeferredIdMixin[Project], ProjectStorage):
             "project_id": project_id,
             "yaml_id": yaml_id,
             "tags": list(tags),
-            "raw_id": raw_id,
             "multi": multi,
         }
+        if raw_id:
+            payload["raw_id"] = raw_id
         return await self._raw_client.update(
             "flow/live_jobs/replace", payload, _parse_live_job_payload
         )
@@ -760,7 +761,7 @@ class ApiBakeStorage(DeferredIdMixin[Bake], BakeStorage):
                 assert ref
                 bake_id, _ = await self._get_id()
                 bake_image = await self._raw_client.get(
-                    "flow/live_jobs/by_ref",
+                    "flow/bake_images/by_ref",
                     _parse_bake_image_payload,
                     params={
                         "bake_id": bake_id,

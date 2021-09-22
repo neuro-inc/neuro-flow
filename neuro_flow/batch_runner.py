@@ -399,8 +399,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
 
         config_meta = await self.config_loader.collect_configs(batch_name, bake_storage)
 
-        attempt = await bake_storage.create_attempt(number=1, configs_meta=config_meta)
-        print(attempt.id)
+        await bake_storage.create_attempt(number=1, configs_meta=config_meta)
 
         self._console.log(
             f"Bake [b]{bake.name or bake.id}[/b] of "
