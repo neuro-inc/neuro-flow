@@ -24,7 +24,7 @@ LOG_ERROR = log.error
 
 def setup_logging(color: bool, verbosity: int) -> None:
     root_logger = logging.getLogger()
-    handler = ConsoleHandler(color, show_traceback=True)
+    handler = ConsoleHandler(color)
     root_logger.addHandler(handler)
     root_logger.setLevel(logging.DEBUG)
 

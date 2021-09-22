@@ -394,11 +394,8 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             name=name,
             tags=tags,
         )
-
         bake_storage = self.storage.bake(id=bake.id)
-
         config_meta = await self.config_loader.collect_configs(batch_name, bake_storage)
-
         await bake_storage.create_attempt(number=1, configs_meta=config_meta)
 
         self._console.log(
