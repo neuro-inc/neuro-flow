@@ -42,9 +42,9 @@ from yarl import URL
 
 from neuro_flow.batch_executor import BatchExecutor, LocalsBatchExecutor
 from neuro_flow.batch_runner import BatchRunner
-from neuro_flow.in_memory_storage import InMemoryStorage
 from neuro_flow.parser import ConfigDir
-from neuro_flow.storage_base import Storage2, Task
+from neuro_flow.storage.base import Storage, Task
+from neuro_flow.storage.in_memory import InMemoryStorage
 from neuro_flow.types import ImageStatus, LocalPath, TaskStatus
 
 
@@ -300,7 +300,7 @@ class ImagesMock:
 
 
 @pytest.fixture()
-def batch_storage(loop: None) -> Storage2:
+def batch_storage(loop: None) -> Storage:
     return InMemoryStorage()
 
 
@@ -344,7 +344,7 @@ async def mock_builder(
 
 @pytest.fixture()
 async def make_batch_runner(
-    batch_storage: Storage2,
+    batch_storage: Storage,
     client: Client,
     mock_neuro_cli_runner: MockCliRunner,
 ) -> AsyncIterator[MakeBatchRunner]:
@@ -406,7 +406,7 @@ async def patched_client(
 
 @pytest.fixture()
 def start_locals_executor(
-    batch_storage: Storage2, patched_client: Client
+    batch_storage: Storage, patched_client: Client
 ) -> Callable[[str], Awaitable[TaskStatus]]:
     async def start(bake_id: str) -> TaskStatus:
         async with LocalsBatchExecutor.create(
@@ -422,7 +422,7 @@ def start_locals_executor(
 
 @pytest.fixture()
 def start_executor(
-    batch_storage: Storage2,
+    batch_storage: Storage,
     patched_client: Client,
     mock_builder: MockBuilder,
 ) -> Callable[[str], Awaitable[None]]:
@@ -450,7 +450,7 @@ def run_executor(
     make_batch_runner: MakeBatchRunner,
     start_locals_executor: Callable[[str], Awaitable[None]],
     start_executor: Callable[[str], Awaitable[None]],
-    batch_storage: Storage2,
+    batch_storage: Storage,
 ) -> RunExecutor:
     async def run(
         config_loc: Path, batch_name: str, args: Optional[Mapping[str, str]] = None
@@ -1047,7 +1047,7 @@ async def test_stateful_post_after_cancellation(
     await executor_task
 
 
-async def test_restart(batch_storage: Storage2, batch_runner: BatchRunner) -> None:
+async def test_restart(batch_storage: Storage, batch_runner: BatchRunner) -> None:
     bake, _ = await batch_runner._setup_bake("batch-seq")
 
     attempt_storage = batch_storage.bake(id=bake.id).last_attempt()
@@ -1083,7 +1083,7 @@ async def test_restart(batch_storage: Storage2, batch_runner: BatchRunner) -> No
 
 
 # async def test_restart_not_last_attempt(
-#     batch_storage: Storage2, batch_runner: BatchRunner
+#     batch_storage: Storage, batch_runner: BatchRunner
 # ) -> None:
 #     bake, _ = await batch_runner._setup_bake("batch-seq")
 #     bake = await batch_storage.fetch_bake(
@@ -1314,7 +1314,7 @@ async def test_image_builds(
     assets: Path,
     run_executor: Callable[[Path, str], Awaitable[None]],
     mock_builder: MockBuilder,
-    batch_storage: Storage2,
+    batch_storage: Storage,
 ) -> None:
     executor_task = asyncio.ensure_future(
         run_executor(assets / "batch_images", "batch")
@@ -1380,7 +1380,7 @@ async def test_image_builds_skip_if_present(
     run_executor: Callable[[Path, str], Awaitable[None]],
     images_mock: ImagesMock,
     client: Client,
-    batch_storage: Storage2,
+    batch_storage: Storage,
 ) -> None:
     images_mock.known_images = {
         f"image://{client.cluster_name}/{client.username}/banana1:latest": Tag(
@@ -1420,7 +1420,7 @@ async def test_image_builds_if_present_but_force(
     run_executor: Callable[[Path, str], Awaitable[None]],
     images_mock: ImagesMock,
     mock_builder: MockBuilder,
-    batch_storage: Storage2,
+    batch_storage: Storage,
     client: Client,
 ) -> None:
     images_mock.known_images = {
@@ -1471,7 +1471,7 @@ async def test_image_builds_cancel(
     assets: Path,
     run_executor: Callable[[Path, str], Awaitable[None]],
     mock_builder: MockBuilder,
-    batch_storage: Storage2,
+    batch_storage: Storage,
 ) -> None:
     executor_task = asyncio.ensure_future(
         run_executor(assets / "batch_images", "batch")

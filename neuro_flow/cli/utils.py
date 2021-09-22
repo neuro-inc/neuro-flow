@@ -9,7 +9,7 @@ from neuro_cli.asyncio_utils import Runner
 from neuro_sdk import ResourceNotFound
 from typing import Any, Awaitable, Callable, Iterator, TypeVar
 
-from neuro_flow.storage_base import Storage2
+from neuro_flow.storage.base import Storage
 
 
 @contextmanager
@@ -66,7 +66,7 @@ def argument(*param_decls: Any, **attrs: Any) -> Callable[..., Any]:
 BAKE_ID_PATTERN = r"bake-[0-9a-z]{8}-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{12}"
 
 
-async def resolve_bake(id_or_name: str, *, project: str, storage: Storage2) -> str:
+async def resolve_bake(id_or_name: str, *, project: str, storage: Storage) -> str:
     if re.fullmatch(BAKE_ID_PATTERN, id_or_name):
         return id_or_name
     try:

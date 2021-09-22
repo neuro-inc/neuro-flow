@@ -7,8 +7,8 @@ from neuro_flow.cli.click_types import LIVE_JOB, LIVE_JOB_OR_ALL, SUFFIX_AFTER_L
 from neuro_flow.cli.utils import argument, option, wrap_async
 from neuro_flow.live_runner import LiveRunner
 
-from ..storage_api import ApiStorage
-from ..storage_base import Storage2
+from ..storage.api import ApiStorage
+from ..storage.base import Storage
 from .root import Root
 
 
@@ -26,7 +26,7 @@ async def ps(
     """List all jobs"""
     async with AsyncExitStack() as stack:
         client = await stack.enter_async_context(neuro_sdk.get())
-        storage: Storage2 = await stack.enter_async_context(ApiStorage(client))
+        storage: Storage = await stack.enter_async_context(ApiStorage(client))
         runner = await stack.enter_async_context(
             LiveRunner(root.config_dir, root.console, client, storage, root)
         )
@@ -67,7 +67,7 @@ async def run(
         )
     async with AsyncExitStack() as stack:
         client = await stack.enter_async_context(neuro_sdk.get())
-        storage: Storage2 = await stack.enter_async_context(ApiStorage(client))
+        storage: Storage = await stack.enter_async_context(ApiStorage(client))
         runner = await stack.enter_async_context(
             LiveRunner(root.config_dir, root.console, client, storage, root)
         )
@@ -95,7 +95,7 @@ async def logs(
     """
     async with AsyncExitStack() as stack:
         client = await stack.enter_async_context(neuro_sdk.get())
-        storage: Storage2 = await stack.enter_async_context(ApiStorage(client))
+        storage: Storage = await stack.enter_async_context(ApiStorage(client))
         runner = await stack.enter_async_context(
             LiveRunner(root.config_dir, root.console, client, storage, root)
         )
@@ -117,7 +117,7 @@ async def status(
     """
     async with AsyncExitStack() as stack:
         client = await stack.enter_async_context(neuro_sdk.get())
-        storage: Storage2 = await stack.enter_async_context(ApiStorage(client))
+        storage: Storage = await stack.enter_async_context(ApiStorage(client))
         runner = await stack.enter_async_context(
             LiveRunner(root.config_dir, root.console, client, storage, root)
         )
@@ -138,7 +138,7 @@ async def kill(
     Kill JOB-ID, use `kill ALL` for killing all jobs."""
     async with AsyncExitStack() as stack:
         client = await stack.enter_async_context(neuro_sdk.get())
-        storage: Storage2 = await stack.enter_async_context(ApiStorage(client))
+        storage: Storage = await stack.enter_async_context(ApiStorage(client))
         runner = await stack.enter_async_context(
             LiveRunner(root.config_dir, root.console, client, storage, root)
         )

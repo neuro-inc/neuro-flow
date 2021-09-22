@@ -17,7 +17,7 @@ from typing import (
 )
 from yarl import URL
 
-from neuro_flow.storage_base import (
+from neuro_flow.storage.base import (
     Attempt,
     AttemptStorage,
     Bake,
@@ -33,7 +33,7 @@ from neuro_flow.storage_base import (
     LiveJobStorage,
     Project,
     ProjectStorage,
-    Storage2,
+    Storage,
     Task,
     TaskStatusItem,
     TaskStorage,
@@ -62,7 +62,7 @@ class InMemoryDB:
         self.tasks: Dict[str, Task] = {}
 
 
-class InMemoryStorage(Storage2):
+class InMemoryStorage(Storage):
     def __init__(
         self, owner: str = "in_memory_owner", cluster: str = "in_memory_cluster"
     ):

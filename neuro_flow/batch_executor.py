@@ -67,7 +67,7 @@ from .context import (
     TaskMeta,
 )
 from .expr import EvalError
-from .storage_base import (
+from .storage.base import (
     Attempt,
     AttemptStorage,
     Bake,
@@ -76,7 +76,7 @@ from .storage_base import (
     BakeStorage,
     ConfigsMeta,
     ProjectStorage,
-    Storage2,
+    Storage,
     Task as StorageTask,
     TaskStatusItem,
     _Unset,
@@ -517,7 +517,7 @@ class BatchExecutor:
         console: Console,
         bake_id: str,
         client: Client,
-        storage: Storage2,
+        storage: Storage,
         *,
         polling_timeout: float = 1,
         transient_progress: bool = False,
@@ -1254,7 +1254,7 @@ class LocalsBatchExecutor(BatchExecutor):
         console: Console,
         bake_id: str,
         client: Client,
-        storage: Storage2,
+        storage: Storage,
         *,
         polling_timeout: Optional[float] = None,
         project_role: Optional[str] = None,

@@ -31,7 +31,7 @@ from neuro_flow.parser import (
     parse_live_stream,
     parse_project_stream,
 )
-from neuro_flow.storage_base import BakeStorage, ConfigsMeta
+from neuro_flow.storage.base import BakeStorage, ConfigsMeta
 from neuro_flow.types import LocalPath
 
 

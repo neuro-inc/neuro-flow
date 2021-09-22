@@ -36,7 +36,7 @@ from yarl import URL
 from .config_loader import LiveLocalCL
 from .context import ImageCtx, JobMeta, RunningLiveFlow, UnknownJob, VolumeCtx
 from .parser import ConfigDir
-from .storage_base import ProjectStorage, Storage2
+from .storage.base import ProjectStorage, Storage
 from .types import TaskStatus
 from .utils import (
     RUNNING_JOB_STATUSES,
@@ -64,7 +64,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
         config_dir: ConfigDir,
         console: Console,
         client: Client,
-        storage: Storage2,
+        storage: Storage,
         global_options: GlobalOptions,
     ) -> None:
         self._config_dir = config_dir

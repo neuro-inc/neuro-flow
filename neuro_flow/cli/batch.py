@@ -15,11 +15,11 @@ from neuro_flow.cli.click_types import (
     FINISHED_TASK_AFTER_BAKE,
 )
 from neuro_flow.cli.utils import argument, option, resolve_bake, wrap_async
-from neuro_flow.storage_api import ApiStorage
+from neuro_flow.storage.api import ApiStorage
 from neuro_flow.types import LocalPath
 
 from ..parser import parse_bake_meta
-from ..storage_base import Storage2
+from ..storage.base import Storage
 from .root import Root
 
 
@@ -72,7 +72,7 @@ async def bake(
     """
     async with AsyncExitStack() as stack:
         client = await stack.enter_async_context(neuro_sdk.get())
-        storage: Storage2 = await stack.enter_async_context(ApiStorage(client))
+        storage: Storage = await stack.enter_async_context(ApiStorage(client))
         runner = await stack.enter_async_context(
             BatchRunner(root.config_dir, root.console, client, storage, root)
         )
@@ -116,7 +116,7 @@ async def execute(
         signal.signal(signame, signal.SIG_IGN)
     async with AsyncExitStack() as stack:
         client = await stack.enter_async_context(neuro_sdk.get())
-        storage: Storage2 = await stack.enter_async_context(ApiStorage(client))
+        storage: Storage = await stack.enter_async_context(ApiStorage(client))
         runner = await stack.enter_async_context(
             BatchRunner(root.config_dir, root.console, client, storage, root)
         )
@@ -163,7 +163,7 @@ async def bakes(
     """List existing bakes."""
     async with AsyncExitStack() as stack:
         client = await stack.enter_async_context(neuro_sdk.get())
-        storage: Storage2 = await stack.enter_async_context(ApiStorage(client))
+        storage: Storage = await stack.enter_async_context(ApiStorage(client))
         runner = await stack.enter_async_context(
             BatchRunner(root.config_dir, root.console, client, storage, root)
         )
@@ -224,7 +224,7 @@ async def inspect(
     """
     async with AsyncExitStack() as stack:
         client = await stack.enter_async_context(neuro_sdk.get())
-        storage: Storage2 = await stack.enter_async_context(ApiStorage(client))
+        storage: Storage = await stack.enter_async_context(ApiStorage(client))
         runner = await stack.enter_async_context(
             BatchRunner(root.config_dir, root.console, client, storage, root)
         )
@@ -277,7 +277,7 @@ async def show(
     """
     async with AsyncExitStack() as stack:
         client = await stack.enter_async_context(neuro_sdk.get())
-        storage: Storage2 = await stack.enter_async_context(ApiStorage(client))
+        storage: Storage = await stack.enter_async_context(ApiStorage(client))
         runner = await stack.enter_async_context(
             BatchRunner(root.config_dir, root.console, client, storage, root)
         )
@@ -306,7 +306,7 @@ async def cancel(
     """
     async with AsyncExitStack() as stack:
         client = await stack.enter_async_context(neuro_sdk.get())
-        storage: Storage2 = await stack.enter_async_context(ApiStorage(client))
+        storage: Storage = await stack.enter_async_context(ApiStorage(client))
         runner = await stack.enter_async_context(
             BatchRunner(root.config_dir, root.console, client, storage, root)
         )
@@ -333,7 +333,7 @@ async def clear_cache(
     """
     async with AsyncExitStack() as stack:
         client = await stack.enter_async_context(neuro_sdk.get())
-        storage: Storage2 = await stack.enter_async_context(ApiStorage(client))
+        storage: Storage = await stack.enter_async_context(ApiStorage(client))
         runner = await stack.enter_async_context(
             BatchRunner(root.config_dir, root.console, client, storage, root)
         )
@@ -373,7 +373,7 @@ async def restart(
     """
     async with AsyncExitStack() as stack:
         client = await stack.enter_async_context(neuro_sdk.get())
-        storage: Storage2 = await stack.enter_async_context(ApiStorage(client))
+        storage: Storage = await stack.enter_async_context(ApiStorage(client))
         runner = await stack.enter_async_context(
             BatchRunner(root.config_dir, root.console, client, storage, root)
         )

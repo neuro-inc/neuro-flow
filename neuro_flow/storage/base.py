@@ -146,8 +146,8 @@ class _Unset:
     pass
 
 
-class Storage2(abc.ABC):
-    async def __aenter__(self) -> "Storage2":
+class Storage(abc.ABC):
+    async def __aenter__(self) -> "Storage":
         return self
 
     async def __aexit__(

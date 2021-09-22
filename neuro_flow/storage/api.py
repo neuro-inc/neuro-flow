@@ -24,7 +24,7 @@ from typing import (
 )
 from yarl import URL
 
-from neuro_flow.storage_base import (
+from neuro_flow.storage.base import (
     Attempt,
     AttemptStorage,
     Bake,
@@ -40,7 +40,7 @@ from neuro_flow.storage_base import (
     LiveJobStorage,
     Project,
     ProjectStorage,
-    Storage2,
+    Storage,
     Task,
     TaskStatusItem,
     TaskStorage,
@@ -280,7 +280,7 @@ class RawApiClient:
             pass
 
 
-class ApiStorage(Storage2):
+class ApiStorage(Storage):
     def __init__(self, client: Client) -> None:
         self._cluster_name = client.config.cluster_name
         self._raw_client = RawApiClient(client)

@@ -18,9 +18,9 @@ from neuro_flow.colored_topo_sorter import CycleError
 from neuro_flow.config_loader import BatchLocalCL, ConfigLoader
 from neuro_flow.context import EarlyBatchAction, RunningBatchFlow
 from neuro_flow.expr import MultiError
-from neuro_flow.in_memory_storage import InMemoryStorage
 from neuro_flow.parser import ConfigDir
-from neuro_flow.storage_base import BakeImage, Storage2
+from neuro_flow.storage.base import BakeImage, Storage
+from neuro_flow.storage.in_memory import InMemoryStorage
 
 
 if sys.version_info >= (3, 7):  # pragma: no cover
@@ -51,7 +51,7 @@ async def batch_cl_factory(
 
 
 @pytest.fixture()
-def batch_storage(loop: None) -> Storage2:
+def batch_storage(loop: None) -> Storage:
     return InMemoryStorage()
 
 
@@ -191,7 +191,7 @@ async def test_check_image_refs_unique_same_defs(
 
 async def test_upload_image_data(
     batch_cl_factory: BatchClFactory,
-    batch_storage: Storage2,
+    batch_storage: Storage,
     assets: pathlib.Path,
 ) -> None:
     async with batch_cl_factory("batch_images") as cl:

@@ -47,14 +47,7 @@ from .context import (
 )
 from .expr import EvalError, MultiError
 from .parser import ConfigDir
-from .storage_base import (
-    Attempt,
-    Bake,
-    BakeImage,
-    BakeStorage,
-    ProjectStorage,
-    Storage2,
-)
+from .storage.base import Attempt, Bake, BakeImage, BakeStorage, ProjectStorage, Storage
 from .types import FullID, LocalPath, TaskStatus
 from .utils import (
     CommandRunner,
@@ -301,7 +294,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         config_dir: ConfigDir,
         console: Console,
         client: Client,
-        storage: Storage2,
+        storage: Storage,
         global_options: GlobalOptions,
         run_neuro_cli: Optional[CommandRunner] = None,
     ) -> None:
