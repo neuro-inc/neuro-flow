@@ -1082,60 +1082,46 @@ async def test_restart(batch_storage: Storage, batch_runner: BatchRunner) -> Non
     assert task1_new.outputs == task1.outputs
 
 
-# async def test_restart_not_last_attempt(
-#     batch_storage: Storage, batch_runner: BatchRunner
-# ) -> None:
-#     bake, _ = await batch_runner._setup_bake("batch-seq")
-#     bake = await batch_storage.fetch_bake(
-#         data.project, data.batch, data.when, data.suffix
-#     )
-#     attempt = await batch_storage.find_attempt(bake)
-#     job_1 = ("task-1",)
-#     job_2 = ("task-2",)
-#     st1 = await batch_storage.start_task(attempt, job_1, make_descr("job:task-1"))
-#     ft1 = await batch_storage.finish_task(
-#         attempt,
-#         st1,
-#         make_descr(
-#             "job:task-1",
-#             status=JobStatus.SUCCEEDED,
-#             exit_code=0,
-#             started_at=datetime.now(),
-#             finished_at=datetime.now(),
-#         ),
-#         {},
-#         {},
-#     )
-#     st2 = await batch_storage.start_task(attempt, job_2, make_descr("job:task-2"))
-#     await batch_storage.finish_task(
-#         attempt,
-#         st2,
-#         make_descr(
-#             "job:task-2",
-#             status=JobStatus.FAILED,
-#             exit_code=1,
-#             started_at=datetime.now(),
-#             finished_at=datetime.now(),
-#         ),
-#         {},
-#         {},
-#     )
-#
-#     await batch_storage.finish_attempt(attempt, TaskStatus.FAILED)
-#
-#     await batch_runner._restart(bake.bake_id)
-#
-#     data3, _ = await batch_runner._restart(bake.bake_id, attempt_no=1)
-#     assert data == data3
-#
-#     attempt3 = await batch_storage.find_attempt(bake)
-#     assert attempt3.number == 3
-#     started, finished = await batch_storage.fetch_attempt(attempt3)
-#     assert list(started.keys()) == [job_1]
-#     assert list(finished.keys()) == [job_1]
-#     assert started[job_1] == replace(st1, attempt=attempt3)
-#     assert finished[job_1] == replace(ft1, attempt=attempt3)
-#
+async def test_restart_not_last_attempt(
+    batch_storage: Storage, batch_runner: BatchRunner
+) -> None:
+    bake, _ = await batch_runner._setup_bake("batch-seq")
+    attempt_storage = batch_storage.bake(id=bake.id).last_attempt()
+    job_1 = ("task-1",)
+    job_2 = ("task-2",)
+    task1 = await attempt_storage.create_task(
+        yaml_id=job_1,
+        raw_id="test-1",
+        status=TaskStatus.SUCCEEDED,
+        outputs={"key": "value"},
+        state={},
+    )
+    await attempt_storage.create_task(
+        yaml_id=job_2,
+        raw_id="test-2",
+        status=TaskStatus.FAILED,
+        outputs={},
+        state={},
+    )
+    await attempt_storage.update(result=TaskStatus.FAILED)
+
+    await batch_runner._restart(bake.id)
+    with pytest.raises(Exception):
+        await batch_runner._restart(bake.id, attempt_no=1)
+
+    await batch_storage.bake(id=bake.id).last_attempt().update(result=TaskStatus.FAILED)
+
+    bake_restart, _ = await batch_runner._restart(bake.id, attempt_no=1)
+    assert bake_restart.id == bake.id
+
+    attempt_storage = batch_storage.bake(id=bake.id).last_attempt()
+    attempt3 = await attempt_storage.get()
+    assert attempt3.number == 3
+    tasks_map = {task.yaml_id: task async for task in attempt_storage.list_tasks()}
+    assert job_1 in tasks_map
+    assert job_2 not in tasks_map
+    task1_new = tasks_map[job_1]
+    assert task1_new.outputs == task1.outputs
 
 
 async def test_fully_cached_simple(

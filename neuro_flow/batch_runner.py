@@ -766,28 +766,34 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
     ) -> Tuple[Bake, RunningBatchFlow]:
         bake_storage = self.storage.bake(id=bake_id)
         bake = await bake_storage.get()
-        if bake.last_attempt:
-            last_attempt = bake.last_attempt
+        if bake.last_attempt and attempt_no == -1:
+            last_attempt = attempt = bake.last_attempt
         else:
+            attempt = await bake_storage.attempt(number=attempt_no).get()
             last_attempt = await bake_storage.last_attempt().get()
-        if not last_attempt.result.is_finished:
+        if not attempt.result.is_finished:
             raise click.BadArgumentUsage(
-                f"Cannot re-run still running attempt #{last_attempt.number} "
+                f"Cannot re-run still running attempt #{attempt.number} "
                 f"of {bake.id}."
             )
-        if last_attempt.result == TaskStatus.SUCCEEDED and from_failed:
+        if not last_attempt.result.is_finished:
             raise click.BadArgumentUsage(
-                f"Cannot re-run successful attempt #{last_attempt.number} "
+                f"Cannot re-run bake when last attempt #{last_attempt.number} "
+                f"of {bake.id} is still running."
+            )
+        if attempt.result == TaskStatus.SUCCEEDED and from_failed:
+            raise click.BadArgumentUsage(
+                f"Cannot re-run successful attempt #{attempt.number} "
                 f"of {bake.id} with `--from-failed` flag set.\n"
                 "Hint: Try adding --no-from-failed to restart bake from the beginning."
             )
-        if last_attempt.number >= 99:
+        if attempt.number >= 99:
             raise click.BadArgumentUsage(
                 f"Cannot re-run {bake.id}, the number of attempts exceeded."
             )
         new_attempt = await bake_storage.create_attempt(
             number=last_attempt.number + 1,
-            configs_meta=last_attempt.configs_meta,
+            configs_meta=attempt.configs_meta,
         )
         if from_failed:
             new_attempt_storage = bake_storage.attempt(id=new_attempt.id)
@@ -795,7 +801,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             handled = set()  # a set of succesfully finished and not cached tasks
             tasks = {
                 task.yaml_id: task
-                async for task in bake_storage.attempt(id=last_attempt.id).list_tasks()
+                async for task in bake_storage.attempt(id=attempt.id).list_tasks()
             }
             for task in sorted(tasks.values(), key=attrgetter("created_at")):
                 if task.status == TaskStatus.SUCCEEDED:
