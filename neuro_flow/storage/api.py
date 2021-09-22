@@ -14,6 +14,7 @@ from typing import (
     Dict,
     Generic,
     Iterable,
+    List,
     Mapping,
     Optional,
     Sequence,
@@ -47,6 +48,7 @@ from neuro_flow.storage.base import (
     _Unset,
 )
 from neuro_flow.types import FullID, ImageStatus, TaskStatus
+from neuro_flow.utils import retry
 
 
 if sys.version_info >= (3, 7):  # pragma: no cover
@@ -280,10 +282,55 @@ class RawApiClient:
             pass
 
 
-class ApiStorage(Storage):
+class RetryingReadRawApiClient(RawApiClient):
     def __init__(self, client: Client) -> None:
+        super().__init__(client)
+
+    E = TypeVar("E")
+
+    @retry
+    async def get(
+        self,
+        url_suffix: str,
+        mapper: Callable[[Mapping[str, Any]], E],
+        params: Union[Sequence[Tuple[str, str]], Mapping[str, str], None] = None,
+    ) -> E:
+        return await super().get(url_suffix, mapper, params)
+
+    @retry
+    async def _list(
+        self,
+        url_suffix: str,
+        mapper: Callable[[Mapping[str, Any]], E],
+        params: Union[Sequence[Tuple[str, str]], Mapping[str, str], None] = None,
+    ) -> List[E]:
+        res = []
+        async for item in super().list(url_suffix, mapper, params):
+            res.append(item)
+        return res
+
+    async def list(
+        self,
+        url_suffix: str,
+        mapper: Callable[[Mapping[str, Any]], E],
+        params: Union[Sequence[Tuple[str, str]], Mapping[str, str], None] = None,
+    ) -> AsyncIterator[E]:
+        for item in await self._list(url_suffix, mapper, params):
+            yield item
+
+
+class ApiStorage(Storage):
+    def __init__(
+        self, client: Client, _raw_client: Optional[RawApiClient] = None
+    ) -> None:
+        self._client = client
         self._cluster_name = client.config.cluster_name
         self._raw_client = RawApiClient(client)
+
+    def with_retry_read(self) -> Storage:
+        return ApiStorage(
+            self._client, _raw_client=RetryingReadRawApiClient(self._client)
+        )
 
     async def close(self) -> None:
         pass

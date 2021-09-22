@@ -524,6 +524,7 @@ class BatchExecutor:
         project_role: Optional[str] = None,
         run_builder_job: Callable[..., Awaitable[str]] = start_image_build,
     ) -> AsyncIterator["BatchExecutor"]:
+        storage = storage.with_retry_read()
 
         console.log("Fetch bake data")
         bake_storage = storage.bake(id=bake_id)

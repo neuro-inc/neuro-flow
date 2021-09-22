@@ -159,6 +159,10 @@ class Storage(abc.ABC):
         await self.close()
 
     @abc.abstractmethod
+    def with_retry_read(self) -> "Storage":
+        pass
+
+    @abc.abstractmethod
     async def close(self) -> None:
         pass
 

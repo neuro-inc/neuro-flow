@@ -70,6 +70,9 @@ class InMemoryStorage(Storage):
         self._cluster = cluster
         self._db = InMemoryDB()
 
+    def with_retry_read(self) -> "Storage":
+        return self  # In memory read cannot fail
+
     async def close(self) -> None:
         pass
 
