@@ -163,7 +163,7 @@ def _parse_bake_payload(data: Mapping[str, Any]) -> Bake:
 
 def _parse_attempt_payload(data: Mapping[str, Any]) -> Attempt:
     return Attempt(
-        id=data.get("id", "FIX THIS"),
+        id=data["id"],
         bake_id=data["bake_id"],
         number=data["number"],
         created_at=datetime.datetime.fromisoformat(data["created_at"]),
