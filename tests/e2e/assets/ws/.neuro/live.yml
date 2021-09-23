@@ -22,7 +22,7 @@ images:
     ref: image:neuro-flow-e2e/${{ flow.project_id }}:v1.0
     dockerfile: ${{ flow.workspace }}/Dockerfile
     context: ${{ flow.workspace }}
-
+    build_preset: cpu-small
 jobs:
 
   job_ctx_full:

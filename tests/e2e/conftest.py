@@ -147,7 +147,7 @@ def run_neuro_cli(_run_cli: RunCLI) -> RunCLI:
 
 
 IMAGE_DATETIME_FORMAT = "%Y%m%d%H%M"
-IMAGE_DATETIME_SEP = "_date"
+IMAGE_DATETIME_SEP = "date"
 
 
 def make_image_date_flag() -> str:
