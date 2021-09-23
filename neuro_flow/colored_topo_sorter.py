@@ -45,8 +45,11 @@ class ColoredTopoSorter(Generic[_K, _T]):
                 stack.extend(self._graph[node])
             seen.update(seen_step)
 
+    def is_colored(self, node: _K, color: _T) -> bool:
+        return node in self._color2nodes[color]
+
     def mark(self, node: _K, color: _T) -> None:
-        if node in self._color2nodes[color]:
+        if self.is_colored(node, color):
             return  # Already marked with this color
         self._color2nodes[color].add(node)
         for rev_node in self._node_rev_deps[node][color]:

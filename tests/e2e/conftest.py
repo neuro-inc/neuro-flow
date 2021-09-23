@@ -30,7 +30,7 @@ def assets() -> pathlib.Path:
 
 @pytest.fixture
 def project_id() -> str:
-    return f"e2e_proj_{make_image_date_flag()}_{secrets.token_hex(10)}"
+    return f"e2e_proj_{make_image_date_flag()}_{secrets.token_hex(1)}"
 
 
 async def get_config(nmrc_path: Optional[Path]) -> Config:
@@ -78,7 +78,7 @@ def ws(
     project_data = f"id: {project_id}"
     if username:
         project_data += f'\nowner: "{username}"'
-    (ws_dir / "project.yml").write_text(project_data)
+    (ws_dir / ".neuro" / "project.yml").write_text(project_data)
     return ws_dir
 
 

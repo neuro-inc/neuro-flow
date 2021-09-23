@@ -3,7 +3,6 @@ import dataclasses
 import abc
 import aiohttp
 import logging
-import secrets
 import sys
 import tarfile
 from aiohttp.web_exceptions import HTTPNotFound
@@ -13,17 +12,12 @@ from pathlib import PureWindowsPath
 from tempfile import TemporaryFile
 from typing import (
     IO,
-    Any,
     AsyncIterator,
-    Awaitable,
     BinaryIO,
-    Callable,
     Dict,
-    Mapping,
     Optional,
     Sequence,
     TextIO,
-    Tuple,
     Union,
     cast,
 )
@@ -37,6 +31,7 @@ from neuro_flow.parser import (
     parse_live_stream,
     parse_project_stream,
 )
+from neuro_flow.storage.base import BakeStorage, ConfigsMeta
 from neuro_flow.types import LocalPath
 
 
@@ -309,50 +304,40 @@ class BatchLocalCL(
     BatchStreamCL,
 ):
     async def collect_configs(
-        self, name: str
-    ) -> Tuple[Mapping[str, Any], Sequence["ConfigFile"]]:
+        self, name: str, bake_storage: BakeStorage
+    ) -> ConfigsMeta:
         async with self.project_stream() as stream:
-            proj_conf: Optional[ConfigFile]
+            proj_conf_id: Optional[str]
             if stream is not None:
-                proj_conf, proj_conf_meta = self._stream_to_config(stream)
+                proj_conf_id = await self._upload_config(stream, bake_storage)
             else:
-                proj_conf = None
+                proj_conf_id = None
         async with self.flow_stream(name) as stream:
-            flow_conf, flow_conf_meta = self._stream_to_config(stream)
+            flow_conf_id = await self._upload_config(stream, bake_storage)
 
         flow_ast = await self.fetch_flow(name)
-        actions: Dict[str, Tuple["ConfigFile", "ConfigOnStorage"]] = {}
-        await self._collect_actions(flow_ast.tasks, actions)
+        actions: Dict[str, str] = {}
+        await self._collect_actions(flow_ast.tasks, actions, bake_storage)
         meta = ConfigsMeta(
-            workspace=self.workspace,
-            project_config=proj_conf_meta if proj_conf else None,
-            flow_config=flow_conf_meta,
-            action_configs={
-                key: action_conf_meta for key, (_, action_conf_meta) in actions.items()
-            },
+            workspace=str(self.workspace),
+            project_config_id=proj_conf_id,
+            flow_config_id=flow_conf_id,
+            action_config_ids=actions,
         )
-        configs = [flow_conf, *(action_conf for action_conf, _ in actions.values())]
-        if proj_conf:
-            configs.append(proj_conf)
-        return meta.to_json(), configs
+        return meta
 
-    def _stream_to_config(
-        self, stream: TextIO
-    ) -> Tuple["ConfigFile", "ConfigOnStorage"]:
-        config_file = ConfigFile(
-            filename=secrets.token_hex(16),  # Use random filenames
+    async def _upload_config(self, stream: TextIO, bake_storage: BakeStorage) -> str:
+        config = await bake_storage.create_config_file(
+            filename=stream.name,
             content=stream.read(),
         )
-        config_on_storage = ConfigOnStorage(
-            storage_filename=config_file.filename,
-            real_name=stream.name,
-        )
-        return config_file, config_on_storage
+        return config.id
 
     async def _collect_actions(
         self,
         tasks: Sequence[Union[ast.Task, ast.TaskActionCall, ast.TaskModuleCall]],
-        collect_to: Dict[str, Tuple["ConfigFile", "ConfigOnStorage"]],
+        collect_to: Dict[str, str],
+        bake_storage: BakeStorage,
     ) -> None:
         from neuro_flow.context import EMPTY_ROOT
 
@@ -371,73 +356,12 @@ class BatchLocalCL(
             if action_name in collect_to:
                 continue
             async with self.action_stream(action_name) as stream:
-                collect_to[action_name] = self._stream_to_config(stream)
+                collect_to[action_name] = await self._upload_config(
+                    stream, bake_storage
+                )
             action_ast = await self.fetch_action(action_name)
             if isinstance(action_ast, ast.BatchAction):
-                await self._collect_actions(action_ast.tasks, collect_to)
-
-
-@dataclasses.dataclass(frozen=True)
-class ConfigFile:
-    filename: str
-    content: str
-
-
-@dataclasses.dataclass(frozen=True)
-class ConfigOnStorage:
-    storage_filename: str
-    real_name: str
-
-    def to_json(self) -> Mapping[str, Any]:
-        return {
-            "storage_filename": self.storage_filename,
-            "real_name": self.real_name,
-        }
-
-    @classmethod
-    def from_json(cls, data: Mapping[str, Any]) -> "ConfigOnStorage":
-        return cls(
-            storage_filename=data["storage_filename"],
-            real_name=data["real_name"],
-        )
-
-
-@dataclasses.dataclass(frozen=True)
-class ConfigsMeta:
-    workspace: LocalPath
-    flow_config: ConfigOnStorage
-    project_config: Optional[ConfigOnStorage]
-    action_configs: Mapping[str, ConfigOnStorage]
-
-    def to_json(self) -> Mapping[str, Any]:
-        return {
-            "workspace": str(self.workspace),
-            "flow_config": self.flow_config.to_json(),
-            "project_config": self.project_config.to_json()
-            if self.project_config
-            else None,
-            "action_configs": {
-                key: config.to_json() for key, config in self.action_configs.items()
-            },
-        }
-
-    @classmethod
-    def from_json(cls, data: Mapping[str, Any]) -> "ConfigsMeta":
-        if data.get("project_config"):
-            project_config: Optional[ConfigOnStorage] = ConfigOnStorage.from_json(
-                data["project_config"]
-            )
-        else:
-            project_config = None
-        return cls(
-            workspace=LocalPath(data["workspace"]),
-            flow_config=ConfigOnStorage.from_json(data["flow_config"]),
-            project_config=project_config,
-            action_configs={
-                key: ConfigOnStorage.from_json(config)
-                for key, config in data["action_configs"].items()
-            },
-        )
+                await self._collect_actions(action_ast.tasks, collect_to, bake_storage)
 
 
 class NamedStringIO(StringIO):
@@ -451,14 +375,14 @@ class NamedStringIO(StringIO):
 class BatchRemoteCL(BatchStreamCL):
     def __init__(
         self,
-        meta: Mapping[str, Any],
-        load_from_storage: Callable[[str], Awaitable[str]],
+        meta: ConfigsMeta,
         client: Client,
+        bake_storage: BakeStorage,
     ):
         super().__init__()
-        self._meta = ConfigsMeta.from_json(meta)
-        self._load_from_storage = load_from_storage
+        self._meta = meta
         self._client = client
+        self._bake_storage = bake_storage
 
     @property
     def client(self) -> Client:
@@ -466,23 +390,23 @@ class BatchRemoteCL(BatchStreamCL):
 
     @property
     def workspace(self) -> LocalPath:
-        return self._meta.workspace
+        return LocalPath(self._meta.workspace)
 
-    async def _fetch_config(self, config: ConfigOnStorage) -> TextIO:
-        content = await self._load_from_storage(config.storage_filename)
-        return NamedStringIO(content=content, name=config.real_name)
+    async def _to_stream(self, config_id: str) -> TextIO:
+        config = await self._bake_storage.config_file(id=config_id).get()
+        return NamedStringIO(content=config.content, name=config.filename)
 
     @asynccontextmanager
     async def flow_stream(self, name: str) -> AsyncIterator[TextIO]:
-        yield await self._fetch_config(self._meta.flow_config)
+        yield await self._to_stream(self._meta.flow_config_id)
 
     @asynccontextmanager
     async def project_stream(self) -> AsyncIterator[Optional[TextIO]]:
-        if self._meta.project_config:
-            yield await self._fetch_config(self._meta.project_config)
+        if self._meta.project_config_id:
+            yield await self._to_stream(self._meta.project_config_id)
         else:
             yield None
 
     @asynccontextmanager
     async def action_stream(self, action_name: str) -> AsyncIterator[TextIO]:
-        yield await self._fetch_config(self._meta.action_configs[action_name])
+        yield await self._to_stream(self._meta.action_config_ids[action_name])

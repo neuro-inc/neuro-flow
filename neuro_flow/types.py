@@ -1,6 +1,6 @@
 import enum
 from pathlib import Path, PurePosixPath
-from typing import ClassVar, Tuple
+from typing import ClassVar, List, Tuple
 
 
 LocalPath = Path
@@ -34,6 +34,36 @@ class TaskStatus(str, enum.Enum):
     CANCELLED = "cancelled"
     SKIPPED = "skipped"
     CACHED = "cached"
+
+    @property
+    def is_pending(self) -> bool:
+        return self == self.PENDING
+
+    @property
+    def is_running(self) -> bool:
+        return self == self.RUNNING
+
+    @property
+    def is_finished(self) -> bool:
+        return self in (
+            self.SUCCEEDED,
+            self.FAILED,
+            self.CANCELLED,
+            self.SKIPPED,
+            self.CACHED,
+        )
+
+    @classmethod
+    def values(cls) -> List[str]:
+        return [item.value for item in cls]
+
+    @classmethod
+    def active_values(cls) -> List[str]:
+        return [item.value for item in cls if not item.is_finished]
+
+    @classmethod
+    def finished_values(cls) -> List[str]:
+        return [item.value for item in cls if item.is_finished]
 
 
 COLORS = {

@@ -36,7 +36,7 @@ from yarl import URL
 from .config_loader import LiveLocalCL
 from .context import ImageCtx, JobMeta, RunningLiveFlow, UnknownJob, VolumeCtx
 from .parser import ConfigDir
-from .storage import Storage
+from .storage.base import ProjectStorage, Storage
 from .types import TaskStatus
 from .utils import (
     RUNNING_JOB_STATUSES,
@@ -73,13 +73,14 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
         self._flow: Optional[RunningLiveFlow] = None
         self._client = client
         self._storage = storage
+        self._project_storage: Optional[ProjectStorage] = None
         self._is_projet_role_created = False
         self._run_neuro_cli = make_cmd_exec(
             "neuro", global_options=encode_global_options(global_options)
         )
         self._run_extras_cli = make_cmd_exec("neuro-extras")
 
-    async def post_init(self) -> None:
+    async def init_flow(self) -> None:
         if self._flow is not None:
             return
         self._config_loader = LiveLocalCL(self._config_dir, self._client)
@@ -89,12 +90,17 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
             await self._config_loader.close()
             raise
 
+    async def init_project_storage(self) -> None:
+        project = await self._storage.get_or_create_project(self.flow.project.id)
+        self._project_storage = self._storage.project(id=project.id)
+
     async def close(self) -> None:
         if self._config_loader is not None:
             await self._config_loader.close()
 
     async def __aenter__(self) -> "LiveRunner":
-        await self.post_init()
+        await self.init_flow()
+        await self.init_project_storage()
         return self
 
     async def __aexit__(
@@ -109,6 +115,11 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
     def flow(self) -> RunningLiveFlow:
         assert self._flow is not None
         return self._flow
+
+    @property
+    def storage(self) -> ProjectStorage:
+        assert self._project_storage is not None
+        return self._project_storage
 
     @property
     def client(self) -> Client:
@@ -433,12 +444,16 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
             )
             return
 
-        jobs = []
+        live_job_metas = []
         for job_id in self.flow.job_ids:
             job_meta = await self.flow.get_meta(job_id)
-            jobs.append(job_meta)
-        await self._storage.ensure_project(self.flow.flow.project_id)
-        await self._storage.write_live(self.flow.flow.project_id, jobs)
+            live_job_metas.append(job_meta)
+        for job_meta in live_job_metas:
+            await self.storage.replace_live_job(
+                multi=job_meta.multi,
+                yaml_id=job_meta.id,
+                tags=job_meta.tags,
+            )
         await self._run_neuro_cli(*run_args)
 
     async def logs(self, job_id: str, suffix: Optional[str]) -> None:
