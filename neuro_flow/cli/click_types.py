@@ -373,3 +373,39 @@ FINISHED_TASK_AFTER_BAKE = BakeTaskType(
     args_to_bake_id=operator.itemgetter(-1),
     args_to_attempt=extract_attempt_no,
 )
+
+
+class ProjectType(AsyncType[str]):
+    name = "project"
+
+    async def async_convert(
+        self,
+        root: Root,
+        value: str,
+        param: Optional[click.Parameter],
+        ctx: Optional[click.Context],
+    ) -> str:
+        return value
+
+    async def async_complete(
+        self,
+        root: Root,
+        ctx: click.Context,
+        args: Sequence[str],
+        incomplete: str,
+    ) -> List[Tuple[str, Optional[str]]]:
+        variants = []
+        async with AsyncExitStack() as stack:
+            client = await stack.enter_async_context(neuro_sdk.get())
+            storage: Storage = await stack.enter_async_context(ApiStorage(client))
+            try:
+                async for project in storage.list_projects():
+                    variants.append(project.yaml_id)
+            except ValueError:
+                pass
+        return [
+            (yaml_id, None) for yaml_id in variants if yaml_id.startswith(incomplete)
+        ]
+
+
+PROJECT = ProjectType()

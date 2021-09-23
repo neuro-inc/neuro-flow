@@ -198,7 +198,7 @@ class Storage(abc.ABC):
 
     @abc.abstractmethod
     def list_projects(
-        self, name: str, cluster: Optional[str] = None
+        self, name: Optional[str] = None, cluster: Optional[str] = None
     ) -> AsyncIterator[Project]:
         pass
 

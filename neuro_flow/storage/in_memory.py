@@ -107,10 +107,10 @@ class InMemoryStorage(Storage):
         return project
 
     async def list_projects(
-        self, name: str, cluster: Optional[str] = None
+        self, name: Optional[str] = None, cluster: Optional[str] = None
     ) -> AsyncIterator[Project]:
         for project in self._db.projects.values():
-            if project.yaml_id != name:
+            if name and project.yaml_id != name:
                 continue
             if cluster and project.cluster != cluster:
                 continue

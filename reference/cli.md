@@ -35,6 +35,7 @@ neuro-flow [OPTIONS] COMMAND [ARGS]...
 | [_neuro-flow cancel_](cli.md#neuro-flow-cancel) | Cancel a bake. |
 | [_neuro-flow clean_](cli.md#neuro-flow-clean) | Clean volume. |
 | [_neuro-flow clear-cache_](cli.md#neuro-flow-clear-cache) | Clear cache. |
+| [_neuro-flow delete-project_](cli.md#neuro-flow-delete-project) | List all jobs |
 | [_neuro-flow download_](cli.md#neuro-flow-download) | Download volume. |
 | [_neuro-flow inspect_](cli.md#neuro-flow-inspect) | Inspect a bake. |
 | [_neuro-flow kill_](cli.md#neuro-flow-kill) | Kill a job. |
@@ -213,6 +214,22 @@ Use `neuro-flow clear-cache <BATCH>` for cleaning up the cache for BATCH; Use `n
 
 ```bash
 neuro-flow clear-cache [OPTIONS] BATCH [TASK_ID]
+```
+
+**Options:**
+
+| Name | Description |
+| :--- | :--- |
+| _--help_ | Show this message and exit. |
+
+### neuro-flow delete-project
+
+List all jobs
+
+**Usage:**
+
+```bash
+neuro-flow delete-project [OPTIONS] PROJECT_IDS...
 ```
 
 **Options:**
