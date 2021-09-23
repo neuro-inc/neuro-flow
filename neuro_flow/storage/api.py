@@ -367,7 +367,7 @@ class ApiStorage(Storage):
     ) -> Project:
         return await self._raw_client.create(
             "flow/projects",
-            data={"name": yaml_id, "cluster": cluster},
+            data={"name": yaml_id, "cluster": cluster or self._cluster_name},
             mapper=_parse_project_payload,
         )
 
