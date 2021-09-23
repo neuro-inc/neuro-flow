@@ -164,7 +164,7 @@ async def delete_project(
     root: Root,
     project_ids: Sequence[str],
 ) -> None:
-    """List all jobs"""
+    """Completely remove project with all related entities"""
     async with AsyncExitStack() as stack:
         client = await stack.enter_async_context(neuro_sdk.get())
         storage: Storage = await stack.enter_async_context(ApiStorage(client))
