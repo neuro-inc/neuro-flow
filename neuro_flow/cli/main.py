@@ -163,6 +163,7 @@ cli.add_command(live.ps)
 cli.add_command(live.logs)
 cli.add_command(live.status)
 cli.add_command(live.kill)
+cli.add_command(live.delete_project)
 
 # Batch commands
 cli.add_command(batch.bake)

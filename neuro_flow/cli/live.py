@@ -1,9 +1,14 @@
 import click
 import neuro_sdk
 import sys
-from typing import List, Optional, Tuple
+from typing import List, Optional, Sequence, Tuple
 
-from neuro_flow.cli.click_types import LIVE_JOB, LIVE_JOB_OR_ALL, SUFFIX_AFTER_LIVE_JOB
+from neuro_flow.cli.click_types import (
+    LIVE_JOB,
+    LIVE_JOB_OR_ALL,
+    PROJECT,
+    SUFFIX_AFTER_LIVE_JOB,
+)
 from neuro_flow.cli.utils import argument, option, wrap_async
 from neuro_flow.live_runner import LiveRunner
 
@@ -150,3 +155,20 @@ async def kill(
                     "Suffix is not supported when killing ALL jobs"
                 )
             await runner.kill_all()
+
+
+@click.command()
+@argument("project_ids", type=PROJECT, nargs=-1, required=True)
+@wrap_async()
+async def delete_project(
+    root: Root,
+    project_ids: Sequence[str],
+) -> None:
+    """Completely remove project with all related entities"""
+    async with AsyncExitStack() as stack:
+        client = await stack.enter_async_context(neuro_sdk.get())
+        storage: Storage = await stack.enter_async_context(ApiStorage(client))
+        for project_id in project_ids:
+            await storage.project(yaml_id=project_id).delete()
+            if root.verbosity >= 0:
+                root.console.print(f"Project '{project_id}' was successfully removed.")
