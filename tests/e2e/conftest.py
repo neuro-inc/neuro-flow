@@ -30,7 +30,7 @@ def assets() -> pathlib.Path:
 
 @pytest.fixture
 def project_id() -> str:
-    return f"e2e_proj_{make_date_flag()}_{secrets.token_hex(1)}"
+    return f"e2e_proj_{make_date_flag()}_{secrets.token_hex(6)}"
 
 
 async def get_config(nmrc_path: Optional[Path]) -> Config:
