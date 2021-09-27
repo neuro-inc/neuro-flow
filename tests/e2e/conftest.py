@@ -211,7 +211,7 @@ async def drop_old_roles(
 
     tasks = []
     for project in res.out.splitlines():
-        tasks.append(asyncio.create_task(_clear_task(project)))
+        tasks.append(asyncio.ensure_future(_clear_task(project)))
 
     await asyncio.wait(tasks)
 
