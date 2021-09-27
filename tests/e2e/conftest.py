@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
 import aiohttp
+import asyncio
 import logging
 import os
 import pathlib
@@ -11,7 +12,7 @@ import subprocess
 from datetime import datetime, timedelta
 from neuro_sdk import Config, get as api_get, login_with_token
 from pathlib import Path
-from typing import Any, AsyncIterator, Callable, Dict, List, Optional
+from typing import Any, AsyncIterator, Callable, Dict, Iterator, List, Optional
 from yarl import URL
 
 from neuro_flow.context import sanitize_name
@@ -24,13 +25,22 @@ log = logging.getLogger(__name__)
 
 
 @pytest.fixture
+def loop() -> Iterator[asyncio.AbstractEventLoop]:
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    yield loop
+    loop.run_until_complete(loop.shutdown_asyncgens())
+    loop.close()
+
+
+@pytest.fixture
 def assets() -> pathlib.Path:
     return pathlib.Path(__file__).parent / "assets"
 
 
 @pytest.fixture
 def project_id() -> str:
-    return f"e2e_proj_{make_image_date_flag()}_{secrets.token_hex(1)}"
+    return f"e2e_proj_{secrets.token_hex(6)}_{make_date_flag()}"
 
 
 async def get_config(nmrc_path: Optional[Path]) -> Config:
@@ -146,13 +156,13 @@ def run_neuro_cli(_run_cli: RunCLI) -> RunCLI:
     return lambda args: _run_cli(["neuro", "--show-traceback"] + args)
 
 
-IMAGE_DATETIME_FORMAT = "%Y%m%d%H%M"
-IMAGE_DATETIME_SEP = "_date"
+DATETIME_FORMAT = "%Y%m%d%H%M"
+DATETIME_SEP = "date"
 
 
-def make_image_date_flag() -> str:
-    time_str = datetime.now().strftime(IMAGE_DATETIME_FORMAT)
-    return f"{IMAGE_DATETIME_SEP}{time_str}{IMAGE_DATETIME_SEP}"
+def make_date_flag() -> str:
+    time_str = datetime.now().strftime(DATETIME_FORMAT)
+    return f"{DATETIME_SEP}{time_str}{DATETIME_SEP}"
 
 
 @pytest.fixture(scope="session")
@@ -164,7 +174,7 @@ def _drop_once_flag() -> Dict[str, bool]:
 def drop_old_test_images(
     run_neuro_cli: RunCLI, _drop_once_flag: Dict[str, bool]
 ) -> None:
-    if _drop_once_flag.get("cleaned"):
+    if _drop_once_flag.get("cleaned_images"):
         return
 
     res: SysCap = run_neuro_cli(["-q", "image", "ls", "--full-uri"])
@@ -173,12 +183,45 @@ def drop_old_test_images(
         image_url = URL(image_str)
         image_name = image_url.parts[-1]
         try:
-            _, time_str, _ = image_name.split(IMAGE_DATETIME_SEP)
-            image_time = datetime.strptime(time_str, IMAGE_DATETIME_FORMAT)
+            _, time_str, _ = image_name.split(DATETIME_SEP)
+            image_time = datetime.strptime(time_str, DATETIME_FORMAT)
             if datetime.now() - image_time < timedelta(days=1):
                 continue
             run_neuro_cli(["image", "rm", image_str])
         except Exception:
             pass
 
-    _drop_once_flag["cleaned"] = True
+    _drop_once_flag["cleaned_images"] = True
+
+
+@pytest.fixture(autouse=True)
+async def drop_old_roles(
+    run_neuro_cli: RunCLI, _drop_once_flag: Dict[str, bool], username: str
+) -> None:
+    if _drop_once_flag.get("cleaned_roles"):
+        return
+
+    res: SysCap = run_neuro_cli(
+        ["acl", "ls", "--shared", f"role://{username}/projects"]
+    )
+
+    async def _clear_task(project_str: str) -> None:
+        role_str, _ = project_str.split(" ", 1)
+        role_uri = URL(role_str)
+        role_name = role_uri.parts[-1]
+        try:
+            _, time_str, _ = role_name.split(DATETIME_SEP)
+            proj_time = datetime.strptime(time_str, DATETIME_FORMAT)
+            if datetime.now() - proj_time < timedelta(days=1):
+                return
+            run_neuro_cli(["acl", "remove-role", f"{username}/projects/{role_name}"])
+        except Exception:
+            pass
+
+    tasks = []
+    for project in res.out.splitlines():
+        tasks.append(asyncio.ensure_future(_clear_task(project)))
+
+    await asyncio.wait(tasks)
+
+    _drop_once_flag["cleaned_roles"] = True
