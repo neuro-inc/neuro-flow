@@ -470,6 +470,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                 run_args.append(f"--share={project_role}")
             run_args += [
                 EXECUTOR_IMAGE,
+                "--",
                 "neuro-flow",
                 *encode_global_options(self._global_options),
                 "--fake-workspace",

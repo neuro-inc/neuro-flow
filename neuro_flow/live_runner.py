@@ -431,6 +431,8 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
             run_args.append(f"--share={project_role}")
 
         run_args.append(job.image)
+
+        run_args.extend(["--"])
         if job.cmd:
             run_args.extend(shlex.split(job.cmd))
 
