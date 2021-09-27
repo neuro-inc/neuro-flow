@@ -134,7 +134,7 @@ def test_image_build(
 
         random_text = secrets.token_hex(20)
         captured = run_cli(
-            ["run", "image_py", "--param", "py_script", f"print('{random_text}')"]
+            ["run", "image_alpine", "--param", "cmd", f"echo '{random_text}'"]
         )
         assert random_text in captured.out
     finally:

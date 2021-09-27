@@ -56,9 +56,9 @@ jobs:
       cat /project/ro_dir/updated_file
       cat /project/rw_dir/initial_file
 
-  image_py:
+  image_alpine:
     image: ${{ images.img.ref }}
     params:
-      py_script:
-        descr: Python script to execute
-    python: ${{ params.py_script }}
+      cmd:
+        descr: Cmd to execute
+    cmd: ${{ params.cmd }}
