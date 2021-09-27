@@ -8,12 +8,7 @@ from neuro_cli.parse_utils import parse_timedelta
 from typing import List, Optional, Sequence, Tuple
 
 from neuro_flow.batch_runner import BatchRunner
-from neuro_flow.cli.click_types import (
-    BAKE,
-    BATCH,
-    BATCH_OR_ALL,
-    FINISHED_TASK_AFTER_BAKE,
-)
+from neuro_flow.cli.click_types import BAKE, BATCH, BATCH_OR_ALL, BakeTaskType
 from neuro_flow.cli.utils import argument, option, resolve_bake, wrap_async
 from neuro_flow.storage.api import ApiStorage
 from neuro_flow.types import LocalPath
@@ -246,7 +241,15 @@ async def inspect(
 
 @click.command()
 @argument("bake", type=BAKE)
-@argument("task_id", type=FINISHED_TASK_AFTER_BAKE)
+@argument(
+    "task_id",
+    type=BakeTaskType(
+        include_started=False,
+        include_finished=True,
+        bake_id_param_name="bake",
+        attempt_no_param_name="attempt",
+    ),
+)
 @click.option(
     "-a",
     "--attempt",
