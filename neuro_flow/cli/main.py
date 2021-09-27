@@ -19,12 +19,9 @@ from .root import Root
 log = logging.getLogger(__name__)
 
 
-LOG_ERROR = log.error
-
-
-def setup_logging(color: bool, verbosity: int) -> None:
+def setup_logging(color: bool, verbosity: int, show_traceback: bool) -> None:
     root_logger = logging.getLogger()
-    handler = ConsoleHandler(color)
+    handler = ConsoleHandler(color=color, show_traceback=show_traceback)
     root_logger.addHandler(handler)
     root_logger.setLevel(logging.DEBUG)
 
@@ -69,11 +66,11 @@ class MainGroup(click.Group):
         console = Console(highlight=False, log_path=False)
 
         verbosity = verbose - quiet
-        setup_logging(color=bool(console.color_system), verbosity=verbosity)
-
-        global LOG_ERROR
-        if show_traceback:
-            LOG_ERROR = log.exception
+        setup_logging(
+            color=bool(console.color_system),
+            verbosity=verbosity,
+            show_traceback=show_traceback,
+        )
 
         ctx.obj = Root(
             config_dir=config_dir,
@@ -192,7 +189,7 @@ def main(args: Optional[List[str]] = None) -> None:
     try:
         cli.main(args=args, standalone_mode=False)
     except ClickAbort:
-        LOG_ERROR("Aborting.")
+        log.exception("Aborting.")
         sys.exit(130)
     except click.ClickException as e:
         e.show()
@@ -209,9 +206,9 @@ def main(args: Optional[List[str]] = None) -> None:
 
     except MultiError as e:
         for error in e.errors:
-            LOG_ERROR(f"{error}")
+            log.exception(f"{error}")
         sys.exit(1)
 
     except Exception as e:
-        LOG_ERROR(f"{e}")
+        log.exception(f"{e}")
         sys.exit(1)
