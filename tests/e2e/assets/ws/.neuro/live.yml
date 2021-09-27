@@ -55,6 +55,7 @@ jobs:
     bash: |
       cat /project/ro_dir/updated_file
       cat /project/rw_dir/initial_file
+      sleep 5  # Fix missing logs in some cases
 
   image_alpine:
     image: ${{ images.img.ref }}
