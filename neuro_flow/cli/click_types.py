@@ -1,13 +1,15 @@
 import abc
 import click
 import neuro_sdk
-import operator
 import sys
+from click.shell_completion import CompletionItem
 from neuro_cli.asyncio_utils import Runner
-from typing import Callable, Generic, List, Optional, Sequence, Tuple, TypeVar, cast
+from neuro_sdk import ResourceNotFound
+from typing import Generic, List, Optional, TypeVar, cast
 
 from neuro_flow.batch_runner import BatchRunner
 from neuro_flow.cli.root import Root
+from neuro_flow.cli.utils import resolve_bake
 from neuro_flow.live_runner import LiveRunner
 from neuro_flow.storage.api import ApiStorage
 from neuro_flow.storage.base import Storage
@@ -43,21 +45,17 @@ class AsyncType(click.ParamType, Generic[_T], abc.ABC):
     ) -> _T:
         pass
 
-    def complete(
-        self, ctx: click.Context, args: Sequence[str], incomplete: str
-    ) -> List[Tuple[str, Optional[str]]]:
+    def shell_complete(
+        self, ctx: click.Context, param: click.Parameter, incomplete: str
+    ) -> List[CompletionItem]:
         root = cast(Root, ctx.obj)
         with Runner() as runner:
-            return runner.run(self.async_complete(root, ctx, args, incomplete))
+            return runner.run(self.async_shell_complete(root, ctx, param, incomplete))
 
     @abc.abstractmethod
-    async def async_complete(
-        self,
-        root: Root,
-        ctx: click.Context,
-        args: Sequence[str],
-        incomplete: str,
-    ) -> List[Tuple[str, Optional[str]]]:
+    async def async_shell_complete(
+        self, root: Root, ctx: click.Context, param: click.Parameter, incomplete: str
+    ) -> List[CompletionItem]:
         pass
 
 
@@ -76,13 +74,9 @@ class LiveJobType(AsyncType[str]):
     ) -> str:
         return value
 
-    async def async_complete(  # type: ignore[return]
-        self,
-        root: Root,
-        ctx: click.Context,
-        args: Sequence[str],
-        incomplete: str,
-    ) -> List[Tuple[str, Optional[str]]]:
+    async def async_shell_complete(
+        self, root: Root, ctx: click.Context, param: click.Parameter, incomplete: str
+    ) -> List[CompletionItem]:
         async with AsyncExitStack() as stack:
             client = await stack.enter_async_context(neuro_sdk.get())
             storage: Storage = await stack.enter_async_context(ApiStorage(client))
@@ -92,9 +86,11 @@ class LiveJobType(AsyncType[str]):
             variants = list(runner.flow.job_ids)
             if self._allow_all:
                 variants += ["ALL"]
-            return [
-                (job_id, None) for job_id in variants if job_id.startswith(incomplete)
-            ]
+        return [
+            CompletionItem(job_id)
+            for job_id in variants
+            if job_id.startswith(incomplete)
+        ]
 
 
 LIVE_JOB = LiveJobType(allow_all=False)
@@ -104,8 +100,8 @@ LIVE_JOB_OR_ALL = LiveJobType(allow_all=True)
 class LiveJobSuffixType(AsyncType[str]):
     name = "suffix"
 
-    def __init__(self, *, args_to_job_id: Callable[[Sequence[str]], str]):
-        self._args_to_job_id = args_to_job_id
+    def __init__(self, *, job_id_param_name: str = "job_id"):
+        self._job_id_param_name = job_id_param_name
 
     async def async_convert(
         self,
@@ -116,28 +112,22 @@ class LiveJobSuffixType(AsyncType[str]):
     ) -> str:
         return value
 
-    async def async_complete(  # type: ignore[return]
-        self,
-        root: Root,
-        ctx: click.Context,
-        args: Sequence[str],
-        incomplete: str,
-    ) -> List[Tuple[str, Optional[str]]]:
-        job_id = self._args_to_job_id(args)
+    async def async_shell_complete(
+        self, root: Root, ctx: click.Context, param: click.Parameter, incomplete: str
+    ) -> List[CompletionItem]:
+        job_id = ctx.params[self._job_id_param_name]
         async with AsyncExitStack() as stack:
             client = await stack.enter_async_context(neuro_sdk.get())
             storage: Storage = await stack.enter_async_context(ApiStorage(client))
             runner = await stack.enter_async_context(
                 LiveRunner(root.config_dir, root.console, client, storage, root)
             )
-            return [
-                (suffix, None)
-                for suffix in await runner.list_suffixes(job_id)
-                if suffix.startswith(incomplete)
-            ]
-
-
-SUFFIX_AFTER_LIVE_JOB = LiveJobSuffixType(args_to_job_id=operator.itemgetter(-1))
+            variants = await runner.list_suffixes(job_id)
+        return [
+            CompletionItem(suffix)
+            for suffix in variants
+            if suffix.startswith(incomplete)
+        ]
 
 
 class LiveImageType(AsyncType[str]):
@@ -155,13 +145,9 @@ class LiveImageType(AsyncType[str]):
     ) -> str:
         return value
 
-    async def async_complete(  # type: ignore[return]
-        self,
-        root: Root,
-        ctx: click.Context,
-        args: Sequence[str],
-        incomplete: str,
-    ) -> List[Tuple[str, Optional[str]]]:
+    async def async_shell_complete(
+        self, root: Root, ctx: click.Context, param: click.Parameter, incomplete: str
+    ) -> List[CompletionItem]:
         async with AsyncExitStack() as stack:
             client = await stack.enter_async_context(neuro_sdk.get())
             storage: Storage = await stack.enter_async_context(ApiStorage(client))
@@ -175,7 +161,9 @@ class LiveImageType(AsyncType[str]):
             ]
             if self._allow_all:
                 variants += ["ALL"]
-            return [(image, None) for image in variants if image.startswith(incomplete)]
+        return [
+            CompletionItem(image) for image in variants if image.startswith(incomplete)
+        ]
 
 
 LIVE_IMAGE_OR_ALL = LiveImageType(allow_all=True)
@@ -196,13 +184,9 @@ class LiveVolumeType(AsyncType[str]):
     ) -> str:
         return value
 
-    async def async_complete(  # type: ignore[return]
-        self,
-        root: Root,
-        ctx: click.Context,
-        args: Sequence[str],
-        incomplete: str,
-    ) -> List[Tuple[str, Optional[str]]]:
+    async def async_shell_complete(
+        self, root: Root, ctx: click.Context, param: click.Parameter, incomplete: str
+    ) -> List[CompletionItem]:
         async with AsyncExitStack() as stack:
             client = await stack.enter_async_context(neuro_sdk.get())
             storage: Storage = await stack.enter_async_context(ApiStorage(client))
@@ -216,7 +200,9 @@ class LiveVolumeType(AsyncType[str]):
             ]
             if self._allow_all:
                 variants += ["ALL"]
-            return [(image, None) for image in variants if image.startswith(incomplete)]
+        return [
+            CompletionItem(image) for image in variants if image.startswith(incomplete)
+        ]
 
 
 LIVE_VOLUME_OR_ALL = LiveVolumeType(allow_all=True)
@@ -237,13 +223,9 @@ class BatchType(AsyncType[str]):
     ) -> str:
         return value
 
-    async def async_complete(
-        self,
-        root: Root,
-        ctx: click.Context,
-        args: Sequence[str],
-        incomplete: str,
-    ) -> List[Tuple[str, Optional[str]]]:
+    async def async_shell_complete(
+        self, root: Root, ctx: click.Context, param: click.Parameter, incomplete: str
+    ) -> List[CompletionItem]:
         variants = []
         for file in root.config_dir.config_dir.rglob("*.yml"):
             # We are not trying to parse properly to allow autocompletion of
@@ -252,7 +234,9 @@ class BatchType(AsyncType[str]):
                 variants.append(file.stem)
         if self._allow_all:
             variants += ["ALL"]
-        return [(batch, None) for batch in variants if batch.startswith(incomplete)]
+        return [
+            CompletionItem(batch) for batch in variants if batch.startswith(incomplete)
+        ]
 
 
 BATCH = BatchType(allow_all=False)
@@ -271,13 +255,9 @@ class BakeType(AsyncType[str]):
     ) -> str:
         return value
 
-    async def async_complete(
-        self,
-        root: Root,
-        ctx: click.Context,
-        args: Sequence[str],
-        incomplete: str,
-    ) -> List[Tuple[str, Optional[str]]]:
+    async def async_shell_complete(
+        self, root: Root, ctx: click.Context, param: click.Parameter, incomplete: str
+    ) -> List[CompletionItem]:
         variants = []
         async with AsyncExitStack() as stack:
             client = await stack.enter_async_context(neuro_sdk.get())
@@ -292,7 +272,9 @@ class BakeType(AsyncType[str]):
                         variants.append(bake.name)
             except ValueError:
                 pass
-        return [(bake, None) for bake in variants if bake.startswith(incomplete)]
+        return [
+            CompletionItem(bake) for bake in variants if bake.startswith(incomplete)
+        ]
 
 
 BAKE = BakeType()
@@ -304,13 +286,13 @@ class BakeTaskType(AsyncType[str]):
     def __init__(
         self,
         *,
-        args_to_bake_id: Callable[[Sequence[str]], str],
-        args_to_attempt: Callable[[Sequence[str]], int],
+        bake_id_param_name: str = "bake_id",
+        attempt_no_param_name: str = "bake_id",
         include_started: bool = True,
         include_finished: bool = True,
     ):
-        self._args_to_bake_id = args_to_bake_id
-        self._args_to_attempt = args_to_attempt
+        self._bake_id_param_name = bake_id_param_name
+        self._attempt_no_param_name = attempt_no_param_name
         self._include_started = include_started
         self._include_finished = include_finished
 
@@ -323,23 +305,25 @@ class BakeTaskType(AsyncType[str]):
     ) -> str:
         return value
 
-    async def async_complete(
-        self,
-        root: Root,
-        ctx: click.Context,
-        args: Sequence[str],
-        incomplete: str,
-    ) -> List[Tuple[str, Optional[str]]]:
+    async def async_shell_complete(
+        self, root: Root, ctx: click.Context, param: click.Parameter, incomplete: str
+    ) -> List[CompletionItem]:
         variants: List[str] = []
-        bake_id = self._args_to_bake_id(args)
-        attempt_no = self._args_to_attempt(args)
+        bake_id = ctx.params[self._bake_id_param_name]
+        attempt_no = ctx.params[self._attempt_no_param_name]
         async with AsyncExitStack() as stack:
             client = await stack.enter_async_context(neuro_sdk.get())
             storage: Storage = await stack.enter_async_context(ApiStorage(client))
             runner: BatchRunner = await stack.enter_async_context(
                 BatchRunner(root.config_dir, root.console, client, storage, root)
             )
-            attempt = await runner.get_bake_attempt(bake_id, attempt_no=attempt_no)
+            try:
+                bake_id = await resolve_bake(
+                    bake_id, project=runner.project_id, storage=storage
+                )
+                attempt = await runner.get_bake_attempt(bake_id, attempt_no=attempt_no)
+            except ResourceNotFound:
+                return []
             tasks = [
                 task
                 async for task in storage.bake(id=bake_id)
@@ -354,25 +338,9 @@ class BakeTaskType(AsyncType[str]):
                 variants.extend(
                     ".".join(task.yaml_id) for task in tasks if task.status.is_finished
                 )
-        return [(task, None) for task in variants if task.startswith(incomplete)]
-
-
-def extract_attempt_no(args: Sequence[str]) -> int:
-    for index, arg in enumerate(args):
-        if arg == "-a" or arg == "--attempt":
-            try:
-                return int(args[index + 1])
-            except (ValueError, IndexError):
-                pass
-    return -1
-
-
-FINISHED_TASK_AFTER_BAKE = BakeTaskType(
-    include_started=False,
-    include_finished=True,
-    args_to_bake_id=operator.itemgetter(-1),
-    args_to_attempt=extract_attempt_no,
-)
+        return [
+            CompletionItem(task) for task in variants if task.startswith(incomplete)
+        ]
 
 
 class ProjectType(AsyncType[str]):
@@ -387,13 +355,9 @@ class ProjectType(AsyncType[str]):
     ) -> str:
         return value
 
-    async def async_complete(
-        self,
-        root: Root,
-        ctx: click.Context,
-        args: Sequence[str],
-        incomplete: str,
-    ) -> List[Tuple[str, Optional[str]]]:
+    async def async_shell_complete(
+        self, root: Root, ctx: click.Context, param: click.Parameter, incomplete: str
+    ) -> List[CompletionItem]:
         variants = []
         async with AsyncExitStack() as stack:
             client = await stack.enter_async_context(neuro_sdk.get())
@@ -404,7 +368,9 @@ class ProjectType(AsyncType[str]):
             except ValueError:
                 pass
         return [
-            (yaml_id, None) for yaml_id in variants if yaml_id.startswith(incomplete)
+            CompletionItem(yaml_id)
+            for yaml_id in variants
+            if yaml_id.startswith(incomplete)
         ]
 
 

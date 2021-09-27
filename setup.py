@@ -37,6 +37,7 @@ setup(
         "multidict>=5.0,<6.0",
         "rich~=10.0",
         "typing-extensions>=3.10",
+        "click>=8.0",
     ],
     packages=find_packages(),
     classifiers=[

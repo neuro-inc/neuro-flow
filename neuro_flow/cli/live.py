@@ -7,7 +7,7 @@ from neuro_flow.cli.click_types import (
     LIVE_JOB,
     LIVE_JOB_OR_ALL,
     PROJECT,
-    SUFFIX_AFTER_LIVE_JOB,
+    LiveJobSuffixType,
 )
 from neuro_flow.cli.utils import argument, option, wrap_async
 from neuro_flow.live_runner import LiveRunner
@@ -87,7 +87,7 @@ async def run(
 
 @click.command()
 @argument("job-id", type=LIVE_JOB)
-@argument("suffix", required=False, type=SUFFIX_AFTER_LIVE_JOB)
+@argument("suffix", required=False, type=LiveJobSuffixType(job_id_param_name="job_id"))
 @wrap_async()
 async def logs(
     root: Root,
@@ -109,7 +109,7 @@ async def logs(
 
 @click.command()
 @argument("job-id", type=LIVE_JOB)
-@argument("suffix", required=False, type=SUFFIX_AFTER_LIVE_JOB)
+@argument("suffix", required=False, type=LiveJobSuffixType(job_id_param_name="job_id"))
 @wrap_async()
 async def status(
     root: Root,
@@ -131,7 +131,7 @@ async def status(
 
 @click.command()
 @argument("job-id", type=LIVE_JOB_OR_ALL)
-@argument("suffix", required=False, type=SUFFIX_AFTER_LIVE_JOB)
+@argument("suffix", required=False, type=LiveJobSuffixType(job_id_param_name="job_id"))
 @wrap_async()
 async def kill(
     root: Root,
