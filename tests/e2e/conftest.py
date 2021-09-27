@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
 import aiohttp
+import asyncio
 import logging
 import os
 import pathlib
@@ -185,7 +186,7 @@ def drop_old_test_images(
 
 
 @pytest.fixture(autouse=True)
-def drop_old_roles(
+async def drop_old_roles(
     run_neuro_cli: RunCLI, _drop_once_flag: Dict[str, bool], username: str
 ) -> None:
     if _drop_once_flag.get("cleaned_roles"):
@@ -194,7 +195,8 @@ def drop_old_roles(
     res: SysCap = run_neuro_cli(
         ["acl", "ls", "--shared", f"role://{username}/projects"]
     )
-    for project_str in res.out.splitlines():
+
+    async def _clear_task(project_str: str) -> None:
         role_str, _ = project_str.split(" ", 1)
         role_uri = URL(role_str)
         role_name = role_uri.parts[-1]
@@ -202,9 +204,15 @@ def drop_old_roles(
             _, time_str, _ = role_name.split(DATETIME_SEP)
             proj_time = datetime.strptime(time_str, DATETIME_FORMAT)
             if datetime.now() - proj_time < timedelta(days=1):
-                continue
+                return
             run_neuro_cli(["acl", "remove-role", f"{username}/projects/{role_name}"])
         except Exception:
             pass
+
+    tasks = []
+    for project in res.out.splitlines():
+        tasks.append(asyncio.create_task(_clear_task(project)))
+
+    await asyncio.wait(tasks)
 
     _drop_once_flag["cleaned_roles"] = True
