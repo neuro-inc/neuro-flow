@@ -138,14 +138,20 @@ def _run_cli(
         proc = await asyncio.create_subprocess_exec(
             *arguments,
             cwd=ws,
-            encoding="utf8",
-            errors="replace",
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
+        assert proc.stdout
+        assert proc.stderr
         ret_code = await asyncio.wait_for(proc.wait(), timeout=600)
-        out = (await proc.stdout.read()).decode()
-        err = (await proc.stderr.read()).decode()
+        out = (await proc.stdout.read()).decode(
+            encoding="utf8",
+            errors="replace",
+        )
+        err = (await proc.stderr.read()).decode(
+            encoding="utf8",
+            errors="replace",
+        )
         if ret_code:
             log.error(f"Last stdout: '{out}'")
             log.error(f"Last stderr: '{err}'")
