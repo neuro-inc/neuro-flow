@@ -6,7 +6,7 @@ from yarl import URL
 from tests.e2e.conftest import RunCLI
 
 
-def test_live_context(
+async def test_live_context(
     ws: pathlib.Path,
     run_cli: RunCLI,
     run_neuro_cli: RunCLI,
@@ -15,7 +15,7 @@ def test_live_context(
     project_role: str,
     cluster_name: str,
 ) -> None:
-    captured = run_cli(["run", "job_ctx_full", "--param", "arg1", "cli-value"])
+    captured = await run_cli(["run", "job_ctx_full", "--param", "arg1", "cli-value"])
 
     DUMP_START_MARK = "DUMP_START"
     DUMP_START_END = "DUMP_END"
@@ -81,13 +81,13 @@ def test_live_context(
     }
 
     job_uri = URL.build(scheme="job", host=cluster_name) / username / job_id
-    captured = run_neuro_cli(["acl", "list", "--shared", str(job_uri)])
+    captured = await run_neuro_cli(["acl", "list", "--shared", str(job_uri)])
     assert sorted(line.split() for line in captured.out.splitlines()) == [
         [f"job:{job_id}", "write", project_role],
     ]
 
 
-def test_volumes(
+async def test_volumes(
     ws: pathlib.Path,
     run_cli: RunCLI,
     run_neuro_cli: RunCLI,
@@ -96,25 +96,25 @@ def test_volumes(
     project_role: str,
     cluster_name: str,
 ) -> None:
-    run_cli(["mkvolumes"])
+    await run_cli(["mkvolumes"])
 
     storage_uri = URL.build(scheme="storage", host=cluster_name)
     storage_uri = storage_uri / username / "neuro-flow-e2e" / project_id
-    captured = run_neuro_cli(["acl", "list", "--shared", str(storage_uri)])
+    captured = await run_neuro_cli(["acl", "list", "--shared", str(storage_uri)])
     assert sorted(line.split() for line in captured.out.splitlines()) == [
         [f"storage:neuro-flow-e2e/{project_id}/ro_dir", "write", project_role],
         [f"storage:neuro-flow-e2e/{project_id}/rw_dir", "write", project_role],
     ]
 
-    run_cli(["upload", "ALL"])
+    await run_cli(["upload", "ALL"])
     random_text = secrets.token_hex(20)
     (ws / "ro_dir/updated_file").write_text(random_text)
-    captured = run_cli(["run", "volumes_test"])
+    captured = await run_cli(["run", "volumes_test"])
     assert "initial_file_content" in captured.out
     assert random_text in captured.out
 
 
-def test_image_build(
+async def test_image_build(
     run_cli: RunCLI,
     run_neuro_cli: RunCLI,
     project_id: str,
@@ -125,15 +125,15 @@ def test_image_build(
     image_uri = URL.build(scheme="image", host=cluster_name)
     image_uri = image_uri / username / "neuro-flow-e2e" / project_id
     try:
-        run_cli(["build", "img"])
+        await run_cli(["build", "img"])
 
-        captured = run_neuro_cli(["acl", "list", "--shared", str(image_uri)])
+        captured = await run_neuro_cli(["acl", "list", "--shared", str(image_uri)])
         assert sorted(line.split() for line in captured.out.splitlines()) == [
             [f"image:neuro-flow-e2e/{project_id}", "write", project_role],
         ]
 
         random_text = secrets.token_hex(20)
-        captured = run_cli(
+        captured = await run_cli(
             [
                 "run",
                 "image_alpine",
@@ -144,4 +144,4 @@ def test_image_build(
         )
         assert random_text in captured.out
     finally:
-        run_neuro_cli(["image", "rm", str(image_uri)])
+        await run_neuro_cli(["image", "rm", str(image_uri)])

@@ -12,7 +12,16 @@ import subprocess
 from datetime import datetime, timedelta
 from neuro_sdk import Config, get as api_get, login_with_token
 from pathlib import Path
-from typing import Any, AsyncIterator, Callable, Dict, Iterator, List, Optional
+from typing import (
+    Any,
+    AsyncIterator,
+    Awaitable,
+    Callable,
+    Dict,
+    Iterator,
+    List,
+    Optional,
+)
 from yarl import URL
 
 from neuro_flow.context import sanitize_name
@@ -72,7 +81,7 @@ async def project_role(
     try:
         yield project_role
     finally:
-        run_neuro_cli(["acl", "remove-role", project_role])
+        await run_neuro_cli(["acl", "remove-role", project_role])
 
 
 @pytest.fixture
@@ -114,34 +123,34 @@ class SysCap:
     err: str
 
 
-RunCLI = Callable[[List[str]], SysCap]
+RunCLI = Callable[[List[str]], Awaitable[SysCap]]
 
 
 @pytest.fixture
 def _run_cli(
     loop: None, ws: pathlib.Path, api_config: Optional[pathlib.Path]
 ) -> RunCLI:
-    def _run(
+    async def _run(
         arguments: List[str],
     ) -> SysCap:
         if api_config:
             os.environ["NEUROMATION_CONFIG"] = str(api_config)
-        proc = subprocess.run(
-            arguments,
-            timeout=600,
+        proc = await asyncio.create_subprocess_exec(
+            *arguments,
             cwd=ws,
             encoding="utf8",
             errors="replace",
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
-        try:
-            proc.check_returncode()
-        except subprocess.CalledProcessError:
-            log.error(f"Last stdout: '{proc.stdout}'")
-            log.error(f"Last stderr: '{proc.stderr}'")
-            raise
-        return SysCap(out=proc.stdout.strip(), err=proc.stderr.strip())
+        ret_code = await asyncio.wait_for(proc.wait(), timeout=600)
+        out = (await proc.stdout.read()).decode()
+        err = (await proc.stderr.read()).decode()
+        if ret_code:
+            log.error(f"Last stdout: '{out}'")
+            log.error(f"Last stderr: '{err}'")
+            raise subprocess.CalledProcessError(ret_code, arguments[0], out, err)
+        return SysCap(out=out.strip(), err=err.strip())
 
     return _run
 
@@ -171,14 +180,13 @@ def _drop_once_flag() -> Dict[str, bool]:
 
 
 @pytest.fixture(autouse=True)
-def drop_old_test_images(
+async def drop_old_test_images(
     run_neuro_cli: RunCLI, _drop_once_flag: Dict[str, bool]
 ) -> None:
     if _drop_once_flag.get("cleaned_images"):
         return
 
-    res: SysCap = run_neuro_cli(["-q", "image", "ls", "--full-uri"])
-    for image_str in res.out.splitlines():
+    async def _drop_iamge(image_str: str) -> None:
         image_str = image_str.strip()
         image_url = URL(image_str)
         image_name = image_url.parts[-1]
@@ -186,10 +194,19 @@ def drop_old_test_images(
             _, time_str, _ = image_name.split(DATETIME_SEP)
             image_time = datetime.strptime(time_str, DATETIME_FORMAT)
             if datetime.now() - image_time < timedelta(days=1):
-                continue
-            run_neuro_cli(["image", "rm", image_str])
+                return
+            await run_neuro_cli(["image", "rm", image_str])
         except Exception:
             pass
+
+    res: SysCap = await run_neuro_cli(["-q", "image", "ls", "--full-uri"])
+
+    tasks = []
+    for image_str in res.out.splitlines():
+        tasks.append(asyncio.ensure_future(_drop_iamge(image_str)))
+
+    if tasks:
+        await asyncio.wait(tasks)
 
     _drop_once_flag["cleaned_images"] = True
 
@@ -201,27 +218,30 @@ async def drop_old_roles(
     if _drop_once_flag.get("cleaned_roles"):
         return
 
-    res: SysCap = run_neuro_cli(
+    res: SysCap = await run_neuro_cli(
         ["acl", "ls", "--shared", f"role://{username}/projects"]
     )
 
-    async def _clear_task(project_str: str) -> None:
+    async def _drop_role(project_str: str) -> None:
         role_str, _ = project_str.split(" ", 1)
         role_uri = URL(role_str)
         role_name = role_uri.parts[-1]
         try:
             _, time_str, _ = role_name.split(DATETIME_SEP)
             proj_time = datetime.strptime(time_str, DATETIME_FORMAT)
-            if datetime.now() - proj_time < timedelta(days=1):
+            if datetime.now() - proj_time < timedelta(hours=4):
                 return
-            run_neuro_cli(["acl", "remove-role", f"{username}/projects/{role_name}"])
+            await run_neuro_cli(
+                ["acl", "remove-role", f"{username}/projects/{role_name}"]
+            )
         except Exception:
             pass
 
     tasks = []
     for project in res.out.splitlines():
-        tasks.append(asyncio.ensure_future(_clear_task(project)))
+        tasks.append(asyncio.ensure_future(_drop_role(project)))
 
-    await asyncio.wait(tasks)
+    if tasks:
+        await asyncio.wait(tasks)
 
     _drop_once_flag["cleaned_roles"] = True
