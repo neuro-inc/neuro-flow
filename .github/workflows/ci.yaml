@@ -185,18 +185,21 @@ jobs:
       uses: py-actions/py-dependency-install@v2.1.0
       with:
         path: requirements/ci.txt
-    - name: Install twine
-      run: |
-        python -m pip install twine
     - name: Make dists
       run: |
         python setup.py sdist bdist_wheel
-    - name: PyPI upload
-      env:
-        TWINE_USERNAME: __token__
-        TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
-      run: |
-        twine upload dist/*
+    - name: GitHub Release
+      uses: aio-libs/create-release@v1.0.0
+      with:
+        changes_file: CHANGELOG.md
+        name: Neuro Flow
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        pypi_token: ${{ secrets.PYPI_TOKEN }}
+        version_file: neuro_flow/__init__.py   # CLI has the same version
+        start_line: "[comment]: # (towncrier release notes start)"
+        head_line: "Neuro Flow {version}\\s+\\({date}\\)\n====+\n?"
+        fix_issue_regex: "\\(\\[#(\\d+)\\]\\(https://github.com/neuro-inc/neuro-flow/issues/\\1\\)\\)"
+        fix_issue_repl: "(#\\1)"
     - name: Wait for availability on PyPI
       run: |
         tools/wait_pypi.sh ${{ needs.lint.outputs.version }}
@@ -211,13 +214,14 @@ jobs:
     - name: Login to DockerHub
       uses: docker/login-action@v1.10.0
       with:
-        username: ${{ secrets.DOCKER_USERNAME }}
-        password: ${{ secrets.DOCKER_PASSWORD }}
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
     - name: Build
       run: |
-        docker build -t neuromation/neuro-flow:${{ needs.lint.outputs.version }} \
+        docker build -t ghcr.io/neuro-inc/neuro-flow:${{ needs.lint.outputs.version }} \
             --build-arg NEURO_FLOW_VERSION=${{ needs.lint.outputs.version }} \
             .
     - name: Push
       run: |
-        docker push neuromation/neuro-flow:${{ needs.lint.outputs.version }}
+        docker push ghcr.io/neuro-inc/neuro-flow:${{ needs.lint.outputs.version }}

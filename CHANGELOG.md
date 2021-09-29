@@ -5,7 +5,31 @@
 
 [comment]: # (towncrier release notes start)
 
-Neuro_Flow 21.7.9 (2021-07-09)
+Neuro Flow 21.9a0 (2021-09-29)
+==============================
+
+Features
+--------
+
+- Renamed `inherits` yaml property to `mixins`. ([#560](https://github.com/neuro-inc/neuro-flow/issues/560))
+- Added support project level `mixins`. Mixins defined in `project.yml` available both for live and batch configurations,
+  so they cannot define any live or batch specific properties. ([#562](https://github.com/neuro-inc/neuro-flow/issues/562))
+- Added command `neuro-flow delete-project <project-id>` that allows complete removal of project. ([#581](https://github.com/neuro-inc/neuro-flow/issues/581))
+
+
+Bugfixes
+--------
+
+- Fix crash with global images in batch mode. ([#544](https://github.com/neuro-inc/neuro-flow/issues/544))
+
+
+Misc
+----
+
+- [#580](https://github.com/neuro-inc/neuro-flow/issues/580)
+
+
+Neuro Flow 21.7.9 (2021-07-09)
 ==============================
 
 Features
@@ -14,7 +38,7 @@ Features
 - Added new sections `defaults`, `images`, `volumes` to the `project.yml` file. The work the same as the do in `live`/`batch` except they are global -- everything defined in `project.yml` applies to all workflows. (#506)
 
 
-Neuro_Flow 21.7.7 (2021-7-7)
+Neuro Flow 21.7.7 (2021-7-7)
 ============================
 
 Features
@@ -32,19 +56,19 @@ Features
   Live module call:
   ```
   jobs:
-    test:
-      module: ws:live-module
-      args:
-        arg1: val 1
+	test:
+	  module: ws:live-module
+	  args:
+		arg1: val 1
   ```
 
   Batch module call:
   ```
   tasks:
-    - id: test
-      module: ws:batch-module
-      args:
-        arg1: val 1
+	- id: test
+	  module: ws:batch-module
+	  args:
+		arg1: val 1
   ``` ([#464](https://github.com/neuro-inc/neuro-flow/issues/464))
 
 - Add support of mixins in live and batch mode.
@@ -54,11 +78,11 @@ Features
   ```
   ...
   mixins:
-    credentials:
-      volumes:
-        - secret:some_key:/var/some_key
-      env:
-        KEY_LOCATION: /var/some_key
+	credentials:
+	  volumes:
+		- secret:some_key:/var/some_key
+	  env:
+		KEY_LOCATION: /var/some_key
   ...
   ```
 
@@ -68,8 +92,8 @@ Features
   ```
   ...
   jobs:
-    test_a:
-      inherits: [ credentials ]
+	test_a:
+	  inherits: [ credentials ]
   ...
   ```
 
@@ -80,16 +104,16 @@ Features
   the value from the rightmost of the mixins that define this property will be used:
   ```
   mixins:
-    mix1:
-      image: example_mix1
-    mix2:
-      image: example_mix2
+	mix1:
+	  image: example_mix1
+	mix2:
+	  image: example_mix2
   jobs:
-    job1:
-      inherits: [mix1, mix2]
-      image: example
-    job2:
-      inherits: [mix1, mix2]
+	job1:
+	  inherits: [mix1, mix2]
+	  image: example
+	job2:
+	  inherits: [mix1, mix2]
   ```
   The `job1` will use `example` image, and `job2` will use `example_mix2` image.
   - If property is list, that all lists will be concatenated.
@@ -98,12 +122,12 @@ Features
   Mixins can inherit from each other:
   ```
   mixins:
-    mix1:
-      env:
-        TEST: 1
-    mix2:
-      inherits: [ mix1 ]
-      image: example
+	mix1:
+	  env:
+		TEST: 1
+	mix2:
+	  inherits: [ mix1 ]
+	  image: example
   ``` ([#498](https://github.com/neuro-inc/neuro-flow/issues/498))
 
 
@@ -114,7 +138,7 @@ Bugfixes
 - Improved performance of `neuro flow bakes` it will now print only new rows instead of re-rendering all table ([#501](https://github.com/neuro-inc/neuro-flow/issues/501))
 
 
-Neuro_Flow 21.6.23 (2021-6-23)
+Neuro Flow 21.6.23 (2021-6-23)
 ==============================
 
 Features
@@ -124,7 +148,7 @@ Features
 - Implement retry on NDJSON errors ([#493](https://github.com/neuro-inc/neuro-flow/issues/493))
 
 
-Neuro_Flow 21.6.18.1 (2021-6-18)
+Neuro Flow 21.6.18.1 (2021-6-18)
 ================================
 
 Bugfixes
@@ -134,7 +158,7 @@ Bugfixes
 - Fix cache key calculation: now it doesn't depend on top-level contexts but on a task calculated parameters plus "needs" and "state" for stateful actions only.
 
 
-Neuro_Flow 21.6.18 (2021-6-18)
+Neuro Flow 21.6.18 (2021-6-18)
 ==============================
 
 Bugfixes
@@ -145,7 +169,7 @@ Bugfixes
   21.6.17 release by mistake).
 
 
-Neuro_Flow 21.6.17 (2021-6-17)
+Neuro Flow 21.6.17 (2021-6-17)
 ==============================
 
 Features
@@ -175,7 +199,7 @@ Bugfixes
 - Don't attach to live job in dry-run mode. ([#463](https://github.com/neuro-inc/neuro-flow/issues/463))
 
 
-Neuro_Flow 21.6.2 (2021-6-2)
+Neuro Flow 21.6.2 (2021-6-2)
 ============================
 
 Bugfixes
@@ -185,7 +209,7 @@ Bugfixes
 - Fixed hanging when executor tried to build an image in batch mode. ([#448](https://github.com/neuro-inc/neuro-flow/issues/448))
 
 
-Neuro_Flow 21.5.31 (2021-05-31)
+Neuro Flow 21.5.31 (2021-05-31)
 ===============================
 
 Bugfixes
@@ -197,7 +221,7 @@ Bugfixes
 - Fix a error that leads to bakes cache check miss even if the record is present in cache actually. ([#441](https://github.com/neuro-inc/neuro-flow/issues/441))
 
 
-Neuro_Flow 21.5.25 (2021-05-25)
+Neuro Flow 21.5.25 (2021-05-25)
 ===============================
 
 
@@ -241,7 +265,7 @@ Bugfixes
 - Fixed EvalError when tried to access `ref`, `ref_rw`, `ref_ro` of volume context. ([#418](https://github.com/neuro-inc/neuro-flow/issues/418))
 
 
-Neuro_Flow 21.5.19 (2021-05-19)
+Neuro Flow 21.5.19 (2021-05-19)
 ===============================
 
 Bugfixes
@@ -250,7 +274,7 @@ Bugfixes
 - Fix a bug with processing SKIPPED task
 
 
-Neuro_Flow 21.5.17 (2021-05-17)
+Neuro Flow 21.5.17 (2021-05-17)
 ===============================
 
 Features
@@ -268,9 +292,9 @@ Features
   specify them under `defaults` section:
   ```
   defaults:
-    volumes:
-      - storage:some/dir:/mnt/some/dir
-      - storage:some/another/dir:/mnt/some/another/dir
+	volumes:
+	  - storage:some/dir:/mnt/some/dir
+	  - storage:some/another/dir:/mnt/some/another/dir
   ```
   - In live mode such volumes will be added to all jobs.
   - In batch mode such volumes will be added to all tasks.
@@ -301,7 +325,7 @@ Bugfixes
 
 - Support click 8.0 ([#407](https://github.com/neuro-inc/neuro-flow/issues/407))
 
-Neuro_Flow 21.4.5 (2021-04-05)
+Neuro Flow 21.4.5 (2021-04-05)
 ==============================
 
 Features
@@ -341,7 +365,7 @@ Features
   kind: batch
   life_span: 30d
   tasks:
-    ...
+	...
   ``` ([#339](https://github.com/neuro-inc/neuro-flow/issues/339))
 
 - Add support of local actions inside of batch actions if they do not depend on any remote tasks. ([#340](https://github.com/neuro-inc/neuro-flow/issues/340))
@@ -354,7 +378,7 @@ Bugfixes
 - Use 1-based indexes instead of 0-based for lines and columns in error messages. ([#335](https://github.com/neuro-inc/neuro-flow/issues/335))
 
 
-Neuro_Flow 21.3.17 (2021-03-17)
+Neuro Flow 21.3.17 (2021-03-17)
 ===============================
 
 Bugfixes
@@ -364,7 +388,7 @@ Bugfixes
 - Fix executor restart when there is a action that should be marked as ready. ([#315](https://github.com/neuro-inc/neuro-flow/issues/315))
 
 
-Neuro_Flow 21.3.3 (2021-03-03)
+Neuro Flow 21.3.3 (2021-03-03)
 ==============================
 
 Features
@@ -383,7 +407,7 @@ Bugfixes
 - Fix processing of bake that has actions that use another bake action. ([#302](https://github.com/neuro-inc/neuro-flow/issues/302))
 
 
-Neuro_Flow 21.2.16 (2021-02-16)
+Neuro Flow 21.2.16 (2021-02-16)
 ===============================
 
 Bugfixes
@@ -392,7 +416,7 @@ Bugfixes
 - Fixed parsing of needs in actions
 
 
-Neuro_Flow 21.2.11.1 (2021-02-11)
+Neuro Flow 21.2.11.1 (2021-02-11)
 =================================
 
 Bugfixes
@@ -402,7 +426,7 @@ Bugfixes
 - Enable restarting of remote executor jobs on failure.
 
 
-Neuro_Flow 21.2.11 (2021-02-11)
+Neuro Flow 21.2.11 (2021-02-11)
 ===============================
 
 Features
@@ -419,7 +443,7 @@ Bugfixes
 - Fix windows path issue. ([#261](https://github.com/neuro-inc/neuro-flow/issues/289))
 
 
-Neuro_Flow 21.1.4 (2021-01-04)
+Neuro Flow 21.1.4 (2021-01-04)
 ==============================
 
 Features
@@ -436,7 +460,7 @@ Bugfixes
 - Fix ignoring of workdir in batch mode. ([#261](https://github.com/neuro-inc/neuro-flow/issues/261))
 
 
-Neuro_Flow 20.12.16 (2020-12-16)
+Neuro Flow 20.12.16 (2020-12-16)
 ================================
 
 Bugfixes
@@ -449,7 +473,7 @@ Bugfixes
 - Forbid passing args into a job, volumes into an action etc. ([#241](https://github.com/neuro-inc/neuro-flow/issues/241))
 
 
-Neuro_Flow 20.12.8 (2020-12-08)
+Neuro Flow 20.12.8 (2020-12-08)
 ===============================
 
 Features
@@ -468,12 +492,12 @@ Features
 
   ```
   jobs:
-    job_a:
-      volumes: "${{ ['ubuntu', volumes.volume_a.ref] }}"
+	job_a:
+	  volumes: "${{ ['ubuntu', volumes.volume_a.ref] }}"
   ``` ([#236](https://github.com/neuro-inc/neuro-flow/issues/236))
 
 
-Neuro_Flow 20.11.24 (2020-11-24)
+Neuro Flow 20.11.24 (2020-11-24)
 ================================
 
 Bugfixes
@@ -483,7 +507,7 @@ Bugfixes
 - Fix ``hash_files()`` function: it is faster, hashes the whole file instead of the first 256 KiB, and includes processed filenames into the hash. ([#190](https://github.com/neuro-inc/neuro-flow/issues/190))
 
 
-Neuro_Flow 20.11.10 (2020-11-10)
+Neuro Flow 20.11.10 (2020-11-10)
 ================================
 
 Features
@@ -493,7 +517,7 @@ Features
 - Rework output of `neuro bake` command; now with timestamps and progress bars. ([#172](https://github.com/neuro-inc/neuro-flow/issues/172))
 
 
-Neuro_Flow 20.11.3 (2020-11-03)
+Neuro Flow 20.11.3 (2020-11-03)
 ===============================
 
 Features
@@ -514,7 +538,7 @@ Bugfixes
 - Don't raise an error in `neuro-flow run` if the remote folder for the project already exists ([#184](https://github.com/neuro-inc/neuro-flow/issues/184))
 
 
-Neuro_Flow 20.10.26 (2020-10-26)
+Neuro Flow 20.10.26 (2020-10-26)
 ================================
 
 Features
@@ -533,7 +557,7 @@ Bugfixes
 - Add forgotten restart command ([#160](https://github.com/neuro-inc/neuro-flow/issues/160))
 
 
-Neuro_Flow 20.10.21 (2020-10-21)
+Neuro Flow 20.10.21 (2020-10-21)
 ================================
 
 Features
@@ -552,7 +576,7 @@ Bugfixes
 - Ignore hidden files and folders (e.g. .cache) when getting the list of bakes ([#146](https://github.com/neuro-inc/neuro-flow/issues/146))
 
 
-Neuro_Flow 20.10.19 (2020-10-19)
+Neuro Flow 20.10.19 (2020-10-19)
 ================================
 
 Features
@@ -573,7 +597,7 @@ Bugfixes
 - Fix invariant by saving both started and finished records for cached task ([#139](https://github.com/neuro-inc/neuro-flow/issues/139))
 
 
-Neuro_Flow 20.10.16 (2020-10-16)
+Neuro Flow 20.10.16 (2020-10-16)
 ================================
 
 Features
@@ -589,13 +613,13 @@ Features
 - Added `upload()` function to re-upload volumes just before starting job in live mode. ([#133](https://github.com/neuro-inc/neuro-flow/issues/133))
 
 
-Neuro_Flow 20.10.14 (2020-10-14)
+Neuro Flow 20.10.14 (2020-10-14)
 ================================
 
 No significant changes.
 
 
-Neuro_Flow 20.10.12 (2020-10-12)
+Neuro Flow 20.10.12 (2020-10-12)
 ================================
 
 Bugfixes

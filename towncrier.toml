@@ -3,4 +3,6 @@
     package_dir = "."
     directory = "CHANGELOG.D"
     filename = "CHANGELOG.md"
+    name = "Neuro Flow"
+    issue_format = "[#{issue}](https://github.com/neuro-inc/neuro-flow/issues/{issue})"
     start_string = "[comment]: # (towncrier release notes start)\n"

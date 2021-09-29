@@ -59,7 +59,7 @@ from .utils import (
 )
 
 
-EXECUTOR_IMAGE = f"neuromation/neuro-flow:{neuro_flow.__version__}"
+EXECUTOR_IMAGE = f"ghcr.io/neuro-inc/neuro-flow:{neuro_flow.__version__}"
 
 
 GRAPH_COLORS = {
