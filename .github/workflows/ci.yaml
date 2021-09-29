@@ -194,6 +194,16 @@ jobs:
     - name: Make dists
       run: |
         python setup.py sdist bdist_wheel
+    - name: Build Docker Image
+      run: |
+        docker build -t "ghcr.io/neuro-inc/neuro-flow:${VERSION}" \
+            --build-arg NEURO_FLOW_DIST="$( find dist -name '*.whl' )" \
+            .
+      env:
+        VERSION: ${{ needs.lint.outputs.version }}
+    - name: Push Docker Image
+      run: |
+        docker push ghcr.io/neuro-inc/neuro-flow:${{ needs.lint.outputs.version }}
     - name: GitHub Release
       uses: aio-libs/create-release@v1.0.0
       with:
@@ -206,13 +216,3 @@ jobs:
         head_line: "Neuro Flow {version}\\s+\\({date}\\)\n====+\n?"
         fix_issue_regex: "\\(\\[#(\\d+)\\]\\(https://github.com/neuro-inc/neuro-flow/issues/\\1\\)\\)"
         fix_issue_repl: "(#\\1)"
-    - name: Build Docker Image
-      run: |
-        docker build -t ghcr.io/neuro-inc/neuro-flow: "${VERSION}" \
-            --build-arg NEURO_FLOW_DIST="$( find dist -name '*.whl' )" \
-            .
-      env:
-        VERSION: ${{ needs.lint.outputs.version }}
-    - name: Push Docker Image
-      run: |
-        docker push ghcr.io/neuro-inc/neuro-flow:${{ needs.lint.outputs.version }}
