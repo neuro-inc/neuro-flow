@@ -5,7 +5,7 @@
 
 [comment]: # (towncrier release notes start)
 
-Neuro Flow 21.9a2 (2021-09-29)
+Neuro Flow 21.9 (2021-09-29)
 ==============================
 
 Features
