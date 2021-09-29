@@ -46,12 +46,6 @@ test-e2e:
 	pytest -n 10 tests/e2e -v
 
 
-.PHONY: build
-build:
-	docker build -t neuromation/neuro-flow:"$(shell python setup.py --version)" \
-	    --build-arg NEURO_FLOW_VERSION="$(shell python setup.py --version)" \
-	    .
-
 .PHONY: docs
 docs:
 	build-tools/cli-help-generator.py CLI.in.md reference/cli.md

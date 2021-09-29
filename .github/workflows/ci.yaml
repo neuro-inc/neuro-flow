@@ -185,6 +185,12 @@ jobs:
       uses: py-actions/py-dependency-install@v2.1.0
       with:
         path: requirements/ci.txt
+    - name: Login to DockerHub
+      uses: docker/login-action@v1.10.0
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
     - name: Make dists
       run: |
         python setup.py sdist bdist_wheel
@@ -200,28 +206,13 @@ jobs:
         head_line: "Neuro Flow {version}\\s+\\({date}\\)\n====+\n?"
         fix_issue_regex: "\\(\\[#(\\d+)\\]\\(https://github.com/neuro-inc/neuro-flow/issues/\\1\\)\\)"
         fix_issue_repl: "(#\\1)"
-    - name: Wait for availability on PyPI
+    - name: Build Docker Image
       run: |
-        tools/wait_pypi.sh ${{ needs.lint.outputs.version }}
-
-  image:
-    name: Build and Push Docker Image
-    needs: [lint, deploy]
-    runs-on: ubuntu-latest
-    steps:
-    - name: Checkout
-      uses: actions/checkout@v2
-    - name: Login to DockerHub
-      uses: docker/login-action@v1.10.0
-      with:
-        registry: ghcr.io
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
-    - name: Build
-      run: |
-        docker build -t ghcr.io/neuro-inc/neuro-flow:${{ needs.lint.outputs.version }} \
-            --build-arg NEURO_FLOW_VERSION=${{ needs.lint.outputs.version }} \
+        docker build -t ghcr.io/neuro-inc/neuro-flow: "${VERSION}" \
+            --build-arg NEURO_FLOW_DIST="$( find dist -name '*.whl' )" \
             .
-    - name: Push
+      env:
+        VERSION: ${{ needs.lint.outputs.version }}
+    - name: Push Docker Image
       run: |
         docker push ghcr.io/neuro-inc/neuro-flow:${{ needs.lint.outputs.version }}
