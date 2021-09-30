@@ -1,3 +1,5 @@
+# Modules
+
 Modules are simillar to [actions](actions-syntax.md), but have the following differences:
 
 * Only local files (`ws:` scheme) are supported. Modules located on GitHub are forbidden.
