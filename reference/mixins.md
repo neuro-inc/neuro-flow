@@ -1,3 +1,5 @@
+# Mixins
+
 Mixins allow to define and reuse parts of jobs in live mode and tasks in batch mode. 
 
 To define a mixin, use the top-level `mixins` section:
