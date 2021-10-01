@@ -1280,7 +1280,7 @@ async def test_bake_marked_as_cancelled_on_task_cancelation(
     run_executor: RunExecutor,
 ) -> None:
     executor_task = asyncio.ensure_future(run_executor(assets, "batch-seq"))
-    await asyncio.sleep(0)  # All to start
+    await asyncio.sleep(1)  # Allow to start
     executor_task.cancel()
     _, status = await executor_task
     assert status == TaskStatus.CANCELLED
