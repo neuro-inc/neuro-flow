@@ -116,6 +116,7 @@ async def get_running_flow(
     local_info = LocallyPreparedInfo(
         children_info={},
         early_images={},
+        git_info=bake.meta.git_info,
     )
     async for image in storage.list_bake_images():
         for yaml_def in image.yaml_defs:
@@ -126,6 +127,7 @@ async def get_running_flow(
                     new_sub = LocallyPreparedInfo(
                         children_info={},
                         early_images={},
+                        git_info=bake.meta.git_info,
                     )
                     assert isinstance(sub.children_info, dict)
                     sub.children_info[part] = new_sub

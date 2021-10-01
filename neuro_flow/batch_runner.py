@@ -47,11 +47,20 @@ from .context import (
 )
 from .expr import EvalError, MultiError
 from .parser import ConfigDir
-from .storage.base import Attempt, Bake, BakeImage, BakeStorage, ProjectStorage, Storage
+from .storage.base import (
+    Attempt,
+    Bake,
+    BakeImage,
+    BakeMeta,
+    BakeStorage,
+    ProjectStorage,
+    Storage,
+)
 from .types import FullID, LocalPath, TaskStatus
 from .utils import (
     CommandRunner,
     GlobalOptions,
+    collect_git_info,
     encode_global_options,
     fmt_datetime,
     fmt_timedelta,
@@ -393,6 +402,9 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             params=flow.params,
             name=name,
             tags=tags,
+            meta=BakeMeta(
+                git_info=await collect_git_info(),
+            ),
         )
         bake_storage = self.storage.bake(id=bake.id)
         config_meta = await self.config_loader.collect_configs(batch_name, bake_storage)

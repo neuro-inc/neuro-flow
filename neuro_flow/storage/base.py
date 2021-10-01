@@ -18,7 +18,7 @@ from typing import (
 )
 from yarl import URL
 
-from neuro_flow.types import FullID, ImageStatus, TaskStatus
+from neuro_flow.types import FullID, GitInfo, ImageStatus, TaskStatus
 
 
 @dataclass(frozen=True)
@@ -40,6 +40,11 @@ class LiveJob:
 
 
 @dataclass(frozen=True)
+class BakeMeta:
+    git_info: Optional[GitInfo]
+
+
+@dataclass(frozen=True)
 class Bake:
     id: str
     project_id: str
@@ -47,6 +52,7 @@ class Bake:
     name: Optional[str]
     tags: Sequence[str]
     created_at: datetime.datetime
+    meta: BakeMeta
     # prefix -> { id -> deps }
     graphs: Mapping[FullID, Mapping[FullID, AbstractSet[FullID]]]
     params: Optional[Mapping[str, str]]
@@ -235,6 +241,7 @@ class ProjectStorage(abc.ABC):
         self,
         batch: str,
         # prefix -> { id -> deps }
+        meta: BakeMeta,
         graphs: Mapping[FullID, Mapping[FullID, AbstractSet[FullID]]],
         params: Optional[Mapping[str, str]] = None,
         name: Optional[str] = None,
