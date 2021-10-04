@@ -813,7 +813,7 @@ def test_parse_bash(assets: pathlib.Path) -> None:
     flow = parse_live(workspace, config_file)
     assert flow == ast.LiveFlow(
         Pos(0, 0, config_file),
-        Pos(7, 0, config_file),
+        Pos(9, 0, config_file),
         id=SimpleOptIdExpr(
             Pos(0, 0, config_file),
             Pos(0, 0, config_file),
@@ -832,7 +832,7 @@ def test_parse_bash(assets: pathlib.Path) -> None:
         jobs={
             "test": ast.Job(
                 Pos(3, 4, config_file),
-                Pos(7, 0, config_file),
+                Pos(9, 0, config_file),
                 _specified_fields={"cmd", "image"},
                 mixins=None,
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
@@ -849,7 +849,7 @@ def test_parse_bash(assets: pathlib.Path) -> None:
                 cmd=OptBashExpr(
                     Pos(0, 0, config_file),
                     Pos(0, 0, config_file),
-                    "echo abc\necho def\n",
+                    'VAR=qwerty\nif [[ $VAR == "qwerty" ]]; then\n echo yup\nfi\n',
                 ),
                 workdir=OptRemotePathExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None

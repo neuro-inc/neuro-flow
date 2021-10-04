@@ -2,6 +2,8 @@ kind: live
 jobs:
   test:
     bash: |
-      echo abc
-      echo def
+      VAR=qwerty
+      if [[ $VAR == "qwerty" ]]; then
+       echo yup
+      fi
     image: ubuntu

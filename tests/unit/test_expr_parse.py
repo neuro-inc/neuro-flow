@@ -21,7 +21,7 @@ from neuro_flow.expr import (
     logical_and,
     logical_or,
 )
-from neuro_flow.tokenizer import LexerError, Pos, tokenize
+from neuro_flow.tokenizer import Pos, tokenize
 from neuro_flow.types import LocalPath
 
 
@@ -82,53 +82,33 @@ def test_tmpl_ok6() -> None:
 
 
 def test_tmpl_false1() -> None:
-    with pytest.raises(LexerError):
-        PARSER.parse(list(tokenize("}}", START)))
-
-
-def test_tmpl_false2() -> None:
     with pytest.raises(NoParseError):
         PARSER.parse(list(tokenize("${{", START)))
 
 
-def test_tmpl_false3() -> None:
+def test_tmpl_false2() -> None:
     with pytest.raises(NoParseError):
         PARSER.parse(list(tokenize("${{ name sub  param", START)))
 
 
-def test_tmpl_false4() -> None:
+def test_tmpl_false3() -> None:
     with pytest.raises(NoParseError):
         PARSER.parse(list(tokenize("${{ name", START)))
 
 
-def test_tmpl_false5() -> None:
-    with pytest.raises(LexerError):
-        PARSER.parse(list(tokenize("name }}", START)))
-
-
-def test_tmpl_false6() -> None:
-    with pytest.raises(LexerError):
-        PARSER.parse(list(tokenize("]]", START)))
-
-
-def test_tmpl_false7() -> None:
+def test_tmpl_false4() -> None:
     with pytest.raises(NoParseError):
         PARSER.parse(list(tokenize("$[[", START)))
 
 
-def test_tmpl_false8() -> None:
+def test_tmpl_false5() -> None:
     with pytest.raises(NoParseError):
         PARSER.parse(list(tokenize("$[[ name sub  param", START)))
 
 
-def test_tmpl_false9() -> None:
+def test_tmpl_false6() -> None:
     with pytest.raises(NoParseError):
         PARSER.parse(list(tokenize("$[[ name", START)))
-
-
-def test_tmpl_false10() -> None:
-    with pytest.raises(LexerError):
-        PARSER.parse(list(tokenize("name ]]", START)))
 
 
 def test_tmpl_literal_none() -> None:
