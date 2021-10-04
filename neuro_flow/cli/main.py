@@ -2,6 +2,7 @@ import click
 import logging
 import sys
 from click.exceptions import Abort as ClickAbort, Exit as ClickExit
+from neuro_cli.asyncio_utils import setup_child_watcher
 from neuro_cli.log_formatter import ConsoleHandler
 from rich.console import Console
 from typing import Any, List, Optional
@@ -17,6 +18,8 @@ from .root import Root
 
 
 log = logging.getLogger(__name__)
+
+setup_child_watcher()
 
 
 def setup_logging(color: bool, verbosity: int, show_traceback: bool) -> None:
