@@ -798,6 +798,32 @@ def make_empty_dict(args: Tuple[Token, Token]) -> DictMaker:
     return DictMaker(args[0].start, args[0].end, [])
 
 
+@dataclasses.dataclass(frozen=True)
+class TernaryOp(Item):
+    left: Item
+    condition: Item
+    right: Item
+
+    async def eval(self, root: RootABC) -> TypeT:
+        if await self.condition.eval(root):
+            return await self.left.eval(root)
+        else:
+            return await self.right.eval(root)
+
+    def child_items(self) -> Iterable["Item"]:
+        return [self.left, self.condition, self.right]
+
+
+def make_if_else(args: Tuple[Item, Token, Item, Token, Item]) -> TernaryOp:
+    return TernaryOp(
+        args[0].start,
+        args[1].end,
+        left=args[0],
+        condition=args[2],
+        right=args[4],
+    )
+
+
 def a(value: str) -> "Parser[Token, Token]":
     """Eq(a) -> Parser(a, a)
 
@@ -933,7 +959,9 @@ TERM.define(FACTOR + TERM_TRAILER >> make_bin_op_expr)
 
 FACTOR.define((OP_PLUS | OP_MINUS) + FACTOR >> make_unary_op_expr | ATOM_EXPR)
 
-EXPR.define(DISJUNCTION)  # Just synonym
+EXPR.define(
+    DISJUNCTION + a("if") + DISJUNCTION + a("else") + EXPR >> make_if_else | DISJUNCTION
+)
 
 LIST_MAKER.define(
     (LSQB + EXPR + many(COMMA + EXPR) + maybe(COMMA) + RSQB) >> make_list

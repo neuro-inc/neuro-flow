@@ -1,7 +1,7 @@
 import pytest
 import sys
 from neuro_sdk import Client
-from typing import AsyncIterator, Dict, List
+from typing import Any, AsyncIterator, Dict, List
 from typing_extensions import Final
 
 from neuro_flow.context import DepCtx
@@ -232,3 +232,29 @@ async def test_dict_trailing_comma(client: Client) -> None:
     pat = "${{ {'a': 1, 'b': 2,} }}"
     expr = MappingExpr(START, Pos(0, len(pat), FNAME), pat, int)  # type: ignore
     assert {"a": 1, "b": 2} == await expr.eval(DictContext({}, client))  # type: ignore
+
+
+@pytest.mark.parametrize(
+    "expr,context,result",
+    [
+        ("2 if True else 3", {}, 2),
+        ("2 if False else 3", {}, 3),
+        ("2 if True else 0 / 0", {}, 2),
+        ("0 / 0 if False else 2", {}, 2),
+        ("0 / 0 if False else 2", {}, 2),
+        (
+            "2 if some_ctx else 3",
+            {
+                "some_ctx": True,
+            },
+            2,
+        ),
+        ("2 if (3 if (4 if False else False) else False) else 3", {}, 3),
+    ],
+)
+async def test_if_else_expr(
+    client: Client, expr: str, context: Dict[str, Any], result: Any
+) -> None:
+    parsed = PARSER.parse(list(tokenize("${{" + expr + "}}", START)))
+    assert len(parsed) == 1
+    assert result == await parsed[0].eval(DictContext(context, client))
