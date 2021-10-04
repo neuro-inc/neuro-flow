@@ -6,6 +6,8 @@
 
 * [Workflows](reference/workflows.md)
 * [Live workflow syntax](reference/live-workflow-syntax.md)
+* [Mixins](reference/mixins.md)
+* [Modules](reference/modules.md)
 * [Batch workflow syntax](reference/batch-workflow-syntax.md)
 * [Project configuration syntax](reference/project-configuration-syntax.md)
 * [Actions syntax](reference/actions-syntax.md)
