@@ -8,7 +8,14 @@ from typing import Any, AsyncIterator, Iterator
 from yarl import URL
 
 
-setup_child_watcher()
+@pytest.fixture
+def loop() -> Iterator[asyncio.AbstractEventLoop]:
+    setup_child_watcher()
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    yield loop
+    loop.run_until_complete(loop.shutdown_asyncgens())
+    loop.close()
 
 
 @pytest.fixture
