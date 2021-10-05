@@ -23,6 +23,7 @@ from neuro_flow.storage.base import (
     Bake,
     BakeImage,
     BakeImageStorage,
+    BakeMeta,
     BakeStorage,
     CacheEntry,
     CacheEntryStorage,
@@ -163,6 +164,7 @@ class InMemoryProjectStorage(ProjectStorage):
     async def create_bake(
         self,
         batch: str,
+        meta: BakeMeta,
         graphs: Mapping[FullID, Mapping[FullID, AbstractSet[FullID]]],
         params: Optional[Mapping[str, str]] = None,
         name: Optional[str] = None,
@@ -178,6 +180,7 @@ class InMemoryProjectStorage(ProjectStorage):
             tags=tags,
             created_at=_now(),
             last_attempt=None,
+            meta=meta,
         )
         self._db.bakes[bake.id] = bake
         return bake

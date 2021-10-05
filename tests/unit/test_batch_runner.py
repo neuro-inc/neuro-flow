@@ -19,7 +19,7 @@ from neuro_flow.config_loader import BatchLocalCL, ConfigLoader
 from neuro_flow.context import EarlyBatchAction, RunningBatchFlow
 from neuro_flow.expr import MultiError
 from neuro_flow.parser import ConfigDir
-from neuro_flow.storage.base import BakeImage, Storage
+from neuro_flow.storage.base import BakeImage, BakeMeta, Storage
 from neuro_flow.storage.in_memory import InMemoryStorage
 
 
@@ -204,6 +204,7 @@ async def test_upload_image_data(
             name=None,
             graphs={},
             tags=[],
+            meta=BakeMeta(None),
         )
         bake_storage = project_storage.bake(id=bake.id)
 

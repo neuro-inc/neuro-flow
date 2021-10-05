@@ -22,7 +22,7 @@ from typing import (
 )
 from typing_extensions import Concatenate, ParamSpec, Protocol
 
-from .types import COLORS, FullID, TaskStatus
+from .types import COLORS, FullID, GitInfo, TaskStatus
 
 
 def fmt_status(status: Union[JobStatus, TaskStatus]) -> str:
@@ -258,3 +258,34 @@ def retry(
         assert False, "Unreachable"
 
     return inner
+
+
+async def collect_git_info() -> Optional[GitInfo]:
+    async def _run_git(*args: str) -> str:
+        proc = await asyncio.create_subprocess_exec(
+            "git",
+            *args,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        retcode = await proc.wait()
+        assert proc.stdout
+        assert proc.stderr
+        stdout = (await proc.stdout.read()).decode()
+        stderr = (await proc.stderr.read()).decode()
+        if retcode:
+            raise ValueError(f"git command failed: {stderr}")
+        return stdout.strip()
+
+    try:
+        sha = await _run_git("rev-parse", "HEAD")
+        branch = await _run_git("rev-parse", "--abbrev-ref", "HEAD")
+        tags_raw = await _run_git("tag", "--points-at", "HEAD")
+    except ValueError:
+        return None
+    else:
+        return GitInfo(
+            sha=sha,
+            branch=branch,
+            tags=tags_raw.split("\n"),
+        )

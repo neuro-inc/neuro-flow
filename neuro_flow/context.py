@@ -53,7 +53,8 @@ from neuro_flow.expr import (
     StrExpr,
     TypeT,
 )
-from neuro_flow.types import AlwaysT, FullID, LocalPath, RemotePath, TaskStatus
+from neuro_flow.types import AlwaysT, FullID, GitInfo, LocalPath, RemotePath, TaskStatus
+from neuro_flow.utils import collect_git_info
 
 
 if sys.version_info >= (3, 7):  # pragma: no cover
@@ -210,6 +211,28 @@ class DepCtx:
         ), "CACHED status should replaced with SUCCEEDED for expressions"
 
 
+@dataclass(frozen=True)
+class GitCtx:
+    _git_info: Optional[GitInfo]
+
+    def _get_info(self) -> GitInfo:
+        if not self._git_info:
+            raise ValueError("Git info is not available: is this project under git?")
+        return self._git_info
+
+    @property
+    def sha(self) -> str:
+        return self._get_info().sha
+
+    @property
+    def branch(self) -> str:
+        return self._get_info().branch
+
+    @property
+    def tags(self) -> Sequence[str]:
+        return self._get_info().tags
+
+
 # Confs (similar to ..Ctx, but not available to expressions, only used
 # during evaluation)
 
@@ -304,6 +327,7 @@ class LocallyPreparedInfo:
 
     children_info: Mapping[str, "LocallyPreparedInfo"]
 
+    git_info: Optional[GitInfo]
     early_images: Mapping[str, EarlyImageCtx]
 
 
@@ -371,12 +395,15 @@ class WithEnvContext(Context):
 
 @dataclass(frozen=True)
 class LiveContextStep1(WithFlowContext, Context):
+    git: GitCtx
+
     def to_live_ctx(
         self, env: EnvCtx, tags: TagsCtx, volumes: VolumesCtx, images: ImagesCtx
     ) -> "LiveContext":
         return LiveContext(
             project=self.project,
             flow=self.flow,
+            git=self.git,
             env=env,
             tags=tags,
             volumes=volumes,
@@ -395,6 +422,7 @@ class LiveContext(WithEnvContext, LiveContextStep1):
         return LiveJobContext(
             project=self.project,
             flow=self.flow,
+            git=self.git,
             env=self.env,
             tags=self.tags,
             volumes=self.volumes,
@@ -409,6 +437,7 @@ class LiveContext(WithEnvContext, LiveContextStep1):
         return LiveMultiJobContext(
             project=self.project,
             flow=self.flow,
+            git=self.git,
             env=self.env,
             tags=self.tags,
             volumes=self.volumes,
@@ -444,6 +473,7 @@ class LiveModuleContext(ModuleContext[_MODULE_PARENT]):
 class BatchContextStep1(WithFlowContext, Context):
     flow: BatchFlowCtx
     params: ParamsCtx
+    git: GitCtx
 
     def to_step_2(
         self, env: EnvCtx, tags: TagsCtx, volumes: VolumesCtx, images: ImagesCtx
@@ -452,6 +482,7 @@ class BatchContextStep1(WithFlowContext, Context):
             project=self.project,
             flow=self.flow,
             params=self.params,
+            git=self.git,
             env=env,
             tags=tags,
             volumes=volumes,
@@ -474,6 +505,7 @@ class BatchContextStep2(WithEnvContext, BatchContextStep1):
             project=self.project,
             flow=self.flow,
             params=self.params,
+            git=self.git,
             env=self.env,
             tags=self.tags,
             volumes=self.volumes,
@@ -524,6 +556,7 @@ class BatchContext(BaseBatchContext, BatchContextStep2):
             project=self.project,
             flow=self.flow,
             params=self.params,
+            git=self.git,
             env=self.env,
             tags=self.tags,
             volumes=self.volumes,
@@ -543,6 +576,7 @@ class BatchMatrixContext(BaseMatrixContext, BatchContext):
             project=self.project,
             flow=self.flow,
             params=self.params,
+            git=self.git,
             env=self.env,
             tags=self.tags,
             volumes=self.volumes,
@@ -565,11 +599,13 @@ class BatchTaskContext(BaseTaskContext, BatchMatrixContext):
 class BatchActionContextStep1(ModuleContext[_MODULE_PARENT]):
     inputs: InputsCtx
     strategy: StrategyCtx
+    git: GitCtx
 
     def to_action_ctx(self, images: ImagesCtx) -> "BatchActionContext[_MODULE_PARENT]":
         return BatchActionContext(
             inputs=self.inputs,
             strategy=self.strategy,
+            git=self.git,
             images=images,
             _client=self._client,
             _parent=self._parent,
@@ -586,6 +622,7 @@ class BatchActionContext(BatchActionContextStep1[_MODULE_PARENT], BaseBatchConte
         return BatchActionMatrixContext(
             inputs=self.inputs,
             images=self.images,
+            git=self.git,
             matrix=matrix,
             strategy=strategy,
             _client=self._client,
@@ -599,6 +636,7 @@ class BatchActionContext(BatchActionContextStep1[_MODULE_PARENT], BaseBatchConte
             strategy=self.strategy,
             inputs=self.inputs,
             images=self.images,
+            git=self.git,
             needs=needs,
             _client=self._client,
             _parent=self._parent,
@@ -623,6 +661,7 @@ class BatchActionMatrixContext(BaseMatrixContext, BatchActionContext[_MODULE_PAR
             matrix=self.matrix,
             strategy=self.strategy,
             images=self.images,
+            git=self.git,
             needs=needs,
             state=state,
             _client=self._client,
@@ -1460,9 +1499,13 @@ class RunningLiveFlow:
         flow_ctx = await setup_flow_ctx(
             EMPTY_ROOT, ast_flow, config_name, config_loader, project_ctx
         )
+        git_ctx = GitCtx(await collect_git_info())
 
         step_1_ctx = LiveContextStep1(
-            project=project_ctx, flow=flow_ctx, _client=config_loader.client
+            project=project_ctx,
+            flow=flow_ctx,
+            git=git_ctx,
+            _client=config_loader.client,
         )
 
         defaults, env, tags = await setup_defaults_env_tags_ctx(
@@ -2019,6 +2062,7 @@ class RunningBatchFlow(RunningBatchBase[BatchContext]):
             project=project_ctx,
             flow=flow_ctx,
             params=params_ctx,
+            git=GitCtx(local_info.git_info if local_info else None),
             _client=config_loader.client,
         )
         if local_info is None:
@@ -2176,6 +2220,7 @@ class RunningBatchActionFlow(RunningBatchBase[BatchActionContext[RootABC]]):
         step_1_ctx = BatchActionContextStep1(
             inputs=inputs,
             strategy=base_strategy,
+            git=GitCtx(local_info.git_info if local_info else None),
             _client=config_loader.client,
             _parent=parent_ctx,
         )

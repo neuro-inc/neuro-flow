@@ -33,6 +33,7 @@ from neuro_flow.storage.base import (
     Bake,
     BakeImage,
     BakeImageStorage,
+    BakeMeta,
     BakeStorage,
     CacheEntry,
     CacheEntryStorage,
@@ -49,7 +50,7 @@ from neuro_flow.storage.base import (
     TaskStorage,
     _Unset,
 )
-from neuro_flow.types import FullID, ImageStatus, TaskStatus
+from neuro_flow.types import FullID, GitInfo, ImageStatus, TaskStatus
 from neuro_flow.utils import retry
 
 
@@ -150,6 +151,14 @@ def _parse_bake_payload(data: Mapping[str, Any]) -> Bake:
     if last_attempt:
         last_attempt = _parse_attempt_payload(data["last_attempt"])
 
+    git_info: Optional[GitInfo] = None
+    if data["meta"].get("git_info"):
+        git_info = GitInfo(
+            sha=data["meta"]["git_info"]["sha"],
+            branch=data["meta"]["git_info"]["branch"],
+            tags=data["meta"]["git_info"]["tags"],
+        )
+
     return Bake(
         id=data["id"],
         project_id=data["project_id"],
@@ -160,6 +169,7 @@ def _parse_bake_payload(data: Mapping[str, Any]) -> Bake:
         graphs=graphs,
         params=data["params"],
         last_attempt=last_attempt,
+        meta=BakeMeta(git_info=git_info),
     )
 
 
@@ -477,6 +487,7 @@ class ApiProjectStorage(DeferredIdMixin[Project, ProjectInitArgs], ProjectStorag
     async def create_bake(
         self,
         batch: str,
+        meta: BakeMeta,
         graphs: Mapping[FullID, Mapping[FullID, AbstractSet[FullID]]],
         params: Optional[Mapping[str, str]] = None,
         name: Optional[str] = None,
@@ -497,6 +508,15 @@ class ApiProjectStorage(DeferredIdMixin[Project, ProjectInitArgs], ProjectStorag
             "params": params,
             "name": name,
             "tags": tags,
+            "meta": {
+                "git_info": {
+                    "sha": meta.git_info.sha,
+                    "branch": meta.git_info.branch,
+                    "tags": meta.git_info.tags,
+                }
+                if meta.git_info
+                else None,
+            },
         }
         return await self._raw_client.create(
             "flow/bakes", bake_payload, _parse_bake_payload

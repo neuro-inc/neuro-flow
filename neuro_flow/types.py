@@ -1,6 +1,8 @@
+from dataclasses import dataclass
+
 import enum
 from pathlib import Path, PurePosixPath
-from typing import ClassVar, List, Tuple
+from typing import ClassVar, List, Sequence, Tuple
 
 
 LocalPath = Path
@@ -95,3 +97,10 @@ IMAGE_STATUS_COLORS = {
     ImageStatus.BUILT: "green",
     ImageStatus.BUILD_FAILED: "red",
 }
+
+
+@dataclass(frozen=True)
+class GitInfo:
+    sha: str
+    branch: str
+    tags: Sequence[str]
