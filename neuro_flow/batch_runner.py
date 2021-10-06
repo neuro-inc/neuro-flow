@@ -524,9 +524,10 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             table.add_column(
                 "ID",
                 style="bold",
-                min_width=len("2021-07-03T10:54:20+00:00_9e1f7a") + 10,
+                width=len("bake-f6bd815b-3a3b-4ea1-b5ec-e8ab13678e3e"),
             )
-            table.add_column("NAME", min_width=8)
+            table.add_column("NAME", min_width=12)
+            table.add_column("BATCH", min_width=20)
             table.add_column(
                 "EXECUTOR", width=len("job-f6bd815b-3a3b-4ea1-b5ec-e8ab13678e3e")
             )
@@ -554,6 +555,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                 row_table.add_row(
                     bake.id,
                     bake.name or "",
+                    bake.batch,
                     bake.last_attempt.executor_id or "",
                     bake.last_attempt.result,
                     fmt_datetime(bake.last_attempt.created_at),
