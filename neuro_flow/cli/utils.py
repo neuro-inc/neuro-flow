@@ -29,7 +29,7 @@ _T = TypeVar("_T")
 
 
 def wrap_async(
-    pass_obj: bool = True,
+    pass_obj: bool = True, init_client: bool = True
 ) -> Callable[[Callable[..., Awaitable[_T]]], Callable[..., _T]]:
     def _decorator(callback: Callable[..., Awaitable[_T]]) -> Callable[..., _T]:
         assert iscoroutinefunction(callback)
