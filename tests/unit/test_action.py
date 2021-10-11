@@ -13,9 +13,11 @@ from neuro_flow.expr import (
     OptRemotePathExpr,
     OptStrExpr,
     OptTimeDeltaExpr,
+    PrimitiveExpr,
     SequenceItemsExpr,
     SimpleOptBoolExpr,
     SimpleOptIdExpr,
+    SimpleOptPrimitiveExpr,
     SimpleOptStrExpr,
     SimpleStrExpr,
     StrExpr,
@@ -30,7 +32,7 @@ def test_parse_live_action(assets: LocalPath) -> None:
     action = parse_action(config_file)
     assert action == ast.LiveAction(
         Pos(0, 0, config_file),
-        Pos(13, 0, config_file),
+        Pos(14, 0, config_file),
         kind=ast.ActionKind.LIVE,
         name=SimpleOptStrExpr(
             Pos(0, 0, config_file),
@@ -54,24 +56,25 @@ def test_parse_live_action(assets: LocalPath) -> None:
                 descr=SimpleOptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "param 1"
                 ),
-                default=SimpleOptStrExpr(
+                default=SimpleOptPrimitiveExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
             ),
             "arg2": ast.Input(
                 Pos(8, 4, config_file),
-                Pos(10, 0, config_file),
+                Pos(11, 0, config_file),
                 descr=SimpleOptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "param 2"
                 ),
-                default=SimpleOptStrExpr(
-                    Pos(0, 0, config_file), Pos(0, 0, config_file), "value 2"
+                default=SimpleOptPrimitiveExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), 2
                 ),
+                type=ast.InputType.INT,
             ),
         },
         job=ast.Job(
-            Pos(11, 2, config_file),
-            Pos(13, 0, config_file),
+            Pos(12, 2, config_file),
+            Pos(14, 0, config_file),
             _specified_fields={"cmd", "image"},
             mixins=None,
             name=OptStrExpr(Pos(3, 4, config_file), Pos(5, 0, config_file), None),
@@ -151,7 +154,7 @@ def test_parse_batch_action(assets: LocalPath) -> None:
                 descr=SimpleOptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "param 1"
                 ),
-                default=SimpleOptStrExpr(
+                default=SimpleOptPrimitiveExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
             ),
@@ -161,7 +164,7 @@ def test_parse_batch_action(assets: LocalPath) -> None:
                 descr=SimpleOptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "param 2"
                 ),
-                default=SimpleOptStrExpr(
+                default=SimpleOptPrimitiveExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "value 2"
                 ),
             ),
@@ -392,7 +395,7 @@ def test_parse_stateful_action(assets: LocalPath) -> None:
                 descr=SimpleOptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "param 1"
                 ),
-                default=SimpleOptStrExpr(
+                default=SimpleOptPrimitiveExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
             ),
@@ -402,7 +405,7 @@ def test_parse_stateful_action(assets: LocalPath) -> None:
                 descr=SimpleOptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "param 2"
                 ),
-                default=SimpleOptStrExpr(
+                default=SimpleOptPrimitiveExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "value 2"
                 ),
             ),
@@ -513,7 +516,7 @@ def test_parse_live_call(assets: LocalPath) -> None:
                     "workspace:live-action",
                 ),
                 args={
-                    "arg1": StrExpr(
+                    "arg1": PrimitiveExpr(
                         Pos(0, 0, config_file), Pos(0, 0, config_file), "val 1"
                     )
                 },
@@ -555,7 +558,7 @@ def test_parse_live_module_call(assets: LocalPath) -> None:
                     "workspace:live-module",
                 ),
                 args={
-                    "arg1": StrExpr(
+                    "arg1": PrimitiveExpr(
                         Pos(0, 0, config_file), Pos(0, 0, config_file), "val 1"
                     )
                 },
@@ -608,7 +611,7 @@ def test_parse_batch_call(assets: LocalPath) -> None:
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "ws:batch-action"
                 ),
                 args={
-                    "arg1": StrExpr(
+                    "arg1": PrimitiveExpr(
                         Pos(0, 0, config_file), Pos(0, 0, config_file), "val 1"
                     )
                 },

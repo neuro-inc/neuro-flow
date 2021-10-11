@@ -36,6 +36,7 @@ from typing_extensions import Annotated, Protocol
 from yarl import URL
 
 from neuro_flow import ast
+from neuro_flow.ast import InputType
 from neuro_flow.colored_topo_sorter import ColoredTopoSorter
 from neuro_flow.config_loader import ActionSpec, ConfigLoader
 from neuro_flow.expr import (
@@ -85,7 +86,7 @@ EnvCtx = Annotated[Mapping[str, str], "EnvCtx"]
 TagsCtx = Annotated[AbstractSet[str], "TagsCtx"]
 VolumesCtx = Annotated[Mapping[str, "VolumeCtx"], "VolumesCtx"]
 ImagesCtx = Annotated[Mapping[str, "ImageCtx"], "ImagesCtx"]
-InputsCtx = Annotated[Mapping[str, str], "InputsCtx"]
+InputsCtx = Annotated[Mapping[str, Union[int, float, bool, str]], "InputsCtx"]
 ParamsCtx = Annotated[Mapping[str, str], "ParamsCtx"]
 
 NeedsCtx = Annotated[Mapping[str, "DepCtx"], "NeedsCtx"]
@@ -1022,15 +1023,27 @@ async def validate_action_call(
 
 async def setup_inputs_ctx(
     ctx: RootABC,
-    call_ast: Union[
-        ast.BaseActionCall, ast.BaseModuleCall
-    ],  # Only used to generate errors
+    call_ast: Union[ast.BaseActionCall, ast.BaseModuleCall],
     ast_inputs: Optional[Mapping[str, ast.Input]],
 ) -> InputsCtx:
     await validate_action_call(call_ast, ast_inputs)
     if call_ast.args is None or ast_inputs is None:
         return {}
     inputs = {k: await v.eval(ctx) for k, v in call_ast.args.items()}
+    for key, value in inputs.copy().items():
+        input_ast = ast_inputs[key]
+        if input_ast.type == InputType.STR:
+            # Cast to string to preserve old behavior.
+            # TODO: is it OK?
+            inputs[key] = str(value)
+        elif not isinstance(value, input_ast.type.to_type()):
+            raise EvalError(
+                f"Type of argument '{value}' do not match to with inputs declared "
+                f"type. Argument has type '{type(value).__name__}', declared "
+                f"input type is '{input_ast.type.value}'",
+                call_ast._start,
+                call_ast._end,
+            )
     for name, inp in ast_inputs.items():
         if name not in inputs and inp.default.pattern is not None:
             val = await inp.default.eval(EMPTY_ROOT)

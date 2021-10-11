@@ -3,12 +3,12 @@ import pytest
 from datetime import timedelta
 from neuro_sdk import Client
 from textwrap import dedent
-from typing import Mapping, Optional
+from typing import Mapping, Optional, Tuple, Union
 from typing_extensions import AsyncIterator
 from yarl import URL
 
 from neuro_flow import ast
-from neuro_flow.ast import CacheStrategy
+from neuro_flow.ast import CacheStrategy, InputType
 from neuro_flow.config_loader import BatchLocalCL, ConfigLoader, LiveLocalCL
 from neuro_flow.context import (
     EMPTY_ROOT,
@@ -20,7 +20,13 @@ from neuro_flow.context import (
     sanitize_name,
     setup_inputs_ctx,
 )
-from neuro_flow.expr import EvalError, SimpleOptStrExpr, SimpleStrExpr, StrExpr
+from neuro_flow.expr import (
+    EvalError,
+    PrimitiveExpr,
+    SimpleOptPrimitiveExpr,
+    SimpleOptStrExpr,
+    SimpleStrExpr,
+)
 from neuro_flow.parser import ConfigDir
 from neuro_flow.tokenizer import Pos
 from neuro_flow.types import LocalPath, RemotePath, TaskStatus
@@ -596,24 +602,37 @@ async def test_batch_action_default(batch_config_loader: ConfigLoader) -> None:
     assert task.cache == CacheConf(strategy=ast.CacheStrategy.DEFAULT, life_span=1800)
 
 
-def _make_ast_call(args: Mapping[str, str]) -> ast.BaseActionCall:
+def _make_ast_call(
+    args: Mapping[str, Union[bool, int, float, str]]
+) -> ast.BaseActionCall:
     def _make_simple_str_expr(res: Optional[str]) -> SimpleStrExpr:
         return SimpleStrExpr(
             Pos(0, 0, LocalPath("fake")), Pos(0, 0, LocalPath("fake")), res
         )
 
-    def _make_str_expr(res: str) -> StrExpr:
-        return StrExpr(Pos(0, 0, LocalPath("fake")), Pos(0, 0, LocalPath("fake")), res)
+    def _make_primitive_expr(res: Union[bool, int, float, str]) -> PrimitiveExpr:
+        return PrimitiveExpr(
+            Pos(0, 0, LocalPath("fake")), Pos(0, 0, LocalPath("fake")), res
+        )
 
     return ast.BaseActionCall(
         _start=Pos(0, 0, LocalPath("fake")),
         _end=Pos(0, 0, LocalPath("fake")),
         action=_make_simple_str_expr("ws:test"),
-        args={key: _make_str_expr(value) for key, value in args.items()},
+        args={key: _make_primitive_expr(value) for key, value in args.items()},
     )
 
 
-def _make_ast_inputs(args: Mapping[str, Optional[str]]) -> Mapping[str, ast.Input]:
+def _make_ast_inputs(
+    args: Mapping[str, Tuple[Optional[Union[bool, int, float, str]], InputType]]
+) -> Mapping[str, ast.Input]:
+    def _make_opt_primitive_expr(
+        res: Optional[Union[bool, int, float, str]]
+    ) -> SimpleOptPrimitiveExpr:
+        return SimpleOptPrimitiveExpr(
+            Pos(0, 0, LocalPath("fake")), Pos(0, 0, LocalPath("fake")), res
+        )
+
     def _make_opt_str_expr(res: Optional[str]) -> SimpleOptStrExpr:
         return SimpleOptStrExpr(
             Pos(0, 0, LocalPath("fake")), Pos(0, 0, LocalPath("fake")), res
@@ -623,8 +642,9 @@ def _make_ast_inputs(args: Mapping[str, Optional[str]]) -> Mapping[str, ast.Inpu
         key: ast.Input(
             _start=Pos(0, 0, LocalPath("fake")),
             _end=Pos(0, 0, LocalPath("fake")),
-            default=_make_opt_str_expr(value),
+            default=_make_opt_primitive_expr(value[0]),
             descr=_make_opt_str_expr(None),
+            type=value[1],
         )
         for key, value in args.items()
     }
@@ -638,7 +658,7 @@ async def test_setup_inputs_ctx(
         await setup_inputs_ctx(
             EMPTY_ROOT,
             _make_ast_call({"other": "1", "unknown": "2"}),
-            _make_ast_inputs({"expected": None}),
+            _make_ast_inputs({"expected": (None, InputType.STR)}),
         )
 
 
@@ -660,7 +680,9 @@ async def test_batch_action_with_inputs_no_default(
         await setup_inputs_ctx(
             EMPTY_ROOT,
             _make_ast_call({"arg2": "2"}),
-            _make_ast_inputs({"arg1": None, "arg2": "default"}),
+            _make_ast_inputs(
+                {"arg1": (None, InputType.STR), "arg2": ("default", InputType.STR)}
+            ),
         )
 
 
@@ -668,7 +690,9 @@ async def test_batch_action_with_inputs_ok(batch_config_loader: ConfigLoader) ->
     inputs = await setup_inputs_ctx(
         EMPTY_ROOT,
         _make_ast_call({"arg1": "v1", "arg2": "v2"}),
-        _make_ast_inputs({"arg1": None, "arg2": "default"}),
+        _make_ast_inputs(
+            {"arg1": (None, InputType.STR), "arg2": ("default", InputType.STR)}
+        ),
     )
 
     assert inputs == {"arg1": "v1", "arg2": "v2"}
@@ -680,10 +704,30 @@ async def test_batch_action_with_inputs_default_ok(
     inputs = await setup_inputs_ctx(
         EMPTY_ROOT,
         _make_ast_call({"arg1": "v1"}),
-        _make_ast_inputs({"arg1": None, "arg2": "default"}),
+        _make_ast_inputs(
+            {"arg1": (None, InputType.STR), "arg2": ("default", InputType.STR)}
+        ),
     )
 
     assert inputs == {"arg1": "v1", "arg2": "default"}
+
+
+async def test_batch_action_with_inputs_types_do_not_match(
+    batch_config_loader: ConfigLoader,
+) -> None:
+    with pytest.raises(
+        EvalError,
+        match=r"Type of argument 'v1' do not match to with inputs"
+        r" declared type. Argument has type 'str', declared "
+        r"input type is 'bool'",
+    ):
+        await setup_inputs_ctx(
+            EMPTY_ROOT,
+            _make_ast_call({"arg1": "v1"}),
+            _make_ast_inputs(
+                {"arg1": (None, InputType.BOOL), "arg2": ("default", InputType.STR)}
+            ),
+        )
 
 
 async def test_local_call_with_cache_invalid(
@@ -734,7 +778,7 @@ async def test_job_with_live_action(live_config_loader: ConfigLoader) -> None:
     assert job.http_port is None
     assert not job.http_auth
     assert job.entrypoint is None
-    assert job.cmd == "bash -euo pipefail -c 'echo A val 1 B value 2 C'"
+    assert job.cmd == "bash -euo pipefail -c 'echo A val 1 B 2 C'"
     assert job.workdir is None
     assert job.volumes == []
     assert job.tags == {

@@ -53,6 +53,7 @@ from .expr import (
     OptStrExpr,
     OptTimeDeltaExpr,
     PortPairExpr,
+    PrimitiveExpr,
     RemotePathExpr,
     SequenceExpr,
     SequenceItemsExpr,
@@ -60,6 +61,7 @@ from .expr import (
     SimpleIdExpr,
     SimpleOptBoolExpr,
     SimpleOptIdExpr,
+    SimpleOptPrimitiveExpr,
     SimpleOptStrExpr,
     SimpleStrExpr,
     StrExpr,
@@ -350,7 +352,9 @@ def parse_dict(
         elif f.name not in found_fields:
             key = f.name
             item_ctor = keys[key]
-            if (
+            if f.default is not dataclasses.MISSING:
+                optional_fields[f.name] = f.default
+            elif (
                 item_ctor is None
                 or isinstance(item_ctor, SimpleCompound)
                 or isinstance(item_ctor, ast.Base)
@@ -662,13 +666,13 @@ JOB: Dict[str, Any] = {
 
 JOB_ACTION_CALL = {
     "action": SimpleStrExpr,
-    "args": SimpleMapping(StrExpr),
+    "args": SimpleMapping(PrimitiveExpr),
     "params": None,
 }
 
 JOB_MODULE_CALL = {
     "module": SimpleStrExpr,
-    "args": SimpleMapping(StrExpr),
+    "args": SimpleMapping(PrimitiveExpr),
     "params": None,
 }
 
@@ -827,13 +831,13 @@ TASK_MIXIN: Mapping[str, Any] = {
 TASK_ACTION_CALL = {
     **TASK_BASE,
     "action": SimpleStrExpr,
-    "args": SimpleMapping(StrExpr),
+    "args": SimpleMapping(PrimitiveExpr),
 }
 
 TASK_MODULE_CALL = {
     **TASK_BASE,
     "module": SimpleStrExpr,
-    "args": SimpleMapping(StrExpr),
+    "args": SimpleMapping(PrimitiveExpr),
 }
 
 
@@ -1105,7 +1109,8 @@ class ActionLoader(Reader, Scanner, Parser, Composer, BaseConstructor, BaseResol
 
 INPUT = {
     "descr": SimpleOptStrExpr,
-    "default": SimpleOptStrExpr,
+    "default": SimpleOptPrimitiveExpr,
+    "type": ast.InputType,
 }
 
 
@@ -1116,6 +1121,16 @@ def parse_action_input(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Inp
         INPUT,
         ast.Input,
     )
+    if ret.default.pattern is not None:
+        # Check type
+        default_value = ret.default.value
+        if not isinstance(default_value, ret.type.to_type()):
+            raise ConstructorError(
+                "Type of default value do not match to specified input type. "
+                f"Input type is '{ret.type.value}', "
+                f"default value type is '{type(default_value).__name__}'",
+                node.start_mark,
+            )
     return ret
 
 
