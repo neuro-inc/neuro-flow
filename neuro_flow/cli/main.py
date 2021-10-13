@@ -8,7 +8,7 @@ from rich.console import Console
 from typing import Any, List, Optional
 
 import neuro_flow
-from neuro_flow.cli import batch, completion, images, live, storage
+from neuro_flow.cli import batch, completion, file_logging, images, live, storage
 from neuro_flow.parser import ConfigDir, find_workspace
 from neuro_flow.types import LocalPath, TaskStatus
 
@@ -24,14 +24,15 @@ setup_child_watcher()
 
 def setup_logging(color: bool, verbosity: int, show_traceback: bool) -> None:
     root_logger = logging.getLogger()
-    handler = ConsoleHandler(color=color, show_traceback=show_traceback)
-    root_logger.addHandler(handler)
+    console_handler = ConsoleHandler(color=color, show_traceback=show_traceback)
+    file_handler = file_logging.get_handler()
+    root_logger.addHandler(console_handler)
+    root_logger.addHandler(file_handler)
     root_logger.setLevel(logging.DEBUG)
 
-    if verbosity <= 1:
-        formatter = logging.Formatter()
-    else:
+    if verbosity > 1:
         formatter = logging.Formatter("%(name)s.%(funcName)s: %(message)s")
+        console_handler.setFormatter(formatter)
 
     if verbosity < -1:
         loglevel = logging.CRITICAL
@@ -44,8 +45,7 @@ def setup_logging(color: bool, verbosity: int, show_traceback: bool) -> None:
     else:
         loglevel = logging.DEBUG
 
-    handler.setFormatter(formatter)
-    handler.setLevel(loglevel)
+    console_handler.setLevel(loglevel)
 
 
 class MainGroup(click.Group):
