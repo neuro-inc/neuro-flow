@@ -717,7 +717,7 @@ async def test_batch_action_with_inputs_types_do_not_match(
 ) -> None:
     with pytest.raises(
         EvalError,
-        match=r"Type of argument 'v1' do not match to with inputs"
+        match=r"Type of argument 'arg1' do not match to with inputs"
         r" declared type. Argument has type 'str', declared "
         r"input type is 'bool'",
     ):

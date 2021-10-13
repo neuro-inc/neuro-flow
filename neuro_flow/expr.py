@@ -296,7 +296,9 @@ async def replace(ctx: CallCtx, arg: TypeT, old: TypeT, new: TypeT) -> str:
     return arg.replace(old, new)
 
 
-async def join(ctx: CallCtx, sep: TypeT, array: TypeT) -> str:
+async def join(
+    ctx: CallCtx, sep: TypeT, array: TypeT, convert_to_str: TypeT = False
+) -> str:
     # We need a trampoline since expression syntax doesn't support classes
     if not isinstance(sep, str):
         raise TypeError(f"join() first argument should be a str, got {sep!r}")
@@ -304,8 +306,14 @@ async def join(ctx: CallCtx, sep: TypeT, array: TypeT) -> str:
         raise TypeError(
             f"replace() second argument should be a sequence, got {array!r}"
         )
+    if not isinstance(convert_to_str, bool):
+        raise TypeError(
+            f"replace() third argument should be a bool, got {convert_to_str!r}"
+        )
     str_array = []
     for idx, item in enumerate(array):
+        if convert_to_str:
+            item = str(item)
         if not isinstance(item, str):
             raise TypeError(f"join() array item {idx} should be a str, got {item!r}")
         str_array.append(item)
@@ -1068,11 +1076,11 @@ class Expr(BaseExpr[_T]):
                 # assert isinstance(val, str), repr(val)
                 ret.append(val)
             try:
-                if self.allow_implicit_concat:
-                    return self.convert("".join(str(item) for item in ret))
-                else:
-                    assert len(ret) == 1
+                if len(ret) == 1:
                     return self.convert(ret[0])
+                else:
+                    assert self.allow_implicit_concat
+                    return self.convert("".join(str(item) for item in ret))
             except asyncio.CancelledError:
                 raise
             except EvalError:

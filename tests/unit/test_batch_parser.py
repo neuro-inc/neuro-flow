@@ -16,6 +16,7 @@ from neuro_flow.expr import (
     OptRemotePathExpr,
     OptStrExpr,
     OptTimeDeltaExpr,
+    PrimitiveExpr,
     RemotePathExpr,
     SequenceItemsExpr,
     SimpleOptIdExpr,
@@ -772,38 +773,38 @@ def test_parse_matrix(assets: pathlib.Path) -> None:
                         _end=Pos(12, 4, config_file),
                         products={
                             "one": [
-                                StrExpr(
+                                PrimitiveExpr(
                                     Pos(0, 0, config_file), Pos(0, 0, config_file), "o1"
                                 ),
-                                StrExpr(
+                                PrimitiveExpr(
                                     Pos(0, 0, config_file), Pos(0, 0, config_file), "o2"
                                 ),
                             ],
                             "two": [
-                                StrExpr(
+                                PrimitiveExpr(
                                     Pos(0, 0, config_file), Pos(0, 0, config_file), "t1"
                                 ),
-                                StrExpr(
+                                PrimitiveExpr(
                                     Pos(0, 0, config_file), Pos(0, 0, config_file), "t2"
                                 ),
                             ],
                         },
                         exclude=[
                             {
-                                "one": StrExpr(
+                                "one": PrimitiveExpr(
                                     Pos(0, 0, config_file), Pos(0, 0, config_file), "o1"
                                 ),
-                                "two": StrExpr(
+                                "two": PrimitiveExpr(
                                     Pos(0, 0, config_file), Pos(0, 0, config_file), "t2"
                                 ),
                             }
                         ],
                         include=[
                             {
-                                "one": StrExpr(
+                                "one": PrimitiveExpr(
                                     Pos(0, 0, config_file), Pos(0, 0, config_file), "o3"
                                 ),
-                                "two": StrExpr(
+                                "two": PrimitiveExpr(
                                     Pos(0, 0, config_file), Pos(0, 0, config_file), "t3"
                                 ),
                             }
@@ -929,38 +930,38 @@ def test_parse_matrix_with_strategy(assets: pathlib.Path) -> None:
                         Pos(18, 6, config_file),
                         products={
                             "one": [
-                                StrExpr(
+                                PrimitiveExpr(
                                     Pos(0, 0, config_file), Pos(0, 0, config_file), "o1"
                                 ),
-                                StrExpr(
+                                PrimitiveExpr(
                                     Pos(0, 0, config_file), Pos(0, 0, config_file), "o2"
                                 ),
                             ],
                             "two": [
-                                StrExpr(
+                                PrimitiveExpr(
                                     Pos(0, 0, config_file), Pos(0, 0, config_file), "t1"
                                 ),
-                                StrExpr(
+                                PrimitiveExpr(
                                     Pos(0, 0, config_file), Pos(0, 0, config_file), "t2"
                                 ),
                             ],
                         },
                         exclude=[
                             {
-                                "one": StrExpr(
+                                "one": PrimitiveExpr(
                                     Pos(0, 0, config_file), Pos(0, 0, config_file), "o1"
                                 ),
-                                "two": StrExpr(
+                                "two": PrimitiveExpr(
                                     Pos(0, 0, config_file), Pos(0, 0, config_file), "t2"
                                 ),
                             }
                         ],
                         include=[
                             {
-                                "one": StrExpr(
+                                "one": PrimitiveExpr(
                                     Pos(0, 0, config_file), Pos(0, 0, config_file), "o3"
                                 ),
-                                "two": StrExpr(
+                                "two": PrimitiveExpr(
                                     Pos(0, 0, config_file), Pos(0, 0, config_file), "t3"
                                 ),
                             }

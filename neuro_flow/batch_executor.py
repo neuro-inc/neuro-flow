@@ -486,6 +486,7 @@ class BatchExecutor:
             console=console,
             auto_refresh=False,
             transient=transient_progress,
+            redirect_stderr=True,
         )
         self._top_flow = flow
         self._bake = bake

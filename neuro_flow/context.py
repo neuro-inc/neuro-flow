@@ -6,6 +6,7 @@ import enum
 import hashlib
 import itertools
 import json
+import logging
 import re
 import shlex
 import sys
@@ -62,6 +63,10 @@ if sys.version_info >= (3, 7):  # pragma: no cover
     from contextlib import asynccontextmanager
 else:
     from async_generator import asynccontextmanager
+
+
+log = logging.getLogger(__name__)
+
 
 # Exceptions
 
@@ -1032,17 +1037,24 @@ async def setup_inputs_ctx(
     inputs = {k: await v.eval(ctx) for k, v in call_ast.args.items()}
     for key, value in inputs.copy().items():
         input_ast = ast_inputs[key]
+        arg_ast = call_ast.args[key]
         if input_ast.type == InputType.STR:
-            # Cast to string to preserve old behavior.
-            # TODO: is it OK?
+            if not isinstance(value, str):
+                eval_error = EvalError(
+                    f"Implicit casting of action argument '{key}' to string"
+                    f" is deprecated",
+                    arg_ast.start,
+                    arg_ast.end,
+                )
+                log.warning(str(eval_error))
             inputs[key] = str(value)
         elif not isinstance(value, input_ast.type.to_type()):
             raise EvalError(
-                f"Type of argument '{value}' do not match to with inputs declared "
+                f"Type of argument '{key}' do not match to with inputs declared "
                 f"type. Argument has type '{type(value).__name__}', declared "
                 f"input type is '{input_ast.type.value}'",
-                call_ast._start,
-                call_ast._end,
+                arg_ast.start,
+                arg_ast.end,
             )
     for name, inp in ast_inputs.items():
         if name not in inputs and inp.default.pattern is not None:

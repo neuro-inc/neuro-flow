@@ -152,8 +152,8 @@ class SimpleSeq(SimpleCompound[_T, Sequence[Expr[_T]]]):
             self.check_scalar(ctor, child)
             val = ctor.construct_object(child)  # type: ignore[no-untyped-call]
             # check if scalar
-            if val is not None:
-                val = str(val)
+            # if val is not None:
+            #     val = str(val)
             tmp = self._factory(
                 mark2pos(child.start_mark), mark2pos(child.end_mark), val
             )
@@ -540,7 +540,7 @@ FlowLoader.add_constructor("flow:task_needs", parse_needs)  # type: ignore
 
 def parse_exc_inc(
     ctor: BaseConstructor, node: yaml.MappingNode
-) -> Sequence[Mapping[str, StrExpr]]:
+) -> Sequence[Mapping[str, PrimitiveExpr]]:
     if not isinstance(node, yaml.SequenceNode):
         node_id = node.id
         raise ConstructorError(
@@ -549,8 +549,8 @@ def parse_exc_inc(
             f"expected a sequence node, but found {node_id}",
             node.start_mark,
         )
-    builder = IdMapping(StrExpr)
-    ret: List[Mapping[str, StrExpr]] = []
+    builder = IdMapping(PrimitiveExpr)
+    ret: List[Mapping[str, PrimitiveExpr]] = []
     for v in node.value:
         ret.append(builder.construct(ctor, v))  # type: ignore[arg-type]
     return ret
@@ -565,10 +565,10 @@ def parse_matrix(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Matrix:
             f"expected a mapping node, but found {node_id}",
             node.start_mark,
         )
-    products_builder = SimpleSeq(StrExpr)
+    products_builder = SimpleSeq(PrimitiveExpr)
     products = {}
-    exclude: Sequence[Mapping[str, StrExpr]] = []
-    include: Sequence[Mapping[str, StrExpr]] = []
+    exclude: Sequence[Mapping[str, PrimitiveExpr]] = []
+    include: Sequence[Mapping[str, PrimitiveExpr]] = []
     for k, v in node.value:
         key = ctor.construct_id(k)
         if key == "include":
