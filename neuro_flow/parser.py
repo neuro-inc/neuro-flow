@@ -53,6 +53,7 @@ from .expr import (
     OptStrExpr,
     OptTimeDeltaExpr,
     PortPairExpr,
+    PrimitiveExpr,
     RemotePathExpr,
     SequenceExpr,
     SequenceItemsExpr,
@@ -60,6 +61,7 @@ from .expr import (
     SimpleIdExpr,
     SimpleOptBoolExpr,
     SimpleOptIdExpr,
+    SimpleOptPrimitiveExpr,
     SimpleOptStrExpr,
     SimpleStrExpr,
     StrExpr,
@@ -150,8 +152,8 @@ class SimpleSeq(SimpleCompound[_T, Sequence[Expr[_T]]]):
             self.check_scalar(ctor, child)
             val = ctor.construct_object(child)  # type: ignore[no-untyped-call]
             # check if scalar
-            if val is not None:
-                val = str(val)
+            # if val is not None:
+            #     val = str(val)
             tmp = self._factory(
                 mark2pos(child.start_mark), mark2pos(child.end_mark), val
             )
@@ -350,7 +352,9 @@ def parse_dict(
         elif f.name not in found_fields:
             key = f.name
             item_ctor = keys[key]
-            if (
+            if f.default is not dataclasses.MISSING:
+                optional_fields[f.name] = f.default
+            elif (
                 item_ctor is None
                 or isinstance(item_ctor, SimpleCompound)
                 or isinstance(item_ctor, ast.Base)
@@ -536,7 +540,7 @@ FlowLoader.add_constructor("flow:task_needs", parse_needs)  # type: ignore
 
 def parse_exc_inc(
     ctor: BaseConstructor, node: yaml.MappingNode
-) -> Sequence[Mapping[str, StrExpr]]:
+) -> Sequence[Mapping[str, PrimitiveExpr]]:
     if not isinstance(node, yaml.SequenceNode):
         node_id = node.id
         raise ConstructorError(
@@ -545,8 +549,8 @@ def parse_exc_inc(
             f"expected a sequence node, but found {node_id}",
             node.start_mark,
         )
-    builder = IdMapping(StrExpr)
-    ret: List[Mapping[str, StrExpr]] = []
+    builder = IdMapping(PrimitiveExpr)
+    ret: List[Mapping[str, PrimitiveExpr]] = []
     for v in node.value:
         ret.append(builder.construct(ctor, v))  # type: ignore[arg-type]
     return ret
@@ -561,10 +565,10 @@ def parse_matrix(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Matrix:
             f"expected a mapping node, but found {node_id}",
             node.start_mark,
         )
-    products_builder = SimpleSeq(StrExpr)
+    products_builder = SimpleSeq(PrimitiveExpr)
     products = {}
-    exclude: Sequence[Mapping[str, StrExpr]] = []
-    include: Sequence[Mapping[str, StrExpr]] = []
+    exclude: Sequence[Mapping[str, PrimitiveExpr]] = []
+    include: Sequence[Mapping[str, PrimitiveExpr]] = []
     for k, v in node.value:
         key = ctor.construct_id(k)
         if key == "include":
@@ -662,13 +666,13 @@ JOB: Dict[str, Any] = {
 
 JOB_ACTION_CALL = {
     "action": SimpleStrExpr,
-    "args": SimpleMapping(StrExpr),
+    "args": SimpleMapping(PrimitiveExpr),
     "params": None,
 }
 
 JOB_MODULE_CALL = {
     "module": SimpleStrExpr,
-    "args": SimpleMapping(StrExpr),
+    "args": SimpleMapping(PrimitiveExpr),
     "params": None,
 }
 
@@ -827,13 +831,13 @@ TASK_MIXIN: Mapping[str, Any] = {
 TASK_ACTION_CALL = {
     **TASK_BASE,
     "action": SimpleStrExpr,
-    "args": SimpleMapping(StrExpr),
+    "args": SimpleMapping(PrimitiveExpr),
 }
 
 TASK_MODULE_CALL = {
     **TASK_BASE,
     "module": SimpleStrExpr,
-    "args": SimpleMapping(StrExpr),
+    "args": SimpleMapping(PrimitiveExpr),
 }
 
 
@@ -1105,7 +1109,8 @@ class ActionLoader(Reader, Scanner, Parser, Composer, BaseConstructor, BaseResol
 
 INPUT = {
     "descr": SimpleOptStrExpr,
-    "default": SimpleOptStrExpr,
+    "default": SimpleOptPrimitiveExpr,
+    "type": ast.InputType,
 }
 
 
@@ -1116,6 +1121,16 @@ def parse_action_input(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Inp
         INPUT,
         ast.Input,
     )
+    if ret.default.pattern is not None:
+        # Check type
+        default_value = ret.default.value
+        if not isinstance(default_value, ret.type.to_type()):
+            raise ConstructorError(
+                "Type of default value do not match to specified input type. "
+                f"Input type is '{ret.type.value}', "
+                f"default value type is '{type(default_value).__name__}'",
+                node.start_mark,
+            )
     return ret
 
 

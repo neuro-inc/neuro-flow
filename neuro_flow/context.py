@@ -6,6 +6,7 @@ import enum
 import hashlib
 import itertools
 import json
+import logging
 import re
 import shlex
 import sys
@@ -36,6 +37,7 @@ from typing_extensions import Annotated, Protocol
 from yarl import URL
 
 from neuro_flow import ast
+from neuro_flow.ast import InputType
 from neuro_flow.colored_topo_sorter import ColoredTopoSorter
 from neuro_flow.config_loader import ActionSpec, ConfigLoader
 from neuro_flow.expr import (
@@ -62,6 +64,10 @@ if sys.version_info >= (3, 7):  # pragma: no cover
 else:
     from async_generator import asynccontextmanager
 
+
+log = logging.getLogger(__name__)
+
+
 # Exceptions
 
 
@@ -85,7 +91,7 @@ EnvCtx = Annotated[Mapping[str, str], "EnvCtx"]
 TagsCtx = Annotated[AbstractSet[str], "TagsCtx"]
 VolumesCtx = Annotated[Mapping[str, "VolumeCtx"], "VolumesCtx"]
 ImagesCtx = Annotated[Mapping[str, "ImageCtx"], "ImagesCtx"]
-InputsCtx = Annotated[Mapping[str, str], "InputsCtx"]
+InputsCtx = Annotated[Mapping[str, Union[int, float, bool, str]], "InputsCtx"]
 ParamsCtx = Annotated[Mapping[str, str], "ParamsCtx"]
 
 NeedsCtx = Annotated[Mapping[str, "DepCtx"], "NeedsCtx"]
@@ -1022,15 +1028,34 @@ async def validate_action_call(
 
 async def setup_inputs_ctx(
     ctx: RootABC,
-    call_ast: Union[
-        ast.BaseActionCall, ast.BaseModuleCall
-    ],  # Only used to generate errors
+    call_ast: Union[ast.BaseActionCall, ast.BaseModuleCall],
     ast_inputs: Optional[Mapping[str, ast.Input]],
 ) -> InputsCtx:
     await validate_action_call(call_ast, ast_inputs)
     if call_ast.args is None or ast_inputs is None:
         return {}
     inputs = {k: await v.eval(ctx) for k, v in call_ast.args.items()}
+    for key, value in inputs.copy().items():
+        input_ast = ast_inputs[key]
+        arg_ast = call_ast.args[key]
+        if input_ast.type == InputType.STR:
+            if not isinstance(value, str):
+                eval_error = EvalError(
+                    f"Implicit casting of action argument '{key}' to string"
+                    f" is deprecated",
+                    arg_ast.start,
+                    arg_ast.end,
+                )
+                log.warning(str(eval_error))
+            inputs[key] = str(value)
+        elif not isinstance(value, input_ast.type.to_type()):
+            raise EvalError(
+                f"Type of argument '{key}' do not match to with inputs declared "
+                f"type. Argument has type '{type(value).__name__}', declared "
+                f"input type is '{input_ast.type.value}'",
+                arg_ast.start,
+                arg_ast.end,
+            )
     for name, inp in ast_inputs.items():
         if name not in inputs and inp.default.pattern is not None:
             val = await inp.default.eval(EMPTY_ROOT)

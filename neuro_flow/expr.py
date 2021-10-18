@@ -14,6 +14,7 @@ import json
 import operator
 import re
 import shlex
+from abc import ABC
 from ast import literal_eval
 from collections.abc import Sized
 from funcparserlib.parser import (
@@ -42,7 +43,6 @@ from typing import (
     Optional,
     Sequence,
     Tuple,
-    Type,
     TypeVar,
     Union,
     cast,
@@ -296,7 +296,9 @@ async def replace(ctx: CallCtx, arg: TypeT, old: TypeT, new: TypeT) -> str:
     return arg.replace(old, new)
 
 
-async def join(ctx: CallCtx, sep: TypeT, array: TypeT) -> str:
+async def join(
+    ctx: CallCtx, sep: TypeT, array: TypeT, convert_to_str: TypeT = False
+) -> str:
     # We need a trampoline since expression syntax doesn't support classes
     if not isinstance(sep, str):
         raise TypeError(f"join() first argument should be a str, got {sep!r}")
@@ -304,8 +306,14 @@ async def join(ctx: CallCtx, sep: TypeT, array: TypeT) -> str:
         raise TypeError(
             f"replace() second argument should be a sequence, got {array!r}"
         )
+    if not isinstance(convert_to_str, bool):
+        raise TypeError(
+            f"replace() third argument should be a bool, got {convert_to_str!r}"
+        )
     str_array = []
     for idx, item in enumerate(array):
+        if convert_to_str:
+            item = str(item)
         if not isinstance(item, str):
             raise TypeError(f"join() array item {idx} should be a str, got {item!r}")
         str_array.append(item)
@@ -1001,7 +1009,8 @@ IMPLICIT_STR_CONCAT: Final[Tuple[type, ...]] = (str, RemotePath, LocalPath, URL)
 class Expr(BaseExpr[_T]):
     allow_none: ClassVar[bool] = True
     allow_expr: ClassVar[bool] = True
-    type: ClassVar[Type[_T]]
+    allow_implicit_concat: ClassVar[bool] = True
+    type_name: ClassVar[str]
     start: Pos
     end: Pos
     _ret: Union[None, _T]
@@ -1028,30 +1037,28 @@ class Expr(BaseExpr[_T]):
             if isinstance(pattern, str):
                 # parse later
                 pass
-            elif isinstance(pattern, self.type):
+            else:
                 # explicit non-string value is passed
                 self._try_convert(pattern, start, end)
                 return
-            else:
-                raise EvalError(f"str is expected, got {type(pattern)}", start, end)
             tokens = list(tokenize(pattern, start=start))
             if tokens:
                 self._parsed = PARSER.parse(tokens)
                 if (
-                    not issubclass(self.type, IMPLICIT_STR_CONCAT)
+                    not self.allow_implicit_concat
                     and self._parsed
                     and len(self._parsed) > 1
                 ):
                     raise EvalError(
                         "Implicit concatenation is not allowed for "
-                        f"{self.type.__name__}",
+                        f"{self.type_name}",
                         start,
                         end,
                     )
             else:
-                if not issubclass(self.type, IMPLICIT_STR_CONCAT):
+                if not self.allow_implicit_concat:
                     raise EvalError(
-                        f"Empty value is not allowed for {self.type.__name__}",
+                        f"Empty value is not allowed for {self.type_name}",
                         start,
                         end,
                     )
@@ -1072,6 +1079,12 @@ class Expr(BaseExpr[_T]):
             return None
         return str(self._pattern)
 
+    @property
+    def value(self) -> Optional[_T]:
+        if self._ret is None:
+            return None
+        return self._ret
+
     async def eval(self, root: RootABC) -> Optional[_T]:
         if self._ret is not None:
             return self._ret
@@ -1091,11 +1104,11 @@ class Expr(BaseExpr[_T]):
                 # assert isinstance(val, str), repr(val)
                 ret.append(val)
             try:
-                if issubclass(self.type, IMPLICIT_STR_CONCAT):
-                    return self.convert("".join(str(item) for item in ret))
-                else:
-                    assert len(ret) == 1
+                if len(ret) == 1:
                     return self.convert(ret[0])
+                else:
+                    assert self.allow_implicit_concat
+                    return self.convert("".join(str(item) for item in ret))
             except asyncio.CancelledError:
                 raise
             except EvalError:
@@ -1122,7 +1135,7 @@ class Expr(BaseExpr[_T]):
         return hash((self.__class__.__name__, self._pattern))
 
 
-class StrictExpr(Expr[_T]):
+class StrictExpr(Expr[_T], ABC):
     allow_none = False
 
     async def eval(self, root: RootABC) -> _T:
@@ -1131,33 +1144,72 @@ class StrictExpr(Expr[_T]):
         return ret
 
 
+class NoConcatMixin:
+    allow_implicit_concat = False
+
+
+class NoExprMixin:
+    allow_expr = False
+
+
 # These comprehensive specializations exist mainly for static type checker
 
 
+class PrimitiveExprMixin:
+    type_name: ClassVar[str] = "primitive"
+
+    def convert(self, arg: TypeT) -> Union[int, bool, float, str]:
+        if isinstance(arg, (int, bool, float)):
+            return arg
+        return str(arg)
+
+
+class PrimitiveExpr(PrimitiveExprMixin, StrictExpr[Union[int, bool, float, str]]):
+    pass
+
+
+class OptPrimitiveExpr(PrimitiveExprMixin, Expr[Union[int, bool, float, str]]):
+    pass
+
+
+class SimplePrimitiveExpr(
+    PrimitiveExprMixin, NoExprMixin, StrictExpr[Union[int, bool, float, str]]
+):
+    pass
+
+
+class SimpleOptPrimitiveExpr(
+    PrimitiveExprMixin, NoExprMixin, Expr[Union[int, bool, float, str]]
+):
+    pass
+
+
 class StrExprMixin:
+    type_name: ClassVar[str] = "str"
+
     def convert(self, arg: TypeT) -> str:
         return str(arg)
 
 
 class StrExpr(StrExprMixin, StrictExpr[str]):
-    type = str
+    pass
 
 
 class OptStrExpr(StrExprMixin, Expr[str]):
-    type = str
+    pass
 
 
-class SimpleStrExpr(StrExprMixin, StrictExpr[str]):
-    allow_expr = False
-    type = str
+class SimpleStrExpr(StrExprMixin, NoExprMixin, StrictExpr[str]):
+    pass
 
 
-class SimpleOptStrExpr(StrExprMixin, Expr[str]):
-    allow_expr = False
-    type = str
+class SimpleOptStrExpr(StrExprMixin, NoExprMixin, Expr[str]):
+    pass
 
 
 class IdExprMixin:
+    type_name: ClassVar[str] = "id"
+
     def convert(self, arg: TypeT) -> str:
         if not isinstance(arg, str):
             raise TypeError(f"{arg!r} is not a string")
@@ -1172,60 +1224,62 @@ class IdExprMixin:
 
 
 class IdExpr(IdExprMixin, StrictExpr[str]):
-    type = str
+    pass
 
 
 class OptIdExpr(IdExprMixin, Expr[str]):
-    type = str
+    pass
 
 
-class SimpleIdExpr(IdExprMixin, StrictExpr[str]):
-    allow_expr = False
-    type = str
+class SimpleIdExpr(IdExprMixin, NoExprMixin, StrictExpr[str]):
+    pass
 
 
-class SimpleOptIdExpr(IdExprMixin, Expr[str]):
-    allow_expr = False
-    type = str
+class SimpleOptIdExpr(IdExprMixin, NoExprMixin, Expr[str]):
+    pass
 
 
 class URIExprMixin:
+    type_name: ClassVar[str] = "URL"
+
     def convert(self, arg: TypeT) -> URL:
         return URL(arg)  # type: ignore[arg-type]
 
 
 class URIExpr(URIExprMixin, StrictExpr[URL]):
-    type = URL
+    pass
 
 
 class OptURIExpr(URIExprMixin, Expr[URL]):
-    type = URL
+    pass
 
 
-class BoolExprMixin:
+class BoolExprMixin(NoConcatMixin):
+    type_name: ClassVar[str] = "bool"
+
     def convert(self, arg: TypeT) -> bool:
         return bool(arg)
 
 
 class BoolExpr(BoolExprMixin, StrictExpr[bool]):
-    type = bool
+    pass
 
 
 class OptBoolExpr(BoolExprMixin, Expr[bool]):
-    type = bool
+    pass
 
 
-class SimpleBoolExpr(BoolExprMixin, StrictExpr[bool]):
-    allow_expr = False
-    type = bool
+class SimpleBoolExpr(BoolExprMixin, NoExprMixin, StrictExpr[bool]):
+    pass
 
 
-class SimpleOptBoolExpr(BoolExprMixin, Expr[bool]):
-    allow_expr = False
-    type = bool
+class SimpleOptBoolExpr(BoolExprMixin, NoExprMixin, Expr[bool]):
+    pass
 
 
-class EnableExprMixin:
+class EnableExprMixin(NoConcatMixin):
+    type_name: ClassVar[str] = "enabled_type"
+
     def convert(self, arg: TypeT) -> Union[bool, AlwaysT]:
         if isinstance(arg, AlwaysT):
             return arg
@@ -1235,40 +1289,45 @@ class EnableExprMixin:
 
 
 class EnableExpr(EnableExprMixin, StrictExpr[Union[bool, AlwaysT]]):
-    type = bool
+    pass
 
 
 class OptEnableExpr(EnableExprMixin, Expr[Union[bool, AlwaysT]]):
-    type = bool
+    pass
 
 
-class IntExprMixin:
+class IntExprMixin(NoConcatMixin):
+    type_name: ClassVar[str] = "int"
+
     def convert(self, arg: TypeT) -> int:
         return int(arg)  # type: ignore[arg-type]
 
 
 class IntExpr(IntExprMixin, StrictExpr[int]):
-    type = int
+    pass
 
 
 class OptIntExpr(IntExprMixin, Expr[int]):
-    type = int
+    pass
 
 
-class FloatExprMixin:
+class FloatExprMixin(NoConcatMixin):
+    type_name: ClassVar[str] = "float"
+
     def convert(self, arg: TypeT) -> float:
         return float(arg)  # type: ignore[arg-type]
 
 
 class FloatExpr(FloatExprMixin, StrictExpr[float]):
-    type = float
+    pass
 
 
 class OptFloatExpr(FloatExprMixin, Expr[float]):
-    type = float
+    pass
 
 
 class OptTimeDeltaExpr(OptFloatExpr):
+    type_name: ClassVar[str] = "timedelta"
     RE = re.compile(r"^((?P<d>\d+)d)?((?P<h>\d+)h)?((?P<m>\d+)m)?((?P<s>\d+)s)?$")
 
     def convert(self, arg: TypeT) -> float:
@@ -1289,29 +1348,33 @@ class OptTimeDeltaExpr(OptFloatExpr):
 
 
 class LocalPathMixin:
+    type_name: ClassVar[str] = "LocalPath"
+
     def convert(self, arg: TypeT) -> LocalPath:
         return LocalPath(arg)  # type: ignore[arg-type]
 
 
 class LocalPathExpr(LocalPathMixin, StrictExpr[LocalPath]):
-    type = LocalPath
+    pass
 
 
 class OptLocalPathExpr(LocalPathMixin, Expr[LocalPath]):
-    type = LocalPath
+    pass
 
 
 class RemotePathMixin:
+    type_name: ClassVar[str] = "RemotePath"
+
     def convert(self, arg: TypeT) -> RemotePath:
         return RemotePath(arg)  # type: ignore[arg-type]
 
 
 class RemotePathExpr(RemotePathMixin, StrictExpr[RemotePath]):
-    type = RemotePath
+    pass
 
 
 class OptRemotePathExpr(RemotePathMixin, Expr[RemotePath]):
-    type = RemotePath
+    pass
 
 
 class OptBashExpr(OptStrExpr):
@@ -1338,6 +1401,8 @@ def port_pair_item(arg: TypeT) -> str:
 
 
 class PortPairExpr(StrExpr):
+    type_name: ClassVar[str] = "PortPair"
+
     def convert(self, arg: TypeT) -> str:
         return port_pair_item(arg)
 
@@ -1359,8 +1424,8 @@ class ConcatSequenceExpr(BaseSequenceExpr):
         return cast(SequenceT, ret)
 
 
-class SequenceExpr(BaseSequenceExpr, Expr[SequenceT]):
-    type = SequenceT
+class SequenceExpr(BaseSequenceExpr, NoConcatMixin, Expr[SequenceT]):
+    type_name: ClassVar[str] = "Sequence"
 
     def __init__(
         self,
@@ -1422,8 +1487,8 @@ class MergeMappingsExpr(BaseMappingExpr):
         return cast(MappingT, ret)
 
 
-class MappingExpr(BaseMappingExpr, StrictExpr[MappingT]):
-    type = MappingT
+class MappingExpr(BaseMappingExpr, NoConcatMixin, StrictExpr[MappingT]):
+    type_name: ClassVar[str] = "Mapping"
 
     def __init__(
         self,

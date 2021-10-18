@@ -1,6 +1,6 @@
 kind: batch
 tasks:
-  - id: task_${{ replace(join('__', values(matrix)), '.', '_') }}
+  - id: task_${{ replace(join('__', values(matrix), True), '.', '_') }}
     strategy:
       matrix:
         x: [0.1, 0.2]

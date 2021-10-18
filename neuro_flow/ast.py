@@ -2,7 +2,7 @@
 from dataclasses import dataclass, field
 
 import enum
-from typing import AbstractSet, Mapping, Optional, Sequence, Union
+from typing import AbstractSet, Mapping, Optional, Sequence, Type, Union
 
 from .expr import (
     BaseExpr,
@@ -16,11 +16,13 @@ from .expr import (
     OptRemotePathExpr,
     OptStrExpr,
     OptTimeDeltaExpr,
+    PrimitiveExpr,
     RemotePathExpr,
     SequenceT,
     SimpleIdExpr,
     SimpleOptBoolExpr,
     SimpleOptIdExpr,
+    SimpleOptPrimitiveExpr,
     SimpleOptStrExpr,
     SimpleStrExpr,
     StrExpr,
@@ -141,9 +143,9 @@ class ExecUnit(Base):
 class Matrix(Base):
     # AST class is slightly different from YAML representation,
     # in YAML `products` mapping is embedded into the matrix itself.
-    products: Mapping[str, Sequence[StrExpr]]
-    exclude: Sequence[Mapping[str, StrExpr]]
-    include: Sequence[Mapping[str, StrExpr]]
+    products: Mapping[str, Sequence[PrimitiveExpr]]
+    exclude: Sequence[Mapping[str, PrimitiveExpr]]
+    include: Sequence[Mapping[str, PrimitiveExpr]]
 
 
 @dataclass(frozen=True)
@@ -262,13 +264,13 @@ class TaskMixin(WithSpecifiedFields, Base):
 @dataclass(frozen=True)
 class BaseActionCall(Base):
     action: SimpleStrExpr  # action ref
-    args: Optional[Mapping[str, StrExpr]] = field(metadata={"allow_none": True})
+    args: Optional[Mapping[str, PrimitiveExpr]] = field(metadata={"allow_none": True})
 
 
 @dataclass(frozen=True)
 class BaseModuleCall(Base):
     module: SimpleStrExpr  # action ref
-    args: Optional[Mapping[str, StrExpr]] = field(metadata={"allow_none": True})
+    args: Optional[Mapping[str, PrimitiveExpr]] = field(metadata={"allow_none": True})
 
 
 @dataclass(frozen=True)
@@ -352,10 +354,29 @@ class ActionKind(enum.Enum):
     LOCAL = "local"  # runs locally, can be used in batch flow
 
 
+class InputType(enum.Enum):
+    INT = "int"
+    FLOAT = "float"
+    BOOL = "bool"
+    STR = "str"
+
+    def to_type(self) -> Union[Type[str], Type[float], Type[int], Type[bool]]:
+        if self.value == "int":
+            return int
+        elif self.value == "float":
+            return float
+        elif self.value == "bool":
+            return bool
+        elif self.value == "str":
+            return str
+        assert False, "Not reachable"
+
+
 @dataclass(frozen=True)
 class Input(Base):
     descr: SimpleOptStrExpr
-    default: SimpleOptStrExpr
+    default: SimpleOptPrimitiveExpr
+    type: InputType = InputType.STR
 
 
 @dataclass(frozen=True)

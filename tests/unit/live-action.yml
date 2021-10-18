@@ -7,7 +7,8 @@ inputs:
     descr: param 1
   arg2:
     descr: param 2
-    default: value 2
+    default: 2
+    type: int
 job:
   image: ubuntu
   bash: echo A ${{ inputs.arg1 }} B ${{ inputs.arg2 }} C
