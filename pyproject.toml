@@ -1,0 +1,12 @@
+requires = ["setuptools>=51", "wheel>=0.36"]
+build-backend = "setuptools.build_meta"
+
+[tool.black]
+exclude = '''
+/(
+      \.git
+    | venv
+    | __pycache__
+    | \.tox
+)/
+'''
