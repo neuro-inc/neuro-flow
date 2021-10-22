@@ -9,9 +9,7 @@ on:
   pull_request_target:
     branches: [master]
   schedule:
-  - cron: 0 6 * * *       # Daily 6AM UTC build
-
-
+  - cron: 0 4 * * *
 jobs:
 
   lint:
@@ -214,5 +212,6 @@ jobs:
         version_file: neuro_flow/__init__.py   # CLI has the same version
         start_line: "[comment]: # (towncrier release notes start)"
         head_line: "Neuro Flow {version}\\s+\\({date}\\)\n====+\n?"
-        fix_issue_regex: "\\(\\[#(\\d+)\\]\\(https://github.com/neuro-inc/neuro-flow/issues/\\1\\)\\)"
+        fix_issue_regex: "\\(\\[#(\\d+)\\]\\(https://github.com/neuro-inc/neuro-flow/issues/\\\
+          1\\)\\)"
         fix_issue_repl: "(#\\1)"
