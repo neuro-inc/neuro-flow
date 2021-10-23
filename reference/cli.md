@@ -120,7 +120,7 @@ neuro-flow bake [OPTIONS] BATCH
 | Name | Description |
 | :--- | :--- |
 | _--local-executor_ | Run primary job locally |
-| _--param &lt;TEXT TEXT&gt;..._ | Set params of the batch config |
+| _-p, --param &lt;TEXT TEXT&gt;..._ | Set params of the batch config |
 | _-n, --name NAME_ | Optional bake name |
 | _--meta-from-file FILE_ | File with params for batch. |
 | _-t, --tag TAG_ | Optional bake tag, multiple values allowed |
@@ -387,7 +387,7 @@ neuro-flow run [OPTIONS] JOB_ID [ARGS]...
 | Name | Description |
 | :--- | :--- |
 | _-s, --suffix TEXT_ | Optional suffix for multi-jobs |
-| _--param &lt;TEXT TEXT&gt;..._ | Set params of the batch config |
+| _-p, --param &lt;TEXT TEXT&gt;..._ | Set params of the batch config |
 | _--dry-run_ | Print run command instead of starting job. |
 | _--help_ | Show this message and exit. |
 

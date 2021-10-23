@@ -27,7 +27,11 @@ else:
 @click.command()
 @option("--local-executor", is_flag=True, default=False, help="Run primary job locally")
 @click.option(
-    "--param", type=(str, str), multiple=True, help="Set params of the batch config"
+    "-p",
+    "--param",
+    type=(str, str),
+    multiple=True,
+    help="Set params of the batch config",
 )
 @click.option(
     "-n",

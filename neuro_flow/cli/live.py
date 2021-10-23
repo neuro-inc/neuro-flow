@@ -41,7 +41,11 @@ async def ps(
 @click.command()
 @option("-s", "--suffix", help="Optional suffix for multi-jobs")
 @option(
-    "--param", type=(str, str), multiple=True, help="Set params of the batch config"
+    "-p",
+    "--param",
+    type=(str, str),
+    multiple=True,
+    help="Set params of the batch config",
 )
 @option(
     "--dry-run",
