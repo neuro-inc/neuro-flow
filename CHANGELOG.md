@@ -5,6 +5,46 @@
 
 [comment]: # (towncrier release notes start)
 
+Neuro Flow 21.10.0 (2021-10-27)
+===============================
+
+Features
+--------
+
+- Added new context called git. It has following attributes:
+
+  - ${{ git.sha }} -- SHA of current commit
+  - ${{ git.branch }} - name of current branch
+  - ${{ git.tags }} - list of tags that point to current commit
+
+  This context is available everywhere both in live and batch mode, but it can only be used
+  if project's workspace is inside some git repository. ([#603](https://github.com/neuro-inc/neuro-flow/issues/603))
+- Added ternary operator to expressions: `${{ left if condition else right }}` will evaluate to `left`
+  if `condition` is True and to `right` otherwise. ([#605](https://github.com/neuro-inc/neuro-flow/issues/605))
+- Allowed ']]' and '}}' in yaml literal strings. ([#607](https://github.com/neuro-inc/neuro-flow/issues/607))
+- Added column with batch name to output of `neuro-flow bakes`. ([#618](https://github.com/neuro-inc/neuro-flow/issues/618))
+- Enabled detailed automatic logging to file. For locally executed commands, logs will
+  go to `~/.neuro/logs` directory. Remote executor detailed logs will go to `storage:.flow/logs/<bake_id>/`. ([#622](https://github.com/neuro-inc/neuro-flow/issues/622))
+- Added support of non-string types for action inputs. Now, one can specify action input in following way:
+
+  ```
+  inputs:
+    arg1:
+      descr: Input with implicit string type
+    arg2:
+      descr: Input with explicit string type
+      type: str
+     arg2:
+      descr: Input with explicit int type and corresponding default
+      type: int
+      default: 42
+  ```
+
+  Supported types are `int`, `float`, `bool`, `str`. On action calls side, it's now possible to use
+  corresponding yaml types as arguments. ([#626](https://github.com/neuro-inc/neuro-flow/issues/626))
+- Added possibility to specify job/bake params via the shortcut `-p` for `--param`. ([#629](https://github.com/neuro-inc/neuro-flow/issues/629))
+
+
 Neuro Flow 21.9 (2021-09-29)
 ==============================
 
