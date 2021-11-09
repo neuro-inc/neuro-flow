@@ -5,6 +5,7 @@ import pytest
 import shutil
 import sys
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 from neuro_sdk import (
     Client,
     Container,
@@ -89,6 +90,8 @@ def make_descr(
         container=container,
         scheduler_enabled=scheduler_enabled,
         uri=URL(f"job://default/test-user/{job_id}"),
+        total_price_credits=Decimal("100"),
+        price_credits_per_hour=Decimal("1"),
         name=name,
         tags=sorted(
             list(set(tags) | {"project:test", "flow:batch-seq", f"task:{job_id}"})
@@ -249,6 +252,8 @@ class JobsMock:
             container=container,
             scheduler_enabled=False,
             uri=URL(f"job://default/test-user/{job_id}"),
+            total_price_credits=Decimal("100"),
+            price_credits_per_hour=Decimal("1"),
             name=name,
             tags=tags,
             description=description,
