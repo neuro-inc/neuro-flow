@@ -14,9 +14,6 @@ updates:
       interval: "daily"
     allow:
       - dependency-type: "all"
-    ignore:
-      - dependency-name: "typing-extensions"
-        versions: ["^4.0"]
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
