@@ -36,8 +36,8 @@ async def generate(root: Root, shell: str) -> None:
 
 @completion.command()
 @click.argument("shell", type=click.Choice(["bash", "zsh"]))
-@wrap_async(pass_obj=False)
-async def patch(shell: str) -> None:
+@wrap_async()
+async def patch(root: Root, shell: str) -> None:
     """
     Automatically patch shell configuration profile to enable completion
     """
@@ -80,3 +80,4 @@ async def patch(shell: str) -> None:
 
     with profile_file.open("wb+") as profile:
         profile.write(content)
+    root.console.print(f"Added completion configuration into '{profile_file}'")
