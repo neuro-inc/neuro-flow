@@ -1,0 +1,13 @@
+kind: batch
+mixins:
+  with_bash:
+    image: ubuntu
+    preset: cpu-micro
+    bash: echo abc
+  with_python:
+    image: ubuntu
+    preset: cpu-micro
+    python: print("abc")
+tasks:
+  - mixins: [with_bash]
+  - mixins: [with_python]
