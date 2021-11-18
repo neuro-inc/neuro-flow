@@ -775,6 +775,7 @@ def parse_mixin(
             node,
             JOB_MIXIN,
             ast.JobMixin,
+            preprocess=select_shells,
         )
     elif ctor._kind == ast.FlowKind.BATCH:
         return parse_dict(
@@ -782,6 +783,7 @@ def parse_mixin(
             node,
             TASK_MIXIN,
             ast.TaskMixin,
+            preprocess=select_shells,
         )
     else:
         raise ValueError(f"Unknown kind {ctor._kind}")

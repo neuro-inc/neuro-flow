@@ -1093,6 +1093,26 @@ async def test_batch_with_mixins(batch_config_loader: ConfigLoader) -> None:
     assert task.cmd == "bash -euo pipefail -c 'echo def'"
 
 
+async def test_batch_with_mixins_with_bash_python_properties(
+    batch_config_loader: ConfigLoader,
+) -> None:
+    flow = await RunningBatchFlow.create(
+        batch_config_loader, "batch-mixin-with-bash-python-properties", "bake-id"
+    )
+    task = await flow.get_task((), "task-1", needs={}, state={})
+
+    assert task.image == "ubuntu"
+    assert task.preset == "cpu-micro"
+    assert task.cmd == "bash -euo pipefail -c 'echo abc'"
+
+    task = await flow.get_task(
+        (), "task-2", needs={"task-1": DepCtx(TaskStatus.SUCCEEDED, {})}, state={}
+    )
+    assert task.image == "ubuntu"
+    assert task.preset == "cpu-micro"
+    assert task.cmd == "python3 -uc 'print(\"abc\")'"
+
+
 async def test_batch_with_sub_mixins(batch_config_loader: ConfigLoader) -> None:
     flow = await RunningBatchFlow.create(
         batch_config_loader, "batch-sub-mixin", "bake-id"
