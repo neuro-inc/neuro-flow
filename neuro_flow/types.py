@@ -96,6 +96,7 @@ IMAGE_STATUS_COLORS = {
     ImageStatus.BUILDING: "blue",
     ImageStatus.BUILT: "green",
     ImageStatus.BUILD_FAILED: "red",
+    ImageStatus.CACHED: "magenta",
 }
 
 

@@ -1403,6 +1403,7 @@ async def test_image_builds_skip_if_present(
     bake_storage = project_storage.bake(id=bake.id)
     image = await bake_storage.bake_image(ref="image:main").get()
     assert image.status == ImageStatus.CACHED
+    assert image.status.__rich__() == "[magenta]cached"
 
 
 async def test_image_builds_if_present_but_force(
