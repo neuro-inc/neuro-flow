@@ -68,8 +68,6 @@ def make_descr(
     name: Optional[str] = None,
     container: Optional[Container] = None,
     pass_config: bool = False,
-    total_price_credits: Decimal = Decimal("10"),
-    price_credits_per_hour: Decimal = Decimal("10"),
 ) -> JobDescription:
     if container is None:
         container = Container(RemoteImage("ubuntu"), Resources(100, 0.1))
@@ -102,8 +100,6 @@ def make_descr(
         restart_policy=restart_policy,
         life_span=life_span,
         pass_config=pass_config,
-        total_price_credits=total_price_credits,
-        price_credits_per_hour=price_credits_per_hour,
     )
 
 
@@ -266,8 +262,6 @@ class JobsMock:
             pass_config=pass_config,
             privileged=privileged,
             schedule_timeout=schedule_timeout,
-            total_price_credits=Decimal("10"),
-            price_credits_per_hour=Decimal("10"),
         )
         return self._data[job_id]
 
