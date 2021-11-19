@@ -9,7 +9,18 @@ tasks:
   args:
     from: file
     to: file_copy
-- id: remote_task
+- id: verify_copy
   needs: [copy_file]
+  action: ws:python
+  args:
+    python: |
+      from pathlib import Path
+      ok = Path("file").read_text() == Path("file_copy").read_text()
+      if ok:
+        print("::set-output name=status_code::0")
+      else:
+        print("::set-output name=status_code::1")
+- id: remote_task
+  needs: [copy_file, verify_copy]
   image: ubuntu
-  bash: echo ${{ needs.copy_file.outputs.status_code }}
+  bash: echo ${{ needs.verify_copy.outputs.status_code }}
