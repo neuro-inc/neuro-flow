@@ -1,0 +1,7 @@
+kind: local
+name: python action
+author: Yevhenii Semendiak
+inputs:
+  python:
+    descr: python code to execute
+python: ${{ inputs.python }}
