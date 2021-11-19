@@ -1327,19 +1327,22 @@ def select_action(
     ret: Dict[str, Any]
     if kind == ast.ActionKind.LIVE:
         ret = {k: v for k, v in dct.items() if k in LIVE_ACTION}
+        check_extra(node, dct, ret, f"{kind.value} action")
     elif kind == ast.ActionKind.BATCH:
         ret = {k: v for k, v in dct.items() if k in BATCH_ACTION}
+        check_extra(node, dct, ret, f"{kind.value} action")
     elif kind == ast.ActionKind.STATEFUL:
         ret = {k: v for k, v in dct.items() if k in STATEFUL_ACTION}
+        check_extra(node, dct, ret, f"{kind.value} action")
     elif kind == ast.ActionKind.LOCAL:
         ret = {k: v for k, v in dct.items() if k in LOCAL_ACTION}
+        check_extra(node, dct, ret, f"{kind.value} action")
         ret = select_shells(ctor, node, ret)
     else:
         raise ConstructorError(
             f"missing mandatory key 'kind'",
             node.start_mark,
         )
-    check_extra(node, dct, ret, f"{kind.value} action")
 
     if kind == ast.ActionKind.LIVE:
         if "job" in dct and dct["job"].params is not None:
