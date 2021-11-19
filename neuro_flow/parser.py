@@ -1333,7 +1333,7 @@ def select_action(
         ret = {k: v for k, v in dct.items() if k in STATEFUL_ACTION}
     elif kind == ast.ActionKind.LOCAL:
         ret = {k: v for k, v in dct.items() if k in LOCAL_ACTION}
-        ret = select_shells(ctor, node, dct)
+        ret = select_shells(ctor, node, ret)
     else:
         raise ConstructorError(
             f"missing mandatory key 'kind'",
