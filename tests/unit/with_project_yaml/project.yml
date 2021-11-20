@@ -44,3 +44,15 @@ mixins:
   basic:
     image: mixin-image
     preset: mixin-preset
+  with_cmd:
+    image: mixin-image
+    cmd: command -o --option arg1 arg2
+  with_bash:
+    image: mixin-image
+    bash: |
+      command -o --option arg1 arg2
+      command2 -o --option arg1 arg2
+  with_python:
+    image: mixin-image
+    python: |
+      print("hello neuro-flow")

@@ -1550,6 +1550,7 @@ def parse_project_mixins(
             v,
             EXEC_UNIT_MIXIN,
             ast.ExecUnitMixin,
+            preprocess=select_shells,
         )
         ret[key] = value
     return ret

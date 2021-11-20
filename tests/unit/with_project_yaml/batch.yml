@@ -13,3 +13,12 @@ tasks:
 - id: test_mixin
   needs: []
   mixins: [basic]
+- id: test_mixin_cmd
+  needs: []
+  mixins: [with_cmd]
+- id: test_mixin_bash
+  needs: []
+  mixins: [with_bash]
+- id: test_mixin_python
+  needs: []
+  mixins: [with_python]
