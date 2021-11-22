@@ -136,6 +136,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
                     if not skip_check:
                         raise click.BadArgumentUsage(
                             f"Please provide a suffix for multi-job {fmt_id(job_id)}"
+                            " via -s/--suffix option."
                         )
             else:
                 if suffix is not None:
