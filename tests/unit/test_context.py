@@ -1267,5 +1267,20 @@ async def test_batch_with_project_mixins(assets: pathlib.Path, client: Client) -
         assert task.image == "mixin-image"
         assert task.preset == "mixin-preset"
 
+        task = await flow.get_task((), "test_mixin_cmd", needs={}, state={})
+        assert task.image == "mixin-image"
+        assert task.cmd == "command -o --option arg1 arg2"
+
+        task = await flow.get_task((), "test_mixin_bash", needs={}, state={})
+        assert task.image == "mixin-image"
+        assert task.cmd == (
+            "bash -euo pipefail -c 'command -o --option arg1 arg2\n"
+            "command2 -o --option arg1 arg2\n'"
+        )
+
+        task = await flow.get_task((), "test_mixin_python", needs={}, state={})
+        assert task.image == "mixin-image"
+        assert task.cmd == "python3 -uc 'print(\"hello neuro-flow\")\n'"
+
     finally:
         await cl.close()

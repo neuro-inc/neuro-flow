@@ -3,9 +3,11 @@ import pathlib
 from neuro_flow import ast
 from neuro_flow.expr import (
     MappingItemsExpr,
+    OptBashExpr,
     OptBoolExpr,
     OptIntExpr,
     OptLocalPathExpr,
+    OptPythonExpr,
     OptRemotePathExpr,
     OptStrExpr,
     OptTimeDeltaExpr,
@@ -26,7 +28,7 @@ def test_parse_full(assets: pathlib.Path) -> None:
         project = parse_project_stream(stream)
     assert project == ast.Project(
         Pos(0, 0, config_file),
-        Pos(46, 0, config_file),
+        Pos(58, 0, config_file),
         id=SimpleIdExpr(
             Pos(0, 0, config_file),
             Pos(0, 0, config_file),
@@ -194,7 +196,7 @@ def test_parse_full(assets: pathlib.Path) -> None:
         mixins={
             "basic": ast.ExecUnitMixin(
                 Pos(44, 4, config_file),
-                Pos(46, 0, config_file),
+                Pos(46, 2, config_file),
                 _specified_fields={"image", "preset"},
                 mixins=None,
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
@@ -231,6 +233,135 @@ def test_parse_full(assets: pathlib.Path) -> None:
                 ),
                 pass_config=OptBoolExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+            ),
+            "with_cmd": ast.ExecUnitMixin(
+                Pos(47, 4, config_file),
+                Pos(49, 2, config_file),
+                _specified_fields={"image", "cmd"},
+                mixins=None,
+                name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                image=OptStrExpr(
+                    Pos(0, 0, config_file),
+                    Pos(0, 0, config_file),
+                    "mixin-image",
+                ),
+                preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                schedule_timeout=OptTimeDeltaExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                entrypoint=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                workdir=OptRemotePathExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                env=None,
+                volumes=None,
+                tags=None,
+                life_span=OptTimeDeltaExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                http_port=OptIntExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                http_auth=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                pass_config=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                cmd=OptStrExpr(
+                    Pos(0, 0, config_file),
+                    Pos(0, 0, config_file),
+                    "command -o --option arg1 arg2",
+                ),
+            ),
+            "with_bash": ast.ExecUnitMixin(
+                Pos(50, 4, config_file),
+                Pos(54, 2, config_file),
+                _specified_fields={"image", "cmd"},
+                mixins=None,
+                name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                image=OptStrExpr(
+                    Pos(0, 0, config_file),
+                    Pos(0, 0, config_file),
+                    "mixin-image",
+                ),
+                preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                schedule_timeout=OptTimeDeltaExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                entrypoint=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                workdir=OptRemotePathExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                env=None,
+                volumes=None,
+                tags=None,
+                life_span=OptTimeDeltaExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                http_port=OptIntExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                http_auth=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                pass_config=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                cmd=OptBashExpr(
+                    Pos(0, 0, config_file),
+                    Pos(0, 0, config_file),
+                    "command -o --option arg1 arg2\ncommand2 -o --option arg1 arg2\n",
+                ),
+            ),
+            "with_python": ast.ExecUnitMixin(
+                Pos(55, 4, config_file),
+                Pos(58, 0, config_file),
+                _specified_fields={"image", "cmd"},
+                mixins=None,
+                name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                image=OptStrExpr(
+                    Pos(0, 0, config_file),
+                    Pos(0, 0, config_file),
+                    "mixin-image",
+                ),
+                preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                schedule_timeout=OptTimeDeltaExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                entrypoint=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                workdir=OptRemotePathExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                env=None,
+                volumes=None,
+                tags=None,
+                life_span=OptTimeDeltaExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                http_port=OptIntExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                http_auth=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                pass_config=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                cmd=OptPythonExpr(
+                    Pos(0, 0, config_file),
+                    Pos(0, 0, config_file),
+                    'print("hello neuro-flow")\n',
                 ),
             ),
         },
