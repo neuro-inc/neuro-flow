@@ -5,6 +5,25 @@
 
 [comment]: # (towncrier release notes start)
 
+Neuro Flow 21.11.0 (2021-11-23)
+===============================
+
+Features
+--------
+
+- Allow `bash` and `python` code blocks in local actions. ([#667](https://github.com/neuro-inc/neuro-flow/issues/667))
+- Add `-s/--suffix` option usage hint for cases when the live job launched without it. ([#679](https://github.com/neuro-inc/neuro-flow/issues/679))
+
+
+Bugfixes
+--------
+
+- Handle cached image status color in `neuro-flow inspect <bake>`. ([#657](https://github.com/neuro-inc/neuro-flow/issues/657))
+- Fixed parsing of bash and python in mixins ([#674](https://github.com/neuro-inc/neuro-flow/issues/674))
+- Fix parsing of 'bash' and 'python' usage in project config. ([#678](https://github.com/neuro-inc/neuro-flow/issues/678))
+- Fixed logging of filename as "." for github actions. ([#681](https://github.com/neuro-inc/neuro-flow/issues/681))
+
+
 Neuro Flow 21.10.0 (2021-10-27)
 ===============================
 
