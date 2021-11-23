@@ -12,6 +12,7 @@ from pathlib import PureWindowsPath
 from tempfile import TemporaryFile
 from typing import (
     IO,
+    Any,
     AsyncIterator,
     BinaryIO,
     Dict,
@@ -181,6 +182,14 @@ class BatchStreamCL(StreamCL, abc.ABC):
         return self.__flow_cache[name]
 
 
+class NamedTextIOWrapper(TextIOWrapper):
+    name: str = "<textiowrapper>"  # To override the property
+
+    def __init__(self, name: str, *args: Any, **kwargs: Any):
+        super().__init__(*args, **kwargs)
+        self.name = name
+
+
 class LocalCL(StreamCL, abc.ABC):
     def __init__(self, config_dir: ConfigDir, client: Client):
         super().__init__()
@@ -270,7 +279,9 @@ class LocalCL(StreamCL, abc.ABC):
                                 )
                             # Cast is workaround for
                             # https://github.com/python/typeshed/issues/4349
-                            yield TextIOWrapper(cast(BinaryIO, file_obj))
+                            yield NamedTextIOWrapper(
+                                action_name, cast(BinaryIO, file_obj)
+                            )
         else:
             raise ValueError(f"Unsupported scheme '{action.scheme}'")
 
