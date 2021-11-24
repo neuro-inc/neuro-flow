@@ -4,7 +4,7 @@ import abc
 import aiohttp
 import datetime
 import json
-import sys
+from contextlib import asynccontextmanager
 from neuro_sdk import Client
 from typing import (
     AbstractSet,
@@ -52,12 +52,6 @@ from neuro_flow.storage.base import (
 )
 from neuro_flow.types import FullID, GitInfo, ImageStatus, TaskStatus
 from neuro_flow.utils import retry
-
-
-if sys.version_info >= (3, 7):  # pragma: no cover
-    from contextlib import asynccontextmanager
-else:
-    from async_generator import asynccontextmanager
 
 
 def _id_from_json(sid: str) -> FullID:

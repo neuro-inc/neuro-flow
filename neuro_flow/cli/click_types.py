@@ -1,8 +1,8 @@
 import abc
 import click
 import neuro_sdk
-import sys
 from click.shell_completion import CompletionItem
+from contextlib import AsyncExitStack
 from neuro_cli.asyncio_utils import Runner
 from neuro_sdk import ResourceNotFound
 from typing import Generic, List, Optional, TypeVar, cast
@@ -14,11 +14,6 @@ from neuro_flow.live_runner import LiveRunner
 from neuro_flow.storage.api import ApiStorage
 from neuro_flow.storage.base import Storage
 
-
-if sys.version_info >= (3, 7):
-    from contextlib import AsyncExitStack
-else:
-    from async_exit_stack import AsyncExitStack
 
 _T = TypeVar("_T")
 

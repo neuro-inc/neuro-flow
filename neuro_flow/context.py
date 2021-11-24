@@ -9,8 +9,8 @@ import json
 import logging
 import re
 import shlex
-import sys
 from abc import ABC, abstractmethod
+from contextlib import asynccontextmanager
 from datetime import timedelta
 from functools import lru_cache
 from neuro_sdk import Client
@@ -56,12 +56,6 @@ from neuro_flow.expr import (
 )
 from neuro_flow.types import AlwaysT, FullID, GitInfo, LocalPath, RemotePath, TaskStatus
 from neuro_flow.utils import collect_git_info
-
-
-if sys.version_info >= (3, 7):  # pragma: no cover
-    from contextlib import asynccontextmanager
-else:
-    from async_generator import asynccontextmanager
 
 
 log = logging.getLogger(__name__)

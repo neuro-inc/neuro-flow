@@ -1,6 +1,6 @@
 import click
 import neuro_sdk
-import sys
+from contextlib import AsyncExitStack
 from typing import List, Optional, Sequence, Tuple
 
 from neuro_flow.cli.click_types import (
@@ -15,12 +15,6 @@ from neuro_flow.live_runner import LiveRunner
 from ..storage.api import ApiStorage
 from ..storage.base import Storage
 from .root import Root
-
-
-if sys.version_info >= (3, 7):
-    from contextlib import AsyncExitStack
-else:
-    from async_exit_stack import AsyncExitStack
 
 
 @click.command()

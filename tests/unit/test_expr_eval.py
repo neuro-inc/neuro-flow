@@ -1,5 +1,5 @@
 import pytest
-import sys
+from contextlib import asynccontextmanager
 from neuro_sdk import Client
 from typing import Any, AsyncIterator, Dict, List
 from typing_extensions import Final
@@ -17,12 +17,6 @@ from neuro_flow.expr import (
 )
 from neuro_flow.tokenizer import Pos, tokenize
 from neuro_flow.types import LocalPath, TaskStatus
-
-
-if sys.version_info >= (3, 7):  # pragma: no cover
-    from contextlib import asynccontextmanager
-else:
-    from async_generator import asynccontextmanager
 
 
 FNAME = LocalPath("<test>")

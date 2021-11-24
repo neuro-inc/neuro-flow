@@ -1,7 +1,7 @@
 # test functions available in expressions
 import pathlib
 import pytest
-import sys
+from contextlib import asynccontextmanager
 from neuro_sdk import Client
 from re_assert import Matches
 from typing import AbstractSet, Any, AsyncIterator, Callable, Mapping
@@ -10,12 +10,6 @@ from neuro_flow.context import FlowCtx, GitCtx, LiveContext, ProjectCtx, TagsCtx
 from neuro_flow.expr import EvalError, RootABC, StrExpr, TypeT
 from neuro_flow.tokenizer import Pos
 from neuro_flow.types import LocalPath
-
-
-if sys.version_info >= (3, 7):  # pragma: no cover
-    from contextlib import asynccontextmanager
-else:
-    from async_generator import asynccontextmanager
 
 
 POS = Pos(0, 0, LocalPath(__file__))

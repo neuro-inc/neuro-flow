@@ -1,7 +1,7 @@
 import pathlib
 import pytest
-import sys
 import textwrap
+from contextlib import asynccontextmanager
 from neuro_sdk import Client
 from typing import AsyncContextManager, AsyncIterator, Callable, Mapping
 
@@ -22,11 +22,6 @@ from neuro_flow.parser import ConfigDir
 from neuro_flow.storage.base import BakeImage, BakeMeta, Storage
 from neuro_flow.storage.in_memory import InMemoryStorage
 
-
-if sys.version_info >= (3, 7):  # pragma: no cover
-    from contextlib import asynccontextmanager
-else:
-    from async_generator import asynccontextmanager
 
 BatchClFactory = Callable[[str], AsyncContextManager[ConfigLoader]]
 

@@ -3,9 +3,9 @@ import dataclasses
 import abc
 import aiohttp
 import logging
-import sys
 import tarfile
 from aiohttp.web_exceptions import HTTPNotFound
+from contextlib import asynccontextmanager
 from io import StringIO, TextIOWrapper
 from neuro_sdk import Client
 from pathlib import PureWindowsPath
@@ -34,12 +34,6 @@ from neuro_flow.parser import (
 )
 from neuro_flow.storage.base import BakeStorage, ConfigsMeta
 from neuro_flow.types import LocalPath
-
-
-if sys.version_info >= (3, 7):  # pragma: no cover
-    from contextlib import asynccontextmanager
-else:
-    from async_generator import asynccontextmanager
 
 
 log = logging.getLogger(__name__)
