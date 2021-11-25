@@ -13,4 +13,4 @@ def get_neuro_flow_txt(old: str, new: str) -> str:
 
 
 def setup(manager: PluginManager) -> None:
-    manager.version_checker.register("neuro-extras", get_neuro_flow_txt)
+    manager.version_checker.register("neuro-flow", get_neuro_flow_txt)
