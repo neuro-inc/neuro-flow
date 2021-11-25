@@ -9,12 +9,11 @@ import json
 import logging
 import re
 import shlex
-import sys
 from abc import ABC, abstractmethod
+from contextlib import asynccontextmanager
 from datetime import timedelta
 from functools import lru_cache
 from neuro_sdk import Client
-from neuro_sdk.url_utils import uri_from_cli
 from typing import (
     AbstractSet,
     Any,
@@ -57,12 +56,6 @@ from neuro_flow.expr import (
 )
 from neuro_flow.types import AlwaysT, FullID, GitInfo, LocalPath, RemotePath, TaskStatus
 from neuro_flow.utils import collect_git_info
-
-
-if sys.version_info >= (3, 7):  # pragma: no cover
-    from contextlib import asynccontextmanager
-else:
-    from async_generator import asynccontextmanager
 
 
 log = logging.getLogger(__name__)
@@ -855,13 +848,11 @@ async def setup_local_or_storage_path(
     if path_str is None:
         return None
     async with ctx.client() as client:
-        username = client.config.username
-        cluster_name = client.config.cluster_name
-    if path_str.startswith("storage"):
-        try:
-            return uri_from_cli(path_str, username, cluster_name)
-        except ValueError as e:
-            raise EvalError(str(e), str_expr.start, str_expr.end)
+        if path_str.startswith("storage"):
+            try:
+                return client.parse.str_to_uri(path_str)
+            except ValueError as e:
+                raise EvalError(str(e), str_expr.start, str_expr.end)
     try:
         path = LocalPath(path_str)
     except ValueError as e:

@@ -1,6 +1,6 @@
 import click
 import neuro_sdk
-import sys
+from contextlib import AsyncExitStack
 
 from neuro_flow.cli.click_types import LIVE_IMAGE_OR_ALL
 from neuro_flow.cli.root import Root
@@ -8,12 +8,6 @@ from neuro_flow.cli.utils import argument, option, wrap_async
 from neuro_flow.live_runner import LiveRunner
 from neuro_flow.storage.api import ApiStorage
 from neuro_flow.storage.base import Storage
-
-
-if sys.version_info >= (3, 7):
-    from contextlib import AsyncExitStack
-else:
-    from async_exit_stack import AsyncExitStack
 
 
 @click.command()

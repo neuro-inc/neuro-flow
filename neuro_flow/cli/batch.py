@@ -1,7 +1,7 @@
 import click
 import neuro_sdk
 import signal
-import sys
+from contextlib import AsyncExitStack
 from datetime import datetime, timezone
 from dateutil.parser import isoparse
 from neuro_cli.parse_utils import parse_timedelta
@@ -16,12 +16,6 @@ from neuro_flow.types import LocalPath
 from ..parser import parse_bake_meta
 from ..storage.base import Storage
 from .root import Root
-
-
-if sys.version_info >= (3, 7):
-    from contextlib import AsyncExitStack
-else:
-    from async_exit_stack import AsyncExitStack
 
 
 @click.command()

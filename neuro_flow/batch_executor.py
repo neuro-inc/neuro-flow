@@ -1,9 +1,9 @@
 import asyncio
 import logging
 import os
-import sys
 import textwrap
 from collections import defaultdict
+from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from neuro_sdk import (
     Action,
@@ -90,12 +90,6 @@ from .utils import (
     fmt_status,
     retry,
 )
-
-
-if sys.version_info >= (3, 7):  # pragma: no cover
-    from contextlib import asynccontextmanager
-else:
-    from async_generator import asynccontextmanager
 
 
 log = logging.getLogger(__name__)

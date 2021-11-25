@@ -2,8 +2,7 @@ from dataclasses import dataclass
 
 import abc
 import datetime
-from neuro_sdk import ResourceNotFound
-from neuro_sdk.jobs import JobStatusItem
+from neuro_sdk import JobStatusItem, ResourceNotFound
 from types import TracebackType
 from typing import (
     AbstractSet,

@@ -15,7 +15,6 @@ from neuro_sdk import (
     Permission,
     ResourceNotFound,
 )
-from neuro_sdk.storage import normalize_storage_path_uri  # type: ignore
 from rich import box
 from rich.console import Console
 from rich.table import Table
@@ -557,8 +556,9 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
             str(volume_ctx.full_local_path),
             str(volume_ctx.remote),
         )
-        uri = normalize_storage_path_uri(
-            volume_ctx.remote, self._client.username, self._client.cluster_name
+        uri = self._client.parse.normalize_uri(
+            volume_ctx.remote,
+            allowed_schemes=("storage",),
         )
         await self._add_resource(uri)
 
@@ -602,8 +602,9 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
                     "--parents",
                     str(volume_ctx.remote),
                 )
-                uri = normalize_storage_path_uri(
-                    volume_ctx.remote, self._client.username, self._client.cluster_name
+                uri = self._client.parse.normalize_uri(
+                    volume_ctx.remote,
+                    allowed_schemes=("storage",),
                 )
                 await self._add_resource(uri)
 
@@ -664,8 +665,9 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
         self._is_projet_role_created = True
 
     async def _add_storage_resource(self, uri: URL) -> None:
-        uri = normalize_storage_path_uri(
-            uri, self._client.username, self._client.cluster_name
+        uri = self._client.parse.normalize_uri(
+            uri,
+            allowed_schemes=("storage",),
         )
 
     async def _add_resource(self, uri: URL) -> None:

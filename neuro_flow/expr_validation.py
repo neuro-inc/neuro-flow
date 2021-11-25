@@ -2,23 +2,16 @@ import dataclasses
 
 import abc
 import collections
-import sys
 from abc import abstractmethod
 from typing import AbstractSet, Any, Callable, Iterable, List, Optional, Tuple, Type
+from typing_extensions import get_type_hints as _get_hints
 
 from neuro_flow.context import Context, ModuleContext, TagsCtx
 from neuro_flow.expr import AttrGetter, EvalError, Expr, Item, ItemGetter, Lookup
 
 
-if sys.version_info[:3] >= (3, 7):
-    from typing_extensions import get_type_hints as _get_hints
-
-    def get_hints(obj: Any) -> Any:
-        return _get_hints(obj, include_extras=True)
-
-
-else:
-    from typing import get_type_hints as get_hints
+def get_hints(obj: Any) -> Any:
+    return _get_hints(obj, include_extras=True)
 
 
 def validate_expr(
