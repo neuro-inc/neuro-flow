@@ -5,6 +5,15 @@
 
 [comment]: # (towncrier release notes start)
 
+Neuro Flow 21.11.2 (2021-11-26)
+===============================
+
+Features
+--------
+
+- Technical release, compatible with the latest SDK/CLI.
+
+
 Neuro Flow 21.11.0 (2021-11-23)
 ===============================
 
@@ -48,15 +57,15 @@ Features
 
   ```
   inputs:
-    arg1:
-      descr: Input with implicit string type
-    arg2:
-      descr: Input with explicit string type
-      type: str
-     arg2:
-      descr: Input with explicit int type and corresponding default
-      type: int
-      default: 42
+	arg1:
+	  descr: Input with implicit string type
+	arg2:
+	  descr: Input with explicit string type
+	  type: str
+	arg2:
+	  descr: Input with explicit int type and corresponding default
+	  type: int
+	  default: 42
   ```
 
   Supported types are `int`, `float`, `bool`, `str`. On action calls side, it's now possible to use
