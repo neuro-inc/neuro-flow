@@ -1,2 +1,2 @@
 # Image is public
-FROM registry-dev.neu.ro/neuro-e2e-1/alpine
+FROM ghcr.io/neuro-inc/alpine:latest
