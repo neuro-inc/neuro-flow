@@ -41,7 +41,7 @@ jobs:
         restore-keys: |
           pip-lint-
     - name: Install dependencies
-      uses: py-actions/py-dependency-install@v2.1.0
+      uses: py-actions/py-dependency-install@v3
       with:
         path: requirements/ci.txt
     - name: Run linters
@@ -92,7 +92,7 @@ jobs:
         restore-keys: |
           pip-ci-${{ runner.os }}-${{ matrix.python-version }}-
     - name: Install dependencies
-      uses: py-actions/py-dependency-install@v2.1.0
+      uses: py-actions/py-dependency-install@v3
       with:
         path: requirements/ci.txt
     - name: Run unittests
@@ -138,7 +138,7 @@ jobs:
         restore-keys: |
           pip-ci-${{ runner.os }}-${{ matrix.python-version }}-
     - name: Install dependencies
-      uses: py-actions/py-dependency-install@v2.1.0
+      uses: py-actions/py-dependency-install@v3
       with:
         path: requirements/ci.txt
     - name: Run e2e tests
@@ -180,7 +180,7 @@ jobs:
       with:
         python-version: 3.9
     - name: Install dependencies
-      uses: py-actions/py-dependency-install@v2.1.0
+      uses: py-actions/py-dependency-install@v3
       with:
         path: requirements/ci.txt
     - name: Login to DockerHub
