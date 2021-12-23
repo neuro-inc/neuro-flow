@@ -527,10 +527,10 @@ async def test_pipeline_matrix_with_doubles(batch_config_loader: ConfigLoader) -
     )
 
     assert flow.graph == {
-        "task_0_1__0_3": {},
-        "task_0_1__0_5": {},
-        "task_0_2__0_3": {},
-        "task_0_2__0_5": {},
+        "taskN0__0_1__0_3__0": {},
+        "taskN1__0_1__0_5__1": {},
+        "taskN2__0_2__0_3__2": {},
+        "taskN3__0_2__0_5__3": {},
     }
 
 
