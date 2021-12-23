@@ -456,6 +456,9 @@ class RetryReadNeuroClient(RetryConfig):
 
 
 class BatchExecutor:
+    transient_progress: bool = False
+    run_builder_job: Callable[..., Awaitable[str]] = start_image_build
+
     def __init__(
         self,
         console: Console,
@@ -467,10 +470,8 @@ class BatchExecutor:
         bake_storage: BakeStorage,
         project_storage: ProjectStorage,
         *,
-        polling_timeout: float = 1,
-        transient_progress: bool = False,
+        polling_timeout: Optional[float] = 1,
         project_role: Optional[str] = None,
-        run_builder_job: Callable[..., Awaitable[str]] = start_image_build,
     ) -> None:
         self._progress = Progress(
             TextColumn("[progress.description]{task.description}"),
@@ -479,7 +480,7 @@ class BatchExecutor:
             TextColumn("[progress.remaining]{task.elapsed:.0f} sec"),
             console=console,
             auto_refresh=False,
-            transient=transient_progress,
+            transient=self.transient_progress,
             redirect_stderr=True,
         )
         self._top_flow = flow
@@ -497,7 +498,7 @@ class BatchExecutor:
         self._project_role = project_role
         self._is_projet_role_created = False
 
-        self._run_builder_job = run_builder_job
+        self._run_builder_job = self.run_builder_job
 
         # A note about default value:
         # AS: I have no idea what timeout is better;
@@ -516,10 +517,8 @@ class BatchExecutor:
         client: Client,
         storage: Storage,
         *,
-        polling_timeout: float = 1,
-        transient_progress: bool = False,
+        polling_timeout: Optional[float] = 1,
         project_role: Optional[str] = None,
-        run_builder_job: Callable[..., Awaitable[str]] = start_image_build,
     ) -> AsyncIterator["BatchExecutor"]:
         storage = storage.with_retry_read()
 
@@ -548,9 +547,7 @@ class BatchExecutor:
             bake_storage=bake_storage,
             project_storage=storage.project(id=bake.project_id),
             polling_timeout=polling_timeout,
-            transient_progress=transient_progress,
             project_role=project_role,
-            run_builder_job=run_builder_job,
         )
         ret._start()
         try:
@@ -936,7 +933,7 @@ class BatchExecutor:
                 if not ok or self._attempt.result == TaskStatus.CANCELLED:
                     await self._cancel_unfinished()
 
-            await asyncio.sleep(self._polling_timeout)
+            await asyncio.sleep(self._polling_timeout or 0)
 
         return self._accumulate_result()
 
@@ -1250,6 +1247,8 @@ class BatchExecutor:
 
 
 class LocalsBatchExecutor(BatchExecutor):
+    transient_progress = True
+
     @classmethod
     @asynccontextmanager
     async def create(
@@ -1271,7 +1270,6 @@ class LocalsBatchExecutor(BatchExecutor):
             client,
             storage,
             polling_timeout=0,
-            transient_progress=True,
             project_role=project_role,
         ) as ret:
             yield ret

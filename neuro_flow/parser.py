@@ -408,7 +408,7 @@ def parse_dict(
             f"unexpected fields '{sep.join(missing_names)}'",
             node.start_mark,
         )
-    return res_type(  # type: ignore[call-arg]
+    return res_type(
         _start=node_start,
         _end=node_end,
         **data,

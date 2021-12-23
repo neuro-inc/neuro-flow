@@ -987,8 +987,10 @@ async def validate_action_call(
     call_ast: Union[ast.BaseActionCall, ast.BaseModuleCall],
     ast_inputs: Optional[Mapping[str, ast.Input]],
 ) -> None:
+    supported_inputs: Set[str]
+    supplied_inputs: Set[str]
     if ast_inputs:
-        supported_inputs = ast_inputs.keys()
+        supported_inputs = set(ast_inputs.keys())
         required_inputs = {
             input_name
             for input_name, input_ast in ast_inputs.items()
@@ -998,7 +1000,7 @@ async def validate_action_call(
         supported_inputs = set()
         required_inputs = set()
     if call_ast.args:
-        supplied_inputs = call_ast.args.keys()
+        supplied_inputs = set(call_ast.args.keys())
     else:
         supplied_inputs = set()
     missing = required_inputs - supplied_inputs
