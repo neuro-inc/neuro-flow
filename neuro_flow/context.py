@@ -1159,6 +1159,8 @@ async def setup_matrix(ast_matrix: Optional[ast.Matrix]) -> Sequence[MatrixCtx]:
                 ast_matrix._end,
             )
         matrices.append({k: await v.eval(EMPTY_ROOT) for k, v in inc_spec.items()})
+    for pos, dct in enumerate(matrices):
+        dct["ORDINAL"] = pos
     return matrices
 
 
@@ -2739,8 +2741,10 @@ class EarlyTaskGraphBuilder:
         task_id = await ast_task.id.eval(ctx)
         if task_id is None:
             # Dash is not allowed in identifier, so the generated read id
-            # never clamps with user_provided one.
-            suffix = [str(ctx.matrix[k]) for k in sorted(ctx.matrix)]
+            # never clamps with user-provided one.
+            # Filter system properties
+            keys = [key for key in sorted(ctx.matrix) if key == key.lower()]
+            suffix = [str(ctx.matrix[key]) for key in keys]
             real_id = "-".join(["task", str(num), *suffix])
         else:
             real_id = task_id

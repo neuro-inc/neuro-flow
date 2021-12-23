@@ -771,7 +771,7 @@ class BatchExecutor:
         log.debug(f"BatchExecutor: processing task {full_id}")
         task = await self._get_task(full_id)
 
-        # Check is is task fits in max_parallel
+        # Check is task fits max_parallel
         for n in range(1, len(full_id) + 1):
             node = full_id[:n]
             prefix = node[:-1]
