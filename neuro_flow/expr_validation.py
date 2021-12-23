@@ -47,13 +47,10 @@ def _get_dataclass_field_type(dataclass: Any, attr: str) -> Optional[Any]:
     res = get_hints(dataclass).get(attr)
     if res is None:
         # Maybe this is a property?
-        try:
-            class_attr = dataclass.attr
-            fget_attr = class_attr.fget
-        except AttributeError:
-            pass
-        else:
-            res = get_hints(fget_attr).get("return")
+        class_attr = getattr(dataclass, attr, None)
+        fget = getattr(class_attr, "fget", None)
+        if fget:
+            res = get_hints(fget).get("return")
     return res
 
 
