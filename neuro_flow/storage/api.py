@@ -221,10 +221,10 @@ class RawApiClient:
         async with self._core.request(
             method,
             url,
-            headers=headers,
+            headers=headers,  # type: ignore[arg-type]
             auth=auth,
             json=data,
-            params=params,
+            params=params,  # type: ignore[arg-type]
         ) as resp:
             yield resp
 

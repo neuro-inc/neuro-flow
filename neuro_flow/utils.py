@@ -242,9 +242,7 @@ _R = TypeVar("_R")
 def retry(
     func: Callable[Concatenate[RetryConfig, _P], Awaitable[_R]]  # type: ignore
 ) -> Callable[Concatenate[RetryConfig, _P], Awaitable[_R]]:  # type: ignore
-    async def inner(
-        self: RetryConfig, *args: _P.args, **kwargs: _P.kwargs  # type: ignore
-    ) -> _R:
+    async def inner(self: RetryConfig, *args: _P.args, **kwargs: _P.kwargs) -> _R:
         for retry in retries(
             f"{func!r}(*{args!r}, **{kwargs!r})",
             timeout=self._retry_timeout,
