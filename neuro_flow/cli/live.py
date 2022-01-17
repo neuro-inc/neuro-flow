@@ -72,14 +72,13 @@ async def run(
         client = await stack.enter_async_context(neuro_sdk.get())
         storage: Storage = await stack.enter_async_context(ApiStorage(client))
         runner = await stack.enter_async_context(
-            LiveRunner(root.config_dir, root.console, client, storage, root)
+            LiveRunner(root.config_dir, root.console, client, storage, root, dry_run)
         )
         await runner.run(
             job_id,
             suffix=suffix,
             args=args,
             params={key: value for key, value in param},
-            dry_run=dry_run,
         )
 
 

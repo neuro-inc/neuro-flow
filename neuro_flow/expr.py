@@ -105,6 +105,11 @@ class RootABC(abc.ABC):
     def client(self) -> AsyncContextManager[Client]:
         pass
 
+    @property
+    @abc.abstractmethod
+    def dry_run(self) -> bool:
+        ...
+
 
 class EvalError(Exception):
     def __init__(self, msg: str, start: Pos, end: Pos) -> None:
@@ -248,13 +253,13 @@ async def upload(ctx: CallCtx, volume_ctx: ContainerT) -> ContainerT:
 
     if not isinstance(volume_ctx, VolumeCtx):
         raise ValueError("upload() argument should be volume")
-    await run_subproc(
+    mkdir_cmd = [
         "neuro",
         "mkdir",
         "--parents",
         str(volume_ctx.remote.parent),
-    )
-    await run_subproc(
+    ]
+    cp_cmd = [
         "neuro",
         "cp",
         "--recursive",
@@ -262,7 +267,13 @@ async def upload(ctx: CallCtx, volume_ctx: ContainerT) -> ContainerT:
         "--no-target-directory",
         str(volume_ctx.full_local_path),
         str(volume_ctx.remote),
-    )
+    ]
+    if ctx.root.dry_run:
+        print(" ".join(shlex.quote(arg) for arg in mkdir_cmd))
+        print(" ".join(shlex.quote(arg) for arg in cp_cmd))
+    else:
+        await run_subproc(*mkdir_cmd)
+        await run_subproc(*cp_cmd)
     return volume_ctx
 
 
