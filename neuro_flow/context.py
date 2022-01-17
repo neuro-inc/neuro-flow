@@ -1007,8 +1007,10 @@ async def validate_action_call(
     call_ast: Union[ast.BaseActionCall, ast.BaseModuleCall],
     ast_inputs: Optional[Mapping[str, ast.Input]],
 ) -> None:
+    supported_inputs: Set[str]
+    supplied_inputs: Set[str]
     if ast_inputs:
-        supported_inputs = ast_inputs.keys()
+        supported_inputs = set(ast_inputs.keys())
         required_inputs = {
             input_name
             for input_name, input_ast in ast_inputs.items()
@@ -1018,7 +1020,7 @@ async def validate_action_call(
         supported_inputs = set()
         required_inputs = set()
     if call_ast.args:
-        supplied_inputs = call_ast.args.keys()
+        supplied_inputs = set(call_ast.args.keys())
     else:
         supplied_inputs = set()
     missing = required_inputs - supplied_inputs
@@ -1177,6 +1179,8 @@ async def setup_matrix(ast_matrix: Optional[ast.Matrix]) -> Sequence[MatrixCtx]:
                 ast_matrix._end,
             )
         matrices.append({k: await v.eval(EMPTY_ROOT) for k, v in inc_spec.items()})
+    for pos, dct in enumerate(matrices):
+        dct["ORDINAL"] = pos
     return matrices
 
 
@@ -2769,8 +2773,10 @@ class EarlyTaskGraphBuilder:
         task_id = await ast_task.id.eval(ctx)
         if task_id is None:
             # Dash is not allowed in identifier, so the generated read id
-            # never clamps with user_provided one.
-            suffix = [str(ctx.matrix[k]) for k in sorted(ctx.matrix)]
+            # never clamps with user-provided one.
+            # Filter system properties
+            keys = [key for key in sorted(ctx.matrix) if key == key.lower()]
+            suffix = [str(ctx.matrix[key]) for key in keys]
             real_id = "-".join(["task", str(num), *suffix])
         else:
             real_id = task_id
