@@ -44,7 +44,6 @@ from typing import (
     Mapping,
     Optional,
     Sequence,
-    SupportsInt,
     Tuple,
     TypeVar,
     Union,
@@ -188,7 +187,7 @@ async def alen(ctx: CallCtx, arg: TypeT) -> int:
 
 async def aint(ctx: CallCtx, arg: TypeT) -> int:
     # Async version of int(), async is required for the sake of uniformness.
-    if not isinstance(arg, SupportsInt):
+    if not isinstance(arg, (int, str, float, bool)):
         raise TypeError(f"int() requires a str or a number, got {arg!r}")
     return int(arg)
 

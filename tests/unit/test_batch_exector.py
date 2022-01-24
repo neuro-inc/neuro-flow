@@ -759,6 +759,10 @@ async def test_batch_with_module_ok(
         ),
         ("batch-matrix-4", [("o2", "t1"), ("o2", "t2"), ("o3", "t3")]),
         ("batch-matrix-5", [("o2", "t1"), ("o2", "t2"), ("o1", "t1")]),
+        (
+            "batch-matrix-dynamic",
+            [("o1", "t1"), ("o1", "t2"), ("o2", "t1"), ("o2", "t2")],
+        ),
     ],
 )
 async def test_batch_matrix(

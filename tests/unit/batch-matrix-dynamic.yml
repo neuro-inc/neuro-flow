@@ -1,0 +1,13 @@
+kind: batch
+params:
+  arg_cnt:
+    default: 4
+tasks:
+  - strategy:
+      matrix:
+        one: ${{ [fmt("o{}", it) for it in range(1, int(params.arg_cnt))] }}
+        two: ${{ [fmt("t{}", it) for it in range(1, int(params.arg_cnt)) if it != 3] }}
+        exclude:
+          - one: ${{ "o" + "3" }}
+    image: ubuntu
+    cmd: echo ${{matrix.one}}-${{matrix.two}}
