@@ -1,6 +1,7 @@
 # test functions available in expressions
 import pathlib
 import pytest
+import sys
 from _pytest.capture import CaptureFixture
 from contextlib import asynccontextmanager
 from neuro_sdk import Client
@@ -337,7 +338,13 @@ async def test_upload_dry_run_mode_prints_commands(
     await expr.eval(ctx)
     capture = capsys.readouterr()
     assert "neuro mkdir --parents storage://cluster/user\n" in capture.out
-    assert (
-        "neuro cp --recursive --update --no-target-directory"
-        " /test/local storage://cluster/user/somedir\n" in capture.out
-    )
+    if sys.platform == "win32":
+        assert (
+            "neuro cp --recursive --update --no-target-directory"
+            " '\\test\\local' storage://cluster/user/somedir\n" in capture.out
+        )
+    else:
+        assert (
+            "neuro cp --recursive --update --no-target-directory"
+            " /test/local storage://cluster/user/somedir\n" in capture.out
+        )
