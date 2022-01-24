@@ -20,6 +20,16 @@ def test_expr_validation_ok() -> None:
     assert errors == []
 
 
+def test_expr_validation_list_comp_ok() -> None:
+    expr = StrExpr(
+        Pos(0, 0, LocalPath("<default>")),
+        Pos(0, 0, LocalPath("<default>")),
+        pattern="${{ [x * x for x in range(5) ] }}",
+    )
+    errors = validate_expr(expr, BatchContext)
+    assert errors == []
+
+
 def test_expr_validation_ok_for_property_access() -> None:
     expr = StrExpr(
         Pos(0, 0, LocalPath("<default>")),

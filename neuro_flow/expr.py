@@ -17,6 +17,7 @@ import shlex
 from abc import ABC
 from ast import literal_eval
 from collections.abc import Sized
+from contextlib import asynccontextmanager
 from funcparserlib.parser import (
     Parser,
     finished,
@@ -31,6 +32,7 @@ from neuro_sdk import Client, JobDescription, JobStatus
 from typing import (
     Any,
     AsyncContextManager,
+    AsyncIterator,
     Awaitable,
     Callable,
     ClassVar,
@@ -42,6 +44,7 @@ from typing import (
     Mapping,
     Optional,
     Sequence,
+    SupportsInt,
     Tuple,
     TypeVar,
     Union,
@@ -106,6 +109,22 @@ class RootABC(abc.ABC):
         pass
 
 
+class LocalScope(RootABC):
+    def __init__(self, base: RootABC, scope: Mapping[str, TypeT]) -> None:
+        self._base = base
+        self._scope = scope
+
+    @asynccontextmanager
+    async def client(self) -> AsyncIterator[Client]:
+        async with self._base.client() as client:
+            yield client
+
+    def lookup(self, name: str) -> TypeT:
+        if name in self._scope:
+            return self._scope[name]
+        return self._base.lookup(name)
+
+
 class EvalError(Exception):
     def __init__(self, msg: str, start: Pos, end: Pos) -> None:
         super().__init__(msg)
@@ -167,6 +186,13 @@ async def alen(ctx: CallCtx, arg: TypeT) -> int:
     return len(arg)
 
 
+async def aint(ctx: CallCtx, arg: TypeT) -> int:
+    # Async version of int(), async is required for the sake of uniformness.
+    if not isinstance(arg, SupportsInt):
+        raise TypeError(f"int() requires a str or a number, got {arg!r}")
+    return int(arg)
+
+
 async def akeys(ctx: CallCtx, arg: TypeT) -> TypeT:
     # Async version of list(), async is required for the sake of uniformness.
     if not isinstance(arg, Mapping):
@@ -179,6 +205,24 @@ async def values(ctx: CallCtx, arg: TypeT) -> TypeT:
     if not isinstance(arg, Mapping):
         raise TypeError(f"values() requires a mapping, got {arg!r}")
     return list(arg.values())  # type: ignore  # implicitly converted to SequenceT
+
+
+async def arange(
+    ctx: CallCtx, arg: TypeT, arg2: Optional[TypeT] = None, arg3: Optional[TypeT] = None
+) -> SequenceT:
+    if not isinstance(arg, int):
+        raise TypeError(f"range() first argument should be an int, got {arg!r}")
+    if arg2:
+        if not isinstance(arg2, int):
+            raise TypeError(f"range() second argument should be an int, got {arg2!r}")
+        if arg3:
+            if not isinstance(arg3, int):
+                raise TypeError(
+                    f"range() third argument should be an int, got {arg3!r}"
+                )
+            return list(range(arg, arg2, arg3))  # type: ignore
+        return list(range(arg, arg2))  # type: ignore
+    return list(range(arg))  # type: ignore
 
 
 async def fmt(ctx: CallCtx, spec: str, *args: TypeT) -> str:
@@ -439,6 +483,8 @@ async def inspect_job(
 
 FUNCTIONS = _build_signatures(
     len=alen,
+    int=aint,
+    range=arange,
     nothing=nothing,
     fmt=fmt,
     str=astr,
@@ -705,6 +751,7 @@ def make_bin_op_expr(args: Tuple[Item, BinOpTrailer]) -> Item:
         "-": operator.sub,
         "*": operator.mul,
         "/": operator.truediv,
+        "%": operator.mod,
     }
 
     item, trailer = args
@@ -773,6 +820,51 @@ def make_list(args: Tuple[Item, List[Item]]) -> ListMaker:
 
 def make_empty_list(args: Tuple[Token, Token]) -> ListMaker:
     return ListMaker(args[0].start, args[1].end, [])
+
+
+@dataclasses.dataclass(frozen=True)
+class ListCompMaker(Item):
+    item_expr: Item
+    var_name: str
+    base_iter: Item
+    if_expr: Optional[Item] = None
+
+    async def eval(self, root: RootABC) -> SequenceT:
+        res = []
+        for value in await self.base_iter.eval(root):  # type: ignore
+            subroot = LocalScope(root, {self.var_name: value})
+            if self.if_expr and not await self.if_expr.eval(subroot):
+                continue
+            res.append(await self.item_expr.eval(subroot))
+        return res  # type: ignore
+
+    def child_items(self) -> Iterable["Item"]:
+        return [self.item_expr, self.base_iter]
+
+
+def make_list_comp(args: Tuple[Item, Token, Token, Token, Item]) -> ListCompMaker:
+    item_expr, _, name, _, base_iter = args
+    return ListCompMaker(
+        item_expr.start,
+        base_iter.end,
+        item_expr,
+        name.name,
+        base_iter,
+    )
+
+
+def make_list_comp_with_if(
+    args: Tuple[Item, Token, Token, Token, Item, Token, Item]
+) -> ListCompMaker:
+    item_expr, _, name, _, base_iter, _, if_expr = args
+    return ListCompMaker(
+        item_expr.start,
+        base_iter.end,
+        item_expr,
+        name.name,
+        base_iter,
+        if_expr,
+    )
 
 
 @dataclasses.dataclass(frozen=True)
@@ -866,6 +958,7 @@ OP_PLUS = a("+")
 OP_MINUS = a("-")
 OP_MUL = a("*")
 OP_DIV = a("/")
+OP_MOD = a("%")
 OP_BITWISE_OR = a("|")
 OP_CMP = a("==") | a("!=") | a("<") | a("<=") | a(">") | a(">=")
 OP_NOT = a("not")
@@ -962,7 +1055,9 @@ BITWISE_OR.define(SUM + BITWISE_OR_TRAILER >> make_bin_op_expr)
 SUM_TRAILER.define(maybe((OP_PLUS | OP_MINUS) + TERM + SUM_TRAILER) >> make_op_trailer)
 SUM.define(TERM + SUM_TRAILER >> make_bin_op_expr)
 
-TERM_TRAILER.define(maybe((OP_MUL | OP_DIV) + FACTOR + TERM_TRAILER) >> make_op_trailer)
+TERM_TRAILER.define(
+    maybe((OP_MUL | OP_DIV | OP_MOD) + FACTOR + TERM_TRAILER) >> make_op_trailer
+)
 TERM.define(FACTOR + TERM_TRAILER >> make_bin_op_expr)
 
 FACTOR.define((OP_PLUS | OP_MINUS) + FACTOR >> make_unary_op_expr | ATOM_EXPR)
@@ -973,6 +1068,9 @@ EXPR.define(
 
 LIST_MAKER.define(
     (LSQB + EXPR + many(COMMA + EXPR) + maybe(COMMA) + RSQB) >> make_list
+    | (LSQB + EXPR + a("for") + NAME + a("in") + EXPR + RSQB) >> make_list_comp
+    | (LSQB + EXPR + a("for") + NAME + a("in") + EXPR + a("if") + EXPR + RSQB)
+    >> make_list_comp_with_if
     | (a("[") + a("]")) >> make_empty_list
 )
 

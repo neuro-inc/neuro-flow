@@ -772,22 +772,34 @@ def test_parse_matrix(assets: pathlib.Path) -> None:
                         _start=Pos(4, 8, config_file),
                         _end=Pos(12, 4, config_file),
                         products={
-                            "one": [
-                                PrimitiveExpr(
-                                    Pos(0, 0, config_file), Pos(0, 0, config_file), "o1"
-                                ),
-                                PrimitiveExpr(
-                                    Pos(0, 0, config_file), Pos(0, 0, config_file), "o2"
-                                ),
-                            ],
-                            "two": [
-                                PrimitiveExpr(
-                                    Pos(0, 0, config_file), Pos(0, 0, config_file), "t1"
-                                ),
-                                PrimitiveExpr(
-                                    Pos(0, 0, config_file), Pos(0, 0, config_file), "t2"
-                                ),
-                            ],
+                            "one": SequenceItemsExpr(
+                                [
+                                    PrimitiveExpr(
+                                        Pos(0, 0, config_file),
+                                        Pos(0, 0, config_file),
+                                        "o1",
+                                    ),
+                                    PrimitiveExpr(
+                                        Pos(0, 0, config_file),
+                                        Pos(0, 0, config_file),
+                                        "o2",
+                                    ),
+                                ]
+                            ),
+                            "two": SequenceItemsExpr(
+                                [
+                                    PrimitiveExpr(
+                                        Pos(0, 0, config_file),
+                                        Pos(0, 0, config_file),
+                                        "t1",
+                                    ),
+                                    PrimitiveExpr(
+                                        Pos(0, 0, config_file),
+                                        Pos(0, 0, config_file),
+                                        "t2",
+                                    ),
+                                ]
+                            ),
                         },
                         exclude=[
                             {
@@ -929,22 +941,34 @@ def test_parse_matrix_with_strategy(assets: pathlib.Path) -> None:
                         Pos(10, 8, config_file),
                         Pos(18, 6, config_file),
                         products={
-                            "one": [
-                                PrimitiveExpr(
-                                    Pos(0, 0, config_file), Pos(0, 0, config_file), "o1"
-                                ),
-                                PrimitiveExpr(
-                                    Pos(0, 0, config_file), Pos(0, 0, config_file), "o2"
-                                ),
-                            ],
-                            "two": [
-                                PrimitiveExpr(
-                                    Pos(0, 0, config_file), Pos(0, 0, config_file), "t1"
-                                ),
-                                PrimitiveExpr(
-                                    Pos(0, 0, config_file), Pos(0, 0, config_file), "t2"
-                                ),
-                            ],
+                            "one": SequenceItemsExpr(
+                                [
+                                    PrimitiveExpr(
+                                        Pos(0, 0, config_file),
+                                        Pos(0, 0, config_file),
+                                        "o1",
+                                    ),
+                                    PrimitiveExpr(
+                                        Pos(0, 0, config_file),
+                                        Pos(0, 0, config_file),
+                                        "o2",
+                                    ),
+                                ]
+                            ),
+                            "two": SequenceItemsExpr(
+                                [
+                                    PrimitiveExpr(
+                                        Pos(0, 0, config_file),
+                                        Pos(0, 0, config_file),
+                                        "t1",
+                                    ),
+                                    PrimitiveExpr(
+                                        Pos(0, 0, config_file),
+                                        Pos(0, 0, config_file),
+                                        "t2",
+                                    ),
+                                ]
+                            ),
                         },
                         exclude=[
                             {

@@ -7,7 +7,15 @@ from typing import AbstractSet, Any, Callable, Iterable, List, Optional, Tuple, 
 from typing_extensions import get_type_hints as _get_hints
 
 from neuro_flow.context import Context, ModuleContext, TagsCtx
-from neuro_flow.expr import AttrGetter, EvalError, Expr, Item, ItemGetter, Lookup
+from neuro_flow.expr import (
+    AttrGetter,
+    EvalError,
+    Expr,
+    Item,
+    ItemGetter,
+    ListCompMaker,
+    Lookup,
+)
 
 
 def get_hints(obj: Any) -> Any:
@@ -21,17 +29,24 @@ def validate_expr(
     known_inputs: AbstractSet[str] = frozenset(),
 ) -> List[EvalError]:
     errors: List[EvalError] = []
-    for lookup in iter_lookups(expr):
-        validate_lookup(lookup, context, errors.append, known_needs, known_inputs)
+    for lookup, local_vars in iter_lookups(expr):
+        validate_lookup(
+            lookup, context, errors.append, known_needs, known_inputs, local_vars
+        )
     return errors
 
 
-def iter_lookups(expr: Expr[Any]) -> Iterable[Lookup]:
-    def _iter_lookups(top_level_items: Iterable[Item]) -> Iterable[Lookup]:
+def iter_lookups(expr: Expr[Any]) -> Iterable[Tuple[Lookup, AbstractSet[str]]]:
+    def _iter_lookups(
+        top_level_items: Iterable[Item], local_vars: AbstractSet[str] = frozenset()
+    ) -> Iterable[Tuple[Lookup, AbstractSet[str]]]:
         for item in top_level_items:
             if isinstance(item, Lookup):
-                yield item
-            yield from _iter_lookups(item.child_items())
+                yield item, local_vars
+            item_locals = local_vars
+            if isinstance(item, ListCompMaker):
+                item_locals = local_vars | {item.var_name}
+            yield from _iter_lookups(item.child_items(), item_locals)
 
     return _iter_lookups(getattr(expr, "_parsed", None) or [])
 
@@ -168,7 +183,10 @@ def validate_lookup(
     record_error: Callable[[EvalError], None],
     known_needs: AbstractSet[str],
     known_inputs: AbstractSet[str],
+    local_vars: AbstractSet[str],
 ) -> None:
+    if lookup.root in local_vars:
+        return
     ctx = _get_dataclass_field_type(context, lookup.root)
     if ctx is None:
         record_error(

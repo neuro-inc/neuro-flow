@@ -143,7 +143,7 @@ class ExecUnit(Base):
 class Matrix(Base):
     # AST class is slightly different from YAML representation,
     # in YAML `products` mapping is embedded into the matrix itself.
-    products: Mapping[str, Sequence[PrimitiveExpr]]
+    products: Mapping[str, BaseExpr[SequenceT]]
     exclude: Sequence[Mapping[str, PrimitiveExpr]]
     include: Sequence[Mapping[str, PrimitiveExpr]]
 
