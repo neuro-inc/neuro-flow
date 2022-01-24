@@ -565,7 +565,7 @@ def parse_matrix(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Matrix:
             f"expected a mapping node, but found {node_id}",
             node.start_mark,
         )
-    products_builder = ExprOrSeq(StrExpr, type2str)
+    products_builder = ExprOrSeq(PrimitiveExpr, lambda x: x)
     products = {}
     exclude: Sequence[Mapping[str, PrimitiveExpr]] = []
     include: Sequence[Mapping[str, PrimitiveExpr]] = []
