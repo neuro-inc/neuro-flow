@@ -9,6 +9,7 @@ import pytest
 import secrets
 import shutil
 import subprocess
+import sys
 from datetime import datetime, timedelta
 from neuro_sdk import Config, get as api_get, login_with_token
 from pathlib import Path
@@ -190,6 +191,10 @@ async def drop_old_test_images(
     run_neuro_cli: RunCLI, _drop_once_flag: Dict[str, bool]
 ) -> None:
     if _drop_once_flag.get("cleaned_images"):
+        return
+
+    if sys.version_info < (3, 8) and sys.platform == "win32":
+        # Default selector-based event loop for Windows doesn't support subprocesses
         return
 
     async def _drop_iamge(image_str: str) -> None:
