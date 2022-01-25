@@ -65,6 +65,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
         client: Client,
         storage: Storage,
         global_options: GlobalOptions,
+        dry_run: bool = False,
     ) -> None:
         self._config_dir = config_dir
         self._console = console
@@ -78,13 +79,16 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
             "neuro", global_options=encode_global_options(global_options)
         )
         self._run_extras_cli = make_cmd_exec("neuro-extras")
+        self._dry_run = dry_run
 
     async def init_flow(self) -> None:
         if self._flow is not None:
             return
         self._config_loader = LiveLocalCL(self._config_dir, self._client)
         try:
-            self._flow = await RunningLiveFlow.create(self._config_loader)
+            self._flow = await RunningLiveFlow.create(
+                self._config_loader, dry_run=self._dry_run
+            )
         except Exception:
             await self._config_loader.close()
             raise
@@ -348,7 +352,6 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
         suffix: Optional[str],
         args: Optional[Tuple[str]],
         params: Mapping[str, str],
-        dry_run: bool,
     ) -> None:
         """Run a named job"""
         assert self._flow is not None
@@ -361,7 +364,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
                 "Additional job arguments are supported by multi-jobs only"
             )
 
-        if not dry_run and await self._try_attach_to_running(
+        if not self._dry_run and await self._try_attach_to_running(
             job_id, suffix, args, params
         ):
             return  # Attached to running job
@@ -439,7 +442,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
         if job.multi and args:
             run_args.extend(args)
 
-        if dry_run:
+        if self._dry_run:
             run_args = ["neuro", *run_args]
             self._console.print(
                 " ".join(shlex.quote(arg) for arg in run_args), soft_wrap=True

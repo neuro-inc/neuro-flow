@@ -1,24 +1,39 @@
 # test functions available in expressions
 import pathlib
 import pytest
+import sys
+from _pytest.capture import CaptureFixture
 from contextlib import asynccontextmanager
 from neuro_sdk import Client
 from re_assert import Matches
-from typing import AbstractSet, Any, AsyncIterator, Callable, Mapping
+from typing import AbstractSet, Any, AsyncIterator, Mapping, Optional
+from typing_extensions import Protocol
+from yarl import URL
 
-from neuro_flow.context import FlowCtx, GitCtx, LiveContext, ProjectCtx, TagsCtx
+from neuro_flow.context import (
+    FlowCtx,
+    GitCtx,
+    LiveContext,
+    ProjectCtx,
+    TagsCtx,
+    VolumeCtx,
+    VolumesCtx,
+)
 from neuro_flow.expr import EvalError, RootABC, StrExpr, TypeT
 from neuro_flow.tokenizer import Pos
-from neuro_flow.types import LocalPath
+from neuro_flow.types import LocalPath, RemotePath
 
 
 POS = Pos(0, 0, LocalPath(__file__))
 
 
 class Root(RootABC):
-    def __init__(self, mapping: Mapping[str, TypeT], client: Client) -> None:
+    def __init__(
+        self, mapping: Mapping[str, TypeT], client: Client, dry_run: bool = False
+    ) -> None:
         self._mapping = mapping
         self._client = client
+        self._dry_run = dry_run
 
     def lookup(self, name: str) -> TypeT:
         return self._mapping[name]
@@ -26,6 +41,10 @@ class Root(RootABC):
     @asynccontextmanager
     async def client(self) -> AsyncIterator[Client]:
         yield self._client
+
+    @property
+    def dry_run(self) -> bool:
+        return self._dry_run
 
 
 async def test_len(client: Client) -> None:
@@ -145,14 +164,28 @@ async def test_parse_volume_local_full(client: Client) -> None:
     assert ret == "None"
 
 
-LiveContextFactory = Callable[[Client, TagsCtx], LiveContext]
+class LiveContextFactory(Protocol):
+    def __call__(
+        self,
+        client: Client,
+        tags: TagsCtx = frozenset(),
+        dry_run: bool = False,
+        volumes: Optional[VolumesCtx] = None,
+    ) -> LiveContext:
+        ...
 
 
 @pytest.fixture
 async def live_context_factory(assets: pathlib.Path) -> LiveContextFactory:
-    def _factory(client: Client, tags: TagsCtx = frozenset()) -> LiveContext:
+    def _factory(
+        client: Client,
+        tags: TagsCtx = frozenset(),
+        dry_run: bool = False,
+        volumes: Optional[VolumesCtx] = None,
+    ) -> LiveContext:
         return LiveContext(
             _client=client,
+            _dry_run=dry_run,
             project=ProjectCtx(
                 id="test",
                 owner=None,
@@ -167,7 +200,7 @@ async def live_context_factory(assets: pathlib.Path) -> LiveContextFactory:
             git=GitCtx(None),
             env={},
             images={},
-            volumes={},
+            volumes=volumes or {},
             tags=tags,
         )
 
@@ -275,3 +308,43 @@ async def test_inspect_job_no_jobs_errors(
         r" and suffix bar",
     ):
         await expr_with_suffix.eval(ctx)
+
+
+async def test_upload_dry_run_mode_prints_commands(
+    client: Client,
+    live_context_factory: LiveContextFactory,
+    capsys: CaptureFixture[str],
+) -> None:
+    expr = StrExpr(
+        POS,
+        POS,
+        "${{ upload(volumes.test) }}",
+    )
+    ctx = live_context_factory(
+        client,
+        set(),
+        dry_run=True,
+        volumes={
+            "test": VolumeCtx(
+                id="test",
+                full_local_path=LocalPath("/test/local"),
+                local=LocalPath("local"),
+                remote=URL("storage://cluster/user/somedir"),
+                read_only=False,
+                mount=RemotePath("/mnt"),
+            )
+        },
+    )
+    await expr.eval(ctx)
+    capture = capsys.readouterr()
+    assert "neuro mkdir --parents storage://cluster/user\n" in capture.out
+    if sys.platform == "win32":
+        assert (
+            "neuro cp --recursive --update --no-target-directory"
+            " '\\test\\local' storage://cluster/user/somedir\n" in capture.out
+        )
+    else:
+        assert (
+            "neuro cp --recursive --update --no-target-directory"
+            " /test/local storage://cluster/user/somedir\n" in capture.out
+        )
