@@ -8,6 +8,7 @@ import shlex
 import sys
 from neuro_sdk import (
     Action,
+    AuthorizationError,
     Client,
     IllegalArgumentError,
     JobDescription,
@@ -662,6 +663,11 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
             return
         try:
             await self._client.users.add(project_role)
+        except AuthorizationError:
+            pass
+            # We have no permissions to create role --
+            # assume that this is shared project and
+            # current user is not the owner
         except IllegalArgumentError as e:
             if "already exists" not in str(e):
                 raise
