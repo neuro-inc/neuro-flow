@@ -107,6 +107,11 @@ class RootABC(abc.ABC):
     def client(self) -> AsyncContextManager[Client]:
         pass
 
+    @property
+    @abc.abstractmethod
+    def dry_run(self) -> bool:
+        ...
+
 
 class LocalScope(RootABC):
     def __init__(self, base: RootABC, scope: Mapping[str, TypeT]) -> None:
@@ -117,6 +122,10 @@ class LocalScope(RootABC):
     async def client(self) -> AsyncIterator[Client]:
         async with self._base.client() as client:
             yield client
+
+    @property
+    def dry_run(self) -> bool:
+        return self._base.dry_run
 
     def lookup(self, name: str) -> TypeT:
         if name in self._scope:
@@ -291,13 +300,13 @@ async def upload(ctx: CallCtx, volume_ctx: ContainerT) -> ContainerT:
 
     if not isinstance(volume_ctx, VolumeCtx):
         raise ValueError("upload() argument should be volume")
-    await run_subproc(
+    mkdir_cmd = [
         "neuro",
         "mkdir",
         "--parents",
         str(volume_ctx.remote.parent),
-    )
-    await run_subproc(
+    ]
+    cp_cmd = [
         "neuro",
         "cp",
         "--recursive",
@@ -305,7 +314,13 @@ async def upload(ctx: CallCtx, volume_ctx: ContainerT) -> ContainerT:
         "--no-target-directory",
         str(volume_ctx.full_local_path),
         str(volume_ctx.remote),
-    )
+    ]
+    if ctx.root.dry_run:
+        print(" ".join(shlex.quote(arg) for arg in mkdir_cmd))
+        print(" ".join(shlex.quote(arg) for arg in cp_cmd))
+    else:
+        await run_subproc(*mkdir_cmd)
+        await run_subproc(*cp_cmd)
     return volume_ctx
 
 

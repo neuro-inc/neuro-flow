@@ -24,9 +24,12 @@ START: Final = Pos(0, 0, FNAME)
 
 
 class DictContext(RootABC):
-    def __init__(self, dct: Dict[str, TypeT], client: Client) -> None:
+    def __init__(
+        self, dct: Dict[str, TypeT], client: Client, dry_run: bool = False
+    ) -> None:
         self._dct = dct
         self._client = client
+        self._dry_run = dry_run
 
     def lookup(self, name: str) -> TypeT:
         return self._dct[name]
@@ -34,6 +37,10 @@ class DictContext(RootABC):
     @asynccontextmanager
     async def client(self) -> AsyncIterator[Client]:
         yield self._client
+
+    @property
+    def dry_run(self) -> bool:
+        return self._dry_run
 
 
 @pytest.mark.parametrize(

@@ -343,6 +343,10 @@ class EmptyRoot(RootABC):
         raise RuntimeError("neuro API is not available in <empty> context")
         yield Client()  # fake lint to make the code a real async iterator
 
+    @property
+    def dry_run(self) -> bool:
+        return False
+
 
 EMPTY_ROOT = EmptyRoot()
 
@@ -350,6 +354,7 @@ EMPTY_ROOT = EmptyRoot()
 @dataclass(frozen=True)
 class Context(RootABC):
     _client: Client
+    _dry_run: bool
 
     def lookup(self, name: str) -> TypeT:
         for f in fields(self):
@@ -365,6 +370,10 @@ class Context(RootABC):
     @asynccontextmanager
     async def client(self) -> AsyncIterator[Client]:
         yield self._client
+
+    @property
+    def dry_run(self) -> bool:
+        return self._dry_run
 
 
 _MODULE_PARENT = TypeVar("_MODULE_PARENT", bound=RootABC, covariant=True)
@@ -408,6 +417,7 @@ class LiveContextStep1(WithFlowContext, Context):
             volumes=volumes,
             images=images,
             _client=self._client,
+            _dry_run=self._dry_run,
         )
 
 
@@ -428,6 +438,7 @@ class LiveContext(WithEnvContext, LiveContextStep1):
             images=self.images,
             params=params,
             _client=self._client,
+            _dry_run=self._dry_run,
         )
 
     def to_multi_job_ctx(
@@ -444,6 +455,7 @@ class LiveContext(WithEnvContext, LiveContextStep1):
             multi=multi,
             params=params,
             _client=self._client,
+            _dry_run=self._dry_run,
         )
 
 
@@ -487,6 +499,7 @@ class BatchContextStep1(WithFlowContext, Context):
             volumes=volumes,
             images=images,
             _client=self._client,
+            _dry_run=self._dry_run,
         )
 
 
@@ -511,6 +524,7 @@ class BatchContextStep2(WithEnvContext, BatchContextStep1):
             images=self.images,
             strategy=strategy,
             _client=self._client,
+            _dry_run=self._dry_run,
         )
 
 
@@ -563,6 +577,7 @@ class BatchContext(BaseBatchContext, BatchContextStep2):
             strategy=strategy,
             matrix=matrix,
             _client=self._client,
+            _dry_run=self._dry_run,
         )
 
 
@@ -585,6 +600,7 @@ class BatchMatrixContext(BaseMatrixContext, BatchContext):
             needs=needs,
             state=state,
             _client=self._client,
+            _dry_run=self._dry_run,
         )
 
 
@@ -607,6 +623,7 @@ class BatchActionContextStep1(ModuleContext[_MODULE_PARENT]):
             git=self.git,
             images=images,
             _client=self._client,
+            _dry_run=self._dry_run,
             _parent=self._parent,
         )
 
@@ -625,6 +642,7 @@ class BatchActionContext(BatchActionContextStep1[_MODULE_PARENT], BaseBatchConte
             matrix=matrix,
             strategy=strategy,
             _client=self._client,
+            _dry_run=self._dry_run,
             _parent=self._parent,
         )
 
@@ -638,6 +656,7 @@ class BatchActionContext(BatchActionContextStep1[_MODULE_PARENT], BaseBatchConte
             git=self.git,
             needs=needs,
             _client=self._client,
+            _dry_run=self._dry_run,
             _parent=self._parent,
         )
 
@@ -664,6 +683,7 @@ class BatchActionMatrixContext(BaseMatrixContext, BatchActionContext[_MODULE_PAR
             needs=needs,
             state=state,
             _client=self._client,
+            _dry_run=self._dry_run,
             _parent=self._parent,
         )
 
@@ -1429,6 +1449,7 @@ class RunningLiveFlow:
             ctx = LiveActionContext(
                 inputs=await setup_inputs_ctx(ctx, job, action_ast.inputs),
                 _client=self._ctx._client,
+                _dry_run=self._ctx._dry_run,
             )
             env_ctx = {}
             defaults = DefaultsConf()
@@ -1439,6 +1460,7 @@ class RunningLiveFlow:
                 inputs=await setup_inputs_ctx(ctx, job, action_ast.inputs),
                 _parent=ctx,
                 _client=self._ctx._client,
+                _dry_run=self._ctx._dry_run,
             )
             job = action_ast.job
         assert isinstance(job, ast.Job)
@@ -1513,7 +1535,10 @@ class RunningLiveFlow:
 
     @classmethod
     async def create(
-        cls, config_loader: ConfigLoader, config_name: str = "live"
+        cls,
+        config_loader: ConfigLoader,
+        config_name: str = "live",
+        dry_run: bool = False,
     ) -> "RunningLiveFlow":
         ast_flow = await config_loader.fetch_flow(config_name)
         ast_project = await config_loader.fetch_project()
@@ -1531,6 +1556,7 @@ class RunningLiveFlow:
             flow=flow_ctx,
             git=git_ctx,
             _client=config_loader.client,
+            _dry_run=dry_run,
         )
 
         defaults, env, tags = await setup_defaults_env_tags_ctx(
@@ -1859,6 +1885,7 @@ class RunningBatchBase(Generic[_T], EarlyBatch, ABC):
                     ctx, prep_task.call, prep_task.action.inputs
                 ),
                 _client=self._ctx._client,
+                _dry_run=self._ctx._dry_run,
             )
             defaults = DefaultsConf()  # TODO: Is it correct?
 
@@ -1992,6 +2019,7 @@ class RunningBatchBase(Generic[_T], EarlyBatch, ABC):
         action_ctx = LocalActionContext(
             inputs=await setup_inputs_ctx(ctx, prep_task.call, prep_task.action.inputs),
             _client=self._ctx._client,
+            _dry_run=self._ctx._dry_run,
         )
 
         return LocalTask(
@@ -2071,6 +2099,7 @@ class RunningBatchFlow(RunningBatchBase[BatchContext]):
         bake_id: str,
         params: Optional[Mapping[str, str]] = None,
         local_info: Optional[LocallyPreparedInfo] = None,
+        dry_run: bool = False,
     ) -> "RunningBatchFlow":
         ast_flow = await config_loader.fetch_flow(batch)
         ast_project = await config_loader.fetch_project()
@@ -2089,6 +2118,7 @@ class RunningBatchFlow(RunningBatchBase[BatchContext]):
             params=params_ctx,
             git=GitCtx(local_info.git_info if local_info else None),
             _client=config_loader.client,
+            _dry_run=dry_run,
         )
         if local_info is None:
             early_images: Mapping[str, EarlyImageCtx] = {
@@ -2248,6 +2278,7 @@ class RunningBatchActionFlow(RunningBatchBase[BatchActionContext[RootABC]]):
             git=GitCtx(local_info.git_info if local_info else None),
             _client=config_loader.client,
             _parent=parent_ctx,
+            _dry_run=parent_ctx.dry_run,
         )
 
         if local_info is None:
@@ -2628,6 +2659,7 @@ class EarlyTaskGraphBuilder:
                 matrix_ctx = MatrixOnlyContext(
                     matrix=matrix,
                     _client=self._cl.client,
+                    _dry_run=False,
                 )
 
                 task_id, real_id = await self._setup_ids(matrix_ctx, num, ast_task)
