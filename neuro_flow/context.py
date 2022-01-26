@@ -1127,14 +1127,19 @@ async def setup_strategy_ctx(
     return StrategyCtx(fail_fast=fail_fast, max_parallel=max_parallel)
 
 
-async def setup_matrix(ast_matrix: Optional[ast.Matrix]) -> Sequence[MatrixCtx]:
+async def setup_matrix(
+    ctx: RootABC,
+    ast_matrix: Optional[ast.Matrix],
+) -> Sequence[MatrixCtx]:
     if ast_matrix is None:
         return [{}]
     # Init
     products = []
     for k, lst in ast_matrix.products.items():
-        lst2 = [{k: await i.eval(EMPTY_ROOT)} for i in lst]
-        products.append(lst2)
+        values = await lst.eval(ctx)
+        if values:
+            lst2 = [{k: v} for v in values]
+            products.append(lst2)
     matrices = []
     for row in itertools.product(*products):
         dct: Dict[str, LiteralT] = {}
@@ -1144,7 +1149,7 @@ async def setup_matrix(ast_matrix: Optional[ast.Matrix]) -> Sequence[MatrixCtx]:
     # Exclude
     exclude = []
     for exc_spec in ast_matrix.exclude:
-        exclude.append({k: await v.eval(EMPTY_ROOT) for k, v in exc_spec.items()})
+        exclude.append({k: await v.eval(ctx) for k, v in exc_spec.items()})
     filtered = []
     for matrix in matrices:
         include = True
@@ -1178,7 +1183,7 @@ async def setup_matrix(ast_matrix: Optional[ast.Matrix]) -> Sequence[MatrixCtx]:
                 ast_matrix._start,
                 ast_matrix._end,
             )
-        matrices.append({k: await v.eval(EMPTY_ROOT) for k, v in inc_spec.items()})
+        matrices.append({k: await v.eval(ctx) for k, v in inc_spec.items()})
     for pos, dct in enumerate(matrices):
         dct["ORDINAL"] = pos
     return matrices
@@ -1703,7 +1708,7 @@ class EarlyBatch:
             mixins = None
 
         tasks = await EarlyTaskGraphBuilder(
-            self._cl, prep_task.action.tasks, mixins
+            self._flow_ctx, self._cl, prep_task.action.tasks, mixins
         ).build()
         early_images = await setup_images_early(
             self._flow_ctx, self._flow_ctx, prep_task.action.images
@@ -2606,10 +2611,12 @@ class EarlyTaskGraphBuilder:
 
     def __init__(
         self,
+        ctx: RootABC,
         config_loader: ConfigLoader,
         ast_tasks: Sequence[Union[ast.Task, ast.TaskActionCall, ast.TaskModuleCall]],
         mixins: Optional[Mapping[str, SupportsAstMerge]],
     ):
+        self._ctx = ctx
         self._cl = config_loader
         self._ast_tasks = ast_tasks
         self._mixins = mixins or {}
@@ -2635,7 +2642,7 @@ class EarlyTaskGraphBuilder:
             )
 
             matrix_ast = ast_task.strategy.matrix if ast_task.strategy else None
-            matrices = await setup_matrix(matrix_ast)
+            matrices = await setup_matrix(self._ctx, matrix_ast)
 
             if len(matrices) > self.MATRIX_SIZE_LIMIT:
                 assert matrix_ast
@@ -2797,6 +2804,7 @@ class EarlyTaskGraphBuilder:
 
 class TaskGraphBuilder(EarlyTaskGraphBuilder):
     MATRIX_SIZE_LIMIT = 256
+    _ctx: BaseBatchContext
 
     def __init__(
         self,
@@ -2806,7 +2814,7 @@ class TaskGraphBuilder(EarlyTaskGraphBuilder):
         ast_tasks: Sequence[Union[ast.Task, ast.TaskActionCall, ast.TaskModuleCall]],
         mixins: Optional[Mapping[str, SupportsAstMerge]],
     ):
-        super().__init__(config_loader, ast_tasks, mixins)
+        super().__init__(ctx, config_loader, ast_tasks, mixins)
         self._ctx = ctx
         self._default_cache = default_cache
 

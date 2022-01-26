@@ -407,6 +407,19 @@ async def test_pipeline_matrix(batch_config_loader: ConfigLoader) -> None:
         assert task.strategy.fail_fast
 
 
+async def test_matrix_dynamic(batch_config_loader: ConfigLoader) -> None:
+    flow = await RunningBatchFlow.create(
+        batch_config_loader, "batch-matrix-dynamic", "bake-id"
+    )
+
+    assert flow.graph == {
+        "task-1-o1-t1": {},
+        "task-1-o1-t2": {},
+        "task-1-o2-t1": {},
+        "task-1-o2-t2": {},
+    }
+
+
 async def test_pipeline_matrix_with_strategy(batch_config_loader: ConfigLoader) -> None:
     flow = await RunningBatchFlow.create(
         batch_config_loader, "batch-matrix-with-strategy", "bake-id"

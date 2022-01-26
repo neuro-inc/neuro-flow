@@ -6,7 +6,7 @@ from _pytest.capture import CaptureFixture
 from contextlib import asynccontextmanager
 from neuro_sdk import Client
 from re_assert import Matches
-from typing import AbstractSet, Any, AsyncIterator, Mapping, Optional
+from typing import AbstractSet, Any, AsyncIterator, List, Mapping, Optional
 from typing_extensions import Protocol
 from yarl import URL
 
@@ -19,7 +19,14 @@ from neuro_flow.context import (
     VolumeCtx,
     VolumesCtx,
 )
-from neuro_flow.expr import EvalError, RootABC, StrExpr, TypeT
+from neuro_flow.expr import (
+    EvalError,
+    PrimitiveExpr,
+    RootABC,
+    SequenceExpr,
+    StrExpr,
+    TypeT,
+)
 from neuro_flow.tokenizer import Pos
 from neuro_flow.types import LocalPath, RemotePath
 
@@ -67,6 +74,27 @@ async def test_str(client: Client, pattern: str, result: str) -> None:
     expr = StrExpr(POS, POS, "${{ str(" + pattern + ") }}")
     ret = await expr.eval(Root({}, client))
     assert ret == result
+
+
+async def test_int(client: Client) -> None:
+    expr = PrimitiveExpr(POS, POS, '${{ int("42") }}')
+    ret = await expr.eval(Root({}, client))
+    assert ret == 42
+
+
+@pytest.mark.parametrize(
+    "pattern,result",
+    [
+        ("5", [0, 1, 2, 3, 4]),
+        ("1,4", [1, 2, 3]),
+        ("1,6,2", [1, 3, 5]),
+        ("5,1,-1", [5, 4, 3, 2]),
+    ],
+)
+async def test_range(client: Client, pattern: str, result: List[int]) -> None:
+    expr = SequenceExpr(POS, POS, "${{ range(" + pattern + ") }}", int)  # type: ignore
+    ret = await expr.eval(Root({}, client))
+    assert ret == result  # type: ignore
 
 
 async def test_replace(client: Client) -> None:

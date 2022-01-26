@@ -259,3 +259,15 @@ async def test_if_else_expr(
     parsed = PARSER.parse(list(tokenize("${{" + expr + "}}", START)))
     assert len(parsed) == 1
     assert result == await parsed[0].eval(DictContext(context, client))
+
+
+async def test_list_comp(client: Client) -> None:
+    pat = "${{ [x * x for x in range(5)] }}"
+    expr = SequenceExpr(START, Pos(0, len(pat), FNAME), pat, int)  # type: ignore
+    assert [0, 1, 4, 9, 16] == await expr.eval(DictContext({}, client))  # type: ignore
+
+
+async def test_list_comp_with_if(client: Client) -> None:
+    pat = "${{ [x * x for x in range(5) if x % 2 == 0] }}"
+    expr = SequenceExpr(START, Pos(0, len(pat), FNAME), pat, int)  # type: ignore
+    assert [0, 4, 16] == await expr.eval(DictContext({}, client))  # type: ignore
