@@ -25,5 +25,4 @@ tasks:
     module: ws:batch-module
     args:
       arg1: val 1
-``` ([#464](https://github.com/neuro-inc/neuro-flow/issues/464))
 ```
