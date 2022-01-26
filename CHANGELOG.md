@@ -5,6 +5,63 @@
 
 [comment]: # (towncrier release notes start)
 
+Neuro Flow 22.1.0 (2022-01-26)
+==============================
+
+Features
+--------
+
+- Support ${{ matrix.ORDINAL }} as unique 0-based index for selected rows.
+
+  If a batch flow has a matrix, all matrix rows are enumerated.
+  The ordinal number of each row is available as `${{ matrix.ORDINAL }}` system value. ([#693](https://github.com/neuro-inc/neuro-flow/issues/693))
+- Add support of expressions in matrix definition.
+
+  You can now use expression to define list of matrix products. In examples here and below,
+  both `old_way_key` and `new_way_key` produce same list of values:
+
+  ```
+  matrix:
+    old_way_key: ["1", "2", "3"]
+    new_way_key: ${{ ["1", "2", "3"] }}
+  ```
+
+  This can be helpful when used together with new `range()` function:
+
+  ```
+  matrix:
+    old_way_key: [0, 1, 2, 3]
+    new_way_key: ${{ range(4) }}
+  ```
+
+  The `range()` function supports same parameters as python's `range()`, but it returns list.
+  For example: `${{ range(1, 4) }}` generates `[1,2,3]`, and `${{ range(4, 1, -1) }}` generates
+  `[4,3,2]`.
+
+  As sometimes plain numbers is not best options for matrix products, you can use list comprehension
+  to perform some mapping:
+
+  ```
+  matrix:
+    old_way_key: ["k1", "k2", "k3"]
+    new_way_key: ${{ [fmt("k{}", str(it)) for it in range(1, 4)] }}
+  ```
+
+  You can also filter some values in comprehension same way as in python:
+
+  ```
+  matrix:
+    old_way_key: [0, 4, 16]
+    new_way_key: ${{ [it * it for it in range(1, 5) if it % 2 == 0] }}
+  ``` ([#741](https://github.com/neuro-inc/neuro-flow/issues/741))
+
+
+Bugfixes
+--------
+
+- Fixed (disabled) uploads to storage in dry-run mode ([#732](https://github.com/neuro-inc/neuro-flow/issues/732))
+
+
 Neuro Flow 21.11.2 (2021-11-26)
 ===============================
 
