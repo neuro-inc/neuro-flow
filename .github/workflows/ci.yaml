@@ -203,7 +203,7 @@ jobs:
       run: |
         docker push ghcr.io/neuro-inc/neuro-flow:${{ needs.lint.outputs.version }}
     - name: GitHub Release
-      uses: aio-libs/create-release@v1.5.0
+      uses: aio-libs/create-release@v1.6.4
       with:
         changes_file: CHANGELOG.md
         name: Neuro Flow
