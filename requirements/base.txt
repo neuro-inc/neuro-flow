@@ -4,7 +4,7 @@ funcparserlib==1.0.0a0
 graphviz==0.19.1
 humanize==3.14.0
 neuro-cli==22.1.3
-neuro-extras==21.11.5
+neuro-extras==22.2.1.post3
 pyyaml==6.0
 rich==11.2.0
 trafaret==2.1.0
