@@ -20,8 +20,7 @@ Note: Don't confuse this with `${{ flow.project_id }}`, which is defined in the 
 
 ## `title`
 
-**Optional** Workflow title, any valid string is allowed. It's accessible via `${{ flow.title }}`.
-If this is not set manually, the default workflow title `live` will be used.
+**Optional** Workflow title, any valid string is allowed. It's accessible via `${{ flow.title }}`. If this is not set manually, the default workflow title `live` will be used.
 
 **Expression contexts:** This attribute only allows expressions that don't access contexts.
 
@@ -52,12 +51,12 @@ env: ${{ {'SERVER': 'production'} }}
 
 ### `defaults.life_span`
 
-The default lifespan for jobs ran by the workflow. It can be overridden by [`jobs.<job-id>.life_span`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-life_span). If not set manually, the default job lifespan is 1 day. The lifespan value can be one of the following:
+The default lifespan for jobs ran by the workflow. It can be overridden by [`jobs.<job-id>.life_span`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-life\_span). If not set manually, the default job lifespan is 1 day. The lifespan value can be one of the following:
 
-* A `float` number representing the amount of seconds \(`3600` represents an hour\)
-* A string of the following format: `1d6h15m` \(1 day, 6 hours, 15 minutes\)
+* A `float` number representing the amount of seconds (`3600` represents an hour)
+* A string of the following format: `1d6h15m` (1 day, 6 hours, 15 minutes)
 
-For lifespan-disabling emulation, use an arbitrary large value \(e.g. `365d`\). Keep in mind that this may be dangerous, as a forgotten job will consume cluster resources.
+For lifespan-disabling emulation, use an arbitrary large value (e.g. `365d`). Keep in mind that this may be dangerous, as a forgotten job will consume cluster resources.
 
 {% hint style="warning" %}
 lifespan shorter than _1 minute_ is forbidden.
@@ -102,12 +101,12 @@ Default volumes are not passed to actions.
 
 ### `defaults.schedule_timeout`
 
-The default timeout for job scheduling. See [`jobs.<job-id>.schedule_timeout`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-schedule_timeout) for more information.
+The default timeout for job scheduling. See [`jobs.<job-id>.schedule_timeout`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-schedule\_timeout) for more information.
 
 The attribute accepts the following values:
 
-* A `float` number representing the amount of seconds \(`3600` represents an hour\)
-* A string of the following format: `1d6h15m45s` \(1 day, 6 hours, 15 minutes, 45 seconds\)
+* A `float` number representing the amount of seconds (`3600` represents an hour)
+* A string of the following format: `1d6h15m45s` (1 day, 6 hours, 15 minutes, 45 seconds)
 
 The cluster-wide timeout is used if both `default.schedule_timeout` and `jobs.<job-id>.schedule_timeout` are omitted.
 
@@ -150,7 +149,7 @@ defaults:
 
 ## `images`
 
-**Optional section**  A mapping of image definitions used by the _live_ workflow.
+**Optional section** A mapping of image definitions used by the _live_ workflow.
 
 `neuro-flow build <image-id>` creates an image from the passed `Dockerfile` and uploads it to the Neu.ro Registry. The `${{ images.img_id.ref }}` expression can be used for pointing an image from a [`jobs.<job-id>.image`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-image).
 
@@ -176,7 +175,7 @@ images:
     ref: image:my_image:latest
 ```
 
-You can use the image definition to _address_ images hosted on [_Docker Hub_](https://hub.docker.com/search?q=&type=image) as an _external_ source \(while you can't use `neuro-flow` to build this image\). All other attributes except for `ref` don't work for _external_ images.
+You can use the image definition to _address_ images hosted on [_Docker Hub_](https://hub.docker.com/search?q=\&type=image) as an _external_ source (while you can't use `neuro-flow` to build this image). All other attributes except for `ref` don't work for _external_ images.
 
 **Example of external image:**
 
@@ -187,7 +186,7 @@ images:
 ```
 
 {% hint style="info" %}
-Use the embedded [`hash_files()`](expression-functions.md#hash_files-pattern) function to generate the built image's tag based on its content.
+Use the embedded [`hash_files()`](expression-functions.md#hash\_files-pattern) function to generate the built image's tag based on its content.
 {% endhint %}
 
 **Example of auto-calculated stable hash:**
@@ -238,8 +237,7 @@ images:
 
 ### `images.<image-id>.build_preset`
 
-**Optional** A name of the resource preset used to build the docker image.
-Consider using it if, for instance, a GPU is required to build dependencies within the image.
+**Optional** A name of the resource preset used to build the docker image. Consider using it if, for instance, a GPU is required to build dependencies within the image.
 
 **Example:**
 
@@ -292,8 +290,7 @@ images:
 {% hint style="info" %}
 You can also map platform secrets as the values of environment variables and later utilize them when building an image.
 
-Let's assume you have a `secret:github_password` which gives you access to a needed private repository.
-In this case, map it as an environment variable `GH_PASS: secret:github_password` into the builder job and pass it further as `--build-arg GH_PASS=$GH_PASS` while building the container.
+Let's assume you have a `secret:github_password` which gives you access to a needed private repository. In this case, map it as an environment variable `GH_PASS: secret:github_password` into the builder job and pass it further as `--build-arg GH_PASS=$GH_PASS` while building the container.
 {% endhint %}
 
 **Expression contexts:** [`flow` context](live-contexts.md#flow-context).
@@ -310,7 +307,6 @@ images:
     volumes:
     - storage:folder1:/mnt/folder1:ro
     - storage:folder2:/mnt/folder2
-    - volumes.volume_id.ref
 ```
 
 This attribute also supports lists as values:
@@ -318,15 +314,13 @@ This attribute also supports lists as values:
 ```yaml
 images:
   my_image:
-    volumes: ${{ ['storage:folder1:/mnt/folder1:ro', volumes.volume_id.ref] }}
+    volumes: ${{ ['storage:folder1:/mnt/folder1:ro', 'storage:folder2:/mnt/folder2:ro'] }}
 ```
 
 {% hint style="info" %}
 You can also map platform secrets as files and later utilize them when building an image.
 
-Let's assume you have a `secret:aws_account_credentials` file which gives you access to an S3 bucket needed during building.
-In this case, attach it as a volume `- secret:aws_account_credentials:/kaniko_context/aws_account_credentials` into the builder job.
-A file with credentials will appear in the root of the build context, since the build context is mounted in the `/kaniko_context` folder within the builder job.
+Let's assume you have a `secret:aws_account_credentials` file which gives you access to an S3 bucket needed during building. In this case, attach it as a volume `- secret:aws_account_credentials:/kaniko_context/aws_account_credentials` into the builder job. A file with credentials will appear in the root of the build context, since the build context is mounted in the `/kaniko_context` folder within the builder job.
 {% endhint %}
 
 **Expression contexts:** [`flow` context](live-contexts.md#flow-context).
@@ -349,7 +343,7 @@ The key `volume-id` is a string and its value is a map of the volume's configura
 
 ### `volumes.<volume-id>.remote`
 
-**Required** The volume URI on the [Neu.ro Storage](https://docs.neu.ro/core/platform-storage/storage) ('storage:path/on/storage') or [Neu.ro Disk](https://docs.neu.ro/core/platform-storage/disks) ('disk:<disk-id>').
+**Required** The volume URI on the [Neu.ro Storage](https://docs.neu.ro/core/platform-storage/storage) ('storage:path/on/storage') or [Neu.ro Disk](https://docs.neu.ro/core/platform-storage/disks) ('disk:').
 
 **Example:**
 
@@ -385,8 +379,7 @@ volumes:
 
 ### `volumes.<volume-id>.local`
 
-**Optional** Volumes can also be associated with folders on a local machine.
-A _local_ path should be relative to the project's root and will be used for uploading/downloading content to the storage.
+**Optional** Volumes can also be associated with folders on a local machine. A _local_ path should be relative to the project's root and will be used for uploading/downloading content to the storage.
 
 Volumes without a set `local` attribute cannot be used by the `neuro-flow upload` and `neuro-flow download` commands.
 
@@ -420,9 +413,9 @@ volumes:
 
 ## `jobs`
 
-A _live_ workflow can run jobs by their identifiers using the `neuro-flow run <job-id>` command. Each job runs remotely on the Neu.ro Platform.
-Jobs could be defined in two different ways: (1) directly in this file or in a separate file and called as an [`action`](actions-syntax.md).
-### `jobs.<job-id>` <a id="jobs-job-id-env"></a>
+A _live_ workflow can run jobs by their identifiers using the `neuro-flow run <job-id>` command. Each job runs remotely on the Neu.ro Platform. Jobs could be defined in two different ways: (1) directly in this file or in a separate file and called as an [`action`](actions-syntax.md).
+
+### `jobs.<job-id>` <a href="#jobs-job-id-env" id="jobs-job-id-env"></a>
 
 Each job must have an associated ID. The key `job-id` is a string and its value is a map of the job's configuration data or action call. You must replace `<job-id>` with a string that is unique to the `jobs` object. The `<job-id>` must start with a letter and contain only alphanumeric characters or underscore symbols `_`. Dash `-` is not allowed.
 
@@ -488,7 +481,7 @@ The attributes described in this section are only applicable to plain jobs that 
 
 ### `jobs.<job-id>.image`
 
-**Required** Each job is executed remotely on the Neu.ro cluster using a _Docker image_. This image can be hosted on [_Docker Hub_](https://hub.docker.com/search?q=&type=image) \(`python:3.9` or `ubuntu:20.04`\) or on the Neu.ro Registry \(`image:my_image:v2.3`\). If the image is hosted on the Neu.ro Registry, the image name must start with the `image:` prefix.
+**Required** Each job is executed remotely on the Neu.ro cluster using a _Docker image_. This image can be hosted on [_Docker Hub_](https://hub.docker.com/search?q=\&type=image) (`python:3.9` or `ubuntu:20.04`) or on the Neu.ro Registry (`image:my_image:v2.3`). If the image is hosted on the Neu.ro Registry, the image name must start with the `image:` prefix.
 
 **Example with a constant image string:**
 
@@ -508,7 +501,7 @@ jobs:
     image: ${{ images.my_image.ref }}
 ```
 
-**Expression contexts:** [`flow` context](live-contexts.md#flow-context), [`env` context](live-contexts.md#env-context), [`tags` context](live-contexts.md#tags-context), [`volumes` context](live-contexts.md#volumes-context), [`images` context](live-contexts.md#images-context), [`params` context](live-contexts.md#params-context), [`multi` context](live-contexts.md#multi-context) \(if [`jobs.<job-id>.multi`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-multi) is set\).
+**Expression contexts:** [`flow` context](live-contexts.md#flow-context), [`env` context](live-contexts.md#env-context), [`tags` context](live-contexts.md#tags-context), [`volumes` context](live-contexts.md#volumes-context), [`images` context](live-contexts.md#images-context), [`params` context](live-contexts.md#params-context), [`multi` context](live-contexts.md#multi-context) (if [`jobs.<job-id>.multi`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-multi) is set).
 
 ### `jobs.<job-id>.cmd`
 
@@ -524,7 +517,7 @@ jobs:
     cmd: tensorboard --host=0.0.0.0
 ```
 
-**Expression contexts:** [`flow` context](live-contexts.md#flow-context), [`env` context](live-contexts.md#env-context), [`tags` context](live-contexts.md#tags-context), [`volumes` context](live-contexts.md#volumes-context), [`images` context](live-contexts.md#images-context), [`params` context](live-contexts.md#params-context), [`multi` context](live-contexts.md#multi-context) \(if [`jobs.<job-id>.multi`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-multi) is set\).
+**Expression contexts:** [`flow` context](live-contexts.md#flow-context), [`env` context](live-contexts.md#env-context), [`tags` context](live-contexts.md#tags-context), [`volumes` context](live-contexts.md#volumes-context), [`images` context](live-contexts.md#images-context), [`params` context](live-contexts.md#params-context), [`multi` context](live-contexts.md#multi-context) (if [`jobs.<job-id>.multi`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-multi) is set).
 
 ### `jobs.<job-id>.bash`
 
@@ -553,7 +546,7 @@ jobs:
       done
 ```
 
-**Expression contexts:** [`flow` context](live-contexts.md#flow-context), [`env` context](live-contexts.md#env-context), [`tags` context](live-contexts.md#tags-context), [`volumes` context](live-contexts.md#volumes-context), [`images` context](live-contexts.md#images-context), [`params` context](live-contexts.md#params-context), [`multi` context](live-contexts.md#multi-context) \(if [`jobs.<job-id>.multi`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-multi) is set\).
+**Expression contexts:** [`flow` context](live-contexts.md#flow-context), [`env` context](live-contexts.md#env-context), [`tags` context](live-contexts.md#tags-context), [`volumes` context](live-contexts.md#volumes-context), [`images` context](live-contexts.md#images-context), [`params` context](live-contexts.md#params-context), [`multi` context](live-contexts.md#multi-context) (if [`jobs.<job-id>.multi`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-multi) is set).
 
 ### `jobs.<job-id>.python`
 
@@ -577,7 +570,7 @@ jobs:
       print("The Python version is", sys.version)
 ```
 
-**Expression contexts:** [`flow` context](live-contexts.md#flow-context), [`env` context](live-contexts.md#env-context), [`tags` context](live-contexts.md#tags-context), [`volumes` context](live-contexts.md#volumes-context), [`images` context](live-contexts.md#images-context), [`params` context](live-contexts.md#params-context), [`multi` context](live-contexts.md#multi-context) \(if [`jobs.<job-id>.multi`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-multi) is set\).
+**Expression contexts:** [`flow` context](live-contexts.md#flow-context), [`env` context](live-contexts.md#env-context), [`tags` context](live-contexts.md#tags-context), [`volumes` context](live-contexts.md#volumes-context), [`images` context](live-contexts.md#images-context), [`params` context](live-contexts.md#params-context), [`multi` context](live-contexts.md#multi-context) (if [`jobs.<job-id>.multi`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-multi) is set).
 
 ### `jobs.<job-id>.browse`
 
@@ -593,7 +586,7 @@ jobs:
     browse: true
 ```
 
-**Expression contexts:** [`flow` context](live-contexts.md#flow-context), [`env` context](live-contexts.md#env-context), [`tags` context](live-contexts.md#tags-context), [`volumes` context](live-contexts.md#volumes-context), [`images` context](live-contexts.md#images-context), [`params` context](live-contexts.md#params-context), [`multi` context](live-contexts.md#multi-context) \(if [`jobs.<job-id>.multi`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-multi) is set\).
+**Expression contexts:** [`flow` context](live-contexts.md#flow-context), [`env` context](live-contexts.md#env-context), [`tags` context](live-contexts.md#tags-context), [`volumes` context](live-contexts.md#volumes-context), [`images` context](live-contexts.md#images-context), [`params` context](live-contexts.md#params-context), [`multi` context](live-contexts.md#multi-context) (if [`jobs.<job-id>.multi`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-multi) is set).
 
 ### `jobs.<job-id>.detach`
 
@@ -609,7 +602,7 @@ jobs:
     detach: true
 ```
 
-**Expression contexts:** [`flow` context](live-contexts.md#flow-context), [`env` context](live-contexts.md#env-context), [`tags` context](live-contexts.md#tags-context), [`volumes` context](live-contexts.md#volumes-context), [`images` context](live-contexts.md#images-context), [`params` context](live-contexts.md#params-context), [`multi` context](live-contexts.md#multi-context) \(if [`jobs.<job-id>.multi`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-multi) is set\).
+**Expression contexts:** [`flow` context](live-contexts.md#flow-context), [`env` context](live-contexts.md#env-context), [`tags` context](live-contexts.md#tags-context), [`volumes` context](live-contexts.md#volumes-context), [`images` context](live-contexts.md#images-context), [`params` context](live-contexts.md#params-context), [`multi` context](live-contexts.md#multi-context) (if [`jobs.<job-id>.multi`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-multi) is set).
 
 ### `jobs.<job-id>.entrypoint`
 
@@ -623,9 +616,9 @@ jobs:
     entrypoint: sh -c "Echo $HOME"
 ```
 
-**Expression contexts:** [`flow` context](live-contexts.md#flow-context), [`env` context](live-contexts.md#env-context), [`tags` context](live-contexts.md#tags-context), [`volumes` context](live-contexts.md#volumes-context), [`images` context](live-contexts.md#images-context), [`params` context](live-contexts.md#params-context), [`multi` context](live-contexts.md#multi-context) \(if [`jobs.<job-id>.multi`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-multi) is set\).
+**Expression contexts:** [`flow` context](live-contexts.md#flow-context), [`env` context](live-contexts.md#env-context), [`tags` context](live-contexts.md#tags-context), [`volumes` context](live-contexts.md#volumes-context), [`images` context](live-contexts.md#images-context), [`params` context](live-contexts.md#params-context), [`multi` context](live-contexts.md#multi-context) (if [`jobs.<job-id>.multi`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-multi) is set).
 
-### `jobs.<job-id>.env` <a id="jobs-job-id-env"></a>
+### `jobs.<job-id>.env` <a href="#jobs-job-id-env" id="jobs-job-id-env"></a>
 
 **Optional** Set environment variables for `<job-id>` to use in the executed job. You can also set environment variables for the entire workflow. For more information, see [`defaults.env`](live-workflow-syntax.md#defaults-env).
 
@@ -649,7 +642,7 @@ jobs:
     env: ${{ {'ENV1': 'val1', 'ENV2': 'val2'} }}
 ```
 
-**Expression contexts:** [`flow` context](live-contexts.md#flow-context), [`env` context](live-contexts.md#env-context), [`tags` context](live-contexts.md#tags-context), [`volumes` context](live-contexts.md#volumes-context), [`images` context](live-contexts.md#images-context), [`params` context](live-contexts.md#params-context), [`multi` context](live-contexts.md#multi-context) \(if [`jobs.<job-id>.multi`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-multi) is set\).
+**Expression contexts:** [`flow` context](live-contexts.md#flow-context), [`env` context](live-contexts.md#env-context), [`tags` context](live-contexts.md#tags-context), [`volumes` context](live-contexts.md#volumes-context), [`images` context](live-contexts.md#images-context), [`params` context](live-contexts.md#params-context), [`multi` context](live-contexts.md#multi-context) (if [`jobs.<job-id>.multi`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-multi) is set).
 
 ### `jobs.<job-id>.http_auth`
 
@@ -667,7 +660,7 @@ jobs:
     http_auth: false
 ```
 
-**Expression contexts:** [`flow` context](live-contexts.md#flow-context), [`env` context](live-contexts.md#env-context), [`tags` context](live-contexts.md#tags-context), [`volumes` context](live-contexts.md#volumes-context), [`images` context](live-contexts.md#images-context), [`params` context](live-contexts.md#params-context), [`multi` context](live-contexts.md#multi-context) \(if [`jobs.<job-id>.multi`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-multi) is set\).
+**Expression contexts:** [`flow` context](live-contexts.md#flow-context), [`env` context](live-contexts.md#env-context), [`tags` context](live-contexts.md#tags-context), [`volumes` context](live-contexts.md#volumes-context), [`images` context](live-contexts.md#images-context), [`params` context](live-contexts.md#params-context), [`multi` context](live-contexts.md#multi-context) (if [`jobs.<job-id>.multi`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-multi) is set).
 
 ### `jobs.<job-id>.http_port`
 
@@ -689,22 +682,22 @@ jobs:
 Only HTTP traffic is allowed. The platform will automatically encapsulate it into TLS to provide an HTTPS connection.
 {% endhint %}
 
-**Expression contexts:** [`flow` context](live-contexts.md#flow-context), [`env` context](live-contexts.md#env-context), [`tags` context](live-contexts.md#tags-context), [`volumes` context](live-contexts.md#volumes-context), [`images` context](live-contexts.md#images-context), [`params` context](live-contexts.md#params-context), [`multi` context](live-contexts.md#multi-context) \(if [`jobs.<job-id>.multi`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-multi) is set\).
+**Expression contexts:** [`flow` context](live-contexts.md#flow-context), [`env` context](live-contexts.md#env-context), [`tags` context](live-contexts.md#tags-context), [`volumes` context](live-contexts.md#volumes-context), [`images` context](live-contexts.md#images-context), [`params` context](live-contexts.md#params-context), [`multi` context](live-contexts.md#multi-context) (if [`jobs.<job-id>.multi`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-multi) is set).
 
 ### `jobs.<job-id>.life_span`
 
-**Optional**  The time period after which a job will be automatically killed.
+**Optional** The time period after which a job will be automatically killed.
 
 By default, jobs live 1 day. You may want to change this period by customizing the attribute.
 
 The value could be:
 
-* A float number representing an amount of seconds \(`3600` for an hour\) 
-* An expression in the following format: `1d6h15m` \(1 day, 6 hours, 15 minutes\) 
+* A float number representing an amount of seconds (`3600` for an hour)&#x20;
+* An expression in the following format: `1d6h15m` (1 day, 6 hours, 15 minutes)&#x20;
 
-Use an arbitrary large value \(e.g. `365d`\) for lifespan-disabling emulation. Keep in mind that this can be dangerous, as a forgotten job will consume cluster resources.
+Use an arbitrary large value (e.g. `365d`) for lifespan-disabling emulation. Keep in mind that this can be dangerous, as a forgotten job will consume cluster resources.
 
-The [`defaults.life_span`](live-workflow-syntax.md#defaults-life_span) value is used if the attribute is not set.
+The [`defaults.life_span`](live-workflow-syntax.md#defaults-life\_span) value is used if the attribute is not set.
 
 **Example:**
 
@@ -714,7 +707,7 @@ jobs:
     life_span: 14d12h
 ```
 
-**Expression contexts:** [`flow` context](live-contexts.md#flow-context), [`env` context](live-contexts.md#env-context), [`tags` context](live-contexts.md#tags-context), [`volumes` context](live-contexts.md#volumes-context), [`images` context](live-contexts.md#images-context), [`params` context](live-contexts.md#params-context), [`multi` context](live-contexts.md#multi-context) \(if [`jobs.<job-id>.multi`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-multi) is set\).
+**Expression contexts:** [`flow` context](live-contexts.md#flow-context), [`env` context](live-contexts.md#env-context), [`tags` context](live-contexts.md#tags-context), [`volumes` context](live-contexts.md#volumes-context), [`images` context](live-contexts.md#images-context), [`params` context](live-contexts.md#params-context), [`multi` context](live-contexts.md#multi-context) (if [`jobs.<job-id>.multi`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-multi) is set).
 
 ### `jobs.<job-id>.name`
 
@@ -738,11 +731,11 @@ If the name is not specified in the `name` attribute, the default name for the j
 
 The `[-<MULTI_SUFFIX>]` part makes sure that a job will have a unique name even if it's a multi job.
 
-**Expression contexts:** [`flow` context](live-contexts.md#flow-context), [`env` context](live-contexts.md#env-context), [`tags` context](live-contexts.md#tags-context), [`volumes` context](live-contexts.md#volumes-context), [`images` context](live-contexts.md#images-context), [`params` context](live-contexts.md#params-context), [`multi` context](live-contexts.md#multi-context) \(if [`jobs.<job-id>.multi`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-multi) is set\).
+**Expression contexts:** [`flow` context](live-contexts.md#flow-context), [`env` context](live-contexts.md#env-context), [`tags` context](live-contexts.md#tags-context), [`volumes` context](live-contexts.md#volumes-context), [`images` context](live-contexts.md#images-context), [`params` context](live-contexts.md#params-context), [`multi` context](live-contexts.md#multi-context) (if [`jobs.<job-id>.multi`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-multi) is set).
 
 ### `jobs.<job-id>.multi`
 
-**Optional**  By default, a job can only have one running instance at a time. Calling `neuro-flow run <job-id>` for the same job ID will attach to the already running job instead of creating a new one. This can be overridden by enabling the `multi` attribute.
+**Optional** By default, a job can only have one running instance at a time. Calling `neuro-flow run <job-id>` for the same job ID will attach to the already running job instead of creating a new one. This can be overridden by enabling the `multi` attribute.
 
 **Example:**
 
@@ -756,7 +749,7 @@ jobs:
 
 ### `jobs.<job-id>.pass_config`
 
-**Optional**  Set this attribute to `true` if you want to pass the Neu.ro config used to execute the `neuro-flow run ...` command into the spawned job. This can be useful if you're using a job image with Neuro CLI installed and want to execute `neuro ...` commands _inside_ the running job.
+**Optional** Set this attribute to `true` if you want to pass the Neu.ro config used to execute the `neuro-flow run ...` command into the spawned job. This can be useful if you're using a job image with Neuro CLI installed and want to execute `neuro ...` commands _inside_ the running job.
 
 By default, the config is not passed.
 
@@ -769,11 +762,10 @@ jobs:
 ```
 
 {% hint style="warning" %}
-The lifetime of passed credentials is bound to the job's lifetime.
-It will be impossible to use them when the job is terminated.
+The lifetime of passed credentials is bound to the job's lifetime. It will be impossible to use them when the job is terminated.
 {% endhint %}
 
-**Expression contexts:** [`flow` context](live-contexts.md#flow-context), [`env` context](live-contexts.md#env-context), [`tags` context](live-contexts.md#tags-context), [`volumes` context](live-contexts.md#volumes-context), [`images` context](live-contexts.md#images-context), [`params` context](live-contexts.md#params-context), [`multi` context](live-contexts.md#multi-context) \(if [`jobs.<job-id>.multi`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-multi) is set\).
+**Expression contexts:** [`flow` context](live-contexts.md#flow-context), [`env` context](live-contexts.md#env-context), [`tags` context](live-contexts.md#tags-context), [`volumes` context](live-contexts.md#volumes-context), [`images` context](live-contexts.md#images-context), [`params` context](live-contexts.md#params-context), [`multi` context](live-contexts.md#multi-context) (if [`jobs.<job-id>.multi`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-multi) is set).
 
 ### `jobs.<job-id>.port-forward`
 
@@ -807,7 +799,7 @@ jobs:
 
 **Optional** The preset to execute the job with. [`defaults.preset`](live-workflow-syntax.md#defaults-preset) is used if the preset is not specified for the job.
 
-**Expression contexts:** [`flow` context](live-contexts.md#flow-context), [`env` context](live-contexts.md#env-context), [`tags` context](live-contexts.md#tags-context), [`volumes` context](live-contexts.md#volumes-context), [`images` context](live-contexts.md#images-context), [`params` context](live-contexts.md#params-context), [`multi` context](live-contexts.md#multi-context) \(if [`jobs.<job-id>.multi`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-multi) is set\).
+**Expression contexts:** [`flow` context](live-contexts.md#flow-context), [`env` context](live-contexts.md#env-context), [`tags` context](live-contexts.md#tags-context), [`volumes` context](live-contexts.md#volumes-context), [`images` context](live-contexts.md#images-context), [`params` context](live-contexts.md#params-context), [`multi` context](live-contexts.md#multi-context) (if [`jobs.<job-id>.multi`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-multi) is set).
 
 ### `jobs.<job-id>.schedule_timeout`
 
@@ -819,10 +811,10 @@ The default system-wide _schedule timeout_ is controlled by the cluster administ
 
 The value of this attribute can be:
 
-* A `float` number representing an amount of seconds 
-* A string in the following format: `1d6h15m45s` \(1 day, 6 hours, 15 minutes, 45 seconds\)
+* A `float` number representing an amount of seconds&#x20;
+* A string in the following format: `1d6h15m45s` (1 day, 6 hours, 15 minutes, 45 seconds)
 
-See [`defaults.schedule_timeout`](live-workflow-syntax.md#defaults-schedule_timeout) if you want to set a workflow-wide schedule timeout for all jobs.
+See [`defaults.schedule_timeout`](live-workflow-syntax.md#defaults-schedule\_timeout) if you want to set a workflow-wide schedule timeout for all jobs.
 
 **Example:**
 
@@ -832,13 +824,13 @@ jobs:
     schedule_timeout: 1d  # don't fail until tomorrow
 ```
 
-**Expression contexts:** [`flow` context](live-contexts.md#flow-context), [`env` context](live-contexts.md#env-context), [`tags` context](live-contexts.md#tags-context), [`volumes` context](live-contexts.md#volumes-context), [`images` context](live-contexts.md#images-context), [`params` context](live-contexts.md#params-context), [`multi` context](live-contexts.md#multi-context) \(if [`jobs.<job-id>.multi`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-multi) is set\).
+**Expression contexts:** [`flow` context](live-contexts.md#flow-context), [`env` context](live-contexts.md#env-context), [`tags` context](live-contexts.md#tags-context), [`volumes` context](live-contexts.md#volumes-context), [`images` context](live-contexts.md#images-context), [`params` context](live-contexts.md#params-context), [`multi` context](live-contexts.md#multi-context) (if [`jobs.<job-id>.multi`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-multi) is set).
 
 ### `jobs.<job-id>.tags`
 
 **Optional** A list of additional job tags.
 
-Each _live_ job is tagged. A job's tags are taken from this attribute, [`defaults.tags`](live-workflow-syntax.md#defaults-tags), and system tags \(`project:<project-id>` and `job:<job-id>`\).
+Each _live_ job is tagged. A job's tags are taken from this attribute, [`defaults.tags`](live-workflow-syntax.md#defaults-tags), and system tags (`project:<project-id>` and `job:<job-id>`).
 
 **Example:**
 
@@ -862,7 +854,7 @@ jobs:
 
 **Optional** A job's title. Equal to `<job-id>` by default if not overridden.
 
-**Expression contexts:** [`flow` context](live-contexts.md#flow-context), [`env` context](live-contexts.md#env-context), [`tags` context](live-contexts.md#tags-context), [`volumes` context](live-contexts.md#volumes-context), [`images` context](live-contexts.md#images-context), [`params` context](live-contexts.md#params-context), [`multi` context](live-contexts.md#multi-context) \(if [`jobs.<job-id>.multi`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-multi) is set\).
+**Expression contexts:** [`flow` context](live-contexts.md#flow-context), [`env` context](live-contexts.md#env-context), [`tags` context](live-contexts.md#tags-context), [`volumes` context](live-contexts.md#volumes-context), [`images` context](live-contexts.md#images-context), [`params` context](live-contexts.md#params-context), [`multi` context](live-contexts.md#multi-context) (if [`jobs.<job-id>.multi`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-multi) is set).
 
 ### `jobs.<job-id>.volumes`
 
@@ -886,7 +878,7 @@ jobs:
     volumes: ${{ ['storage:path/to:/mnt/path/to', volumes.my_volume.ref] }}
 ```
 
-**Expression contexts:** [`flow` context](live-contexts.md#flow-context), [`env` context](live-contexts.md#env-context), [`tags` context](live-contexts.md#tags-context), [`volumes` context](live-contexts.md#volumes-context), [`images` context](live-contexts.md#images-context), [`params` context](live-contexts.md#params-context), [`multi` context](live-contexts.md#multi-context) \(if [`jobs.<job-id>.multi`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-multi) is set\).
+**Expression contexts:** [`flow` context](live-contexts.md#flow-context), [`env` context](live-contexts.md#env-context), [`tags` context](live-contexts.md#tags-context), [`volumes` context](live-contexts.md#volumes-context), [`images` context](live-contexts.md#images-context), [`params` context](live-contexts.md#params-context), [`multi` context](live-contexts.md#multi-context) (if [`jobs.<job-id>.multi`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-multi) is set).
 
 ### `jobs.<job-id>.workdir`
 
@@ -902,7 +894,7 @@ jobs:
     workdir: /users/my_user
 ```
 
-**Expression contexts:** [`flow` context](live-contexts.md#flow-context), [`env` context](live-contexts.md#env-context), [`tags` context](live-contexts.md#tags-context), [`volumes` context](live-contexts.md#volumes-context), [`images` context](live-contexts.md#images-context), [`params` context](live-contexts.md#params-context), [`multi` context](live-contexts.md#multi-context) \(if [`jobs.<job-id>.multi`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-multi) is set\).
+**Expression contexts:** [`flow` context](live-contexts.md#flow-context), [`env` context](live-contexts.md#env-context), [`tags` context](live-contexts.md#tags-context), [`volumes` context](live-contexts.md#volumes-context), [`images` context](live-contexts.md#images-context), [`params` context](live-contexts.md#params-context), [`multi` context](live-contexts.md#multi-context) (if [`jobs.<job-id>.multi`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-multi) is set).
 
 ## Attributes for actions calls
 
@@ -939,8 +931,7 @@ jobs:
 
 ### `jobs.<job-id>.args`
 
-**Optional** Mapping of values that will be passed to the actions as arguments. This should correspond to [`inputs`](actions-syntax.md#inputs) defined in the action file.
-Each value should be a string.
+**Optional** Mapping of values that will be passed to the actions as arguments. This should correspond to [`inputs`](actions-syntax.md#inputs) defined in the action file. Each value should be a string.
 
 **Example:**
 
@@ -952,5 +943,4 @@ jobs:
       param2: ${{ flow.id }}  # Or some expresion value
 ```
 
-**Expression contexts:** [`flow` context](live-contexts.md#flow-context), [`env` context](live-contexts.md#env-context), [`tags` context](live-contexts.md#tags-context), [`volumes` context](live-contexts.md#volumes-context), [`images` context](live-contexts.md#images-context), [`params` context](live-contexts.md#params-context), [`multi` context](live-contexts.md#multi-context) \(if [`jobs.<job-id>.multi`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-multi) is set\).
-
+**Expression contexts:** [`flow` context](live-contexts.md#flow-context), [`env` context](live-contexts.md#env-context), [`tags` context](live-contexts.md#tags-context), [`volumes` context](live-contexts.md#volumes-context), [`images` context](live-contexts.md#images-context), [`params` context](live-contexts.md#params-context), [`multi` context](live-contexts.md#multi-context) (if [`jobs.<job-id>.multi`](live-workflow-syntax.md#jobs-less-than-job-id-greater-than-multi) is set).

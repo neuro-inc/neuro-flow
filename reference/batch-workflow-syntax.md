@@ -12,7 +12,7 @@ Batch workflows are located in the `.neuro/<batch-name>.yml` or `.neuro/<batch-n
 
 **Expression contexts:** This attribute cannot contain expressions.
 
-Identifier of the workflow. By default, the `id` is generated from the filename of the workflow config, with hyphens being \(`-`\) replaced with underscores \(`_`\). It's available as a `${{ flow.flow_id }}` in experssions.
+Identifier of the workflow. By default, the `id` is generated from the filename of the workflow config, with hyphens being (`-`) replaced with underscores (`_`). It's available as a `${{ flow.flow_id }}` in experssions.
 
 ## `title`
 
@@ -47,12 +47,12 @@ env: ${{ {'global_a': 'val-a', 'global_b': 'val-b'} }}
 
 ### `defaults.life_span`
 
-The default lifespan for jobs ran by the workflow. It can be overridden by [`tasks.life_span`](batch-workflow-syntax.md#tasks-life_span). If not set, the default task lifespan is 1 day. The lifespan value can be one of the following:
+The default lifespan for jobs ran by the workflow. It can be overridden by [`tasks.life_span`](batch-workflow-syntax.md#tasks-life\_span). If not set, the default task lifespan is 1 day. The lifespan value can be one of the following:
 
-* A `float` number representing the amount of seconds \(`3600` represents an hour\)
-* A string of the following format: `1d6h15m` \(1 day, 6 hours, 15 minutes\)
+* A `float` number representing the amount of seconds (`3600` represents an hour)
+* A string of the following format: `1d6h15m` (1 day, 6 hours, 15 minutes)
 
-For lifespan-disabling emulation, use an arbitrary large value \(e.g. `365d`\). Keep in mind that this may be dangerous, as a forgotten job will consume cluster resources.
+For lifespan-disabling emulation, use an arbitrary large value (e.g. `365d`). Keep in mind that this may be dangerous, as a forgotten job will consume cluster resources.
 
 {% hint style="warning" %}
 life span shorter than _1 minute_ is forbidden.
@@ -97,12 +97,12 @@ Default volumes are not passed to actions.
 
 ### `defaults.schedule_timeout`
 
-The default timeout for task scheduling. See [`tasks.schedule_timeout`](batch-workflow-syntax.md#tasks-schedule_timeout) for more information.
+The default timeout for task scheduling. See [`tasks.schedule_timeout`](batch-workflow-syntax.md#tasks-schedule\_timeout) for more information.
 
 The attribute accepts the following values:
 
-* A `float` number representing the amount of seconds \(`3600` represents an hour\)
-* A string of the following format: `1d6h15m45s` \(1 day, 6 hours, 15 minutes, 45 seconds\).
+* A `float` number representing the amount of seconds (`3600` represents an hour)
+* A string of the following format: `1d6h15m45s` (1 day, 6 hours, 15 minutes, 45 seconds).
 
 The cluster-wide timeout is used if both `default.schedule_timeout` and `tasks.schedule_timeout` are omitted.
 
@@ -136,7 +136,7 @@ The default working directory for tasks created by this workflow. See [`tasks.wo
 
 ### `defaults.fail_fast`
 
-When set to `true`, the system cancels all in-progress tasks if any one of them fails. It can be overridden by [`tasks.strategy.fail_fast`](batch-workflow-syntax.md#tasks-strategy-fail_fast). This is set to `true` by default.
+When set to `true`, the system cancels all in-progress tasks if any one of them fails. It can be overridden by [`tasks.strategy.fail_fast`](batch-workflow-syntax.md#tasks-strategy-fail\_fast). This is set to `true` by default.
 
 **Example:**
 
@@ -186,10 +186,10 @@ cache:
 
 The default cache invalidation duration. The attribute accepts the following values:
 
-* A `float` number representing the amount of seconds \(`3600` represents an hour\)
-* A string of the following format: `1d6h15m45s` \(1 day, 6 hours, 15 minutes, 45 seconds\)
+* A `float` number representing the amount of seconds (`3600` represents an hour)
+* A string of the following format: `1d6h15m45s` (1 day, 6 hours, 15 minutes, 45 seconds)
 
-Default: `14d` \(two weeks\).
+Default: `14d` (two weeks).
 
 {% hint style="info" %}
 If you decrease this value and re-run the flow, `neuro-flow` will ignore cache entries that were added longer ago than the new `cache.life_span` value states.
@@ -230,7 +230,7 @@ images:
     ref: image:my_image:latest
 ```
 
-This can only use locally accessible functions \(such as `hash_files`\). Its value will be calculated before the remote executor starts.
+This can only use locally accessible functions (such as `hash_files`). Its value will be calculated before the remote executor starts.
 
 **Example of external image:**
 
@@ -241,7 +241,7 @@ images:
 ```
 
 {% hint style="info" %}
-Use the embedded [`hash_files()`](expression-functions.md#hash_files-pattern) function to generate the built image's tag based on its content.
+Use the embedded [`hash_files()`](expression-functions.md#hash\_files-pattern) function to generate the built image's tag based on its content.
 {% endhint %}
 
 **Example of an auto-calculated stable hash:**
@@ -256,7 +256,7 @@ images:
 
 ### `images.<image-id>.context`
 
-The Docker _context_ used to build an image. Can be either local path \(e.g. `${{ flow.workspace / 'some/dir' }}`\) or a remote volume spec \(e.g. `storage:subdir/${{ flow.flow_id }}`\). If it's a local path, it cannot use anything that's not available at the beginning of a bake \(for example, action inputs\). If it's a remote path, usage of dynamic values is allowed. Local context will be automatically uploaded to storage during the "local actions" step of the bake.
+The Docker _context_ used to build an image. Can be either local path (e.g. `${{ flow.workspace / 'some/dir' }}`) or a remote volume spec (e.g. `storage:subdir/${{ flow.flow_id }}`). If it's a local path, it cannot use anything that's not available at the beginning of a bake (for example, action inputs). If it's a remote path, usage of dynamic values is allowed. Local context will be automatically uploaded to storage during the "local actions" step of the bake.
 
 **Example:**
 
@@ -340,7 +340,6 @@ images:
     volumes:
     - storage:folder1:/mnt/folder1:ro
     - storage:folder2:/mnt/folder2
-    - volumes.volume_id.ref
 ```
 
 This attribute also supports lists as values:
@@ -348,7 +347,7 @@ This attribute also supports lists as values:
 ```yaml
 images:
   my_image:
-    volumes: ${{ ['ubuntu', volumes.volume_id.ref] }}
+    volumes: ${{ ['storage:folder1:/mnt/folder1:ro', 'storage:folder2:/mnt/folder2'] }}
 ```
 
 **Expression contexts:** [`flow` context](batch-contexts.md#flow-context).
@@ -451,7 +450,7 @@ The key `image-id` is a string and its value is a map of the task's configuratio
 
 **Required** Image _reference_ that can be used in the `tasks.image` expression.
 
-You can use the image definition to _address_ images hosted either on the Neu.ro registry or [_Docker Hub_](https://hub.docker.com/search?q=&type=image).
+You can use the image definition to _address_ images hosted either on the Neu.ro registry or [_Docker Hub_](https://hub.docker.com/search?q=\&type=image).
 
 **Example:**
 
@@ -542,7 +541,7 @@ The attributes described in this section can be applied both to plain tasks and 
 
 ### `tasks.id`
 
-A unique identifier for the task. It's used to reference the task in [`tasks.needs`](batch-workflow-syntax.md#tasks-needs). The value must start with a letter and only contain alphanumeric characters or underscore symbols \(`_`\). The dash symbol \(`-`\) is not allowed.
+A unique identifier for the task. It's used to reference the task in [`tasks.needs`](batch-workflow-syntax.md#tasks-needs). The value must start with a letter and only contain alphanumeric characters or underscore symbols (`_`). The dash symbol (`-`) is not allowed.
 
 {% hint style="info" %}
 It is impossible to refer to tasks without an ID inside the workflow file, but you can refer to them as `task-<num>` in the command line output. Here, `<num>` is an index from the [`tasks`](batch-workflow-syntax.md#tasks) list.
@@ -552,8 +551,8 @@ It is impossible to refer to tasks without an ID inside the workflow file, but y
 
 ### `tasks.needs`
 
-An array of strings identifying all tasks that must be completed or running before this task will run. If a task fails, all tasks that need it are skipped unless the task uses a [`tasks.enable`](batch-workflow-syntax.md#tasks-enable) statement that causes it to ignore the dependency failure.  
-By default, `tasks.needs` is set to the previous task in the [`tasks`](batch-workflow-syntax.md#tasks) list. In case the previous task has [`matrix`](batch-workflow-syntax.md#tasks-strategy-matrix) enabled, the current task will only run after all matrix tasks are completed.  
+An array of strings identifying all tasks that must be completed or running before this task will run. If a task fails, all tasks that need it are skipped unless the task uses a [`tasks.enable`](batch-workflow-syntax.md#tasks-enable) statement that causes it to ignore the dependency failure.\
+By default, `tasks.needs` is set to the previous task in the [`tasks`](batch-workflow-syntax.md#tasks) list. In case the previous task has [`matrix`](batch-workflow-syntax.md#tasks-strategy-matrix) enabled, the current task will only run after all matrix tasks are completed.\
 This property also specifies what entries are available in the [needs context](batch-contexts.md#needs-context).
 
 **Example 1:**
@@ -588,7 +587,7 @@ tasks:
 
 In this case, tasks will be executed in the following order:
 
-1. task\_1 and task\_2 \(simultaneously\)
+1. task\_1 and task\_2 (simultaneously)
 2. task\_3
 
 **Example 3**
@@ -725,13 +724,13 @@ In this example, tasks with IDs `a_x`, `a_y`, `b_x`, `b_y`, `a_z` will be genera
 
 When set to `true`, the system cancels all in-progress tasks if this task or any of its matrix tasks fail. Default: `true`.
 
-**Expression contexts:** [`flow` context](batch-contexts.md#flow-context), [`params` context](batch-contexts.md#params-context), [`env` context](batch-contexts.md#env-context), [`tags` context](batch-contexts.md#tags-context), [`volumes` context](batch-contexts.md#volumes-context), [`images` context](batch-contexts.md#images-context), [`strategy` context](batch-contexts.md#strategy-context) \(contains flow global values\).
+**Expression contexts:** [`flow` context](batch-contexts.md#flow-context), [`params` context](batch-contexts.md#params-context), [`env` context](batch-contexts.md#env-context), [`tags` context](batch-contexts.md#tags-context), [`volumes` context](batch-contexts.md#volumes-context), [`images` context](batch-contexts.md#images-context), [`strategy` context](batch-contexts.md#strategy-context) (contains flow global values).
 
 ### `tasks.strategy.max_parallel`
 
 The maximum number of matrix tasks that can run simultaneously. By default, there is no limit.
 
-**Expression contexts:** [`flow` context](batch-contexts.md#flow-context), [`params` context](batch-contexts.md#params-context), [`env` context](batch-contexts.md#env-context), [`tags` context](batch-contexts.md#tags-context), [`volumes` context](batch-contexts.md#volumes-context), [`images` context](batch-contexts.md#images-context), [`strategy` context](batch-contexts.md#strategy-context) \(contains flow global values\).
+**Expression contexts:** [`flow` context](batch-contexts.md#flow-context), [`params` context](batch-contexts.md#params-context), [`env` context](batch-contexts.md#env-context), [`tags` context](batch-contexts.md#tags-context), [`volumes` context](batch-contexts.md#volumes-context), [`images` context](batch-contexts.md#images-context), [`strategy` context](batch-contexts.md#strategy-context) (contains flow global values).
 
 ### `tasks.cache`
 
@@ -760,10 +759,10 @@ cache:
 
 The cache invalidation duration. This attribute can accept the following values:
 
-* A `float` number representing an amount of seconds 
-* A string in the following format: `1d6h15m45s` \(1 day, 6 hours, 15 minutes, 45 seconds\)
+* A `float` number representing an amount of seconds&#x20;
+* A string in the following format: `1d6h15m45s` (1 day, 6 hours, 15 minutes, 45 seconds)
 
-Defaults to [`defaults.cache.life_span`](batch-workflow-syntax.md#defaults-cache-life_span) if not specified.
+Defaults to [`defaults.cache.life_span`](batch-workflow-syntax.md#defaults-cache-life\_span) if not specified.
 
 {% hint style="info" %}
 If you decrease this value and re-run the flow, `neuro-flow` will ignore cache entries that were added longer ago than the new `cache.life_span` value specifies.
@@ -784,7 +783,7 @@ The attributes in this section are only applicable to plain tasks that are execu
 
 ### `tasks.image`
 
-**Required** Each task is executed remotely on the Neu.ro cluster using a _Docker image_. The image can be hosted on [_Docker Hub_](https://hub.docker.com/search?q=&type=image) \(`python:3.9` or `ubuntu:20.04`\) or on the Neu.ro Registry \(`image:my_image:v2.3`\).
+**Required** Each task is executed remotely on the Neu.ro cluster using a _Docker image_. The image can be hosted on [_Docker Hub_](https://hub.docker.com/search?q=\&type=image) (`python:3.9` or `ubuntu:20.04`) or on the Neu.ro Registry (`image:my_image:v2.3`).
 
 **Example with a constant image string:**
 
@@ -883,7 +882,7 @@ tasks:
 
 **Expression contexts:** [`flow` context](batch-contexts.md#flow-context), [`params` context](batch-contexts.md#params-context), [`env` context](batch-contexts.md#env-context), [`tags` context](batch-contexts.md#tags-context), [`volumes` context](batch-contexts.md#volumes-context), [`images` context](batch-contexts.md#images-context), [`matrix` context](batch-contexts.md#matrix-context), [`strategy` context](batch-contexts.md#strategy-context), [`needs` context](batch-contexts.md#needs-context).
 
-### `tasks.env` <a id="jobs-job-id-env"></a>
+### `tasks.env` <a href="#jobs-job-id-env" id="jobs-job-id-env"></a>
 
 Sets environment variables to use in the executed task.
 
@@ -949,10 +948,10 @@ By default, tasks live 1 day. You may want to change this period by customizing 
 
 The value could be:
 
-* A float number representing an amount of seconds \(`3600` for an hour\) 
-* An expression in the following format: `1d6h15m` \(1 day, 6 hours, 15 minutes\) 
+* A float number representing an amount of seconds (`3600` for an hour)&#x20;
+* An expression in the following format: `1d6h15m` (1 day, 6 hours, 15 minutes)&#x20;
 
-Use an arbitrary large value \(e.g. `365d`\) for lifespan-disabling emulation. Keep in mind that this can be dangerous, as a forgotten task will consume cluster resources.
+Use an arbitrary large value (e.g. `365d`) for lifespan-disabling emulation. Keep in mind that this can be dangerous, as a forgotten task will consume cluster resources.
 
 **Example:**
 
@@ -1009,8 +1008,8 @@ The default system-wide _schedule timeout_ is controlled by the cluster administ
 
 The value of this attribute can be:
 
-* A `float` number representing an amount of seconds 
-* A string in the following format: `1d6h15m45s` \(1 day, 6 hours, 15 minutes, 45 seconds\)
+* A `float` number representing an amount of seconds&#x20;
+* A string in the following format: `1d6h15m45s` (1 day, 6 hours, 15 minutes, 45 seconds)
 
 **Example:**
 
@@ -1025,7 +1024,7 @@ tasks:
 
 A list of additional task tags.
 
-Each task is tagged. A task's tags are taken from this attribute and system tags \(`project:<project-id>`, `flow:<flow-id>`, and `task:<task-id>`\).
+Each task is tagged. A task's tags are taken from this attribute and system tags (`project:<project-id>`, `flow:<flow-id>`, and `task:<task-id>`).
 
 **Example:**
 
@@ -1126,4 +1125,3 @@ tasks:
 ```
 
 **Expression contexts:** [`flow` context](batch-contexts.md#flow-context), [`params` context](batch-contexts.md#params-context), [`env` context](batch-contexts.md#env-context), [`tags` context](batch-contexts.md#tags-context), [`volumes` context](batch-contexts.md#volumes-context), [`images` context](batch-contexts.md#images-context), [`matrix` context](batch-contexts.md#matrix-context), [`strategy` context](batch-contexts.md#strategy-context), [`needs` context](batch-contexts.md#needs-context).
-
