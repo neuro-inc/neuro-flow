@@ -14,7 +14,7 @@ COOKIECUTTER_TEMPLATE = "cookiecutter {repo}"
 
 
 @click.group()
-def project():
+def project() -> None:
     """Output project template commands."""
     pass
 
