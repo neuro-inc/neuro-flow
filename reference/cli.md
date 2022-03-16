@@ -24,6 +24,7 @@ neuro-flow [OPTIONS] COMMAND [ARGS]...
 | Usage | Description |
 | :--- | :--- |
 | [_neuro-flow completion_](cli.md#neuro-flow-completion) | Output shell completion code. |
+| [_neuro-flow project_](cli.md#neuro-flow-project) | Output project template commands. |
 
 **Commands:**
 
@@ -95,6 +96,44 @@ Automatically patch shell configuration profile to enable completion
 
 ```bash
 neuro-flow completion patch [OPTIONS] {bash|zsh}
+```
+
+**Options:**
+
+| Name | Description |
+| :--- | :--- |
+| _--help_ | Show this message and exit. |
+
+### neuro-flow project
+
+Output project template commands.
+
+**Usage:**
+
+```bash
+neuro-flow project [OPTIONS] COMMAND [ARGS]...
+```
+
+**Options:**
+
+| Name | Description |
+| :--- | :--- |
+| _--help_ | Show this message and exit. |
+
+**Commands:**
+
+| Usage | Description |
+| :--- | :--- |
+| [_neuro-flow project template_](cli.md#neuro-flow-project-template) | Provide instructions for the project template usage. |
+
+#### neuro-flow project template
+
+Provide instructions for the project template usage.
+
+**Usage:**
+
+```bash
+neuro-flow project template [OPTIONS] {recommended|barebone}
 ```
 
 **Options:**
