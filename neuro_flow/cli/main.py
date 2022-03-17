@@ -14,7 +14,7 @@ from neuro_flow.cli import (
     file_logging,
     images,
     live,
-    project,
+    project_template,
     storage,
 )
 from neuro_flow.parser import ConfigDir, find_workspace
@@ -196,7 +196,7 @@ cli.add_command(images.build)
 cli.add_command(completion.completion)
 
 # Project commands
-cli.add_command(project.project)
+cli.add_command(project_template.project_template)
 
 
 def main(args: Optional[List[str]] = None) -> None:

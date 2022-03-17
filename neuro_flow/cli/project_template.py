@@ -6,23 +6,17 @@ from .root import Root
 
 
 COOKIECUTTER_REPOS = {
-    "recommended": "gh:neuro-inc/cookiecutter-neuro-project --branch release",
+    "recommended": "gh:neuro-inc/cookiecutter-neuro-project --checkout release",
     "barebone": "gh:neuro-inc/cookiecutter-neuro-project-barebone",
 }
 
 COOKIECUTTER_TEMPLATE = "cookiecutter {repo}"
 
 
-@click.group()
-def project() -> None:
-    """Output project template commands."""
-    pass
-
-
-@project.command()
+@click.command()
 @click.argument("template", type=click.Choice(["recommended", "barebone"]))
 @wrap_async()
-async def template(root: Root, template: str) -> None:
+async def project_template(root: Root, template: str) -> None:
     """
     Provide instructions for the project template usage.
     """
