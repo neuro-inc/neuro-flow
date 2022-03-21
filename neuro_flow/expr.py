@@ -288,10 +288,10 @@ async def hash_files(ctx: CallCtx, *patterns: str) -> str:
             relative_fname = fname.resolve().relative_to(workspace.resolve()).as_posix()
             hasher.update(relative_fname.encode("utf-8"))
             with fname.open("rb", buffering=0) as stream:
-                read = stream.readinto(buffer)  # type: ignore
+                read = stream.readinto(buffer)
                 while read:
                     hasher.update(view[:read])
-                    read = stream.readinto(buffer)  # type: ignore
+                    read = stream.readinto(buffer)
     return hasher.hexdigest()
 
 
