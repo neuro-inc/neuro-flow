@@ -8,7 +8,15 @@ from rich.console import Console
 from typing import Any, List, Optional
 
 import neuro_flow
-from neuro_flow.cli import batch, completion, file_logging, images, live, storage
+from neuro_flow.cli import (
+    batch,
+    completion,
+    file_logging,
+    images,
+    live,
+    project_template,
+    storage,
+)
 from neuro_flow.parser import ConfigDir, find_workspace
 from neuro_flow.types import LocalPath, TaskStatus
 
@@ -186,6 +194,9 @@ cli.add_command(images.build)
 
 # Completion commands
 cli.add_command(completion.completion)
+
+# Project commands
+cli.add_command(project_template.project_template)
 
 
 def main(args: Optional[List[str]] = None) -> None:
