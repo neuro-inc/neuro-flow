@@ -617,6 +617,8 @@ needs:
   ${{ 'task_1' }}: running
 ```
 
+The possible task states are `running` and `completed`.
+
 {% hint style="info" %}
 You can use `neuro-flow inspect --view BAKE_ID` to view the graph of running batch tasks converted to a PDF file.
 {% endhint %}
