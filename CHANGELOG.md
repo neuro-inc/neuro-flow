@@ -5,6 +5,14 @@
 
 [comment]: # (towncrier release notes start)
 
+Neuro Flow 22.3.0 (2022-03-29)
+==============================
+
+Bugfixes
+--------
+
+- Fixed problem with click 8.1.0
+
 Neuro Flow 22.1.0 (2022-01-26)
 ==============================
 
