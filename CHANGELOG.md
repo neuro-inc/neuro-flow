@@ -5,6 +5,12 @@
 
 [comment]: # (towncrier release notes start)
 
+Neuro Flow 22.4.2 (2022-04-01)
+==============================
+
+No significant changes.
+
+
 Neuro Flow 22.3.0 (2022-03-29)
 ==============================
 
