@@ -21,7 +21,7 @@ def completion() -> None:
     """
 
 
-@completion.command()
+@click.command()
 @click.argument("shell", type=click.Choice(["bash", "zsh"]))
 @wrap_async()
 async def generate(root: Root, shell: str) -> None:
@@ -34,7 +34,7 @@ async def generate(root: Root, shell: str) -> None:
     )
 
 
-@completion.command()
+@click.command()
 @click.argument("shell", type=click.Choice(["bash", "zsh"]))
 @wrap_async()
 async def patch(root: Root, shell: str) -> None:
@@ -81,3 +81,7 @@ async def patch(root: Root, shell: str) -> None:
     with profile_file.open("wb+") as profile:
         profile.write(content)
     root.console.print(f"Added completion configuration into '{profile_file}'")
+
+
+completion.add_command(generate)
+completion.add_command(patch)

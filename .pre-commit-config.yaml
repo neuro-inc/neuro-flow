@@ -30,7 +30,7 @@ repos:
   hooks:
   - id: isort
 - repo: https://github.com/psf/black
-  rev: '22.1.0'
+  rev: '22.3.0'
   hooks:
   - id: black
     language_version: python3   # Should be a command that runs python3.6+
@@ -59,7 +59,7 @@ repos:
       docs/spelling_wordlist.txt|
       .gitignore
 - repo: https://github.com/asottile/pyupgrade
-  rev: 'v2.31.0'
+  rev: 'v2.31.1'
   hooks:
   - id: pyupgrade
     args: ['--py37-plus']
@@ -69,7 +69,7 @@ repos:
   - id: flake8
     exclude: "^docs/"
 - repo: https://github.com/rhysd/actionlint
-  rev: v1.6.8
+  rev: v1.6.11
   hooks:
   - id: actionlint-docker
     args:
@@ -80,6 +80,6 @@ repos:
     - -ignore
     - 'SC1004:'
 - repo: https://github.com/sirosen/check-jsonschema
-  rev: 0.13.0
+  rev: 0.14.2
   hooks:
   - id: check-github-actions

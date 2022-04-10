@@ -1,12 +1,12 @@
 -e .
-click==8.0.4
+click==8.1.2
 funcparserlib==1.0.0a0
 graphviz==0.19.1
 humanize==4.0.0
 neuro-cli==22.1.3
 neuro-extras==22.2.2
 pyyaml==6.0
-rich==12.0.0
-trafaret==2.1.0
+rich==12.2.0
+trafaret==2.1.1
 
 typing-extensions==4.1.1
