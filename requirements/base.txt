@@ -1,7 +1,7 @@
 -e .
 click==8.1.2
 funcparserlib==1.0.0a0
-graphviz==0.19.1
+graphviz==0.19.2
 humanize==4.0.0
 neuro-cli==22.1.3
 neuro-extras==22.2.2
