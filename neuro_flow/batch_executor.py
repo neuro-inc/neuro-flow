@@ -459,7 +459,9 @@ class RetryReadNeuroClient(RetryConfig):
 
 class BatchExecutor:
     transient_progress: bool = False
-    run_builder_job: Callable[..., Awaitable[str]]
+    run_builder_job: Callable[..., Awaitable[str]] = staticmethod(  # type: ignore
+        start_image_build
+    )
 
     def __init__(
         self,
@@ -500,7 +502,7 @@ class BatchExecutor:
         self._project_role = project_role
         self._is_projet_role_created = False
 
-        self._run_builder_job = start_image_build
+        self._run_builder_job = self.run_builder_job
 
         # A note about default value:
         # AS: I have no idea what timeout is better;
