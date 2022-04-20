@@ -5,6 +5,15 @@
 
 [comment]: # (towncrier release notes start)
 
+Neuro Flow 22.4.3 (2022-04-21)
+==============================
+
+Bugfixes
+--------
+
+- Fixed error when trying to build image in batch mode ([#818](https://github.com/neuro-inc/neuro-flow/issues/818))
+
+
 Neuro Flow 22.4.2 (2022-04-01)
 ==============================
 
