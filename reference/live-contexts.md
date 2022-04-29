@@ -14,6 +14,7 @@ This page describes the contexts a [live workflow](live-workflow-syntax.md#live-
 | `params` | A mapping of global workflow parameters. For more information, see [`params` context](live-contexts.md#params-context). |
 | `tags` | A set of job tags set in a workflow or a job. See [`tags` context](live-contexts.md#tags-context) for details. |
 | `volumes` | Contains a mapping of volume definitions. For more information, see [`volumes` context](live-contexts.md#volumes-context). |
+| `git` | A mapping of the project's workspace to a git repository. For more information, see [`git` context](live-contexts.md#git-context). |
 
 ### `env` context
 
@@ -293,3 +294,14 @@ Contains information about volumes defined in the [`volumes` section ](live-work
   </tbody>
 </table>
 
+### `git` context
+
+The `git` context contains contains a mapping of your project's workspace to a git repository.
+
+This context can only be used if the project's workspace is inside some git repository.
+
+| Property name | Type | Description |
+| :--- | :--- | :--- |
+| `git.sha` | `str` | SHA of the current commit. |
+| `git.branch` | `str` | Name of the current branch. |
+| `git.tags` | `list[str]` | List of tags that point to the current commit. |
