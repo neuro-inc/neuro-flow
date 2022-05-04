@@ -2,7 +2,7 @@
 click==8.1.2
 funcparserlib==1.0.0
 graphviz==0.19.1
-humanize==4.0.0
+humanize==4.1.0
 neuro-cli==22.1.3
 neuro-extras==22.2.2
 pyyaml==6.0
