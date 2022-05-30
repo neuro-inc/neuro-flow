@@ -20,8 +20,22 @@ Optional owner name available as a `${{ project.owner }}` context. Shared projec
 Optional project role name available as a `${{ project.role }}` context. By default the `role` is `{owner}/projects/{id}` if `owner` is defined. Shared projects require `owner` or `role`.
 This role name might be used to share the project with other platform `<user>` via `neuro acl grant <role> <user>`
 
-See also:
+## Project-wide configuration
 
-* [live contexts: `flow`](live-contexts.md#project-context)
+You can define jobs and workflows globally by specifying the desired project-wide behavior in the following sections of the `project.yml` file: 
+
+* defaults
+* images
+* volumes
+* mixins
+
+You can find detailed description of how to use the `defaults`, `images`, and `volumes` sections in the corresponding parts of the [live workflows syntax](live-workflow-syntax.md) and [batch workflow syntax](batch-workflow-syntax.md) documentation.
+
+You can [learn more about mixins here](mixins.md). 
+
+All settings specified in `project.yml` will be applied by default to all job and workflows of this project.
+
+## See also
+
+* [live contexts: `flow`](live-contexts.md#project-context) 
 * [batch contexts: `flow`](batch-contexts.md#project-context)
-
