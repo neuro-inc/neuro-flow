@@ -2,6 +2,7 @@ import click
 import logging
 import sys
 from click.exceptions import Abort as ClickAbort, Exit as ClickExit
+from datetime import datetime
 from neuro_cli.asyncio_utils import setup_child_watcher
 from neuro_cli.log_formatter import ConsoleHandler
 from rich.console import Console
@@ -74,7 +75,12 @@ class MainGroup(click.Group):
         else:
             config_dir = find_workspace(config)
 
-        console = Console(highlight=False, log_path=False)
+        console = Console(
+            highlight=False,
+            log_path=False,
+            log_time_format="[%X %z]",
+            get_datetime=lambda: datetime.now().astimezone(),
+        )
 
         verbosity = verbose - quiet
         setup_logging(
