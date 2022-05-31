@@ -65,10 +65,14 @@ class InMemoryDB:
 
 class InMemoryStorage(Storage):
     def __init__(
-        self, owner: str = "in_memory_owner", cluster: str = "in_memory_cluster"
+        self,
+        owner: str = "in_memory_owner",
+        cluster: str = "in_memory_cluster",
+        org_name: str = "in_memory_org",
     ):
         self._owner = owner
         self._cluster = cluster
+        self._org_name = org_name
         self._db = InMemoryDB()
 
     def with_retry_read(self) -> "Storage":
@@ -82,13 +86,21 @@ class InMemoryStorage(Storage):
         *,
         id: Optional[str] = None,
         yaml_id: Optional[str] = None,
-        cluster: Optional[str] = None
+        cluster: Optional[str] = None,
+        org_name: Optional[str] = None,
+        owner: Optional[str] = None,
     ) -> "ProjectStorage":
         if id:
             return InMemoryProjectStorage(id, self._db)
         cluster = cluster or self._cluster
+        org_name = org_name or self._org_name
         for project in self._db.projects.values():
-            if project.yaml_id == yaml_id and project.cluster == cluster:
+            if (
+                project.yaml_id == yaml_id
+                and project.cluster == cluster
+                and project.org_name == org_name
+                and (owner is None or project.owner == owner)
+            ):
                 return InMemoryProjectStorage(project.id, self._db)
         return InMemoryProjectStorage("fake-id", self._db)
 
@@ -96,13 +108,17 @@ class InMemoryStorage(Storage):
         return InMemoryBakeStorage(id, self._db)
 
     async def create_project(
-        self, yaml_id: str, cluster: Optional[str] = None
+        self,
+        yaml_id: str,
+        cluster: Optional[str] = None,
+        org_name: Optional[str] = None,
     ) -> Project:
         project = Project(
             id=_make_id(),
             yaml_id=yaml_id,
             cluster=cluster or self._cluster,
             owner=self._owner,
+            org_name=org_name or self._org_name,
         )
         self._db.projects[project.id] = project
         return project
@@ -238,7 +254,7 @@ class InMemoryProjectStorage(ProjectStorage):
         id: Optional[str] = None,
         task_id: Optional[FullID] = None,
         batch: Optional[str] = None,
-        key: Optional[str] = None
+        key: Optional[str] = None,
     ) -> "CacheEntryStorage":
         if id:
             return InMemoryCacheEntryStorage(id, self._db)
@@ -431,7 +447,7 @@ class InMemoryAttemptStorage(AttemptStorage):
         self,
         *,
         executor_id: Union[Optional[str], Type[_Unset]] = _Unset,
-        result: Union[TaskStatus, Type[_Unset]] = _Unset
+        result: Union[TaskStatus, Type[_Unset]] = _Unset,
     ) -> Attempt:
         attempt = await self.get()
         if executor_id is not _Unset:
@@ -496,7 +512,7 @@ class InMemoryTaskStorage(TaskStorage):
         *,
         outputs: Union[Optional[Mapping[str, str]], Type[_Unset]] = _Unset,
         state: Union[Optional[Mapping[str, str]], Type[_Unset]] = _Unset,
-        new_status: Optional[Union[TaskStatusItem, TaskStatus]] = None
+        new_status: Optional[Union[TaskStatusItem, TaskStatus]] = None,
     ) -> Task:
         task = await self.get()
         if outputs is not _Unset:
@@ -538,7 +554,7 @@ class InMemoryBakeImageStorage(BakeImageStorage):
         self,
         *,
         status: Union[ImageStatus, Type[_Unset]] = _Unset,
-        builder_job_id: Union[Optional[str], Type[_Unset]] = _Unset
+        builder_job_id: Union[Optional[str], Type[_Unset]] = _Unset,
     ) -> BakeImage:
         image = await self.get()
         if status is not _Unset:
