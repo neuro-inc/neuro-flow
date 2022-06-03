@@ -51,7 +51,7 @@ from neuro_flow.storage.base import (
     _Unset,
 )
 from neuro_flow.types import FullID, GitInfo, ImageStatus, TaskStatus
-from neuro_flow.utils import retry
+from neuro_flow.utils import RetryConfig, retry
 
 
 def _id_from_json(sid: str) -> FullID:
@@ -289,9 +289,10 @@ class RawApiClient:
             pass
 
 
-class RetryingReadRawApiClient(RawApiClient):
+class RetryingReadRawApiClient(RetryConfig, RawApiClient):
     def __init__(self, client: Client) -> None:
-        super().__init__(client)
+        super().__init__()
+        super(RetryConfig, self).__init__(client)
 
     E = TypeVar("E")
 

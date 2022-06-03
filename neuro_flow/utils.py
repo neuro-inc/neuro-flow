@@ -10,6 +10,7 @@ from typing import (
     Any,
     Awaitable,
     Callable,
+    Coroutine,
     Iterable,
     Iterator,
     List,
@@ -237,12 +238,13 @@ class RetryConfig:
 
 _P = ParamSpec("_P")
 _R = TypeVar("_R")
+_SELF = TypeVar("_SELF", bound=RetryConfig)
 
 
 def retry(
-    func: Callable[Concatenate[RetryConfig, _P], Awaitable[_R]]  # type: ignore
-) -> Callable[Concatenate[RetryConfig, _P], Awaitable[_R]]:  # type: ignore
-    async def inner(self: RetryConfig, *args: _P.args, **kwargs: _P.kwargs) -> _R:
+    func: Callable[Concatenate[_SELF, _P], Awaitable[_R]]
+) -> Callable[Concatenate[_SELF, _P], Coroutine[Any, Any, _R]]:
+    async def inner(self: _SELF, *args: _P.args, **kwargs: _P.kwargs) -> _R:
         for retry in retries(
             f"{func!r}(*{args!r}, **{kwargs!r})",
             timeout=self._retry_timeout,
@@ -252,10 +254,10 @@ def retry(
             exceptions=(ClientError, ServerNotAvailable, OSError),
         ):
             async with retry:
-                return await func(self, *args, **kwargs)  # type: ignore
+                return await func(self, *args, **kwargs)
         assert False, "Unreachable"
 
-    return inner
+    return inner  # type: ignore
 
 
 async def collect_git_info() -> Optional[GitInfo]:

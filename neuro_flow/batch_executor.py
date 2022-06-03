@@ -996,6 +996,7 @@ class BatchExecutor:
         log.debug(f"BatchExecutor: processing started")
         # Process tasks
         for task, raw_id in self._tasks_mgr.list_unfinished_raw_tasks():
+            assert task.raw_id, "list_unfinished_raw_tasks should list raw tasks"
             job_descr = await self._client.job_status(task.raw_id)
             log.debug(
                 f"BatchExecutor: got description {job_descr} for task {task.yaml_id}"
@@ -1004,6 +1005,9 @@ class BatchExecutor:
                 job_descr.status in {JobStatus.RUNNING, JobStatus.SUCCEEDED}
                 and task.status.is_pending
             ):
+                assert (
+                    job_descr.history.started_at
+                ), "RUNNING jobs should have started_at"
                 task = await self._update_task(
                     task.yaml_id,
                     new_status=TaskStatusItem(
@@ -1022,6 +1026,9 @@ class BatchExecutor:
                 log.debug(
                     f"BatchExecutor: finished processing logs for task {task.yaml_id}"
                 )
+                assert (
+                    job_descr.history.finished_at
+                ), "TERMINATED jobs should have finished_at"
                 task = await self._update_task(
                     task.yaml_id,
                     new_status=TaskStatusItem(
