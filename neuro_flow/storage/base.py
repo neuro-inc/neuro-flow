@@ -26,6 +26,7 @@ class Project:
     yaml_id: str
     owner: str
     cluster: str
+    org_name: str
 
 
 @dataclass(frozen=True)
@@ -163,6 +164,9 @@ class Storage(abc.ABC):
     ) -> None:
         await self.close()
 
+    def check_can_create_for_owner(self, owner: str) -> None:
+        pass
+
     @abc.abstractmethod
     def with_retry_read(self) -> "Storage":
         pass
@@ -177,7 +181,12 @@ class Storage(abc.ABC):
 
     @overload
     def project(
-        self, *, yaml_id: str, cluster: Optional[str] = None
+        self,
+        *,
+        yaml_id: str,
+        owner: Optional[str] = None,
+        cluster: Optional[str] = None,
+        org_name: Optional[str] = None,
     ) -> "ProjectStorage":
         pass
 
@@ -188,6 +197,8 @@ class Storage(abc.ABC):
         id: Optional[str] = None,
         yaml_id: Optional[str] = None,
         cluster: Optional[str] = None,
+        org_name: Optional[str] = None,
+        owner: Optional[str] = None,
     ) -> "ProjectStorage":
         pass
 
@@ -208,11 +219,19 @@ class Storage(abc.ABC):
         pass
 
     async def get_or_create_project(
-        self, yaml_id: str, cluster: Optional[str] = None
+        self,
+        yaml_id: str,
+        cluster: Optional[str] = None,
+        org_name: Optional[str] = None,
+        owner: Optional[str] = None,
     ) -> Project:
         try:
-            return await self.project(yaml_id=yaml_id, cluster=cluster).get()
+            return await self.project(
+                yaml_id=yaml_id, cluster=cluster, org_name=org_name, owner=owner
+            ).get()
         except ResourceNotFound:
+            if owner is not None:
+                self.check_can_create_for_owner(owner)
             return await self.create_project(yaml_id, cluster)
 
 

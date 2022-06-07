@@ -5,6 +5,16 @@
 
 [comment]: # (towncrier release notes start)
 
+Neuro Flow 22.6.0 (2022-06-07)
+==============================
+
+Features
+--------
+
+- Add support of shared server side projects. ([#840](https://github.com/neuro-inc/neuro-flow/issues/840))
+- Display times with timezones in log messages. ([#847](https://github.com/neuro-inc/neuro-flow/issues/847))
+
+
 Neuro Flow 22.4.3 (2022-04-21)
 ==============================
 

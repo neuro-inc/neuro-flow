@@ -346,7 +346,9 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
     async def __aenter__(self) -> "BatchRunner":
         self._config_loader = BatchLocalCL(self._config_dir, self._client)
         self._project = await setup_project_ctx(EMPTY_ROOT, self._config_loader)
-        project = await self._storage.get_or_create_project(self._project.id)
+        project = await self._storage.get_or_create_project(
+            self._project.id, owner=self._project.owner
+        )
         self._project_storage = self._storage.project(id=project.id)
         return self
 

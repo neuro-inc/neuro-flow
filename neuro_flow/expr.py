@@ -103,7 +103,7 @@ class RootABC(abc.ABC):
     def lookup(self, name: str) -> TypeT:
         pass
 
-    @abc.abstractclassmethod
+    @abc.abstractmethod
     def client(self) -> AsyncContextManager[Client]:
         pass
 
@@ -653,14 +653,13 @@ class Call(Item):
         args = [await a.eval(root) for a in self.args]
         try:
             call_ctx = CallCtx(self.start, self.end, root)
-            tmp = await self.func.call(call_ctx, *args)  # type: ignore
+            ret = await self.func.call(call_ctx, *args)
         except asyncio.CancelledError:
             raise
         except EvalError:
             raise
         except Exception as exc:
             raise EvalError(str(exc), self.start, self.end)
-        ret = cast(TypeT, tmp)
         start = self.start
         for op in self.trailer:
             ret = await op.eval(root, ret, start)
@@ -711,7 +710,7 @@ class BinOp(Item):
     async def eval(self, root: RootABC) -> TypeT:
         left_val = await self.left.eval(root)
         right_val = await self.right.eval(root)
-        return self.op(left_val, right_val)  # type: ignore
+        return self.op(left_val, right_val)
 
     def child_items(self) -> Iterable["Item"]:
         return [self.left, self.right]
@@ -787,7 +786,7 @@ class UnaryOp(Item):
 
     async def eval(self, root: RootABC) -> TypeT:
         operand_val = await self.operand.eval(root)
-        return self.op(operand_val)  # type: ignore
+        return self.op(operand_val)
 
     def child_items(self) -> Iterable["Item"]:
         return [self.operand]

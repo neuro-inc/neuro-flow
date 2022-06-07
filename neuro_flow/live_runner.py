@@ -95,7 +95,9 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
             raise
 
     async def init_project_storage(self) -> None:
-        project = await self._storage.get_or_create_project(self.flow.project.id)
+        project = await self._storage.get_or_create_project(
+            self.flow.project.id, owner=self.flow.project.owner
+        )
         self._project_storage = self._storage.project(id=project.id)
 
     async def close(self) -> None:

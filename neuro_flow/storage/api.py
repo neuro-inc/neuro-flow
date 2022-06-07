@@ -51,7 +51,7 @@ from neuro_flow.storage.base import (
     _Unset,
 )
 from neuro_flow.types import FullID, GitInfo, ImageStatus, TaskStatus
-from neuro_flow.utils import retry
+from neuro_flow.utils import RetryConfig, retry
 
 
 def _id_from_json(sid: str) -> FullID:
@@ -79,6 +79,7 @@ def _parse_project_payload(data: Mapping[str, Any]) -> Project:
         yaml_id=data["name"],
         owner=data["owner"],
         cluster=data["cluster"],
+        org_name=data["org_name"],
     )
 
 
@@ -288,9 +289,10 @@ class RawApiClient:
             pass
 
 
-class RetryingReadRawApiClient(RawApiClient):
+class RetryingReadRawApiClient(RetryConfig, RawApiClient):
     def __init__(self, client: Client) -> None:
-        super().__init__(client)
+        super().__init__()
+        super(RetryConfig, self).__init__(client)
 
     E = TypeVar("E")
 
@@ -331,12 +333,20 @@ class ApiStorage(Storage):
     ) -> None:
         self._client = client
         self._cluster_name = client.config.cluster_name
+        self._org_name = client.config.org_name
         self._raw_client = RawApiClient(client)
 
     def with_retry_read(self) -> Storage:
         return ApiStorage(
             self._client, _raw_client=RetryingReadRawApiClient(self._client)
         )
+
+    def check_can_create_for_owner(self, owner: str) -> None:
+        if owner != self._client.config.username:
+            raise ValueError(
+                f"Cannot create project with owner '{owner}' that is"
+                f" different from current user '{self._client.config.username}'."
+            )
 
     async def close(self) -> None:
         pass
@@ -345,24 +355,38 @@ class ApiStorage(Storage):
         self,
         *,
         id: Optional[str] = None,
+        owner: Optional[str] = None,
         yaml_id: Optional[str] = None,
         cluster: Optional[str] = None,
+        org_name: Optional[str] = None,
     ) -> "ProjectStorage":
         cluster = cluster or self._cluster_name
+        org_name = org_name or self._org_name
+        owner = owner or self._client.config.username
         if id:
             return ApiProjectStorage(self._raw_client, id=id)
         else:
             assert yaml_id
             return ApiProjectStorage(
-                self._raw_client, args=dict(yaml_id=yaml_id, cluster=cluster)
+                self._raw_client,
+                args=dict(
+                    yaml_id=yaml_id, cluster=cluster, org_name=org_name, owner=owner
+                ),
             )
 
     async def create_project(
-        self, yaml_id: str, cluster: Optional[str] = None
+        self,
+        yaml_id: str,
+        cluster: Optional[str] = None,
+        org_name: Optional[str] = None,
     ) -> Project:
         return await self._raw_client.create(
             "flow/projects",
-            data={"name": yaml_id, "cluster": cluster or self._cluster_name},
+            data={
+                "name": yaml_id,
+                "cluster": cluster or self._cluster_name,
+                "org_name": org_name or self._org_name,
+            },
             mapper=_parse_project_payload,
         )
 
@@ -404,6 +428,8 @@ class DeferredIdMixin(Generic[E, ARGS], abc.ABC):
 class ProjectInitArgs(TypedDict):
     yaml_id: str
     cluster: str
+    org_name: Optional[str]
+    owner: str
 
 
 class ApiProjectStorage(DeferredIdMixin[Project, ProjectInitArgs], ProjectStorage):
@@ -432,13 +458,16 @@ class ApiProjectStorage(DeferredIdMixin[Project, ProjectInitArgs], ProjectStorag
         self._args = args
 
     async def _retrieve_id(self, args: ProjectInitArgs) -> Tuple[str, Project]:
+        params = {
+            "name": args["yaml_id"],
+            "cluster": args["cluster"],
+            "owner": args["owner"],
+        }
+        org_name = args.get("org_name")
+        if org_name:
+            params["org_name"] = org_name
         project = await self._raw_client.get(
-            "flow/projects/by_name",
-            _parse_project_payload,
-            params={
-                "name": args["yaml_id"],
-                "cluster": args["cluster"],
-            },
+            "flow/projects/by_name", _parse_project_payload, params=params
         )
         return project.id, project
 
