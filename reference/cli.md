@@ -24,6 +24,7 @@ neuro-flow [OPTIONS] COMMAND [ARGS]...
 | Usage | Description |
 | :--- | :--- |
 | [_neuro-flow completion_](cli.md#neuro-flow-completion) | Output shell completion code. |
+| [_neuro-flow project_](cli.md#neuro-flow-project) | Project-related commands |
 
 **Commands:**
 
@@ -41,7 +42,6 @@ neuro-flow [OPTIONS] COMMAND [ARGS]...
 | [_neuro-flow kill_](cli.md#neuro-flow-kill) | Kill a job. |
 | [_neuro-flow logs_](cli.md#neuro-flow-logs) | Print logs. |
 | [_neuro-flow mkvolumes_](cli.md#neuro-flow-mkvolumes) | Create all remote folders for volumes. |
-| [_neuro-flow project-template_](cli.md#neuro-flow-project-template) | Provide instructions for the project template usage. |
 | [_neuro-flow ps_](cli.md#neuro-flow-ps) | List all jobs |
 | [_neuro-flow restart_](cli.md#neuro-flow-restart) | Start a batch. |
 | [_neuro-flow run_](cli.md#neuro-flow-run) | Run a job. |
@@ -96,6 +96,63 @@ Automatically patch shell configuration profile to enable completion
 
 ```bash
 neuro-flow completion patch [OPTIONS] {bash|zsh}
+```
+
+**Options:**
+
+| Name | Description |
+| :--- | :--- |
+| _--help_ | Show this message and exit. |
+
+### neuro-flow project
+
+Project-related commands
+
+**Usage:**
+
+```bash
+neuro-flow project [OPTIONS] COMMAND [ARGS]...
+```
+
+**Options:**
+
+| Name | Description |
+| :--- | :--- |
+| _--help_ | Show this message and exit. |
+
+**Commands:**
+
+| Usage | Description |
+| :--- | :--- |
+| [_neuro-flow project init_](cli.md#neuro-flow-project-init) | Initialize a project from a selected template |
+| [_neuro-flow project template_](cli.md#neuro-flow-project-template) | Provide instructions for the project template usage. |
+
+#### neuro-flow project init
+
+Initialize a project from a selected template
+
+Creates required storage as well
+
+**Usage:**
+
+```bash
+neuro-flow project init [OPTIONS] {recommended|barebone}
+```
+
+**Options:**
+
+| Name | Description |
+| :--- | :--- |
+| _--help_ | Show this message and exit. |
+
+#### neuro-flow project template
+
+Provide instructions for the project template usage.
+
+**Usage:**
+
+```bash
+neuro-flow project template [OPTIONS] {recommended|barebone}
 ```
 
 **Options:**
@@ -324,22 +381,6 @@ Create all remote folders for volumes.
 
 ```bash
 neuro-flow mkvolumes [OPTIONS]
-```
-
-**Options:**
-
-| Name | Description |
-| :--- | :--- |
-| _--help_ | Show this message and exit. |
-
-### neuro-flow project-template
-
-Provide instructions for the project template usage.
-
-**Usage:**
-
-```bash
-neuro-flow project-template [OPTIONS] {recommended|barebone}
 ```
 
 **Options:**
