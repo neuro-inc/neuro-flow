@@ -81,7 +81,7 @@ async def install_if_missing(package: str) -> None:
 
 
 async def create_project_from_template(template: str, storage: Storage) -> Path:
-    from cookiecutter.main import cookiecutter
+    from cookiecutter.main import cookiecutter  # type: ignore
 
     cookiecutter_args = COOKIECUTTER_ARGS[template]["python"]
     project_dir = Path(cookiecutter(**cookiecutter_args))
@@ -95,6 +95,7 @@ async def create_project_from_template(template: str, storage: Storage) -> Path:
             f"Created project {project.yaml_id} under organization {project.org_name} "
             f"in cluster {project.cluster} with owner {project.owner}"
         )
+        return project_dir
     except neuro_sdk.IllegalArgumentError:
         raise click.ClickException(
             f"Cannot create project {yaml_id}: " "project with such name already exists"
