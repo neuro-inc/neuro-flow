@@ -221,7 +221,7 @@ class JobsMock:
     ) -> JobDescription:
         job_id = f"job-{self._make_next_id()}"
 
-        resources = Resources(cpu=1, memory_mb=1, shm=shm)
+        resources = Resources(cpu=1, memory=1024 * 1024, shm=shm)
         container = Container(
             image=image,
             entrypoint=entrypoint,

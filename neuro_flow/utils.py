@@ -52,9 +52,9 @@ def fmt_datetime(when: Optional[datetime.datetime]) -> str:
         return "N/A"
     delta = datetime.datetime.now(datetime.timezone.utc) - when
     if delta < datetime.timedelta(days=1):
-        return cast(str, humanize.naturaltime(delta))
+        return humanize.naturaltime(delta)
     else:
-        return cast(str, humanize.naturaldate(when.astimezone()))
+        return humanize.naturaldate(when.astimezone())
 
 
 def fmt_timedelta(delta: datetime.timedelta) -> str:
