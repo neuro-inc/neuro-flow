@@ -30,7 +30,7 @@ from typing import (
     Tuple,
     Type,
 )
-from typing_extensions import AsyncContextManager
+from typing import AsyncContextManager
 from yarl import URL
 
 from .config_loader import LiveLocalCL

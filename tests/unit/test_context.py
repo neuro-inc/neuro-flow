@@ -4,7 +4,7 @@ from datetime import timedelta
 from neuro_sdk import Client
 from textwrap import dedent
 from typing import Mapping, Optional, Tuple, Union
-from typing_extensions import AsyncIterator
+from typing import AsyncIterator
 from yarl import URL
 
 from neuro_flow import ast

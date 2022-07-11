@@ -27,7 +27,7 @@ from typing import (
     Union,
     cast,
 )
-from typing_extensions import AsyncContextManager, AsyncIterator
+from typing import AsyncContextManager, AsyncIterator
 from yarl import URL
 
 import neuro_flow
