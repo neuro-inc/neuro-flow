@@ -4,7 +4,7 @@ import abc
 import collections
 from abc import abstractmethod
 from typing import AbstractSet, Any, Callable, Iterable, List, Optional, Tuple, Type
-from typing_extensions import get_type_hints as _get_hints
+from typing import get_type_hints as _get_hints
 
 from neuro_flow.context import Context, ModuleContext, TagsCtx
 from neuro_flow.expr import (
