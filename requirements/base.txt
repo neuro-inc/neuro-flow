@@ -6,7 +6,7 @@ humanize==4.2.3
 neuro-cli==22.7.0
 neuro-extras==22.2.2
 pyyaml==6.0
-rich==12.4.4
+rich==12.5.1
 trafaret==2.1.1
 
 typing-extensions==4.3.0
