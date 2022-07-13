@@ -22,6 +22,7 @@ from rich.table import Table
 from types import TracebackType
 from typing import (
     AbstractSet,
+    AsyncContextManager,
     AsyncIterator,
     Iterable,
     List,
@@ -30,7 +31,6 @@ from typing import (
     Tuple,
     Type,
 )
-from typing import AsyncContextManager
 from yarl import URL
 
 from .config_loader import LiveLocalCL
