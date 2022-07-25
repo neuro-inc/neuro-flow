@@ -5,6 +5,15 @@
 
 [comment]: # (towncrier release notes start)
 
+Neuro Flow 22.7.1 (2022-07-25)
+==============================
+
+Bugfixes
+--------
+
+- Use a separate src folder to don install tests when installing neuro-flow. ([#891](https://github.com/neuro-inc/neuro-flow/issues/891))
+
+
 Neuro Flow 22.7.0 (2022-07-25)
 ==============================
 
