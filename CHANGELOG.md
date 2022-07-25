@@ -5,6 +5,15 @@
 
 [comment]: # (towncrier release notes start)
 
+Neuro Flow 22.7.0 (2022-07-25)
+==============================
+
+Features
+--------
+
+- Implement `neuro-flow init` command for easy flow creation ([#859](https://github.com/neuro-inc/neuro-flow/issues/859))
+
+
 Neuro Flow 22.6.0 (2022-06-07)
 ==============================
 
