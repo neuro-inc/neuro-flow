@@ -1,4 +1,3 @@
-MYPY_DIRS :=  neuro_flow tests
 PYTEST_ARGS=
 
 PYTEST_XDIST_NUM_THREADS ?= auto
@@ -22,7 +21,7 @@ endif
 
 .PHONY: lint
 lint: fmt
-	mypy --show-error-codes --strict $(MYPY_DIRS)
+	mypy --show-error-codes --strict src tests
 
 .PHONY: publish-lint
 publish-lint:
