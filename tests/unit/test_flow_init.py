@@ -11,7 +11,7 @@ def test_gen_cmd_no_checkout() -> None:
         "cookiecutter",
         "gh:neuro-inc/project1",
         "--output-dir",
-        "/outdir",
+        str(outdir),
     ]
 
 
@@ -25,5 +25,5 @@ def test_gen_cmd_with_checkout() -> None:
         "--checkout",
         "release",
         "--output-dir",
-        "/outdir",
+        str(outdir),
     ]
