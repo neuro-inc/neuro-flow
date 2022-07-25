@@ -58,11 +58,11 @@ repos:
     files: |
       docs/spelling_wordlist.txt|
       .gitignore
-- repo: https://github.com/asottile/pyupgrade
-  rev: 'v2.37.1'
-  hooks:
-  - id: pyupgrade
-    args: ['--py37-plus']
+# - repo: https://github.com/asottile/pyupgrade
+#   rev: 'v2.37.1'
+#   hooks:
+#   - id: pyupgrade
+#     args: ['--py37-plus']
 - repo: https://github.com/PyCQA/flake8
   rev: '4.0.1'
   hooks:
