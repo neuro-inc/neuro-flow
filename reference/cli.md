@@ -24,7 +24,6 @@ neuro-flow [OPTIONS] COMMAND [ARGS]...
 | Usage | Description |
 | :--- | :--- |
 | [_neuro-flow completion_](cli.md#neuro-flow-completion) | Output shell completion code. |
-| [_neuro-flow project_](cli.md#neuro-flow-project) | Project-related commands |
 
 **Commands:**
 
@@ -38,6 +37,7 @@ neuro-flow [OPTIONS] COMMAND [ARGS]...
 | [_neuro-flow clear-cache_](cli.md#neuro-flow-clear-cache) | Clear cache. |
 | [_neuro-flow delete-project_](cli.md#neuro-flow-delete-project) | Completely remove project with all related entities |
 | [_neuro-flow download_](cli.md#neuro-flow-download) | Download volume. |
+| [_neuro-flow init_](cli.md#neuro-flow-init) | Initialize a flow from a selected template. |
 | [_neuro-flow inspect_](cli.md#neuro-flow-inspect) | Inspect a bake. |
 | [_neuro-flow kill_](cli.md#neuro-flow-kill) | Kill a job. |
 | [_neuro-flow logs_](cli.md#neuro-flow-logs) | Print logs. |
@@ -96,63 +96,6 @@ Automatically patch shell configuration profile to enable completion
 
 ```bash
 neuro-flow completion patch [OPTIONS] {bash|zsh}
-```
-
-**Options:**
-
-| Name | Description |
-| :--- | :--- |
-| _--help_ | Show this message and exit. |
-
-### neuro-flow project
-
-Project-related commands
-
-**Usage:**
-
-```bash
-neuro-flow project [OPTIONS] COMMAND [ARGS]...
-```
-
-**Options:**
-
-| Name | Description |
-| :--- | :--- |
-| _--help_ | Show this message and exit. |
-
-**Commands:**
-
-| Usage | Description |
-| :--- | :--- |
-| [_neuro-flow project init_](cli.md#neuro-flow-project-init) | Initialize a project from a selected template |
-| [_neuro-flow project template_](cli.md#neuro-flow-project-template) | Provide instructions for the project template usage. |
-
-#### neuro-flow project init
-
-Initialize a project from a selected template
-
-Creates required storage as well
-
-**Usage:**
-
-```bash
-neuro-flow project init [OPTIONS] {recommended|barebone}
-```
-
-**Options:**
-
-| Name | Description |
-| :--- | :--- |
-| _--help_ | Show this message and exit. |
-
-#### neuro-flow project template
-
-Provide instructions for the project template usage.
-
-**Usage:**
-
-```bash
-neuro-flow project template [OPTIONS] {recommended|barebone}
 ```
 
 **Options:**
@@ -306,6 +249,24 @@ Download remote files to local for VOLUME, use `download ALL` for downloading al
 
 ```bash
 neuro-flow download [OPTIONS] VOLUME
+```
+
+**Options:**
+
+| Name | Description |
+| :--- | :--- |
+| _--help_ | Show this message and exit. |
+
+### neuro-flow init
+
+Initialize a flow from a selected template.
+
+Creates required storage as well.
+
+**Usage:**
+
+```bash
+neuro-flow init [OPTIONS] [[barebone|default]]
 ```
 
 **Options:**
