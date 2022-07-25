@@ -455,7 +455,7 @@ RunExecutor = Callable[
 @pytest.fixture()
 def run_executor(
     make_batch_runner: MakeBatchRunner,
-    start_locals_executor: Callable[[str], Awaitable[None]],
+    start_locals_executor: Callable[[str], Awaitable[TaskStatus]],
     start_executor: Callable[[str], Awaitable[None]],
     batch_storage: Storage,
 ) -> RunExecutor:

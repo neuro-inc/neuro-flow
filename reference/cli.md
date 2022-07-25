@@ -37,11 +37,11 @@ neuro-flow [OPTIONS] COMMAND [ARGS]...
 | [_neuro-flow clear-cache_](cli.md#neuro-flow-clear-cache) | Clear cache. |
 | [_neuro-flow delete-project_](cli.md#neuro-flow-delete-project) | Completely remove project with all related entities |
 | [_neuro-flow download_](cli.md#neuro-flow-download) | Download volume. |
+| [_neuro-flow init_](cli.md#neuro-flow-init) | Initialize a flow from a selected template. |
 | [_neuro-flow inspect_](cli.md#neuro-flow-inspect) | Inspect a bake. |
 | [_neuro-flow kill_](cli.md#neuro-flow-kill) | Kill a job. |
 | [_neuro-flow logs_](cli.md#neuro-flow-logs) | Print logs. |
 | [_neuro-flow mkvolumes_](cli.md#neuro-flow-mkvolumes) | Create all remote folders for volumes. |
-| [_neuro-flow project-template_](cli.md#neuro-flow-project-template) | Provide instructions for the project template usage. |
 | [_neuro-flow ps_](cli.md#neuro-flow-ps) | List all jobs |
 | [_neuro-flow restart_](cli.md#neuro-flow-restart) | Start a batch. |
 | [_neuro-flow run_](cli.md#neuro-flow-run) | Run a job. |
@@ -257,6 +257,24 @@ neuro-flow download [OPTIONS] VOLUME
 | :--- | :--- |
 | _--help_ | Show this message and exit. |
 
+### neuro-flow init
+
+Initialize a flow from a selected template.
+
+Creates required storage as well.
+
+**Usage:**
+
+```bash
+neuro-flow init [OPTIONS] [[barebone|default]]
+```
+
+**Options:**
+
+| Name | Description |
+| :--- | :--- |
+| _--help_ | Show this message and exit. |
+
 ### neuro-flow inspect
 
 Inspect a bake.
@@ -324,22 +342,6 @@ Create all remote folders for volumes.
 
 ```bash
 neuro-flow mkvolumes [OPTIONS]
-```
-
-**Options:**
-
-| Name | Description |
-| :--- | :--- |
-| _--help_ | Show this message and exit. |
-
-### neuro-flow project-template
-
-Provide instructions for the project template usage.
-
-**Usage:**
-
-```bash
-neuro-flow project-template [OPTIONS] {recommended|barebone}
 ```
 
 **Options:**
