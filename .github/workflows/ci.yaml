@@ -209,7 +209,7 @@ jobs:
         name: Neuro Flow
         github_token: ${{ secrets.GITHUB_TOKEN }}
         pypi_token: ${{ secrets.PYPI_TOKEN }}
-        version_file: neuro_flow/__init__.py   # CLI has the same version
+        version_file: src/neuro_flow/__init__.py   # CLI has the same version
         start_line: "[comment]: # (towncrier release notes start)"
         head_line: "Neuro Flow {version}\\s+\\({date}\\)\n====+\n?"
         fix_issue_regex: "\\(\\[#(\\d+)\\]\\(https://github.com/neuro-inc/neuro-flow/issues/\\\
