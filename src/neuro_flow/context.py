@@ -136,6 +136,11 @@ class BatchFlowCtx(FlowCtx):
 
 
 @dataclass(frozen=True)
+class ActionFlowCtx(FlowCtx):
+    action_path: LocalPath
+
+
+@dataclass(frozen=True)
 class VolumeCtx:
     id: str
     remote: URL
@@ -409,11 +414,6 @@ class WithFlowContext(Context):
 @dataclass(frozen=True)
 class WithEnvContext(Context):
     env: EnvCtx
-
-
-@dataclass(frozen=True)
-class ActionFlowCtx(FlowCtx):
-    action_path: LocalPath
 
 
 @dataclass(frozen=True)
