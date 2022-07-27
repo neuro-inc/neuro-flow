@@ -82,7 +82,9 @@ async def test_env_defaults(live_config_loader: ConfigLoader) -> None:
     assert ctx.env == {"global_a": "val-a", "global_b": "val-b"}
 
 
-async def test_env_from_job(live_config_loader: ConfigLoader) -> None:
+async def test_env_from_job(
+    assets: pathlib.Path, live_config_loader: ConfigLoader
+) -> None:
     flow = await RunningLiveFlow.create(live_config_loader, "live-full")
     job = await flow.get_job("test_a", {})
     assert job.env == {
@@ -91,6 +93,7 @@ async def test_env_from_job(live_config_loader: ConfigLoader) -> None:
         "local_a": "val-1",
         "local_b": "val-2",
         "local_c": "val-mixin-3",
+        "file": str(assets / "live-full.yml"),
     }
 
 

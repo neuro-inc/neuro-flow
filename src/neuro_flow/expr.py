@@ -495,6 +495,12 @@ async def inspect_job(
     return found_job  # type: ignore[return-value]
 
 
+async def file_location(
+    ctx: CallCtx,
+) -> LocalPath:
+    return ctx.start.filename
+
+
 FUNCTIONS = _build_signatures(
     len=alen,
     int=aint,
@@ -517,6 +523,7 @@ FUNCTIONS = _build_signatures(
     upper=aupper,
     parse_volume=parse_volume,
     inspect_job=inspect_job,
+    file_location=file_location,
 )
 
 

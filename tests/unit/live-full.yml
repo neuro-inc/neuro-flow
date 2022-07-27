@@ -52,6 +52,7 @@ jobs:
     env:
       local_a: val-1
       local_b: val-2
+      file: ${{ file_location() }}
     volumes:
       - ${{ volumes.volume_a.ref }}
       - storage:dir:/var/dir:ro
