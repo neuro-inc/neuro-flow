@@ -236,12 +236,12 @@ class LocalCL(StreamCL, abc.ABC):
 
     @asynccontextmanager
     async def action_stream(self, action_name: str) -> AsyncIterator[TextIO]:
-        NAMES = ("action.yml", "action.yaml")
+        EXTS = (".yml", ".yaml")
         action = ActionSpec.parse(action_name)
         if action.is_github:
             target_dir = await self._clone_github_repo(action.spec)
-            for name in NAMES:
-                path = target_dir / name
+            for ext in EXTS:
+                path = target_dir / ("action" + ext)
                 if path.exists():
                     break
             else:
@@ -252,8 +252,8 @@ class LocalCL(StreamCL, abc.ABC):
             with path.open() as f:
                 yield f
         elif action.is_local:
-            for name in NAMES:
-                path = self._workspace / action.spec
+            for ext in EXTS:
+                path = self._workspace / (action.spec + ext)
                 if path.exists():
                     break
             else:
