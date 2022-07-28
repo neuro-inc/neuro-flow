@@ -1,27 +1,15 @@
 import dataclasses
 
 import abc
-import aiohttp
+import asyncio
 import logging
-import tarfile
-from aiohttp.web_exceptions import HTTPNotFound
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from io import StringIO, TextIOWrapper
 from neuro_sdk import Client
 from pathlib import PureWindowsPath
-from tempfile import TemporaryFile
-from typing import (
-    IO,
-    Any,
-    AsyncIterator,
-    BinaryIO,
-    Dict,
-    Optional,
-    Sequence,
-    TextIO,
-    Union,
-    cast,
-)
+from subprocess import CalledProcessError
+from tempfile import TemporaryDirectory
+from typing import Any, AsyncIterator, Dict, Optional, Sequence, TextIO, Union
 
 from neuro_flow import ast
 from neuro_flow.parser import (
@@ -189,11 +177,19 @@ class LocalCL(StreamCL, abc.ABC):
         super().__init__()
         self._workspace = config_dir.workspace.resolve()
         self._config_dir = config_dir.config_dir.resolve()
-        self._github_session = aiohttp.ClientSession()
+        self._tempdir: Optional["TemporaryDirectory[str]"] = None
         self._client = client
 
     async def close(self) -> None:
-        await self._github_session.close()
+        if self._tempdir is not None:
+            # Nothing to do if cleanup fails for some reason
+            with suppress(OSError):
+                self._tempdir.cleanup()
+
+    def _get_tempdir(self) -> LocalPath:
+        if self._tempdir is None:
+            self._tempdir = TemporaryDirectory(suffix="github-flow")
+        return LocalPath(self._tempdir.name)
 
     @property
     def client(self) -> Client:
@@ -240,64 +236,65 @@ class LocalCL(StreamCL, abc.ABC):
 
     @asynccontextmanager
     async def action_stream(self, action_name: str) -> AsyncIterator[TextIO]:
+        EXTS = (".yml", ".yaml")
         action = ActionSpec.parse(action_name)
-        if action.is_local:
-            path = self._workspace / action.spec
-            if not path.exists():
-                path = path.with_suffix(".yml")
-            if not path.exists():
-                path = path.with_suffix(".yaml")
-            if not path.exists():
+        if action.is_github:
+            target_dir = await self._clone_github_repo(action.spec)
+            for ext in EXTS:
+                path = target_dir / ("action" + ext)
+                if path.exists():
+                    break
+            else:
+                raise ValueError(
+                    f"Github repo {action.spec} shold contain "
+                    "either ./action.yml or ./action.yaml file."
+                )
+            with path.open() as f:
+                yield f
+        elif action.is_local:
+            for ext in ("",) + EXTS:
+                path = self._workspace / (action.spec + ext)
+                if path.exists():
+                    break
+            else:
                 raise ValueError(f"Action {action_name} does not exist")
             with path.open() as f:
                 yield f
-        elif action.is_github:
-            repo, sep, version = action.spec.partition("@")
-            if not sep:
-                raise ValueError(f"{action_name} is github action, but has no version")
-            async with self._tarball_from_github(repo, version) as tarball:
-                tar = tarfile.open(fileobj=tarball)
-                for member in tar.getmembers():
-                    member_path = LocalPath(member.name)
-                    # find action yml file
-                    if len(member_path.parts) == 2 and (
-                        member_path.parts[1] == "action.yml"
-                        or member_path.parts[1] == "action.yaml"
-                    ):
-                        if member.isfile():
-                            file_obj = tar.extractfile(member)
-                            if file_obj is None:
-                                raise ValueError(
-                                    f"Github repo {repo} do not contain "
-                                    '"action.yml" or "action.yaml" files.'
-                                )
-                            # Cast is workaround for
-                            # https://github.com/python/typeshed/issues/4349
-                            yield NamedTextIOWrapper(
-                                action_name, cast(BinaryIO, file_obj)
-                            )
         else:
             raise ValueError(f"Unsupported scheme '{action.scheme}'")
 
-    @asynccontextmanager
-    async def _tarball_from_github(
-        self, repo: str, version: str
-    ) -> AsyncIterator[IO[bytes]]:
-        with TemporaryFile() as file:
-            assert self._github_session, "LocalCL was not initialised properly"
-            async with self._github_session.get(
-                url=f"https://api.github.com/repos/{repo}/tarball/{version}"
-            ) as response:
-                if response.status == HTTPNotFound.status_code:
-                    raise ValueError(
-                        "Cannot fetch action: "
-                        f"either repository '{repo}' or tag '{version}' does not exist"
-                    )
-                response.raise_for_status()
-                async for chunk in response.content:
-                    file.write(chunk)
-            file.seek(0)
-            yield file
+    async def _clone_github_repo(self, action_spec: str) -> LocalPath:
+        spec, sep, version = action_spec.partition("@")
+        err_text = f"{action_spec} should have {{OWNER}}/{{REPO}}@{{VERSION}} format"
+        if not sep:
+            raise ValueError(err_text)
+        tempdir = self._get_tempdir()
+        repo_spec = f"git@github.com:{spec}.git"
+        owner, sep, repo = spec.partition("/")
+        if not sep:
+            raise ValueError(err_text)
+        target_dir = tempdir / repo
+        idx = 0
+        while target_dir.exists():
+            target_dir = tempdir / (repo + f"_{idx}")
+            idx += 1
+        proc = await asyncio.create_subprocess_exec(
+            "git",
+            "clone",
+            "--branch",
+            version,
+            "--depth",
+            "1",
+            "--config",
+            "advice.detachedHead=false",
+            repo_spec,
+            str(target_dir),
+            cwd=str(tempdir),
+        )
+        retcode = await proc.wait()
+        if retcode:
+            raise CalledProcessError(retcode, "git")
+        return target_dir
 
 
 class LiveLocalCL(LocalCL, LiveStreamCL):
