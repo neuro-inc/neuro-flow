@@ -32,7 +32,7 @@ def test_parse_live_action(assets: LocalPath) -> None:
     action = parse_action(config_file)
     assert action == ast.LiveAction(
         Pos(0, 0, config_file),
-        Pos(14, 0, config_file),
+        Pos(16, 0, config_file),
         kind=ast.ActionKind.LIVE,
         name=SimpleOptStrExpr(
             Pos(0, 0, config_file),
@@ -74,8 +74,8 @@ def test_parse_live_action(assets: LocalPath) -> None:
         },
         job=ast.Job(
             Pos(12, 2, config_file),
-            Pos(14, 0, config_file),
-            _specified_fields={"cmd", "image"},
+            Pos(16, 0, config_file),
+            _specified_fields={"cmd", "image", "env"},
             mixins=None,
             name=OptStrExpr(Pos(3, 4, config_file), Pos(5, 0, config_file), None),
             image=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
@@ -92,7 +92,15 @@ def test_parse_live_action(assets: LocalPath) -> None:
             workdir=OptRemotePathExpr(
                 Pos(0, 0, config_file), Pos(0, 0, config_file), None
             ),
-            env=None,
+            env=MappingItemsExpr(
+                {
+                    "ACTION_PATH": StrExpr(
+                        Pos(0, 0, config_file),
+                        Pos(0, 0, config_file),
+                        "${{ flow.action_path }}",
+                    )
+                }
+            ),
             volumes=None,
             tags=None,
             life_span=OptTimeDeltaExpr(

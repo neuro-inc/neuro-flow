@@ -12,3 +12,5 @@ inputs:
 job:
   image: ubuntu
   bash: echo A ${{ inputs.arg1 }} B ${{ inputs.arg2 }} C
+  env:
+    ACTION_PATH: ${{ flow.action_path }}
