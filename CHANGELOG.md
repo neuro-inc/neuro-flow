@@ -5,6 +5,16 @@
 
 [comment]: # (towncrier release notes start)
 
+Neuro Flow 22.7.2 (2022-07-28)
+==============================
+
+Features
+--------
+
+- Implement `flow.action_path` property in the flow context.  It is available from action and points to the folder where `action.yml` file is located. ([#896](https://github.com/neuro-inc/neuro-flow/issues/896))
+- Replace HTTP fetch with git clone for remote actions. ([#897](https://github.com/neuro-inc/neuro-flow/issues/897))
+
+
 Neuro Flow 22.7.1 (2022-07-25)
 ==============================
 
