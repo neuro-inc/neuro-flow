@@ -252,7 +252,7 @@ class LocalCL(StreamCL, abc.ABC):
             with path.open() as f:
                 yield f
         elif action.is_local:
-            for ext in EXTS:
+            for ext in ("",) + EXTS:
                 path = self._workspace / (action.spec + ext)
                 if path.exists():
                     break
