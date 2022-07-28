@@ -119,10 +119,25 @@ class FlowCtx:
         )
         return self.flow_id
 
+    def with_action(self, action_path: LocalPath) -> "ActionFlowCtx":
+        # action_path can be not None if an action is called from another action
+        return ActionFlowCtx(
+            flow_id=self.flow_id,
+            project_id=self.project_id,
+            workspace=self.workspace,
+            title=self.title,
+            action_path=action_path,
+        )
+
 
 @dataclass(frozen=True)
 class BatchFlowCtx(FlowCtx):
     life_span: Optional[float]
+
+
+@dataclass(frozen=True)
+class ActionFlowCtx(FlowCtx):
+    action_path: LocalPath
 
 
 @dataclass(frozen=True)
@@ -473,6 +488,7 @@ class LiveMultiJobContext(LiveContext):
 @dataclass(frozen=True)
 class LiveActionContext(Context):
     inputs: InputsCtx
+    flow: ActionFlowCtx
 
 
 @dataclass(frozen=True)
@@ -615,13 +631,15 @@ class BatchActionContextStep1(ModuleContext[_MODULE_PARENT]):
     inputs: InputsCtx
     strategy: StrategyCtx
     git: GitCtx
+    flow: ActionFlowCtx
 
     def to_action_ctx(self, images: ImagesCtx) -> "BatchActionContext[_MODULE_PARENT]":
         return BatchActionContext(
-            inputs=self.inputs,
-            strategy=self.strategy,
+            flow=self.flow,
             git=self.git,
             images=images,
+            inputs=self.inputs,
+            strategy=self.strategy,
             _client=self._client,
             _dry_run=self._dry_run,
             _parent=self._parent,
@@ -636,9 +654,10 @@ class BatchActionContext(BatchActionContextStep1[_MODULE_PARENT], BaseBatchConte
         self, strategy: StrategyCtx, matrix: MatrixCtx
     ) -> "BatchActionMatrixContext[_MODULE_PARENT]":
         return BatchActionMatrixContext(
+            flow=self.flow,
+            git=self.git,
             inputs=self.inputs,
             images=self.images,
-            git=self.git,
             matrix=matrix,
             strategy=strategy,
             _client=self._client,
@@ -650,11 +669,12 @@ class BatchActionContext(BatchActionContextStep1[_MODULE_PARENT], BaseBatchConte
         self, needs: NeedsCtx
     ) -> "BatchActionOutputsContext[_MODULE_PARENT]":
         return BatchActionOutputsContext(
-            strategy=self.strategy,
-            inputs=self.inputs,
-            images=self.images,
+            flow=self.flow,
             git=self.git,
+            images=self.images,
+            inputs=self.inputs,
             needs=needs,
+            strategy=self.strategy,
             _client=self._client,
             _dry_run=self._dry_run,
             _parent=self._parent,
@@ -675,13 +695,14 @@ class BatchActionMatrixContext(BaseMatrixContext, BatchActionContext[_MODULE_PAR
         self, needs: NeedsCtx, state: StateCtx
     ) -> "BatchActionTaskContext[_MODULE_PARENT]":
         return BatchActionTaskContext(
+            flow=self.flow,
+            git=self.git,
+            images=self.images,
             inputs=self.inputs,
             matrix=self.matrix,
-            strategy=self.strategy,
-            images=self.images,
-            git=self.git,
             needs=needs,
             state=state,
+            strategy=self.strategy,
             _client=self._client,
             _dry_run=self._dry_run,
             _parent=self._parent,
@@ -1447,6 +1468,9 @@ class RunningLiveFlow:
         if isinstance(job, ast.JobActionCall):
             action_ast = await self._get_action_ast(job)
             ctx = LiveActionContext(
+                flow=self.flow.with_action(
+                    action_path=action_ast._start.filename.parent
+                ),
                 inputs=await setup_inputs_ctx(ctx, job, action_ast.inputs),
                 _client=self._ctx._client,
                 _dry_run=self._ctx._dry_run,
@@ -2273,9 +2297,12 @@ class RunningBatchActionFlow(RunningBatchBase[BatchActionContext[RootABC]]):
         mixins: Optional[Mapping[str, SupportsAstMerge]] = None,
     ) -> "RunningBatchActionFlow":
         step_1_ctx = BatchActionContextStep1(
+            flow=flow_ctx.flow.with_action(
+                action_path=ast_action._start.filename.parent
+            ),
+            git=GitCtx(local_info.git_info if local_info else None),
             inputs=inputs,
             strategy=base_strategy,
-            git=GitCtx(local_info.git_info if local_info else None),
             _client=config_loader.client,
             _parent=parent_ctx,
             _dry_run=parent_ctx.dry_run,

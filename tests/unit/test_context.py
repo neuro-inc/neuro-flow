@@ -4,6 +4,7 @@ from datetime import timedelta
 from neuro_sdk import Client
 from textwrap import dedent
 from typing import AsyncIterator, Mapping, Optional, Tuple, Union
+from unittest.mock import ANY
 from yarl import URL
 
 from neuro_flow import ast
@@ -11,6 +12,7 @@ from neuro_flow.ast import CacheStrategy, InputType
 from neuro_flow.config_loader import BatchLocalCL, ConfigLoader, LiveLocalCL
 from neuro_flow.context import (
     EMPTY_ROOT,
+    ActionFlowCtx,
     CacheConf,
     DepCtx,
     NotAvailable,
@@ -1296,3 +1298,26 @@ async def test_batch_with_project_mixins(assets: pathlib.Path, client: Client) -
 
     finally:
         await cl.close()
+
+
+async def test_batch_action_path(batch_config_loader: ConfigLoader) -> None:
+    flow = await RunningBatchFlow.create(
+        batch_config_loader, "batch-action-call", "bake-id"
+    )
+    flow2 = await flow.get_action("test", needs={})
+    ctx = flow2._ctx
+    here = pathlib.Path(__file__).parent
+    assert ctx.flow == ActionFlowCtx(
+        flow_id="batch_action_call",
+        project_id="unit",
+        workspace=ANY,
+        title="batch_action_call",
+        action_path=here,
+    )
+
+
+async def test_live_action_path(live_config_loader: ConfigLoader) -> None:
+    flow = await RunningLiveFlow.create(live_config_loader, "live-action-call")
+    job = await flow.get_job("test", {})
+    here = pathlib.Path(__file__).parent
+    assert job.env == {"ACTION_PATH": str(here)}
