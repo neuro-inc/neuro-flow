@@ -168,9 +168,9 @@ async def test_check_image_refs_unique(batch_cl_factory: BatchClFactory) -> None
         at "{ws / "duplicate_ref.yml"}", line 4, column 5 with params:
           context: {ws / "dir"}
           dockerfile: {ws / "dir/Dockerfile_differ"}
-        at "{ws / "action.yml"}", line 10, column 5 with params:
-          context: {ws / "dir"}
-          dockerfile: {ws / "dir/Dockerfile"}
+        at "{ws / "subdir/action.yml"}", line 10, column 5 with params:
+          context: {ws / "subdir"}
+          dockerfile: {ws / "subdir/Dockerfile"}
     """.rstrip()
     )
 
@@ -229,7 +229,9 @@ async def test_upload_image_data(
                     "--recursive",
                     "--update",
                     "--no-target-directory",
-                    str(assets / "batch_images/dir"),
+                    str(assets / "batch_images/dir")
+                    if ref == "image:main"
+                    else str(assets / "batch_images/subdir"),
                     str(img.context_on_storage),
                 )
                 for run in runs

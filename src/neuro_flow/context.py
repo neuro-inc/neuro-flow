@@ -1731,15 +1731,22 @@ class EarlyBatch:
             parent_ctx = EmptyRoot
             mixins = None
 
+        ctx = replace(
+            self._flow_ctx,
+            flow=self._flow_ctx.flow.with_action(
+                prep_task.action._start.filename.parent
+            ),
+        )
+
         tasks = await EarlyTaskGraphBuilder(
-            self._flow_ctx, self._cl, prep_task.action.tasks, mixins
+            ctx, self._cl, prep_task.action.tasks, mixins
         ).build()
         early_images = await setup_images_early(
-            self._flow_ctx, self._flow_ctx, prep_task.action.images
+            ctx, self._flow_ctx, prep_task.action.images
         )
 
         return EarlyBatchAction(
-            self._flow_ctx,
+            ctx,
             tasks,
             early_images,
             self._cl,

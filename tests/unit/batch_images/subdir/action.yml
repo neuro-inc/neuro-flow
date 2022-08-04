@@ -8,8 +8,8 @@ inputs:
 images:
   image_early:
     ref: image:banana1
-    context: dir
-    dockerfile: dir/Dockerfile
+    context: ${{ flow.action_path }}
+    dockerfile: ${{ flow.action_path }}/Dockerfile
   image_late:
     ref: image:banana2
     context: storage://default/foo/${{ inputs.arg1 }}
