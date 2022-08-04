@@ -1050,8 +1050,8 @@ async def test_early_images(assets: pathlib.Path, client: Client) -> None:
         action = await flow.get_action_early("action")
 
         assert action.early_images["image_early"].ref == "image:banana1"
-        assert action.early_images["image_early"].context == ws / "dir"
-        assert action.early_images["image_early"].dockerfile == ws / "dir/Dockerfile"
+        assert action.early_images["image_early"].context == ws / "subdir"
+        assert action.early_images["image_early"].dockerfile == ws / "subdir/Dockerfile"
 
         assert action.early_images["image_late"].ref == "image:banana2"
         assert action.early_images["image_late"].context is None

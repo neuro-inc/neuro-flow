@@ -6,7 +6,7 @@ images:
     dockerfile: dir/Dockerfile_differ
 tasks:
 - id: test
-  action: ws:action
+  action: ws:subdir/action
   args:
     arg1: val1
     arg2: val2

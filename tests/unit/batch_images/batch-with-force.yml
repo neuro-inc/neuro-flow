@@ -7,7 +7,7 @@ images:
     force_rebuild: True
 tasks:
 - id: action
-  action: ws:action
+  action: ws:subdir/action
   args:
     arg1: val1
     arg2: val2
