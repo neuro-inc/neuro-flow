@@ -5,6 +5,15 @@
 
 [comment]: # (towncrier release notes start)
 
+Neuro Flow 22.8.0 (2022-08-04)
+==============================
+
+Features
+--------
+
+- Added support of `flow.action_path` for images sections of action. ([#902](https://github.com/neuro-inc/neuro-flow/issues/902))
+
+
 Neuro Flow 22.7.2 (2022-07-28)
 ==============================
 
