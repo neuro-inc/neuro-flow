@@ -213,13 +213,13 @@ async def test_upload_image_data(
         ref2img: Mapping[str, BakeImage] = {
             image.ref: image async for image in bake_storage.list_bake_images()
         }
-        assert ref2img.keys() == {
-            "image:main",
-            "image:banana1",
-            "image:banana2",
-            "image:hash620d63adb9bd382c1a589d93ca594"
-            "78013c91ef986612beaae0217c41888bdab",
-        }
+        assert set(ref2img.keys()).issuperset(
+            {
+                "image:main",
+                "image:banana1",
+                "image:banana2",
+            }
+        )
         for ref in {"image:main", "image:banana1"}:
             img = ref2img[ref]
             assert img.context_on_storage

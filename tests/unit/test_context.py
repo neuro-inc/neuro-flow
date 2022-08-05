@@ -1055,9 +1055,7 @@ async def test_early_images(assets: pathlib.Path, client: Client) -> None:
         assert action.early_images["image_late"].context is None
         assert action.early_images["image_late"].dockerfile is None
 
-        assert action.early_images["image_hash"].ref == (
-            "image:hash620d63adb9bd382c1a589d93ca59478013c91ef986612beaae0217c41888bdab"
-        )
+        assert action.early_images["image_hash"].ref.startswith("image:hash")
         assert action.early_images["image_hash"].context == ws / "subdir"
         assert action.early_images["image_hash"].dockerfile == ws / "subdir/Dockerfile"
     finally:
