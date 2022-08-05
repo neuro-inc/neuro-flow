@@ -270,9 +270,6 @@ async def from_json(ctx: CallCtx, arg: str) -> TypeT:
 
 
 async def hash_files(ctx: CallCtx, *patterns: str) -> str:
-    hasher = hashlib.new("sha256")
-    buffer = bytearray(16 * 1024 * 1024)  # 16 MB
-    view = memoryview(buffer)
     flow = ctx.root.lookup("flow")
     # emulate attr lookup
     workspace: LocalPath = cast(
@@ -281,11 +278,19 @@ async def hash_files(ctx: CallCtx, *patterns: str) -> str:
             ctx.root, flow, start=ctx.start
         ),
     )
+    return await hash_files_relative(ctx, workspace, *patterns)
+
+
+async def hash_files_relative(ctx: CallCtx, root: LocalPath, *patterns: str) -> str:
+    hasher = hashlib.new("sha256")
+    buffer = bytearray(16 * 1024 * 1024)  # 16 MB
+    view = memoryview(buffer)
+    # emulate attr lookup
     for pattern in patterns:
-        for fname in sorted(workspace.glob(pattern)):
+        for fname in sorted(root.glob(pattern)):
             # On Windows the Python 3.6 glob() returns lower-cased filenames,
             # resolve() restores the case.
-            relative_fname = fname.resolve().relative_to(workspace.resolve()).as_posix()
+            relative_fname = fname.resolve().relative_to(root.resolve()).as_posix()
             hasher.update(relative_fname.encode("utf-8"))
             with fname.open("rb", buffering=0) as stream:
                 read = stream.readinto(buffer)
@@ -511,6 +516,7 @@ FUNCTIONS = _build_signatures(
     success=success,
     failure=failure,
     hash_files=hash_files,
+    hash_files_relative=hash_files_relative,
     always=always,
     upload=upload,
     lower=alower,
