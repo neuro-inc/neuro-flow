@@ -5,6 +5,19 @@
 
 [comment]: # (towncrier release notes start)
 
+Neuro Flow 22.8.1 (2022-08-05)
+==============================
+
+Features
+--------
+
+- Added `hash_files_relative` function to expression, it works same as `hash_files` but requires additional leading
+  parameters that defines directory to glob over. It can be used to glob over action files:
+  ```
+    ${{ hash_files_relative(flow.action_path, "**/pattern/here/**/*.py", "other/**/pattern")
+  ``` ([#904](https://github.com/neuro-inc/neuro-flow/issues/904))
+
+
 Neuro Flow 22.8.0 (2022-08-04)
 ==============================
 
