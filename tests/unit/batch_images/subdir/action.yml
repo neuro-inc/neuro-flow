@@ -14,6 +14,10 @@ images:
     ref: image:banana2
     context: storage://default/foo/${{ inputs.arg1 }}
     dockerfile: storage://default/foo/${{ inputs.arg1 }}/Dockerfile
+  image_hash:
+    ref: image:hash${{ hash_files_relative(flow.action_path, "*") }}
+    context: ${{ flow.action_path }}
+    dockerfile: ${{ flow.action_path }}/Dockerfile
 tasks:
 - id: task_1
   image: image:banana1

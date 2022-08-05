@@ -667,7 +667,6 @@ def _make_ast_inputs(
 async def test_setup_inputs_ctx(
     batch_config_loader: ConfigLoader,
 ) -> None:
-
     with pytest.raises(EvalError, match=r"Required input\(s\): expected"):
         await setup_inputs_ctx(
             EMPTY_ROOT,
@@ -975,7 +974,6 @@ async def test_pipeline_enable_success(batch_config_loader: ConfigLoader) -> Non
 
 
 async def test_pipeline_with_batch_action(batch_config_loader: ConfigLoader) -> None:
-
     flow = await RunningBatchFlow.create(
         batch_config_loader, "batch-action-call", "bake-id"
     )
@@ -1056,6 +1054,12 @@ async def test_early_images(assets: pathlib.Path, client: Client) -> None:
         assert action.early_images["image_late"].ref == "image:banana2"
         assert action.early_images["image_late"].context is None
         assert action.early_images["image_late"].dockerfile is None
+
+        assert action.early_images["image_hash"].ref == (
+            "image:hash620d63adb9bd382c1a589d93ca59478013c91ef986612beaae0217c41888bdab"
+        )
+        assert action.early_images["image_hash"].context == ws / "subdir"
+        assert action.early_images["image_hash"].dockerfile == ws / "subdir/Dockerfile"
     finally:
         await cl.close()
 
