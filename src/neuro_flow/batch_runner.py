@@ -684,6 +684,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                 color = None
 
             if task_id in graphs:
+                # task_id is a subgraph
                 lhead = "cluster_" + tgt
                 with dot.subgraph(name=lhead) as subdot:
                     subdot.attr(label=f"{name}")
@@ -704,11 +705,15 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             for dep in deps:
                 src = ".".join(dep)
                 if src in anchors:
-                    # src is a subgraph
-                    ltail = "cluster_" + src
-                    src = anchors[src]
+                    while src in anchors:
+                        # src is a subgraph
+                        ltail = "cluster_" + ".".join(dep)
+                        src = anchors[src]
                 else:
                     ltail = None
+                while tgt in anchors:
+                    # tgt is a subgraph
+                    tgt = anchors[tgt]
                 dot.edge(src, tgt, ltail=ltail, lhead=lhead)
 
     async def logs(
