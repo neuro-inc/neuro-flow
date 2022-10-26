@@ -128,10 +128,10 @@ async def test_fmt(client: Client) -> None:
 
 
 async def test_hash_files(client: Client) -> None:
-    expr = StrExpr(POS, POS, "${{ hash_files('Dockerfile', 'requirements/*.txt') }}")
+    expr = StrExpr(POS, POS, "${{ hash_files('Dockerfile', 'requirements/**/*') }}")
     folder = LocalPath(__file__).parent / "hash_files"
     ret = await expr.eval(Root({"flow": {"workspace": folder}}, client))
-    assert ret == "081fde04651e1184890a0470501bff3db8e0014260224e07acf5688e70e0edbe"
+    assert ret == "a8174f2c445c954da64b20abbd4fce62e094cd95ba7344c13fba79f5037bcbe2"
 
 
 async def test_lower(client: Client) -> None:
