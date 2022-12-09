@@ -1,4 +1,4 @@
-FROM python:3.11.0-buster as requirements
+FROM python:3.11.1-buster as requirements
 
 ARG NEURO_FLOW_DIST
 
@@ -11,7 +11,7 @@ ADD ./dist /dist
 RUN pip install --user "/${NEURO_FLOW_DIST}"
 
 
-FROM python:3.11.0-buster
+FROM python:3.11.1-buster
 
 LABEL org.opencontainers.image.source = "https://github.com/neuro-inc/neuro-flow"
 
