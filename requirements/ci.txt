@@ -7,4 +7,4 @@ pytest-aiohttp==1.0.4
 pytest-asyncio==0.20.3
 pytest-xdist==3.1.0
 re-assert==1.1.0
-towncrier==22.8.0
+towncrier==22.12.0
