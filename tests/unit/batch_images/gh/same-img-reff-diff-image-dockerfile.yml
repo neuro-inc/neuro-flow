@@ -1,0 +1,9 @@
+kind: batch
+tasks:
+  - id: task_a
+    action: gh:neuro-inc/mlops-test-action@v1.0.3
+    needs: [ ]
+
+  - id: task_b
+    action: gh:neuro-inc/mlops-test-action@changed-dockerfile-path
+    needs: [ ]

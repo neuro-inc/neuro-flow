@@ -242,3 +242,27 @@ async def test_upload_image_data(
                 )
                 for run in runs
             )
+
+
+async def test_check_image_refs_unique_gh(
+    batch_cl_factory: BatchClFactory,
+) -> None:
+    async with batch_cl_factory("batch_images/gh") as cl:
+        flow = await RunningBatchFlow.create(
+            cl, "same-img-reff-same-action-version", "bake-id"
+        )
+        # Should not raise an exception
+        await check_image_refs_unique(flow)
+
+        flow = await RunningBatchFlow.create(
+            cl, "same-img-reff-diff-action-version", "bake-id"
+        )
+        # Should not raise an exception
+        await check_image_refs_unique(flow)
+
+        flow = await RunningBatchFlow.create(
+            cl, "same-img-reff-diff-image-dockerfile", "bake-id"
+        )
+        # Should raise an exception
+        with pytest.raises(MultiError):
+            await check_image_refs_unique(flow)

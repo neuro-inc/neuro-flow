@@ -353,7 +353,6 @@ async def make_batch_runner(
     client: Client,
     mock_neuro_cli_runner: MockCliRunner,
 ) -> AsyncIterator[MakeBatchRunner]:
-
     runner: Optional[BatchRunner] = None
 
     async def create(path: Path) -> BatchRunner:

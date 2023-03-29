@@ -52,7 +52,6 @@ class LexerError(Exception):
 
 
 class Tokenizer:
-
     TOKENS = [
         ("LTMPL", r"\$\{\{"),
         ("RTMPL", r"\}\}"),
