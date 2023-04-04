@@ -211,10 +211,16 @@ async def check_image_refs_unique(top_flow: RunningBatchFlow) -> None:
 
     errors = []
     for ref, images in _tmp.items():
+        # checks rendered paths are the same (for local actions)
         contexts_differ = len({it.context for it in images}) > 1
         dockerfiles_differ = len({it.dockerfile for it in images}) > 1
         if contexts_differ or dockerfiles_differ:
-            errors.append(ImageRefNotUniqueError(ref, images))
+            # if rendered paths do not match, we might be dealing with github action
+            # and should compare ast defs
+            ast_contexts_differ = len({it.ast.context for it in images}) > 1
+            ast_dockerfiles_differ = len({it.ast.dockerfile for it in images}) > 1
+            if ast_contexts_differ or ast_dockerfiles_differ:
+                errors.append(ImageRefNotUniqueError(ref, images))
     if errors:
         raise MultiError(errors)
 
@@ -576,7 +582,6 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         save_pdf: bool = False,
         view_pdf: bool = False,
     ) -> None:
-
         bake_storage = self.storage.bake(id=bake_id)
         try:
             bake = await bake_storage.get()

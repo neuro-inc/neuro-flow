@@ -52,7 +52,7 @@ jobs:
     - name: Save the package version
       id: version
       run: |
-        echo "::set-output name=version::$(python setup.py --version)"
+        echo "version=$(python setup.py --version)" >> $GITHUB_OUTPUT
     - name: Show version
       run: |
         echo ${{ steps.version.outputs.version }}
@@ -82,7 +82,7 @@ jobs:
     - name: Get pip cache dir
       id: pip-cache
       run: |
-        echo "::set-output name=dir::$(pip cache dir)"    # - name: Cache
+        echo "dir=$(pip cache dir)" >> $GITHUB_OUTPUT
     - name: Cache PyPI
       uses: actions/cache@v3
       with:
@@ -95,6 +95,10 @@ jobs:
       uses: py-actions/py-dependency-install@v4
       with:
         path: requirements/ci.txt
+    - name: Authorize ssh agent
+      uses: webfactory/ssh-agent@v0.7.0
+      with:
+        ssh-private-key: ${{ secrets.MLOPS_TEST_ACTION_SSH_KEY }}
     - name: Run unittests
       env:
         E2E_USER_TOKEN: ${{ secrets.CLIENT_TEST_E2E_USER_NAME }}
@@ -128,7 +132,7 @@ jobs:
     - name: Get pip cache dir
       id: pip-cache
       run: |
-        echo "::set-output name=dir::$(pip cache dir)"    # - name: Cache
+        echo "dir=$(pip cache dir)" >> $GITHUB_OUTPUT
     - name: Cache PyPI
       uses: actions/cache@v3
       with:
