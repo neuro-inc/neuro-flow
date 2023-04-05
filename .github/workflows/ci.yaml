@@ -96,7 +96,7 @@ jobs:
       with:
         path: requirements/ci.txt
     - name: Authorize ssh agent
-      uses: webfactory/ssh-agent@v0.7.0
+      uses: webfactory/ssh-agent@v0.8.0
       with:
         ssh-private-key: ${{ secrets.MLOPS_TEST_ACTION_SSH_KEY }}
     - name: Run unittests
