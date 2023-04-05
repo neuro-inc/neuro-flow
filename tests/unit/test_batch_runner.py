@@ -1,5 +1,6 @@
 import pathlib
 import pytest
+import sys
 import textwrap
 from contextlib import asynccontextmanager
 from neuro_sdk import Client
@@ -244,6 +245,10 @@ async def test_upload_image_data(
             )
 
 
+@pytest.mark.xfail(
+    condition=sys.platform == "win32",
+    reason="ssh-agent config action does not properly work on Windows runners",
+)
 async def test_check_image_refs_unique_gh(
     batch_cl_factory: BatchClFactory,
 ) -> None:
