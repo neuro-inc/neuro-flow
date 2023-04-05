@@ -88,7 +88,7 @@ class ImageStatus(str, enum.Enum):
     CACHED = "cached"
 
     def __rich__(self) -> str:
-        return f"[{IMAGE_STATUS_COLORS[self]}]{self}"
+        return f"[{IMAGE_STATUS_COLORS[self]}]{self.value}"
 
 
 IMAGE_STATUS_COLORS = {

@@ -807,7 +807,10 @@ async def test_batch_matrix_max_parallel(
 ) -> None:
     executor_task = asyncio.ensure_future(run_executor(assets, batch_name))
     done, pending = await asyncio.wait(
-        [jobs_mock.get_task(f"task-1-{var_1}-{var_2}") for var_1, var_2 in vars],
+        [
+            asyncio.ensure_future(jobs_mock.get_task(f"task-1-{var_1}-{var_2}"))
+            for var_1, var_2 in vars
+        ],
         return_when=asyncio.ALL_COMPLETED,
     )
 
