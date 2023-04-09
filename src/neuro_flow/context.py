@@ -1252,7 +1252,7 @@ _MergeTarget = TypeVar("_MergeTarget", bound=SupportsAstMerge)
 
 
 async def merge_asts(child: _MergeTarget, parent: SupportsAstMerge) -> _MergeTarget:
-    child_fields = {f.name for f in dataclasses.fields(child)}
+    child_fields = {f.name for f in dataclasses.fields(child)}  # type: ignore
     for field in parent._specified_fields:
         if field == "mixins" or field not in child_fields:
             continue
@@ -1267,17 +1267,17 @@ async def merge_asts(child: _MergeTarget, parent: SupportsAstMerge) -> _MergeTar
                 child,
                 **{field: parent_value},
                 _specified_fields=child._specified_fields | {field},
-            )
+            )  # type: ignore
         elif isinstance(parent_value, BaseSequenceExpr):
             assert isinstance(child_value, BaseSequenceExpr)
             child = replace(
                 child, **{field: ConcatSequenceExpr(child_value, parent_value)}
-            )
+            )  # type: ignore
         elif isinstance(parent_value, BaseMappingExpr):
             assert isinstance(child_value, BaseMappingExpr)
             child = replace(
                 child, **{field: MergeMappingsExpr(child_value, parent_value)}
-            )
+            )  # type: ignore
     return child
 
 
