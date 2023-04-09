@@ -55,7 +55,10 @@ def project_id() -> str:
 
 async def get_config(nmrc_path: Optional[Path]) -> Config:
     __tracebackhide__ = True
+    cluster = os.environ.get("E2E_CLUSTER")
     async with api_get(timeout=CLIENT_TIMEOUT, path=nmrc_path) as client:
+        if cluster:
+            await client.config.switch_cluster(cluster)
         return client.config
 
 
@@ -105,12 +108,15 @@ def ws(
 @pytest.fixture
 async def api_config(tmp_path_factory: Any) -> AsyncIterator[Optional[pathlib.Path]]:
     e2e_test_token = os.environ.get("E2E_USER_TOKEN")
+    e2e_test_api_endpoint = os.environ.get(
+        "E2E_API_ENDPOINT", "https://dev.neu.ro/api/v1"
+    )
     if e2e_test_token:
         tmp_path = tmp_path_factory.mktemp("config")
         config_path = tmp_path / "conftest"
         await login_with_token(
             e2e_test_token,
-            url=URL("https://dev.neu.ro/api/v1"),
+            url=URL(e2e_test_api_endpoint),
             path=config_path,
         )
     else:

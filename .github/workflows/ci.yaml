@@ -103,7 +103,9 @@ jobs:
         ssh-private-key: ${{ secrets.MLOPS_TEST_ACTION_SSH_KEY }}
     - name: Run unittests
       env:
-        E2E_USER_TOKEN: ${{ secrets.CLIENT_TEST_E2E_USER_NAME }}
+        E2E_USER_TOKEN: ${{ secrets.CLIENT_TEST_E2E_USER_TOKEN_STAGE }}
+        E2E_API_ENDPOINT: ${{ secrets.NEURO_STAGING_URL }}
+        E2E_CLUSTER: onprem-poc
         COLOR: yes
       run: |
         make test
@@ -151,7 +153,9 @@ jobs:
         path: requirements/ci.txt
     - name: Run e2e tests
       env:
-        E2E_USER_TOKEN: ${{ secrets.CLIENT_TEST_E2E_USER_NAME }}
+        E2E_USER_TOKEN: ${{ secrets.CLIENT_TEST_E2E_USER_TOKEN_STAGE }}
+        E2E_API_ENDPOINT: ${{ secrets.NEURO_STAGING_URL }}
+        E2E_CLUSTER: onprem-poc
         COLOR: yes
       run: |
         make test-e2e

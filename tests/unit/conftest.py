@@ -26,6 +26,9 @@ def assets() -> pathlib.Path:
 @pytest.fixture(scope="session")
 def api_config(tmp_path_factory: Any) -> Iterator[pathlib.Path]:
     e2e_test_token = os.environ.get("E2E_USER_TOKEN")
+    e2e_test_api_endpoint = os.environ.get(
+        "E2E_API_ENDPOINT", "https://dev.neu.ro/api/v1"
+    )
     if e2e_test_token:
         tmp_path = tmp_path_factory.mktemp("config")
         config_path = tmp_path / "conftest"
@@ -33,7 +36,7 @@ def api_config(tmp_path_factory: Any) -> Iterator[pathlib.Path]:
         loop.run_until_complete(
             login_with_token(
                 e2e_test_token,
-                url=URL("https://dev.neu.ro/api/v1"),
+                url=URL(e2e_test_api_endpoint),
                 path=config_path,
             )
         )
@@ -46,5 +49,8 @@ def api_config(tmp_path_factory: Any) -> Iterator[pathlib.Path]:
 async def client(
     loop: asyncio.AbstractEventLoop, api_config: pathlib.Path
 ) -> AsyncIterator[Client]:
+    cluster = os.environ.get("E2E_CLUSTER")
     async with api_get(path=api_config) as client:
+        if cluster:
+            await client.config.switch_cluster(cluster)
         yield client
