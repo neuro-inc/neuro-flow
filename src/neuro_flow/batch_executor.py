@@ -2,6 +2,7 @@ import asyncio
 import logging
 import os
 import shlex
+import sys
 import textwrap
 from collections import defaultdict
 from contextlib import asynccontextmanager
@@ -1301,8 +1302,9 @@ class LocalsBatchExecutor(BatchExecutor):
             status=TaskStatus.PENDING,
             raw_id=None,
         )
+        posix = False if sys.platform == "win32" else True
         subprocess = await asyncio.create_subprocess_exec(
-            *shlex.split(local.cmd),
+            *shlex.split(local.cmd, posix=posix),
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             cwd=self._top_flow.workspace,
