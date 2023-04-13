@@ -421,7 +421,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
 
         self._console.log(
             f"Bake [b]{bake.name or bake.id}[/b] of "
-            f"project [b]{self.project_id}[/b] is created"
+            f"flow [b]{self.project_id}[/b] is created"
         )
         self._console.log("Uploading image contexts/dockerfiles...")
         await upload_image_data(flow, self._run_neuro_cli, bake_storage)
@@ -477,6 +477,8 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                 life_span = fmt_timedelta(flow.life_span)
             else:
                 life_span = "7d"
+            # TODO: Update tags `project` -> `flow` and `flow` -> `batch`
+            # After performing the corresponding changes in web app upfront.
             run_args = [
                 "run",
                 "--pass-config",
@@ -588,8 +590,8 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         except ResourceNotFound:
             self._console.print("[yellow]Bake not found")
             self._console.print(
-                f"Please make sure that the bake [b]{bake_id}[/b] and "
-                f"project [b]{self.project_id}[/b] are correct."
+                f"Please make sure that the bake ID [b]{bake_id}[/b] and "
+                f"flow [b]{self.project_id}[/b] are correct."
             )
             exit(1)
             assert False, "unreachable"

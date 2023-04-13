@@ -1237,17 +1237,17 @@ class BatchExecutor:
     async def _create_project_role(self, project_role: str) -> None:
         if self._is_projet_role_created:
             return
-        log.debug(f"BatchExecutor: creating project role {project_role}")
+        log.debug(f"BatchExecutor: creating flow role {project_role}")
         try:
             await self._client.user_add(project_role)
         except AuthorizationError:
             log.debug(
                 f"BatchExecutor: AuthorizationError for create"
-                f" project role {project_role}"
+                f" flow role {project_role}"
             )
             pass
             # We have no permissions to create role --
-            # assume that this is shared project and
+            # assume that this is shared flow and
             # current user is not the owner
         except IllegalArgumentError as e:
             if "already exists" not in str(e):

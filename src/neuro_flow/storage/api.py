@@ -344,7 +344,7 @@ class ApiStorage(Storage):
     def check_can_create_for_owner(self, owner: str) -> None:
         if owner != self._client.config.username:
             raise ValueError(
-                f"Cannot create project with owner '{owner}' that is"
+                f"Cannot create flow with owner '{owner}' that is"
                 f" different from current user '{self._client.config.username}'."
             )
 

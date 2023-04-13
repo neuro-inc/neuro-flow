@@ -35,7 +35,7 @@ neuro-flow [OPTIONS] COMMAND [ARGS]...
 | [_neuro-flow cancel_](cli.md#neuro-flow-cancel) | Cancel a bake. |
 | [_neuro-flow clean_](cli.md#neuro-flow-clean) | Clean volume. |
 | [_neuro-flow clear-cache_](cli.md#neuro-flow-clear-cache) | Clear cache. |
-| [_neuro-flow delete-project_](cli.md#neuro-flow-delete-project) | Completely remove project with all related entities |
+| [_neuro-flow delete-flow_](cli.md#neuro-flow-delete-flow) | Completely remove flow with all related entities |
 | [_neuro-flow download_](cli.md#neuro-flow-download) | Download volume. |
 | [_neuro-flow init_](cli.md#neuro-flow-init) | Initialize a flow from a selected template. |
 | [_neuro-flow inspect_](cli.md#neuro-flow-inspect) | Inspect a bake. |
@@ -223,14 +223,14 @@ neuro-flow clear-cache [OPTIONS] BATCH [TASK_ID]
 | :--- | :--- |
 | _--help_ | Show this message and exit. |
 
-### neuro-flow delete-project
+### neuro-flow delete-flow
 
-Completely remove project with all related entities
+Completely remove flow with all related entities
 
 **Usage:**
 
 ```bash
-neuro-flow delete-project [OPTIONS] PROJECT_IDS...
+neuro-flow delete-flow [OPTIONS] FLOW_IDS...
 ```
 
 **Options:**
