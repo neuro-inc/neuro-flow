@@ -62,16 +62,19 @@ jobs:
     needs: [lint]
     strategy:
       matrix:
-        python-version: ['3.7', '3.8', '3.9']
+        python-version: ['3.8', '3.9', '3.10', '3.11']
         os: [ubuntu, macos, windows]
         exclude:
-        - python-version: '3.8'
+        - python-version: '3.9'
           os: macos
-        - python-version: '3.8'
+        - python-version: '3.10'
           os: windows
       fail-fast: false
     runs-on: ${{ matrix.os }}-latest
     timeout-minutes: 10
+    defaults:
+      run:
+        shell: bash
     steps:
     - name: Checkout
       uses: actions/checkout@v3
@@ -86,8 +89,7 @@ jobs:
     - name: Cache PyPI
       uses: actions/cache@v3
       with:
-        key: pip-ci-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('requirements/*.txt')
-          }}
+        key: pip-ci-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('requirements/*.txt') }}
         path: ${{ steps.pip-cache.outputs.dir }}
         restore-keys: |
           pip-ci-${{ runner.os }}-${{ matrix.python-version }}-
@@ -101,7 +103,9 @@ jobs:
         ssh-private-key: ${{ secrets.MLOPS_TEST_ACTION_SSH_KEY }}
     - name: Run unittests
       env:
-        E2E_USER_TOKEN: ${{ secrets.CLIENT_TEST_E2E_USER_NAME }}
+        E2E_USER_TOKEN: ${{ secrets.CLIENT_TEST_E2E_USER_TOKEN_STAGE }}
+        E2E_API_ENDPOINT: ${{ secrets.NEURO_STAGING_URL }}
+        E2E_CLUSTER: onprem-poc
         COLOR: yes
       run: |
         make test
@@ -112,16 +116,19 @@ jobs:
     continue-on-error: true
     strategy:
       matrix:
-        python-version: ['3.7', '3.8', '3.9']
+        python-version: ['3.8', '3.9', '3.10', '3.11']
         os: [ubuntu, macos, windows]
         exclude:
-        - python-version: '3.8'
+        - python-version: '3.9'
           os: macos
-        - python-version: '3.8'
+        - python-version: '3.10'
           os: windows
       fail-fast: false
     runs-on: ${{ matrix.os }}-latest
     timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
     steps:
     - name: Checkout
       uses: actions/checkout@v3
@@ -136,8 +143,7 @@ jobs:
     - name: Cache PyPI
       uses: actions/cache@v3
       with:
-        key: pip-ci-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('requirements/*.txt')
-          }}
+        key: pip-ci-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('requirements/*.txt') }}
         path: ${{ steps.pip-cache.outputs.dir }}
         restore-keys: |
           pip-ci-${{ runner.os }}-${{ matrix.python-version }}-
@@ -147,7 +153,9 @@ jobs:
         path: requirements/ci.txt
     - name: Run e2e tests
       env:
-        E2E_USER_TOKEN: ${{ secrets.CLIENT_TEST_E2E_USER_NAME }}
+        E2E_USER_TOKEN: ${{ secrets.CLIENT_TEST_E2E_USER_TOKEN_STAGE }}
+        E2E_API_ENDPOINT: ${{ secrets.NEURO_STAGING_URL }}
+        E2E_CLUSTER: onprem-poc
         COLOR: yes
       run: |
         make test-e2e
