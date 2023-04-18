@@ -19,7 +19,6 @@ from .expr import (
     PrimitiveExpr,
     RemotePathExpr,
     SequenceT,
-    SimpleIdExpr,
     SimpleOptBoolExpr,
     SimpleOptIdExpr,
     SimpleOptPrimitiveExpr,
@@ -59,7 +58,7 @@ class Cache(Base):
 
 @dataclass(frozen=True)
 class Project(Base):
-    id: SimpleIdExpr
+    id: SimpleOptIdExpr  # inferred current project from neuro-sdk if not set
     owner: SimpleOptStrExpr  # user name can contain "-"
     role: SimpleOptStrExpr
 

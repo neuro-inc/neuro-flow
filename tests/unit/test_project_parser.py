@@ -13,7 +13,7 @@ from neuro_flow.expr import (
     OptTimeDeltaExpr,
     RemotePathExpr,
     SequenceItemsExpr,
-    SimpleIdExpr,
+    SimpleOptIdExpr,
     SimpleOptStrExpr,
     StrExpr,
     URIExpr,
@@ -29,7 +29,7 @@ def test_parse_full(assets: pathlib.Path) -> None:
     assert project == ast.Project(
         Pos(0, 0, config_file),
         Pos(58, 0, config_file),
-        id=SimpleIdExpr(
+        id=SimpleOptIdExpr(
             Pos(0, 0, config_file),
             Pos(0, 0, config_file),
             "test_project",

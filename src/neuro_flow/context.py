@@ -744,6 +744,16 @@ async def setup_project_ctx(
 ) -> ProjectCtx:
     ast_project = await config_loader.fetch_project()
     project_id = await ast_project.id.eval(ctx)
+    if project_id is None:
+        if config_loader.client.config.project_name is not None:
+            # load current-project from client
+            project_id = config_loader.client.config.project_name
+        else:
+            # TODO (A.K.): raise proper error type
+            raise ValueError(
+                "Could not infer project id - set it "
+                "in project.yaml or via 'neuro switch-project'."
+            )
     project_owner = await ast_project.owner.eval(ctx)
     project_role = await ast_project.role.eval(ctx)
     if project_role is None and project_owner is not None:
@@ -1566,7 +1576,6 @@ class RunningLiveFlow:
     ) -> "RunningLiveFlow":
         ast_flow = await config_loader.fetch_flow(config_name)
         ast_project = await config_loader.fetch_project()
-
         assert isinstance(ast_flow, ast.LiveFlow)
 
         project_ctx = await setup_project_ctx(EMPTY_ROOT, config_loader)

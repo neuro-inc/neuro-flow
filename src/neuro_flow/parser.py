@@ -1497,7 +1497,7 @@ class ProjectLoader(Reader, Scanner, Parser, Composer, BaseConstructor, BaseReso
 
 
 PROJECT = {
-    "id": SimpleIdExpr,
+    "id": SimpleOptIdExpr,
     "owner": SimpleOptStrExpr,
     "role": SimpleOptStrExpr,
     "images": None,
