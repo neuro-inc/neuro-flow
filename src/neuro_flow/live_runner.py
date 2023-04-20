@@ -400,6 +400,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
             while "--" in name:
                 name = name.replace("--", "-")
         run_args.append(f"--name={name}")
+        run_args.append(f"--project={self._flow.project.id}")
         if job.preset is not None:
             run_args.append(f"--preset={job.preset}")
         if job.schedule_timeout is not None:
