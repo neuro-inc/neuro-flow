@@ -155,17 +155,17 @@ async def kill(
 
 
 @click.command()
-@argument("project_ids", type=PROJECT, nargs=-1, required=True)
+@argument("flow_ids", type=PROJECT, nargs=-1, required=True)
 @wrap_async()
-async def delete_project(
+async def delete_flow(
     root: Root,
-    project_ids: Sequence[str],
+    flow_ids: Sequence[str],
 ) -> None:
-    """Completely remove project with all related entities"""
+    """Completely remove flow with all related entities"""
     async with AsyncExitStack() as stack:
         client = await stack.enter_async_context(neuro_sdk.get())
         storage: Storage = await stack.enter_async_context(ApiStorage(client))
-        for project_id in project_ids:
-            await storage.project(yaml_id=project_id).delete()
+        for flow_id in flow_ids:
+            await storage.project(yaml_id=flow_id).delete()
             if root.verbosity >= 0:
-                root.console.print(f"Project '{project_id}' was successfully removed.")
+                root.console.print(f"Flow '{flow_id}' was successfully removed.")
