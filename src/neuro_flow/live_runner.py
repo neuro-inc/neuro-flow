@@ -95,8 +95,15 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
             raise
 
     async def init_project_storage(self) -> None:
+        project_name = self.flow.project.project_name
+        if not project_name:
+            project_name = self._client.config.project_name_or_raise
+
+        self._client
         project = await self._storage.get_or_create_project(
-            self.flow.project.id, owner=self.flow.project.owner
+            self.flow.project.id,
+            owner=self.flow.project.owner,
+            project_name=project_name,
         )
         self._project_storage = self._storage.project(id=project.id)
 
@@ -405,7 +412,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
         if job.schedule_timeout is not None:
             run_args.append(f"--schedule-timeout={int(job.schedule_timeout)}s")
         if job.http_port is not None:
-            run_args.append(f"--http={job.http_port}")
+            run_args.append(f"--http-port={job.http_port}")
         if job.http_auth is not None:
             if job.http_auth:
                 run_args.append(f"--http-auth")

@@ -1,5 +1,6 @@
 id: test_project
 owner: test-owner
+project_name: test-project-name
 role: test-owner/roles/test-role
 images:
   image_a:

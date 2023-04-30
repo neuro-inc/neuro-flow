@@ -69,10 +69,12 @@ class InMemoryStorage(Storage):
         owner: str = "in_memory_owner",
         cluster: str = "in_memory_cluster",
         org_name: str = "in_memory_org",
+        project_name: str = "in_memory_project",
     ):
         self._owner = owner
         self._cluster = cluster
         self._org_name = org_name
+        self._project_name = project_name
         self._db = InMemoryDB()
 
     def with_retry_read(self) -> "Storage":
@@ -85,6 +87,7 @@ class InMemoryStorage(Storage):
         self,
         *,
         id: Optional[str] = None,
+        project_name: Optional[str] = None,
         yaml_id: Optional[str] = None,
         cluster: Optional[str] = None,
         org_name: Optional[str] = None,
@@ -94,12 +97,14 @@ class InMemoryStorage(Storage):
             return InMemoryProjectStorage(id, self._db)
         cluster = cluster or self._cluster
         org_name = org_name or self._org_name
+        project_name = project_name or self._project_name
         for project in self._db.projects.values():
             if (
                 project.yaml_id == yaml_id
                 and project.cluster == cluster
                 and project.org_name == org_name
                 and (owner is None or project.owner == owner)
+                and project.project_name == project_name
             ):
                 return InMemoryProjectStorage(project.id, self._db)
         return InMemoryProjectStorage("fake-id", self._db)
@@ -110,11 +115,13 @@ class InMemoryStorage(Storage):
     async def create_project(
         self,
         yaml_id: str,
+        project_name: str,
         cluster: Optional[str] = None,
         org_name: Optional[str] = None,
     ) -> Project:
         project = Project(
             id=_make_id(),
+            project_name=project_name,
             yaml_id=yaml_id,
             cluster=cluster or self._cluster,
             owner=self._owner,
@@ -124,12 +131,17 @@ class InMemoryStorage(Storage):
         return project
 
     async def list_projects(
-        self, name: Optional[str] = None, cluster: Optional[str] = None
+        self,
+        name: Optional[str] = None,
+        cluster: Optional[str] = None,
+        project_name: Optional[str] = None,
     ) -> AsyncIterator[Project]:
         for project in self._db.projects.values():
             if name and project.yaml_id != name:
                 continue
             if cluster and project.cluster != cluster:
+                continue
+            if project_name and project.project_name != project_name:
                 continue
             yield project
 

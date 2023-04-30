@@ -95,6 +95,7 @@ MatrixCtx = Annotated[Mapping[str, LiteralT], "MatrixCtx"]
 @dataclass(frozen=True)
 class ProjectCtx:
     id: str
+    project_name: Optional[str] = None
     owner: Optional[str] = None
     role: Optional[str] = None
 
@@ -744,11 +745,15 @@ async def setup_project_ctx(
 ) -> ProjectCtx:
     ast_project = await config_loader.fetch_project()
     project_id = await ast_project.id.eval(ctx)
+    project_name = await ast_project.project_name.eval(ctx)
+    # TODO (y.s.): Should we deprecate project_owner?
     project_owner = await ast_project.owner.eval(ctx)
     project_role = await ast_project.role.eval(ctx)
-    if project_role is None and project_owner is not None:
-        project_role = f"{project_owner}/projects/{sanitize_name(project_id)}"
-    return ProjectCtx(id=project_id, owner=project_owner, role=project_role)
+    if project_role is None and project_name is not None:
+        project_role = f"{project_name}/projects/{sanitize_name(project_id)}"
+    return ProjectCtx(
+        id=project_id, owner=project_owner, role=project_role, project_name=project_name
+    )
 
 
 async def setup_flow_ctx(

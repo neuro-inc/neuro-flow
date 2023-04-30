@@ -460,9 +460,7 @@ class RetryReadNeuroClient(RetryConfig):
 
 class BatchExecutor:
     transient_progress: bool = False
-    run_builder_job: Callable[..., Awaitable[str]] = staticmethod(  # type: ignore
-        start_image_build
-    )
+    run_builder_job: Callable[..., Awaitable[str]] = staticmethod(start_image_build)
 
     def __init__(
         self,

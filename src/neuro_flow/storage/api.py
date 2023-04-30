@@ -80,6 +80,7 @@ def _parse_project_payload(data: Mapping[str, Any]) -> Project:
         owner=data["owner"],
         cluster=data["cluster"],
         org_name=data["org_name"],
+        project_name=data["project_name"],
     )
 
 
@@ -341,11 +342,11 @@ class ApiStorage(Storage):
             self._client, _raw_client=RetryingReadRawApiClient(self._client)
         )
 
-    def check_can_create_for_owner(self, owner: str) -> None:
-        if owner != self._client.config.username:
+    def check_can_create_for_project_name(self, project_name: str) -> None:
+        if project_name != self._client.config.project_name_or_raise:
             raise ValueError(
-                f"Cannot create flow with owner '{owner}' that is"
-                f" different from current user '{self._client.config.username}'."
+                f"Cannot create flow within project '{project_name}' that is"
+                f" different from current project '{self._client.config.project_name}'."
             )
 
     async def close(self) -> None:
@@ -355,6 +356,7 @@ class ApiStorage(Storage):
         self,
         *,
         id: Optional[str] = None,
+        project_name: Optional[str] = None,
         owner: Optional[str] = None,
         yaml_id: Optional[str] = None,
         cluster: Optional[str] = None,
@@ -363,6 +365,8 @@ class ApiStorage(Storage):
         cluster = cluster or self._cluster_name
         org_name = org_name or self._org_name
         owner = owner or self._client.config.username
+        project_name = project_name or self._client.config.project_name_or_raise
+
         if id:
             return ApiProjectStorage(self._raw_client, id=id)
         else:
@@ -370,13 +374,18 @@ class ApiStorage(Storage):
             return ApiProjectStorage(
                 self._raw_client,
                 args=dict(
-                    yaml_id=yaml_id, cluster=cluster, org_name=org_name, owner=owner
+                    yaml_id=yaml_id,
+                    cluster=cluster,
+                    org_name=org_name,
+                    owner=owner,
+                    project_name=project_name,
                 ),
             )
 
     async def create_project(
         self,
         yaml_id: str,
+        project_name: str,
         cluster: Optional[str] = None,
         org_name: Optional[str] = None,
     ) -> Project:
@@ -384,6 +393,7 @@ class ApiStorage(Storage):
             "flow/projects",
             data={
                 "name": yaml_id,
+                "project_name": project_name,
                 "cluster": cluster or self._cluster_name,
                 "org_name": org_name or self._org_name,
             },
@@ -391,13 +401,18 @@ class ApiStorage(Storage):
         )
 
     def list_projects(
-        self, name: Optional[str] = None, cluster: Optional[str] = None
+        self,
+        name: Optional[str] = None,
+        cluster: Optional[str] = None,
+        project_name: Optional[str] = None,
     ) -> AsyncIterator[Project]:
         params = []
         if name is not None:
             params += [("name", name)]
         if cluster is not None:
             params += [("cluster", cluster)]
+        if project_name is not None:
+            params += [("project_name", project_name)]
         return self._raw_client.list("flow/projects", _parse_project_payload, params)
 
     def bake(self, *, id: str) -> "BakeStorage":
@@ -430,6 +445,7 @@ class ProjectInitArgs(TypedDict):
     cluster: str
     org_name: Optional[str]
     owner: str
+    project_name: str
 
 
 class ApiProjectStorage(DeferredIdMixin[Project, ProjectInitArgs], ProjectStorage):
@@ -462,6 +478,7 @@ class ApiProjectStorage(DeferredIdMixin[Project, ProjectInitArgs], ProjectStorag
             "name": args["yaml_id"],
             "cluster": args["cluster"],
             "owner": args["owner"],
+            "project_name": args["project_name"],
         }
         org_name = args.get("org_name")
         if org_name:

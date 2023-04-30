@@ -28,11 +28,16 @@ def test_parse_full(assets: pathlib.Path) -> None:
         project = parse_project_stream(stream)
     assert project == ast.Project(
         Pos(0, 0, config_file),
-        Pos(58, 0, config_file),
+        Pos(59, 0, config_file),
         id=SimpleIdExpr(
             Pos(0, 0, config_file),
             Pos(0, 0, config_file),
             "test_project",
+        ),
+        project_name=SimpleOptStrExpr(
+            Pos(0, 0, config_file),
+            Pos(0, 0, config_file),
+            "test-project-name",
         ),
         owner=SimpleOptStrExpr(
             Pos(0, 0, config_file),
@@ -46,8 +51,8 @@ def test_parse_full(assets: pathlib.Path) -> None:
         ),
         images={
             "image_a": ast.Image(
-                Pos(5, 4, config_file),
-                Pos(17, 0, config_file),
+                Pos(6, 4, config_file),
+                Pos(18, 0, config_file),
                 ref=StrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "image:banana"
                 ),
@@ -96,8 +101,8 @@ def test_parse_full(assets: pathlib.Path) -> None:
         },
         volumes={
             "volume_a": ast.Volume(
-                Pos(19, 4, config_file),
-                Pos(23, 2, config_file),
+                Pos(20, 4, config_file),
+                Pos(24, 2, config_file),
                 remote=URIExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "storage:dir"
                 ),
@@ -112,8 +117,8 @@ def test_parse_full(assets: pathlib.Path) -> None:
                 ),
             ),
             "volume_b": ast.Volume(
-                Pos(24, 4, config_file),
-                Pos(26, 0, config_file),
+                Pos(25, 4, config_file),
+                Pos(27, 0, config_file),
                 remote=URIExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "storage:other"
                 ),
@@ -129,8 +134,8 @@ def test_parse_full(assets: pathlib.Path) -> None:
             ),
         },
         defaults=ast.BatchFlowDefaults(
-            Pos(27, 2, config_file),
-            Pos(42, 0, config_file),
+            Pos(28, 2, config_file),
+            Pos(43, 0, config_file),
             _specified_fields={
                 "fail_fast",
                 "tags",
@@ -181,8 +186,8 @@ def test_parse_full(assets: pathlib.Path) -> None:
                 Pos(0, 0, config_file), Pos(0, 0, config_file), "24d23h22m21s"
             ),
             cache=ast.Cache(
-                Pos(40, 4, config_file),
-                Pos(42, 0, config_file),
+                Pos(41, 4, config_file),
+                Pos(43, 0, config_file),
                 strategy=ast.CacheStrategy.NONE,
                 life_span=OptTimeDeltaExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "2h30m"
@@ -195,8 +200,8 @@ def test_parse_full(assets: pathlib.Path) -> None:
         ),
         mixins={
             "basic": ast.ExecUnitMixin(
-                Pos(44, 4, config_file),
-                Pos(46, 2, config_file),
+                Pos(45, 4, config_file),
+                Pos(47, 2, config_file),
                 _specified_fields={"image", "preset"},
                 mixins=None,
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
@@ -236,8 +241,8 @@ def test_parse_full(assets: pathlib.Path) -> None:
                 ),
             ),
             "with_cmd": ast.ExecUnitMixin(
-                Pos(47, 4, config_file),
-                Pos(49, 2, config_file),
+                Pos(48, 4, config_file),
+                Pos(50, 2, config_file),
                 _specified_fields={"image", "cmd"},
                 mixins=None,
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
@@ -279,8 +284,8 @@ def test_parse_full(assets: pathlib.Path) -> None:
                 ),
             ),
             "with_bash": ast.ExecUnitMixin(
-                Pos(50, 4, config_file),
-                Pos(54, 2, config_file),
+                Pos(51, 4, config_file),
+                Pos(55, 2, config_file),
                 _specified_fields={"image", "cmd"},
                 mixins=None,
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
@@ -322,8 +327,8 @@ def test_parse_full(assets: pathlib.Path) -> None:
                 ),
             ),
             "with_python": ast.ExecUnitMixin(
-                Pos(55, 4, config_file),
-                Pos(58, 0, config_file),
+                Pos(56, 4, config_file),
+                Pos(59, 0, config_file),
                 _specified_fields={"image", "cmd"},
                 mixins=None,
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
