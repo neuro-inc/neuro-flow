@@ -77,6 +77,12 @@ class UnknownTask(KeyError):
     pass
 
 
+PROJECT_ROLE_DEPRECATED_MSG = (
+    "Project roles are deprecated and will be ignored. "
+    "Please, add project users using `neuro admin add-project-user` "
+    "to grant flow and it's artifacts access to a new user."
+)
+
 # ...Ctx types, they define parts that can be available in expressions
 
 
@@ -749,8 +755,9 @@ async def setup_project_ctx(
     # TODO (y.s.): Should we deprecate project_owner?
     project_owner = await ast_project.owner.eval(ctx)
     project_role = await ast_project.role.eval(ctx)
-    if project_role is None and project_name is not None:
-        project_role = f"{project_name}/projects/{sanitize_name(project_id)}"
+    if project_role:
+        log.warning(PROJECT_ROLE_DEPRECATED_MSG)
+    project_role = None
     return ProjectCtx(
         id=project_id, owner=project_owner, role=project_role, project_name=project_name
     )

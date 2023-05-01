@@ -78,6 +78,28 @@ async def test_ctx_flow(live_config_loader: ConfigLoader) -> None:
     assert ctx.flow.title == "live_minimal"
 
 
+async def test_project_ctx(assets: pathlib.Path, client: Client) -> None:
+    ws = assets / "with_project_yaml"
+    config_dir = ConfigDir(workspace=ws, config_dir=ws)
+    cl = LiveLocalCL(config_dir, client)
+    try:
+        live_flow = await RunningLiveFlow.create(cl, "live")
+        assert live_flow.project.id == "test_project"
+        assert live_flow.project.owner == "test-owner"
+        assert live_flow.project.project_name == "test-project-name"
+    finally:
+        await cl.close()
+
+    bcl = BatchLocalCL(config_dir, client)
+    try:
+        batch_flow = await RunningBatchFlow.create(bcl, "batch", "bake-id")
+        assert batch_flow._ctx.project.id == "test_project"
+        assert batch_flow._ctx.project.owner == "test-owner"
+        assert batch_flow._ctx.project.project_name == "test-project-name"
+    finally:
+        await bcl.close()
+
+
 async def test_env_defaults(live_config_loader: ConfigLoader) -> None:
     flow = await RunningLiveFlow.create(live_config_loader, "live-full")
     ctx = flow._ctx
