@@ -488,6 +488,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                 f"--tag=flow:{bake.batch}",
                 f"--tag=bake_id:{bake.id}",
                 f"--tag=remote_executor",
+                f"--project={self.project_id}",
             ]
             project_role = self.project_role
             if project_role is not None:
