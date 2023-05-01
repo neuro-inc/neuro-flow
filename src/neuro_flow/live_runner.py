@@ -88,7 +88,6 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
         if not project_name:
             project_name = self._client.config.project_name_or_raise
 
-        self._client
         project = await self._storage.get_or_create_project(
             self.flow.project.id,
             owner=self.flow.project.owner,

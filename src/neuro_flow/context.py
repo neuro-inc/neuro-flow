@@ -79,8 +79,8 @@ class UnknownTask(KeyError):
 
 PROJECT_ROLE_DEPRECATED_MSG = (
     "Flow roles are deprecated and will be ignored. "
-    "To grant access to the flow and its artifacts, "
-    "please add users to the corresponding project using `neuro admin add-project-user`."
+    "To grant access to the flow and its artifacts, please add users "
+    "to the corresponding project using `neuro admin add-project-user`."
 )
 
 # ...Ctx types, they define parts that can be available in expressions

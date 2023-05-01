@@ -211,7 +211,11 @@ class Storage(abc.ABC):
 
     @abc.abstractmethod
     async def create_project(
-        self, yaml_id: str, project_name: str, cluster: Optional[str] = None
+        self,
+        yaml_id: str,
+        project_name: str,
+        cluster: Optional[str] = None,
+        org_name: Optional[str] = None,
     ) -> Project:
         pass
 
@@ -242,7 +246,7 @@ class Storage(abc.ABC):
             ).get()
         except ResourceNotFound:
             self.check_can_create_for_project_name(project_name)
-            return await self.create_project(yaml_id, project_name, cluster)
+            return await self.create_project(yaml_id, project_name, cluster, org_name)
 
 
 class ProjectStorage(abc.ABC):
