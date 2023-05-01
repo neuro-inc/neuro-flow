@@ -135,6 +135,7 @@ class InMemoryStorage(Storage):
         name: Optional[str] = None,
         cluster: Optional[str] = None,
         project_name: Optional[str] = None,
+        org_name: Optional[str] = None,
     ) -> AsyncIterator[Project]:
         for project in self._db.projects.values():
             if name and project.yaml_id != name:
@@ -142,6 +143,8 @@ class InMemoryStorage(Storage):
             if cluster and project.cluster != cluster:
                 continue
             if project_name and project.project_name != project_name:
+                continue
+            if org_name and project.org_name != org_name:
                 continue
             yield project
 

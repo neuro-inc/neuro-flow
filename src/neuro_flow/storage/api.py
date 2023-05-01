@@ -405,6 +405,7 @@ class ApiStorage(Storage):
         name: Optional[str] = None,
         cluster: Optional[str] = None,
         project_name: Optional[str] = None,
+        org_name: Optional[str] = None,
     ) -> AsyncIterator[Project]:
         params = []
         if name is not None:
@@ -413,6 +414,8 @@ class ApiStorage(Storage):
             params += [("cluster", cluster)]
         if project_name is not None:
             params += [("project_name", project_name)]
+        if org_name is not None:
+            params += [("org_name", org_name)]
         return self._raw_client.list("flow/projects", _parse_project_payload, params)
 
     def bake(self, *, id: str) -> "BakeStorage":

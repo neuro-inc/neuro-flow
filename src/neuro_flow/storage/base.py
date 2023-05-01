@@ -225,6 +225,7 @@ class Storage(abc.ABC):
         name: Optional[str] = None,
         cluster: Optional[str] = None,
         project_name: Optional[str] = None,
+        org_name: Optional[str] = None,
     ) -> AsyncIterator[Project]:
         pass
 
