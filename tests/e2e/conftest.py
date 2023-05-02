@@ -25,8 +25,6 @@ from typing import (
 )
 from yarl import URL
 
-from neuro_flow.context import sanitize_name
-
 
 NETWORK_TIMEOUT = 3 * 60.0
 CLIENT_TIMEOUT = aiohttp.ClientTimeout(None, None, NETWORK_TIMEOUT, NETWORK_TIMEOUT)
@@ -78,14 +76,8 @@ def cluster_name(api_config_data: Config) -> str:
 
 
 @pytest.fixture
-async def project_role(
-    project_id: str, username: str, run_neuro_cli: "RunCLI"
-) -> AsyncIterator[str]:
-    project_role = f"{username}/projects/{sanitize_name(project_id)}"
-    try:
-        yield project_role
-    finally:
-        await run_neuro_cli(["acl", "remove-role", project_role])
+def project_name(api_config_data: Config) -> str:
+    return api_config_data.project_name_or_raise
 
 
 @pytest.fixture

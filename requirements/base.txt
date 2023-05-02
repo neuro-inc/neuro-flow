@@ -3,8 +3,9 @@ click==8.1.3
 funcparserlib==1.0.1
 graphviz==0.20.1
 humanize==4.6.0
-neuro-cli==23.2.0
-neuro-extras==22.2.2
+neuro-cli @ git+https://github.com/neuro-inc/neuro-cli.git@0ff55bb299b85c6c0052ed4fc8954a0cf8500119#subdirectory=neuro-cli/
+neuro-extras @ git+https://github.com/neuro-inc/neuro-extras.git@46f3803
+neuro-sdk @ git+https://github.com/neuro-inc/neuro-cli.git@0ff55bb299b85c6c0052ed4fc8954a0cf8500119#subdirectory=neuro-sdk/
 pyyaml==6.0
 rich==13.3.4
 trafaret==2.1.1

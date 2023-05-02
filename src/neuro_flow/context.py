@@ -101,7 +101,7 @@ MatrixCtx = Annotated[Mapping[str, LiteralT], "MatrixCtx"]
 @dataclass(frozen=True)
 class ProjectCtx:
     id: str
-    project_name: Optional[str] = None
+    project_name: str
     owner: Optional[str] = None
     role: Optional[str] = None
 
@@ -758,6 +758,8 @@ async def setup_project_ctx(
     if project_role:
         log.warning(PROJECT_ROLE_DEPRECATED_MSG)
     project_role = None
+    if not project_name:
+        project_name = config_loader.client.config.project_name_or_raise
     return ProjectCtx(
         id=project_id, owner=project_owner, role=project_role, project_name=project_name
     )
