@@ -215,7 +215,6 @@ async def inspect(
 
     Display a list of started/finished tasks of BAKE\\_ID.
     """
-    # todo (y.s.) might need to adapt this one
     async with AsyncExitStack() as stack:
         client = await stack.enter_async_context(neuro_sdk.get())
         storage: Storage = await stack.enter_async_context(ApiStorage(client))
