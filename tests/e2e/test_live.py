@@ -69,7 +69,7 @@ async def test_live_context(
                 "context": str(ws),
                 "dockerfile": str(ws / "Dockerfile"),
                 "dockerfile_rel": "Dockerfile",
-                "build_preset": None,
+                "build_preset": "cpu-small",
                 "build_args": [],
                 "env": {},
                 "volumes": [],
