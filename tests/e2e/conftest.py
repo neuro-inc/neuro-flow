@@ -184,7 +184,9 @@ def _drop_once_flag() -> Dict[str, bool]:
     return {}
 
 
-@pytest.fixture(autouse=True)
+# TODO: turn on back image cleanup when fixed
+# https://github.com/neuro-inc/neuro-cli/issues/2913
+# @pytest.fixture(autouse=True)
 async def drop_old_test_images(
     run_neuro_cli: RunCLI, _drop_once_flag: Dict[str, bool]
 ) -> None:
