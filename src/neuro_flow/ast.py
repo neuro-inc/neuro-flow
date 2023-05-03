@@ -60,6 +60,7 @@ class Cache(Base):
 @dataclass(frozen=True)
 class Project(Base):
     id: SimpleIdExpr
+    project_name: SimpleOptStrExpr  # project name can contain "-"
     owner: SimpleOptStrExpr  # user name can contain "-"
     role: SimpleOptStrExpr
 

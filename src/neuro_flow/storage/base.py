@@ -27,6 +27,7 @@ class Project:
     owner: str
     cluster: str
     org_name: str
+    project_name: str  # in platform scope, not neuro-flow
 
 
 @dataclass(frozen=True)
@@ -164,7 +165,7 @@ class Storage(abc.ABC):
     ) -> None:
         await self.close()
 
-    def check_can_create_for_owner(self, owner: str) -> None:
+    def check_can_create_for_project_name(self, project_name: str) -> None:
         pass
 
     @abc.abstractmethod
@@ -184,6 +185,7 @@ class Storage(abc.ABC):
         self,
         *,
         yaml_id: str,
+        project_name: Optional[str] = None,
         owner: Optional[str] = None,
         cluster: Optional[str] = None,
         org_name: Optional[str] = None,
@@ -196,6 +198,7 @@ class Storage(abc.ABC):
         *,
         id: Optional[str] = None,
         yaml_id: Optional[str] = None,
+        project_name: Optional[str] = None,
         cluster: Optional[str] = None,
         org_name: Optional[str] = None,
         owner: Optional[str] = None,
@@ -208,31 +211,43 @@ class Storage(abc.ABC):
 
     @abc.abstractmethod
     async def create_project(
-        self, yaml_id: str, cluster: Optional[str] = None
+        self,
+        yaml_id: str,
+        project_name: str,
+        cluster: Optional[str] = None,
+        org_name: Optional[str] = None,
     ) -> Project:
         pass
 
     @abc.abstractmethod
     def list_projects(
-        self, name: Optional[str] = None, cluster: Optional[str] = None
+        self,
+        name: Optional[str] = None,
+        cluster: Optional[str] = None,
+        project_name: Optional[str] = None,
+        org_name: Optional[str] = None,
     ) -> AsyncIterator[Project]:
         pass
 
     async def get_or_create_project(
         self,
         yaml_id: str,
+        project_name: str,
         cluster: Optional[str] = None,
         org_name: Optional[str] = None,
         owner: Optional[str] = None,
     ) -> Project:
         try:
             return await self.project(
-                yaml_id=yaml_id, cluster=cluster, org_name=org_name, owner=owner
+                yaml_id=yaml_id,
+                cluster=cluster,
+                org_name=org_name,
+                owner=owner,
+                project_name=project_name,
             ).get()
         except ResourceNotFound:
-            if owner is not None:
-                self.check_can_create_for_owner(owner)
-            return await self.create_project(yaml_id, cluster)
+            self.check_can_create_for_project_name(project_name)
+            return await self.create_project(yaml_id, project_name, cluster, org_name)
 
 
 class ProjectStorage(abc.ABC):

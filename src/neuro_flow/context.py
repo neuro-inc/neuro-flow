@@ -77,6 +77,12 @@ class UnknownTask(KeyError):
     pass
 
 
+PROJECT_ROLE_DEPRECATED_MSG = (
+    "Flow roles are deprecated and will be ignored. "
+    "To grant access to the flow and its artifacts, please add users "
+    "to the corresponding project using `neuro admin add-project-user`."
+)
+
 # ...Ctx types, they define parts that can be available in expressions
 
 
@@ -95,6 +101,7 @@ MatrixCtx = Annotated[Mapping[str, LiteralT], "MatrixCtx"]
 @dataclass(frozen=True)
 class ProjectCtx:
     id: str
+    project_name: str
     owner: Optional[str] = None
     role: Optional[str] = None
 
@@ -744,11 +751,18 @@ async def setup_project_ctx(
 ) -> ProjectCtx:
     ast_project = await config_loader.fetch_project()
     project_id = await ast_project.id.eval(ctx)
+    project_name = await ast_project.project_name.eval(ctx)
+    # TODO (y.s.): Should we deprecate project_owner?
     project_owner = await ast_project.owner.eval(ctx)
     project_role = await ast_project.role.eval(ctx)
-    if project_role is None and project_owner is not None:
-        project_role = f"{project_owner}/projects/{sanitize_name(project_id)}"
-    return ProjectCtx(id=project_id, owner=project_owner, role=project_role)
+    if project_role:
+        log.warning(PROJECT_ROLE_DEPRECATED_MSG)
+    project_role = None
+    if not project_name:
+        project_name = config_loader.client.config.project_name_or_raise
+    return ProjectCtx(
+        id=project_id, owner=project_owner, role=project_role, project_name=project_name
+    )
 
 
 async def setup_flow_ctx(

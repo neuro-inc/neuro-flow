@@ -216,6 +216,7 @@ async def live_context_factory(assets: pathlib.Path) -> LiveContextFactory:
             _dry_run=dry_run,
             project=ProjectCtx(
                 id="test",
+                project_name=client.config.project_name_or_raise,
                 owner=None,
                 role=None,
             ),

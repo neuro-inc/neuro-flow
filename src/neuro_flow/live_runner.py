@@ -6,16 +6,7 @@ import datetime
 import secrets
 import shlex
 import sys
-from neuro_sdk import (
-    Action,
-    AuthorizationError,
-    Client,
-    IllegalArgumentError,
-    JobDescription,
-    JobStatus,
-    Permission,
-    ResourceNotFound,
-)
+from neuro_sdk import Client, JobDescription, JobStatus, ResourceNotFound
 from rich import box
 from rich.console import Console
 from rich.table import Table
@@ -31,7 +22,6 @@ from typing import (
     Tuple,
     Type,
 )
-from yarl import URL
 
 from .config_loader import LiveLocalCL
 from .context import ImageCtx, JobMeta, RunningLiveFlow, UnknownJob, VolumeCtx
@@ -75,7 +65,6 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
         self._client = client
         self._storage = storage
         self._project_storage: Optional[ProjectStorage] = None
-        self._is_projet_role_created = False
         self._run_neuro_cli = make_cmd_exec(
             "neuro", global_options=encode_global_options(global_options)
         )
@@ -95,8 +84,14 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
             raise
 
     async def init_project_storage(self) -> None:
+        project_name = self.flow.project.project_name
+        if not project_name:
+            project_name = self._client.config.project_name_or_raise
+
         project = await self._storage.get_or_create_project(
-            self.flow.project.id, owner=self.flow.project.owner
+            self.flow.project.id,
+            owner=self.flow.project.owner,
+            project_name=project_name,
         )
         self._project_storage = self._storage.project(id=project.id)
 
@@ -405,7 +400,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
         if job.schedule_timeout is not None:
             run_args.append(f"--schedule-timeout={int(job.schedule_timeout)}s")
         if job.http_port is not None:
-            run_args.append(f"--http={job.http_port}")
+            run_args.append(f"--http-port={job.http_port}")
         if job.http_auth is not None:
             if job.http_auth:
                 run_args.append(f"--http-auth")
@@ -431,10 +426,6 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
             run_args.append(f"--port-forward={pf}")
         if job.pass_config:
             run_args.append(f"--pass-config")
-        project_role = self._flow.project.role
-        if project_role is not None:
-            await self._create_project_role(project_role)
-            run_args.append(f"--share={project_role}")
 
         run_args.append(job.image)
 
@@ -562,11 +553,6 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
             str(volume_ctx.full_local_path),
             str(volume_ctx.remote),
         )
-        uri = self._client.parse.normalize_uri(
-            volume_ctx.remote,
-            allowed_schemes=("storage",),
-        )
-        await self._add_resource(uri)
 
     async def download(self, volume: str) -> None:
         volume_ctx = await self.find_volume(volume)
@@ -608,11 +594,6 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
                     "--parents",
                     str(volume_ctx.remote),
                 )
-                uri = self._client.parse.normalize_uri(
-                    volume_ctx.remote,
-                    allowed_schemes=("storage",),
-                )
-                await self._add_resource(uri)
 
     # images subsystem
 
@@ -651,44 +632,8 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
         cmd.append(str(image_ctx.context))
         cmd.append(str(image_ctx.ref))
         await self._run_extras_cli("image", "build", *cmd)
-        image_ref = self._client.parse.remote_image(image_ctx.ref)
-        image_ref = dataclasses.replace(image_ref, tag=None)
-        await self._add_resource(URL(str(image_ref)))
 
     async def build_all(self, force_overwrite: bool) -> None:
         for image, image_ctx in self.flow.images.items():
             if image_ctx.context is not None:
                 await self.build(image, force_overwrite=force_overwrite)
-
-    async def _create_project_role(self, project_role: str) -> None:
-        if self._is_projet_role_created:
-            return
-        try:
-            await self._client.users.add(project_role)
-        except AuthorizationError:
-            pass
-            # We have no permissions to create role --
-            # assume that this is shared project and
-            # current user is not the owner
-        except IllegalArgumentError as e:
-            if "already exists" not in str(e):
-                raise
-        self._is_projet_role_created = True
-
-    async def _add_storage_resource(self, uri: URL) -> None:
-        uri = self._client.parse.normalize_uri(
-            uri,
-            allowed_schemes=("storage",),
-        )
-
-    async def _add_resource(self, uri: URL) -> None:
-        assert self._flow is not None
-        project_role = self._flow.project.role
-        if project_role is None:
-            return
-        await self._create_project_role(project_role)
-        permission = Permission(uri, Action.WRITE)
-        try:
-            await self._client.users.share(project_role, permission)
-        except ValueError:
-            self._console.print(f"[red]Cannot share [b]{uri!s}[/b]")

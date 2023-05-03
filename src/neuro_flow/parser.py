@@ -1498,6 +1498,7 @@ class ProjectLoader(Reader, Scanner, Parser, Composer, BaseConstructor, BaseReso
 
 PROJECT = {
     "id": SimpleIdExpr,
+    "project_name": SimpleOptStrExpr,
     "owner": SimpleOptStrExpr,
     "role": SimpleOptStrExpr,
     "images": None,
@@ -1610,6 +1611,11 @@ def make_default_project(workspace_stem: str) -> ast.Project:
             Pos(0, 0, LocalPath("<default>")),
             Pos(0, 0, LocalPath("<default>")),
             project_id,
+        ),
+        project_name=SimpleOptStrExpr(
+            Pos(0, 0, LocalPath("<default>")),
+            Pos(0, 0, LocalPath("<default>")),
+            None,
         ),
         owner=SimpleOptStrExpr(
             Pos(0, 0, LocalPath("<default>")),

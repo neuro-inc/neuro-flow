@@ -76,6 +76,7 @@ def make_descr(
         id=job_id,
         owner="test-user",
         cluster_name="default",
+        project_name="test-project",
         status=status,
         history=JobStatusHistory(
             status=status,
@@ -240,6 +241,7 @@ class JobsMock:
             id=job_id,
             owner="test-user",
             cluster_name="default",
+            project_name="test-project",
             preset_name=preset_name,
             status=JobStatus.PENDING,
             history=JobStatusHistory(
@@ -1314,6 +1316,7 @@ async def test_image_builds(
     run_executor: Callable[[Path, str], Awaitable[None]],
     mock_builder: MockBuilder,
     batch_storage: Storage,
+    client: Client,
 ) -> None:
     executor_task = asyncio.ensure_future(
         run_executor(assets / "batch_images", "batch")
@@ -1321,7 +1324,10 @@ async def test_image_builds(
 
     job_id = await _wait_for_build(mock_builder, "image:banana1")
 
-    project_storage = batch_storage.project(yaml_id="batch_images")
+    project_storage = batch_storage.project(
+        yaml_id="batch_images",
+        project_name=client.config.project_name,
+    )
     bake = [bake async for bake in project_storage.list_bakes()][0]
     bake_storage = project_storage.bake(id=bake.id)
     image = await bake_storage.bake_image(ref="image:banana1").get()
@@ -1406,7 +1412,10 @@ async def test_image_builds_skip_if_present(
 
     await asyncio.wait_for(executor_task, timeout=1)
 
-    project_storage = batch_storage.project(yaml_id="batch_images")
+    project_storage = batch_storage.project(
+        yaml_id="batch_images",
+        project_name=client.config.project_name,
+    )
     bake = [bake async for bake in project_storage.list_bakes()][0]
     bake_storage = project_storage.bake(id=bake.id)
     image = await bake_storage.bake_image(ref="image:main").get()
@@ -1444,7 +1453,10 @@ async def test_image_builds_if_present_but_force(
     await jobs_mock.mark_done("action.task_2")
 
     job_id = await _wait_for_build(mock_builder, "image:main")
-    project_storage = batch_storage.project(yaml_id="batch_images")
+    project_storage = batch_storage.project(
+        yaml_id="batch_images",
+        project_name=client.config.project_name,
+    )
     bake = [bake async for bake in project_storage.list_bakes()][0]
     bake_storage = project_storage.bake(id=bake.id)
     image = await bake_storage.bake_image(ref="image:main").get()
@@ -1487,7 +1499,10 @@ async def test_image_builds_cancel(
         return mock_builder.ref2job[ref]
 
     job_id = await _wait_for_build("image:banana1")
-    project_storage = batch_storage.project(yaml_id="batch_images")
+    project_storage = batch_storage.project(
+        yaml_id="batch_images",
+        project_name=batch_runner._client.config.project_name_or_raise,
+    )
     bake = [bake async for bake in project_storage.list_bakes()][0]
     await batch_runner.cancel(bake.id)
 
