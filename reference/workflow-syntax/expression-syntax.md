@@ -8,7 +8,7 @@ You can use expressions to programmatically set variables in workflow files and 
 
 You need to use specific syntax to tell Neuro Flow to evaluate an expression rather than to treat it as a string.
 
-```text
+```
 ${{ <expression> }}
 ```
 
@@ -33,7 +33,7 @@ Contexts are a way to access information about workflow runs, jobs, tasks, volum
 ${{ <context> }}
 ```
 
-There are two main sets of contexts: one is available for _live_ mode and another one for _batch_ mode. Additionally, actions can access a specific namespace with contexts that are similar but slightly different from ones from the main workflow. The following chapters describe all mentioned context namespaces in detail. Refer to [live contexts](live-contexts.md), [batch contexts](batch-contexts.md), and [actions contexts](live-actions-contexts.md) for details.
+There are two main sets of contexts: one is available for _live_ mode and another one for _batch_ mode. Additionally, actions can access a specific namespace with contexts that are similar but slightly different from ones from the main workflow. The following chapters describe all mentioned context namespaces in detail. Refer to [live contexts](live-workflow-syntax/live-contexts.md), [batch contexts](batch-workflow-syntax/batch-contexts.md), and [actions contexts](actions-syntax/live-actions-contexts.md) for details.
 
 ## Property access
 
@@ -51,51 +51,17 @@ In order to use property dereference syntax, the property name must:
 
 As part of an expression, you can use `None`, `bool`, `int`, `float`, or `string` data types.
 
-<table>
-  <thead>
-    <tr>
-      <th style="text-align:left">Data type</th>
-      <th style="text-align:left">Literal value</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td style="text-align:left"><code>None</code>
-      </td>
-      <td style="text-align:left"><code>None</code>
-      </td>
-    </tr>
-    <tr>
-      <td style="text-align:left"><code>boolean</code>
-      </td>
-      <td style="text-align:left"><code>True</code> or <code>False</code>(case sensitive).</td>
-    </tr>
-    <tr>
-      <td style="text-align:left"><code>int</code>
-      </td>
-      <td style="text-align:left">
-        <p>Any integer defined by either decimal (<code>42</code>), hex (<code>0xFF</code>),
-          octal (<code>0o22</code>), or binary</p>
-        <p>(<code>0b1011</code>) format.</p>
-      </td>
-    </tr>
-    <tr>
-      <td style="text-align:left"><code>float</code>
-      </td>
-      <td style="text-align:left">A real number that contains digits after the period. Exponential notation
-        is also supported.</td>
-    </tr>
-    <tr>
-      <td style="text-align:left"><code>string</code>
-      </td>
-      <td style="text-align:left">You can use either single or double quotes for strings.</td>
-    </tr>
-  </tbody>
-</table>
+| Data type | Literal value                                                                                                                                                     |
+| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `None`    | `None`                                                                                                                                                            |
+| `boolean` | `True` or `False`(case sensitive).                                                                                                                                |
+| `int`     | <p>Any integer defined by either decimal (<code>42</code>), hex (<code>0xFF</code>), octal (<code>0o22</code>), or binary</p><p>(<code>0b1011</code>) format.</p> |
+| `float`   | A real number that contains digits after the period. Exponential notation is also supported.                                                                      |
+| `string`  | You can use either single or double quotes for strings.                                                                                                           |
 
 **Example**
 
-```text
+```
 env:
   NoneValue: ${{ None }}
   boolValue: ${{ False }}
@@ -110,18 +76,18 @@ env:
 
 ## Operators
 
-| Operator | Description |
-| :--- | :--- |
-| `( )` | Logical grouping |
-| `not` | Not |
-| `<` | Less than |
-| `<=` | Less than or equal |
-| `>` | Greater than |
-| `>=` | Greater than or equal |
-| `==` | Equal |
-| `!=` | Not equal |
-| `and` | And |
-| `or` | Or |
+| Operator | Description           |
+| -------- | --------------------- |
+| `( )`    | Logical grouping      |
+| `not`    | Not                   |
+| `<`      | Less than             |
+| `<=`     | Less than or equal    |
+| `>`      | Greater than          |
+| `>=`     | Greater than or equal |
+| `==`     | Equal                 |
+| `!=`     | Not equal             |
+| `and`    | And                   |
+| `or`     | Or                    |
 
 ## Lists and dictionaries
 
@@ -129,7 +95,7 @@ You can use lists and dictionaries in expressions.
 
 **Example**
 
-```text
+```
 env:
   list: ${{ [ value1, value2, value3 ] }}
   emptyList: ${{ [] }}
@@ -141,15 +107,14 @@ env:
 
 To allow some operations in expressions, Neu.ro provides a set of built-in functions. The function call syntax is the following:
 
-```text
+```
 ${{ function_name(arg1, arg2, arg3) }}
 ```
 
 When a function returns an object as the result, you can access properties as usual:
 
-```text
+```
 ${{ parse_json('{"name": "value"}').name }}
 ```
 
-Check the [functions reference](expression-functions.md) for the list of available functions.
-
+Check the [functions reference](../expression-functions.md) for the list of available functions.

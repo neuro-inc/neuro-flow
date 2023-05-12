@@ -1,0 +1,17 @@
+# Table of contents
+
+* [Workflows](README.md)
+* [Workflow syntax](workflow-syntax/README.md)
+  * [Expression syntax](workflow-syntax/expression-syntax.md)
+  * [Live workflow syntax](workflow-syntax/live-workflow-syntax/README.md)
+    * [Live contexts](workflow-syntax/live-workflow-syntax/live-contexts.md)
+  * [Batch workflow syntax](workflow-syntax/batch-workflow-syntax/README.md)
+    * [Batch contexts](workflow-syntax/batch-workflow-syntax/batch-contexts.md)
+    * [Batch workflow commands](workflow-syntax/batch-workflow-syntax/batch-workflow-commands.md)
+  * [Project configuration syntax](workflow-syntax/project-configuration-syntax.md)
+  * [Actions syntax](workflow-syntax/actions-syntax/README.md)
+    * [Actions contexts](workflow-syntax/actions-syntax/live-actions-contexts.md)
+* [CLI reference](cli.md)
+* [Expression functions](expression-functions.md)
+* [Mixins](mixins.md)
+* [Modules](modules.md)

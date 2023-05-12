@@ -12,13 +12,13 @@ Sets the value of a task's output that can be later accessed by other tasks usin
 
 **Example:**
 
-```text
+```
 echo "::set-output name=output_name::value of the output_name"
 ```
 
 ## `save-state` command
 
-Saves some value in the `main` task of a [stateful action](actions-syntax.md#kind-stateful-actions) that can be later accessed by other `post` using the [`state` context](live-actions-contexts.md#state-context).
+Saves some value in the `main` task of a [stateful action](../actions-syntax/#kind-stateful-actions) that can be later accessed by other `post` using the [`state` context](../actions-syntax/live-actions-contexts.md#state-context).
 
 **Format:**
 
@@ -26,7 +26,7 @@ Saves some value in the `main` task of a [stateful action](actions-syntax.md#kin
 
 **Example:**
 
-```text
+```
 echo "::save-state name=resource_id::id of some resource"
 ```
 
@@ -40,9 +40,8 @@ Temporarily disables the processing of commands until an `::{end_token}::` is fo
 
 **Example:**
 
-```text
+```
 echo "::stop-commands::this will not appear in the file"
 cat some-file.txt
 echo "::this will not appear in the file::"
 ```
-
