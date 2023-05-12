@@ -1,6 +1,6 @@
 # Mixins
 
-Mixins allow to define and reuse parts of jobs in live mode and tasks in batch mode. 
+Mixins allow to define and reuse parts of jobs in live mode and tasks in batch mode.
 
 To define a mixin, use the top-level `mixins` section:
 
@@ -45,7 +45,7 @@ jobs:
 
 In this case, `job1` will use the `example` image and `job2` will use the `example_mix2` image.
 
-* If the property is a list, than all lists will be concatenated.
+* If the property is a list, then all lists will be concatenated.
 * If the property is a dictionary, the rule for scalar values will be applied to each value from the dictionary.
 
 Mixins can inherit from each other:
@@ -58,5 +58,4 @@ mixins:
   mix2:
     mixins: [ mix1 ]
     image: example
-``` ([#498](https://github.com/neuro-inc/neuro-flow/issues/498))
 ```

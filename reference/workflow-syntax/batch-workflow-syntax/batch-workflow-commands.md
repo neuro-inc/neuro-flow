@@ -18,7 +18,7 @@ echo "::set-output name=output_name::value of the output_name"
 
 ## `save-state` command
 
-Saves some value in the `main` task of a [stateful action](./#kind-stateful-actions) that can be later accessed by other `post` using the [`state` context](live-actions-contexts.md#state-context).
+Saves some value in the `main` task of a [stateful action](../actions-syntax/#kind-stateful-actions) that can be later accessed by other `post` using the [`state` context](../actions-syntax/live-actions-contexts.md#state-context).
 
 **Format:**
 
