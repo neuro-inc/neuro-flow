@@ -761,7 +761,7 @@ cache:
 
 The cache invalidation duration. This attribute can accept the following values:
 
-* A `float` number representing an amount of seconds&#x20;
+* A `float` number representing an amount of seconds
 * A string in the following format: `1d6h15m45s` (1 day, 6 hours, 15 minutes, 45 seconds)
 
 Defaults to [`defaults.cache.life_span`](batch-workflow-syntax.md#defaults-cache-life\_span) if not specified.
@@ -950,8 +950,8 @@ By default, tasks live 1 day. You may want to change this period by customizing 
 
 The value could be:
 
-* A float number representing an amount of seconds (`3600` for an hour)&#x20;
-* An expression in the following format: `1d6h15m` (1 day, 6 hours, 15 minutes)&#x20;
+* A float number representing an amount of seconds (`3600` for an hour)
+* An expression in the following format: `1d6h15m` (1 day, 6 hours, 15 minutes)
 
 Use an arbitrary large value (e.g. `365d`) for lifespan-disabling emulation. Keep in mind that this can be dangerous, as a forgotten task will consume cluster resources.
 
@@ -1010,7 +1010,7 @@ The default system-wide _schedule timeout_ is controlled by the cluster administ
 
 The value of this attribute can be:
 
-* A `float` number representing an amount of seconds&#x20;
+* A `float` number representing an amount of seconds
 * A string in the following format: `1d6h15m45s` (1 day, 6 hours, 15 minutes, 45 seconds)
 
 **Example:**
@@ -1084,7 +1084,7 @@ This attribute takes precedence if specified. Otherwise, the [`WORKDIR`](https:/
 
 ## Attributes for actions calls
 
-The attributes described in this section are only applicable to action calls. An action is a reusable part that can be integrated into a workflow. Refer to the [actions reference](actions-syntax.md) to learn more about actions.
+The attributes described in this section are only applicable to action calls. An action is a reusable part that can be integrated into a workflow. Refer to the [actions reference](./) to learn more about actions.
 
 ### `tasks.action`
 
@@ -1115,7 +1115,7 @@ tasks:
 
 ### `tasks.args`
 
-Mapping of values that will be passed to the actions as arguments. This should correspond to [`inputs`](actions-syntax.md#inputs) defined in the action file.
+Mapping of values that will be passed to the actions as arguments. This should correspond to [`inputs`](./#inputs) defined in the action file.
 
 **Example:**
 

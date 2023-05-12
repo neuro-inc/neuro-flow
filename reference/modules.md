@@ -1,6 +1,6 @@
 # Modules
 
-Modules are simillar to [actions](actions-syntax.md), but have the following differences:
+Modules are simillar to [actions](broken-reference), but have the following differences:
 
 * Only local files (`ws:` scheme) are supported. Modules located on GitHub are forbidden.
 * Module content has access to global workflow defaults. The default `env/volumes/preset` is inherited and expressions can access top-level contexts such as `flow`.
