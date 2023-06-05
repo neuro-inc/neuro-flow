@@ -164,6 +164,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
                 reverse=True,
                 statuses=(JobStatus.PENDING, JobStatus.RUNNING),
                 project_names=[self.flow.project.project_name],
+                org_names=[self.client.config.org_name],
             ):
                 found = True
                 yield job
@@ -178,6 +179,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
                 ),
                 since=since,
                 project_names=[self.flow.project.project_name],
+                org_names=[self.client.config.org_name],
             ):
                 found = True
                 yield job
@@ -191,6 +193,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
                 limit=1,
                 statuses=(JobStatus.PENDING, JobStatus.RUNNING),
                 project_names=[self.flow.project.project_name],
+                org_names=[self.client.config.org_name],
             ):
                 found = True
                 yield job
@@ -207,6 +210,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
                 ),
                 since=since,
                 project_names=[self.flow.project.project_name],
+                org_names=[self.client.config.org_name],
             ):
                 found = True
                 yield job
