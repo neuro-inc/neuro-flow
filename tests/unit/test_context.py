@@ -224,11 +224,10 @@ async def test_local_remote_path_images(
     )
     assert ctx.images["image_local"].dockerfile_rel == LocalPath("Dockerfile")
 
-    assert ctx.images["image_remote"].context == URL(
-        f"storage://{client.cluster_name}/{client.username}/dir"
-    )
+    cluster_project = f"{client.cluster_name}/{client.config.project_name_or_raise}"
+    assert ctx.images["image_remote"].context == URL(f"storage://{cluster_project}/dir")
     assert ctx.images["image_remote"].dockerfile == URL(
-        f"storage://{client.cluster_name}/{client.username}/dir/Dockerfile"
+        f"storage://{cluster_project}/dir/Dockerfile"
     )
     assert ctx.images["image_remote"].dockerfile_rel == RemotePath("Dockerfile")
 

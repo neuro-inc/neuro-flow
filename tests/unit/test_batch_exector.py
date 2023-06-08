@@ -1387,14 +1387,11 @@ async def test_image_builds_skip_if_present(
     client: Client,
     batch_storage: Storage,
 ) -> None:
+    cluster_project = f"{client.cluster_name}/{client.config.project_name_or_raise}"
     images_mock.known_images = {
-        f"image://{client.cluster_name}/{client.username}/banana1:latest": Tag(
-            "latest"
-        ),
-        f"image://{client.cluster_name}/{client.username}/banana2:latest": Tag(
-            "latest"
-        ),
-        f"image://{client.cluster_name}/{client.username}/main:latest": Tag("latest"),
+        f"image://{cluster_project}/banana1:latest": Tag("latest"),
+        f"image://{cluster_project}/banana2:latest": Tag("latest"),
+        f"image://{cluster_project}/main:latest": Tag("latest"),
     }
 
     executor_task = asyncio.ensure_future(
@@ -1432,14 +1429,11 @@ async def test_image_builds_if_present_but_force(
     batch_storage: Storage,
     client: Client,
 ) -> None:
+    cluster_project = f"{client.cluster_name}/{client.config.project_name_or_raise}"
     images_mock.known_images = {
-        f"image://{client.cluster_name}/{client.username}/banana1:latest": Tag(
-            "latest"
-        ),
-        f"image://{client.cluster_name}/{client.username}/banana2:latest": Tag(
-            "latest"
-        ),
-        f"image://{client.cluster_name}/{client.username}/main:latest": Tag("latest"),
+        f"image://{cluster_project}/banana1:latest": Tag("latest"),
+        f"image://{cluster_project}/banana2:latest": Tag("latest"),
+        f"image://{cluster_project}/main:latest": Tag("latest"),
     }
 
     executor_task = asyncio.ensure_future(
