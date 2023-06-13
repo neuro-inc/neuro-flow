@@ -7,7 +7,7 @@ neuro-cli @ git+https://github.com/neuro-inc/neuro-cli.git@951cda3078618ca535d15
 neuro-extras @ git+https://github.com/neuro-inc/neuro-extras.git@52078fa5facffffcad01f8aaab4d728b70456969
 neuro-sdk @ git+https://github.com/neuro-inc/neuro-cli.git@951cda3078618ca535d15946460c746431e7a077#subdirectory=neuro-sdk/
 pyyaml==6.0
-rich==13.4.1
+rich==13.4.2
 trafaret==2.1.1
 
 typing-extensions==4.6.3
