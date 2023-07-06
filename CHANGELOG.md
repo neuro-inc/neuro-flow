@@ -5,6 +5,18 @@
 
 [comment]: # (towncrier release notes start)
 
+# Neuro Flow 23.7.0 (2023-07-07)
+
+### Features
+
+- Dropped Python 3.7, added 3.10, 3.11 support. ([#980](https://github.com/neuro-inc/neuro-flow/issues/980))
+- Host neuro-flow flows (former projects) within user projects. ([#1002](https://github.com/neuro-inc/neuro-flow/issues/1002))
+
+### Misc
+
+- [#996](https://github.com/neuro-inc/neuro-flow/issues/996), [#1002](https://github.com/neuro-inc/neuro-flow/issues/1002)
+
+
 Neuro Flow 22.8.1 (2022-08-05)
 ==============================
 
