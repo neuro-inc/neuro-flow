@@ -17,7 +17,7 @@
 - [#996](https://github.com/neuro-inc/neuro-flow/issues/996), [#1002](https://github.com/neuro-inc/neuro-flow/issues/1002)
 
 
-Neuro Flow 22.8.1 (2022-08-05)
+# Neuro Flow 22.8.1 (2022-08-05)
 ==============================
 
 Features
