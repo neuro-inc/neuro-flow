@@ -1,5 +1,5 @@
 -e .
-click==8.1.4
+click==8.1.5
 funcparserlib==1.0.1
 graphviz==0.20.1
 humanize==4.7.0
