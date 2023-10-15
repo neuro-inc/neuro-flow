@@ -5,7 +5,7 @@
 
 [comment]: # (towncrier release notes start)
 
-# Neuro Flow 23.10.0 (2023-10-15)
+# Neuro Flow 23.10.1 (2023-10-15)
 
 ### Features
 
