@@ -28,7 +28,7 @@ from funcparserlib.parser import (
     skip,
     some,
 )
-from neuro_sdk import Client, JobDescription, JobStatus
+from neuro_sdk import Client, JobDescription, JobRestartPolicy, JobStatus
 from typing import (
     Any,
     AsyncContextManager,
@@ -1649,3 +1649,22 @@ class MappingItemsExpr(BaseMappingExpr, Generic[_IT]):
 
     def __hash__(self) -> int:
         return hash((self.__class__.__name__, self._items))
+
+
+def restart_policy_item(arg: TypeT) -> str:
+    sarg = str(arg)
+    try:
+        arg = JobRestartPolicy(sarg)
+    except ValueError:
+        allowed_values = ", ".join(list(JobRestartPolicy))
+        raise ValueError(
+            f"{arg!r} is not a valid restart policy, allowed: {allowed_values}"
+        )
+    return arg
+
+
+class OptRestartPolicyExpr(OptStrExpr):
+    type_name: ClassVar[str] = "RestartPolicy"
+
+    def convert(self, arg: TypeT) -> str:
+        return restart_policy_item(arg)

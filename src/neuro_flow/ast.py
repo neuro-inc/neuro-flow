@@ -14,6 +14,7 @@ from .expr import (
     OptIntExpr,
     OptLocalPathExpr,
     OptRemotePathExpr,
+    OptRestartPolicyExpr,
     OptStrExpr,
     OptTimeDeltaExpr,
     PrimitiveExpr,
@@ -119,6 +120,7 @@ class ExecUnitMixin(WithSpecifiedFields, Base):
     http_auth: OptBoolExpr
     pass_config: OptBoolExpr
     mixins: Optional[Sequence[StrExpr]] = field(metadata={"allow_none": True})
+    restart: OptRestartPolicyExpr
 
 
 @dataclass(frozen=True)
@@ -138,6 +140,7 @@ class ExecUnit(Base):
     http_port: OptIntExpr
     http_auth: OptBoolExpr
     pass_config: OptBoolExpr
+    restart: OptRestartPolicyExpr
 
 
 @dataclass(frozen=True)
@@ -197,6 +200,7 @@ class JobMixin(WithSpecifiedFields, Base):
     multi: SimpleOptBoolExpr
     params: Optional[Mapping[str, Param]] = field(metadata={"allow_none": True})
     mixins: Optional[Sequence[StrExpr]] = field(metadata={"allow_none": True})
+    restart: OptRestartPolicyExpr
 
 
 @dataclass(frozen=True)
@@ -260,6 +264,7 @@ class TaskMixin(WithSpecifiedFields, Base):
     enable: EnableExpr = field(metadata={"default_expr": "${{ success() }}"})
     cache: Optional[Cache] = field(metadata={"allow_none": True})
     mixins: Optional[Sequence[StrExpr]] = field(metadata={"allow_none": True})
+    restart: OptRestartPolicyExpr
 
 
 @dataclass(frozen=True)

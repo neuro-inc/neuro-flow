@@ -24,18 +24,23 @@ mixins:
     name: ${{ params.test_expr }}
     params:
       test_expr: ~
+  misc:
+    restart: on-failure
+    pass_config: true
 jobs:
   test:
     name: job-name
-    mixins: [ envs1, envs2, preset, image ]
+    mixins: [envs1, envs2, preset, image]
     env:
       env1: val1
       env2: val2
   test2:
     name: job-name
-    mixins: [ image, image2 ]
+    mixins: [image, image2]
   test3:
     name: job-name
-    mixins: [ image, volumes1, volumes2 ]
+    mixins: [image, volumes1, volumes2]
   test4:
-    mixins: [ image, expression ]
+    mixins: [image, expression]
+  test5:
+    mixins: [image, misc]

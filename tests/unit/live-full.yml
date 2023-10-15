@@ -6,9 +6,9 @@ images:
     context: dir
     dockerfile: dir/Dockerfile
     build_args:
-    - --arg1
-    - val1
-    - --arg2=val2
+      - --arg1
+      - val1
+      - --arg2=val2
     env:
       SECRET_ENV: secret:key
     volumes:
@@ -42,7 +42,7 @@ mixins:
 jobs:
   test_a:
     name: job-name
-    mixins: [ envs ]
+    mixins: [envs]
     image: ${{ images.image_a.ref }}
     preset: cpu-micro
     schedule_timeout: 1d2h3m4s
@@ -55,7 +55,7 @@ jobs:
     volumes:
       - ${{ volumes.volume_a.ref }}
       - storage:dir:/var/dir:ro
-      - ''
+      - ""
       - ~
     tags: [tag-1, tag-2]
     life_span: 2h55m
@@ -65,5 +65,6 @@ jobs:
     detach: true
     browse: true
     port_forward:
-    - "2211:22"
+      - "2211:22"
     pass_config: true
+    restart: on-failure

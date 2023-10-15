@@ -294,6 +294,7 @@ class ExecUnit:
     life_span: Optional[float]
     env: Mapping[str, str]
     tags: AbstractSet[str]
+    restart: Optional[str]
 
 
 @dataclass(frozen=True)
@@ -1569,6 +1570,7 @@ class RunningLiveFlow:
             multi=await self.is_multi(job_id),
             env=env,
             tags=tags,
+            restart=await job.restart.eval(ctx),
         )
 
     @classmethod
@@ -2007,6 +2009,7 @@ class RunningBatchBase(Generic[_T], EarlyBatch, ABC):
             tags=tags,
             env=env,
             caching_key="",
+            restart=await prep_task.ast_task.restart.eval(ctx),
         )
         return replace(
             task,

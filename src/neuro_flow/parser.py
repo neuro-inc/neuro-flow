@@ -50,6 +50,7 @@ from .expr import (
     OptLocalPathExpr,
     OptPythonExpr,
     OptRemotePathExpr,
+    OptRestartPolicyExpr,
     OptStrExpr,
     OptTimeDeltaExpr,
     PortPairExpr,
@@ -637,6 +638,7 @@ EXEC_UNIT = {
     "http_port": OptIntExpr,
     "http_auth": OptBoolExpr,
     "pass_config": OptBoolExpr,
+    "restart": OptRestartPolicyExpr,
 }
 
 EXEC_UNIT_MIXIN: Dict[str, Any] = {

@@ -3,6 +3,7 @@ mixins:
   basic:
     image: ubuntu
     preset: cpu-micro
+    restart: on-failure
 tasks:
   - mixins: [basic]
     bash: echo abc
