@@ -767,6 +767,24 @@ The lifetime of passed credentials is bound to the job's lifetime. It will be im
 
 **Expression contexts:** [`flow` context](live-contexts.md#flow-context), [`env` context](live-contexts.md#env-context), [`tags` context](live-contexts.md#tags-context), [`volumes` context](live-contexts.md#volumes-context), [`images` context](live-contexts.md#images-context), [`params` context](live-contexts.md#params-context), [`multi` context](live-contexts.md#multi-context) (if [`jobs.<job-id>.multi`](./#jobs-less-than-job-id-greater-than-multi) is set).
 
+### `jobs.<job-id>.restart`
+
+**Optional** Control the job behavior when main process exits.
+
+Possible values: `never` (default), `on-failure` and `always`.
+
+Set this attribute to `on-failure` if you want your job to be restarted if the main process exits with non-zero exit code. If you set this attribute to `always,` the job will be restarted even if the main process exits with 0. In this case you will need to terminate the job manually or it will be automatically terminated when it's lifespan ends. `never` implies the platform does not restart the job and this value is used by default.
+
+**Example:**
+
+```yaml
+jobs:
+  my_job:
+    restart: on-failure
+```
+
+**Expression contexts:** [`flow` context](live-contexts.md#flow-context), [`env` context](live-contexts.md#env-context), [`tags` context](live-contexts.md#tags-context), [`volumes` context](live-contexts.md#volumes-context), [`images` context](live-contexts.md#images-context), [`params` context](live-contexts.md#params-context), [`multi` context](live-contexts.md#multi-context) (if [`jobs.<job-id>.multi`](./#jobs-less-than-job-id-greater-than-multi) is set).
+
 ### `jobs.<job-id>.port-forward`
 
 **Optional** You can define a list of TCP tunnels for the job.

@@ -994,6 +994,23 @@ tasks:
 
 **Expression contexts:** [`flow` context](batch-contexts.md#flow-context), [`params` context](batch-contexts.md#params-context), [`env` context](batch-contexts.md#env-context), [`tags` context](batch-contexts.md#tags-context), [`volumes` context](batch-contexts.md#volumes-context), [`images` context](batch-contexts.md#images-context), [`matrix` context](batch-contexts.md#matrix-context), [`strategy` context](batch-contexts.md#strategy-context), [`needs` context](batch-contexts.md#needs-context).
 
+### `tasks.restart`
+
+**Optional** Control the task behavior when main process exits.
+
+Possible values: `never` (default), `on-failure` and `always`.
+
+Set this attribute to `on-failure` if you want your task to be restarted if the main process exits with non-zero exit code. If you set this attribute to `always,` the task will be restarted even if the main process exits with 0. In this case you will need to terminate the task manually or it will be automatically terminated when it's lifespan ends. `never` implies the platform does not restart the task and this value is used by default.
+
+**Example:**
+
+```yaml
+tasks:
+  - restart: on-failure
+```
+
+**Expression contexts:** [`flow` context](batch-contexts.md#flow-context), [`params` context](batch-contexts.md#params-context), [`env` context](batch-contexts.md#env-context), [`tags` context](batch-contexts.md#tags-context), [`volumes` context](batch-contexts.md#volumes-context), [`images` context](batch-contexts.md#images-context), [`matrix` context](batch-contexts.md#matrix-context), [`strategy` context](batch-contexts.md#strategy-context), [`needs` context](batch-contexts.md#needs-context).
+
 ### `tasks.preset`
 
 The preset to execute the task with.
