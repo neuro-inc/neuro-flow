@@ -466,9 +466,11 @@ class InMemoryAttemptStorage(AttemptStorage):
     ) -> Attempt:
         attempt = await self.get()
         if executor_id is not _Unset:
-            attempt = replace(attempt, executor_id=executor_id)
+            attempt = replace(
+                attempt, executor_id=executor_id  # type: ignore[arg-type]
+            )
         if result is not _Unset:
-            attempt = replace(attempt, result=result)
+            attempt = replace(attempt, result=result)  # type: ignore[arg-type]
         self._db.attempts[attempt.id] = attempt
         return attempt
 
@@ -531,9 +533,9 @@ class InMemoryTaskStorage(TaskStorage):
     ) -> Task:
         task = await self.get()
         if outputs is not _Unset:
-            task = replace(task, outputs=outputs)
+            task = replace(task, outputs=outputs)  # type: ignore[arg-type]
         if state is not _Unset:
-            task = replace(task, state=state)
+            task = replace(task, state=state)  # type: ignore[arg-type]
         if isinstance(new_status, TaskStatus):
             new_status = TaskStatusItem(when=_now(), status=new_status)
         if new_status:
@@ -573,9 +575,11 @@ class InMemoryBakeImageStorage(BakeImageStorage):
     ) -> BakeImage:
         image = await self.get()
         if status is not _Unset:
-            image = replace(image, status=status)
+            image = replace(image, status=status)  # type: ignore[arg-type]
         if builder_job_id is not _Unset:
-            image = replace(image, builder_job_id=builder_job_id)
+            image = replace(
+                image, builder_job_id=builder_job_id  # type: ignore[arg-type]
+            )
         self._db.bake_images[image.id] = image
         return image
 

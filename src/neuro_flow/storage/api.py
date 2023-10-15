@@ -1018,9 +1018,11 @@ class ApiAttemptStorage(DeferredIdMixin[Attempt, AttemptInitArgs], AttemptStorag
         # TODO: Use PATCH when implemented on server
         attempt = await self.get()
         if executor_id is not _Unset:
-            attempt = replace(attempt, executor_id=executor_id)
+            attempt = replace(
+                attempt, executor_id=executor_id  # type: ignore[arg-type]
+            )
         if result is not _Unset:
-            attempt = replace(attempt, result=result)
+            attempt = replace(attempt, result=result)  # type: ignore[arg-type]
         payload = {
             "bake_id": attempt.bake_id,
             "number": attempt.number,
@@ -1233,9 +1235,9 @@ class ApiTaskStorage(DeferredIdMixin[Task, TaskInitArgs], TaskStorage):
         # TODO: Use PATCH when implemented on server
         task = await self.get()
         if outputs is not _Unset:
-            task = replace(task, outputs=outputs)
+            task = replace(task, outputs=outputs)  # type: ignore[arg-type]
         if state is not _Unset:
-            task = replace(task, state=state)
+            task = replace(task, state=state)  # type: ignore[arg-type]
         if new_status:
             if isinstance(new_status, TaskStatus):
                 new_status = TaskStatusItem(when=_now(), status=new_status)

@@ -433,7 +433,7 @@ def start_executor(
     mock_builder: MockBuilder,
 ) -> Callable[[str], Awaitable[None]]:
     class TestBatchExecutor(BatchExecutor):
-        run_builder_job = staticmethod(mock_builder.run)  # type: ignore
+        run_builder_job = staticmethod(mock_builder.run)
 
     async def start(bake_id: str) -> None:
         async with TestBatchExecutor.create(
