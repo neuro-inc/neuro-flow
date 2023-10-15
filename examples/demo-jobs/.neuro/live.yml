@@ -42,6 +42,7 @@ jobs:
 
   test:
     image: ubuntu
+    restart: "${{ 'on-failure' }}"
     # ${{ flow.id }} calculation displays a yellow warning for deprecated flow.id attr
     cmd: echo ${{ flow.id }}
 

@@ -1127,6 +1127,10 @@ class BatchExecutor:
         if http_auth is None:
             http_auth = HTTPPort.requires_auth
 
+        restart_policy = JobRestartPolicy.NEVER
+        if task.restart:
+            restart_policy = JobRestartPolicy(task.restart)
+
         job = await self._client.job_start(
             shm=True,
             tty=False,
@@ -1147,6 +1151,7 @@ class BatchExecutor:
             life_span=task.life_span,
             schedule_timeout=task.schedule_timeout,
             pass_config=bool(task.pass_config),
+            restart_policy=restart_policy,
         )
         return await self._create_task(
             yaml_id=full_id,

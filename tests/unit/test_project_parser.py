@@ -9,6 +9,7 @@ from neuro_flow.expr import (
     OptLocalPathExpr,
     OptPythonExpr,
     OptRemotePathExpr,
+    OptRestartPolicyExpr,
     OptStrExpr,
     OptTimeDeltaExpr,
     RemotePathExpr,
@@ -239,6 +240,9 @@ def test_parse_full(assets: pathlib.Path) -> None:
                 pass_config=OptBoolExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
+                restart=OptRestartPolicyExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
             ),
             "with_cmd": ast.ExecUnitMixin(
                 Pos(48, 4, config_file),
@@ -281,6 +285,9 @@ def test_parse_full(assets: pathlib.Path) -> None:
                     Pos(0, 0, config_file),
                     Pos(0, 0, config_file),
                     "command -o --option arg1 arg2",
+                ),
+                restart=OptRestartPolicyExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
             ),
             "with_bash": ast.ExecUnitMixin(
@@ -325,6 +332,9 @@ def test_parse_full(assets: pathlib.Path) -> None:
                     Pos(0, 0, config_file),
                     "command -o --option arg1 arg2\ncommand2 -o --option arg1 arg2\n",
                 ),
+                restart=OptRestartPolicyExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
             ),
             "with_python": ast.ExecUnitMixin(
                 Pos(56, 4, config_file),
@@ -367,6 +377,9 @@ def test_parse_full(assets: pathlib.Path) -> None:
                     Pos(0, 0, config_file),
                     Pos(0, 0, config_file),
                     'print("hello neuro-flow")\n',
+                ),
+                restart=OptRestartPolicyExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
             ),
         },

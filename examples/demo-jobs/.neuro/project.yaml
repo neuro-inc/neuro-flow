@@ -1,0 +1,5 @@
+id: demo_jobs
+
+mixins:
+  restart:
+    restart: on-failure

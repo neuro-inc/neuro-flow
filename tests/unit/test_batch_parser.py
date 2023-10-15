@@ -14,6 +14,7 @@ from neuro_flow.expr import (
     OptIntExpr,
     OptLocalPathExpr,
     OptRemotePathExpr,
+    OptRestartPolicyExpr,
     OptStrExpr,
     OptTimeDeltaExpr,
     PrimitiveExpr,
@@ -290,6 +291,9 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
                     Pos(0, 0, config_file),
                     "${{ success() }}",
                 ),
+                restart=OptRestartPolicyExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
             )
         ],
     )
@@ -371,6 +375,9 @@ def test_parse_seq(assets: pathlib.Path) -> None:
                     Pos(0, 0, config_file),
                     "${{ success() }}",
                 ),
+                restart=OptRestartPolicyExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
             ),
             ast.Task(
                 _start=Pos(6, 4, config_file),
@@ -420,6 +427,9 @@ def test_parse_seq(assets: pathlib.Path) -> None:
                     Pos(0, 0, config_file),
                     Pos(0, 0, config_file),
                     "${{ success() }}",
+                ),
+                restart=OptRestartPolicyExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
             ),
         ],
@@ -502,6 +512,9 @@ def test_parse_needs(assets: pathlib.Path) -> None:
                     Pos(0, 0, config_file),
                     "${{ success() }}",
                 ),
+                restart=OptRestartPolicyExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
             ),
             ast.Task(
                 _start=Pos(7, 4, config_file),
@@ -555,6 +568,9 @@ def test_parse_needs(assets: pathlib.Path) -> None:
                     Pos(0, 0, config_file),
                     Pos(0, 0, config_file),
                     "${{ success() }}",
+                ),
+                restart=OptRestartPolicyExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
             ),
         ],
@@ -637,6 +653,9 @@ def test_parse_needs_dict(assets: pathlib.Path) -> None:
                     Pos(0, 0, config_file),
                     "${{ success() }}",
                 ),
+                restart=OptRestartPolicyExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
             ),
             ast.Task(
                 _start=Pos(7, 4, config_file),
@@ -692,6 +711,9 @@ def test_parse_needs_dict(assets: pathlib.Path) -> None:
                     Pos(0, 0, config_file),
                     Pos(0, 0, config_file),
                     "${{ success() }}",
+                ),
+                restart=OptRestartPolicyExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
             ),
         ],
@@ -834,6 +856,9 @@ def test_parse_matrix(assets: pathlib.Path) -> None:
                     Pos(0, 0, config_file),
                     Pos(0, 0, config_file),
                     "${{ success() }}",
+                ),
+                restart=OptRestartPolicyExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
             )
         ],
@@ -1011,6 +1036,9 @@ def test_parse_matrix_with_strategy(assets: pathlib.Path) -> None:
                     Pos(0, 0, config_file),
                     "${{ success() }}",
                 ),
+                restart=OptRestartPolicyExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
             ),
             ast.Task(
                 Pos(25, 4, config_file),
@@ -1057,6 +1085,9 @@ def test_parse_matrix_with_strategy(assets: pathlib.Path) -> None:
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
                 pass_config=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                restart=OptRestartPolicyExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
             ),
@@ -1222,6 +1253,9 @@ def test_parse_args(assets: pathlib.Path) -> None:
                     Pos(0, 0, config_file),
                     "${{ success() }}",
                 ),
+                restart=OptRestartPolicyExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
             )
         ],
     )
@@ -1303,6 +1337,9 @@ def test_parse_enable(assets: pathlib.Path) -> None:
                     Pos(0, 0, config_file),
                     "${{ success() }}",
                 ),
+                restart=OptRestartPolicyExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
             ),
             ast.Task(
                 _start=Pos(6, 4, config_file),
@@ -1357,6 +1394,9 @@ def test_parse_enable(assets: pathlib.Path) -> None:
                     Pos(0, 0, config_file),
                     "${{ success() }}",
                 ),
+                restart=OptRestartPolicyExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
             ),
         ],
     )
@@ -1368,7 +1408,7 @@ def test_parse_mixin(assets: pathlib.Path) -> None:
     flow = parse_batch(workspace, config_file)
     assert flow == ast.BatchFlow(
         Pos(0, 0, config_file),
-        Pos(11, 0, config_file),
+        Pos(12, 0, config_file),
         id=SimpleOptIdExpr(
             Pos(0, 0, config_file),
             Pos(0, 0, config_file),
@@ -1390,8 +1430,8 @@ def test_parse_mixin(assets: pathlib.Path) -> None:
         mixins={
             "basic": ast.TaskMixin(
                 Pos(3, 4, config_file),
-                Pos(5, 0, config_file),
-                _specified_fields={"image", "preset"},
+                Pos(6, 0, config_file),
+                _specified_fields={"image", "preset", "restart"},
                 mixins=None,
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 image=OptStrExpr(
@@ -1436,12 +1476,15 @@ def test_parse_mixin(assets: pathlib.Path) -> None:
                     Pos(0, 0, config_file),
                     "${{ success() }}",
                 ),
+                restart=OptRestartPolicyExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "on-failure"
+                ),
             ),
         },
         tasks=[
             ast.Task(
-                _start=Pos(6, 4, config_file),
-                _end=Pos(9, 2, config_file),
+                _start=Pos(7, 4, config_file),
+                _end=Pos(10, 2, config_file),
                 _specified_fields={"mixins", "cmd"},
                 mixins=[
                     StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "basic")
@@ -1486,10 +1529,13 @@ def test_parse_mixin(assets: pathlib.Path) -> None:
                     Pos(0, 0, config_file),
                     "${{ success() }}",
                 ),
+                restart=OptRestartPolicyExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
             ),
             ast.Task(
-                _start=Pos(9, 4, config_file),
-                _end=Pos(11, 0, config_file),
+                _start=Pos(10, 4, config_file),
+                _end=Pos(12, 0, config_file),
                 _specified_fields={"mixins", "cmd"},
                 mixins=[
                     StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "basic")
@@ -1533,6 +1579,9 @@ def test_parse_mixin(assets: pathlib.Path) -> None:
                     Pos(0, 0, config_file),
                     Pos(0, 0, config_file),
                     "${{ success() }}",
+                ),
+                restart=OptRestartPolicyExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
             ),
         ],

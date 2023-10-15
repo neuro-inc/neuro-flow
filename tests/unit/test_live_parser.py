@@ -15,6 +15,7 @@ from neuro_flow.expr import (
     OptLocalPathExpr,
     OptPythonExpr,
     OptRemotePathExpr,
+    OptRestartPolicyExpr,
     OptStrExpr,
     OptTimeDeltaExpr,
     PortPairExpr,
@@ -104,6 +105,9 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
                 params=None,
+                restart=OptRestartPolicyExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
             )
         },
     )
@@ -216,6 +220,9 @@ def test_parse_params(assets: pathlib.Path) -> None:
                         ),
                     ),
                 },
+                restart=OptRestartPolicyExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
             )
         },
     )
@@ -227,7 +234,7 @@ def test_parse_full(assets: pathlib.Path) -> None:
     flow = parse_live(workspace, config_file)
     assert flow == ast.LiveFlow(
         Pos(0, 0, config_file),
-        Pos(69, 0, config_file),
+        Pos(70, 0, config_file),
         id=SimpleOptIdExpr(
             Pos(0, 0, config_file),
             Pos(0, 0, config_file),
@@ -436,12 +443,15 @@ def test_parse_full(assets: pathlib.Path) -> None:
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
                 params=None,
+                restart=OptRestartPolicyExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
             )
         },
         jobs={
             "test_a": ast.Job(
                 Pos(43, 4, config_file),
-                Pos(69, 0, config_file),
+                Pos(70, 0, config_file),
                 _specified_fields={
                     "workdir",
                     "http_auth",
@@ -462,6 +472,7 @@ def test_parse_full(assets: pathlib.Path) -> None:
                     "browse",
                     "volumes",
                     "entrypoint",
+                    "restart",
                 },
                 mixins=[
                     StrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "envs")
@@ -565,6 +576,9 @@ def test_parse_full(assets: pathlib.Path) -> None:
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
                 params=None,
+                restart=OptRestartPolicyExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), "on-failure"
+                ),
             )
         },
     )
@@ -576,7 +590,7 @@ def test_parse_full_exprs(assets: pathlib.Path) -> None:
     flow = parse_live(workspace, config_file)
     assert flow == ast.LiveFlow(
         Pos(0, 0, config_file),
-        Pos(48, 0, config_file),
+        Pos(49, 0, config_file),
         id=SimpleOptIdExpr(
             Pos(0, 0, config_file),
             Pos(0, 0, config_file),
@@ -708,7 +722,7 @@ def test_parse_full_exprs(assets: pathlib.Path) -> None:
         jobs={
             "test_a": ast.Job(
                 Pos(30, 4, config_file),
-                Pos(48, 0, config_file),
+                Pos(49, 0, config_file),
                 _specified_fields={
                     "pass_config",
                     "image",
@@ -728,6 +742,7 @@ def test_parse_full_exprs(assets: pathlib.Path) -> None:
                     "port_forward",
                     "volumes",
                     "detach",
+                    "restart",
                 },
                 mixins=None,
                 name=OptStrExpr(
@@ -802,6 +817,11 @@ def test_parse_full_exprs(assets: pathlib.Path) -> None:
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
                 params=None,
+                restart=OptRestartPolicyExpr(
+                    Pos(0, 0, config_file),
+                    Pos(0, 0, config_file),
+                    '${{ "on-failure" }}',
+                ),
             )
         },
     )
@@ -881,6 +901,9 @@ def test_parse_bash(assets: pathlib.Path) -> None:
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
                 params=None,
+                restart=OptRestartPolicyExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
             )
         },
     )
@@ -960,6 +983,9 @@ def test_parse_python(assets: pathlib.Path) -> None:
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
                 params=None,
+                restart=OptRestartPolicyExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
             )
         },
     )
@@ -1085,6 +1111,9 @@ def test_parse_multi(assets: pathlib.Path) -> None:
                     Pos(0, 0, config_file), Pos(0, 0, config_file), True
                 ),
                 params=None,
+                restart=OptRestartPolicyExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
             )
         },
     )
@@ -1164,6 +1193,9 @@ def test_parse_explicit_flow_id(assets: pathlib.Path) -> None:
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
                 params=None,
+                restart=OptRestartPolicyExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
             )
         },
     )

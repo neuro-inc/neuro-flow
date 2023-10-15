@@ -434,6 +434,8 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
             run_args.append(f"--port-forward={pf}")
         if job.pass_config:
             run_args.append(f"--pass-config")
+        if job.restart:
+            run_args.append(f"--restart={job.restart}")
 
         run_args.append(job.image)
 

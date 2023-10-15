@@ -897,6 +897,10 @@ async def test_job_with_mixins(live_config_loader: ConfigLoader) -> None:
     assert job.image == "ubuntu"
     assert job.name == "test_name"
 
+    job = await flow.get_job("test5", {})
+    assert job.id == "test5"
+    assert job.restart == "on-failure"
+
 
 async def test_job_with_sub_mixins(live_config_loader: ConfigLoader) -> None:
     flow = await RunningLiveFlow.create(live_config_loader, "live-sub-mixins")
