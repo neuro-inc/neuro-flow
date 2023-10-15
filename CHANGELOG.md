@@ -5,6 +5,13 @@
 
 [comment]: # (towncrier release notes start)
 
+# Neuro Flow 23.10.0 (2023-10-15)
+
+### Features
+
+- Expose jobs and tasks restart policy configuration ([#1072](https://github.com/neuro-inc/neuro-flow/issues/1072))
+
+
 # Neuro Flow 23.7.0 (2023-07-07)
 
 ### Features
