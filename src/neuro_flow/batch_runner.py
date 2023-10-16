@@ -487,7 +487,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             run_args = [
                 "run",
                 "--pass-config",
-                f"--volume=storage:.flow/logs/{bake.id}/:/root/.neuro/logs"
+                f"--volume=storage:.flow/logs/{bake.id}/:/root/.neuro/logs",
                 f"--life-span={life_span}",
                 f"--tag=project:{self.project_id}",
                 f"--tag=flow:{bake.batch}",

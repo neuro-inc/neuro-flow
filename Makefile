@@ -52,3 +52,7 @@ docs:
 .PHONY: docs
 check-mixins:
 	build-tools/check-mixins.py
+
+.PHONY: changelog
+changelog:
+	towncrier
