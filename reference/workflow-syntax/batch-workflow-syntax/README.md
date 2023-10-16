@@ -20,6 +20,32 @@ Workflow title.
 
 **Expression contexts:** This attribute only allows expressions that don't access contexts.
 
+## `life_span`
+
+Bake maximal lifespan. This also executor job lifespan.  If not set, the default lifespan is 10 days. &#x20;
+
+The lifespan value can be one of the following:
+
+* A `float` number representing the amount of seconds (`3600` represents an hour)
+* A string of the following format: `1d6h15m` (1 day, 6 hours, 15 minutes)
+
+For lifespan-disabling emulation, use an arbitrary large value (e.g. `365d`). Keep in mind that this may be dangerous, as a forgotten job will consume cluster resources.
+
+{% hint style="warning" %}
+life span shorter than _1 minute_ is forbidden.
+{% endhint %}
+
+**Example:**
+
+```yaml
+kind: batch
+life_span: 30d
+tasks:
+  ...
+```
+
+**Expression contexts:** This attribute only allows expressions that don't access contexts.
+
 ## `defaults`
 
 A map of default settings that will be applied to all tasks in the workflow. You can override these global default settings for specific tasks.
