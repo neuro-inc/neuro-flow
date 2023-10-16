@@ -481,7 +481,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             if flow.life_span:
                 life_span = fmt_timedelta(flow.life_span)
             else:
-                life_span = "7d"
+                life_span = "10d"
             # TODO: Update tags `project` -> `flow` and `flow` -> `batch`
             # After performing the corresponding changes in web app upfront.
             run_args = [
