@@ -335,7 +335,7 @@ class ApiStorage(Storage):
         self._client = client
         self._cluster_name = client.config.cluster_name
         self._org_name = client.config.org_name
-        self._raw_client = RawApiClient(client)
+        self._raw_client = RawApiClient(client) if _raw_client is None else _raw_client
 
     def with_retry_read(self) -> Storage:
         return ApiStorage(
