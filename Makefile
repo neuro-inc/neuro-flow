@@ -52,3 +52,8 @@ docs:
 .PHONY: docs
 check-mixins:
 	build-tools/check-mixins.py
+
+.PHONY: changelog
+changelog:
+	@echo Do not forget to update src/neuro_flow/__init__.py
+	towncrier

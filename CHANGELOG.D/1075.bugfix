@@ -1,0 +1,7 @@
+Fix configuration of executor lifespan in bake config file. Example:
+```
+kind: batch
+life_span: 30d
+tasks:
+  ...
+```

@@ -481,13 +481,13 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             if flow.life_span:
                 life_span = fmt_timedelta(flow.life_span)
             else:
-                life_span = "7d"
+                life_span = "10d"
             # TODO: Update tags `project` -> `flow` and `flow` -> `batch`
             # After performing the corresponding changes in web app upfront.
             run_args = [
                 "run",
                 "--pass-config",
-                f"--volume=storage:.flow/logs/{bake.id}/:/root/.neuro/logs"
+                f"--volume=storage:.flow/logs/{bake.id}/:/root/.neuro/logs",
                 f"--life-span={life_span}",
                 f"--tag=project:{self.project_id}",
                 f"--tag=flow:{bake.batch}",
