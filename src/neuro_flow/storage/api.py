@@ -346,7 +346,7 @@ class ApiStorage(Storage):
         self,
         project_name: str,
         cluster_name: str,
-        org_name: str | None = None,
+        org_name: Optional[str] = None,
     ) -> None:
         await self._client.config.fetch()
         needed_key = NeuroProject.Key(cluster_name, org_name, project_name)

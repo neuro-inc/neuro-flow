@@ -384,7 +384,7 @@ class RetryReadNeuroClient(RetryConfig):
         restart_policy: JobRestartPolicy = JobRestartPolicy.NEVER,
         life_span: Optional[float] = None,
         privileged: bool = False,
-        project_name: str | None = None,
+        project_name: Optional[str] = None,
     ) -> JobDescription:
         return await self._client.jobs.start(
             image=image,
