@@ -2126,6 +2126,10 @@ class RunningBatchFlow(RunningBatchBase[BatchContext]):
         return self._ctx.flow.project_id
 
     @property
+    def project_name(self) -> str:
+        return self._ctx.project.project_name
+
+    @property
     def volumes(self) -> Mapping[str, VolumeCtx]:
         return self._ctx.volumes
 

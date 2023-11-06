@@ -7,10 +7,12 @@ from yaml.constructor import ConstructorError
 from neuro_flow import ast
 from neuro_flow.expr import (
     EvalError,
+    ImageRefStrExpr,
     MappingExpr,
     MappingItemsExpr,
     OptBashExpr,
     OptBoolExpr,
+    OptImageRefStrExpr,
     OptIntExpr,
     OptLocalPathExpr,
     OptPythonExpr,
@@ -18,6 +20,7 @@ from neuro_flow.expr import (
     OptRestartPolicyExpr,
     OptStrExpr,
     OptTimeDeltaExpr,
+    PlatformResourceURIExpr,
     PortPairExpr,
     RemotePathExpr,
     SequenceExpr,
@@ -26,7 +29,6 @@ from neuro_flow.expr import (
     SimpleOptIdExpr,
     SimpleOptStrExpr,
     StrExpr,
-    URIExpr,
     port_pair_item,
 )
 from neuro_flow.parser import parse_live, type2str
@@ -62,7 +64,7 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
                 _specified_fields={"cmd", "image"},
                 mixins=None,
                 name=OptStrExpr(Pos(3, 4, config_file), Pos(5, 0, config_file), None),
-                image=OptStrExpr(
+                image=OptImageRefStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"
                 ),
                 preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
@@ -142,7 +144,7 @@ def test_parse_params(assets: pathlib.Path) -> None:
                 _specified_fields={"cmd", "image", "params"},
                 mixins=None,
                 name=OptStrExpr(Pos(3, 4, config_file), Pos(5, 0, config_file), None),
-                image=OptStrExpr(
+                image=OptImageRefStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"
                 ),
                 preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
@@ -250,7 +252,7 @@ def test_parse_full(assets: pathlib.Path) -> None:
             "image_a": ast.Image(
                 Pos(4, 4, config_file),
                 Pos(16, 0, config_file),
-                ref=StrExpr(
+                ref=ImageRefStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "image:banana"
                 ),
                 context=OptStrExpr(
@@ -300,7 +302,7 @@ def test_parse_full(assets: pathlib.Path) -> None:
             "volume_a": ast.Volume(
                 Pos(18, 4, config_file),
                 Pos(22, 2, config_file),
-                remote=URIExpr(
+                remote=PlatformResourceURIExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "storage:dir"
                 ),
                 mount=RemotePathExpr(
@@ -316,7 +318,7 @@ def test_parse_full(assets: pathlib.Path) -> None:
             "volume_b": ast.Volume(
                 Pos(23, 4, config_file),
                 Pos(25, 0, config_file),
-                remote=URIExpr(
+                remote=PlatformResourceURIExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "storage:other"
                 ),
                 mount=RemotePathExpr(
@@ -387,7 +389,7 @@ def test_parse_full(assets: pathlib.Path) -> None:
                 _specified_fields={"env"},
                 mixins=None,
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
-                image=OptStrExpr(
+                image=OptImageRefStrExpr(
                     Pos(0, 0, config_file),
                     Pos(0, 0, config_file),
                     None,
@@ -480,7 +482,7 @@ def test_parse_full(assets: pathlib.Path) -> None:
                 name=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "job-name"
                 ),
-                image=OptStrExpr(
+                image=OptImageRefStrExpr(
                     Pos(0, 0, config_file),
                     Pos(0, 0, config_file),
                     "${{ images.image_a.ref }}",
@@ -606,7 +608,7 @@ def test_parse_full_exprs(assets: pathlib.Path) -> None:
             "image_a": ast.Image(
                 Pos(4, 4, config_file),
                 Pos(11, 0, config_file),
-                ref=StrExpr(
+                ref=ImageRefStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "image:banana"
                 ),
                 context=OptStrExpr(
@@ -645,7 +647,7 @@ def test_parse_full_exprs(assets: pathlib.Path) -> None:
             "volume_a": ast.Volume(
                 Pos(13, 4, config_file),
                 Pos(17, 2, config_file),
-                remote=URIExpr(
+                remote=PlatformResourceURIExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "storage:dir"
                 ),
                 mount=RemotePathExpr(
@@ -661,7 +663,7 @@ def test_parse_full_exprs(assets: pathlib.Path) -> None:
             "volume_b": ast.Volume(
                 Pos(18, 4, config_file),
                 Pos(20, 0, config_file),
-                remote=URIExpr(
+                remote=PlatformResourceURIExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "storage:other"
                 ),
                 mount=RemotePathExpr(
@@ -748,7 +750,7 @@ def test_parse_full_exprs(assets: pathlib.Path) -> None:
                 name=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "job-name"
                 ),
-                image=OptStrExpr(
+                image=OptImageRefStrExpr(
                     Pos(0, 0, config_file),
                     Pos(0, 0, config_file),
                     "${{ images.image_a.ref }}",
@@ -856,7 +858,7 @@ def test_parse_bash(assets: pathlib.Path) -> None:
                 _specified_fields={"cmd", "image"},
                 mixins=None,
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
-                image=OptStrExpr(
+                image=OptImageRefStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"
                 ),
                 preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
@@ -938,7 +940,7 @@ def test_parse_python(assets: pathlib.Path) -> None:
                 _specified_fields={"cmd", "image"},
                 mixins=None,
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
-                image=OptStrExpr(
+                image=OptImageRefStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"
                 ),
                 preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
@@ -1068,7 +1070,7 @@ def test_parse_multi(assets: pathlib.Path) -> None:
                 _specified_fields={"cmd", "multi", "image"},
                 mixins=None,
                 name=OptStrExpr(Pos(3, 4, config_file), Pos(5, 0, config_file), None),
-                image=OptStrExpr(
+                image=OptImageRefStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"
                 ),
                 preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
@@ -1148,7 +1150,7 @@ def test_parse_explicit_flow_id(assets: pathlib.Path) -> None:
                 _specified_fields={"cmd", "image"},
                 mixins=None,
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
-                image=OptStrExpr(
+                image=OptImageRefStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"
                 ),
                 preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),

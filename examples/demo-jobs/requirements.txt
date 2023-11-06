@@ -2,5 +2,5 @@ black
 flake8
 isort
 mypy
-neuromation>=20.4.6
-wandb==0.8.28
+neuro-all
+wandb

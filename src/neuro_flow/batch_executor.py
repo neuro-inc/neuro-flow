@@ -384,6 +384,7 @@ class RetryReadNeuroClient(RetryConfig):
         restart_policy: JobRestartPolicy = JobRestartPolicy.NEVER,
         life_span: Optional[float] = None,
         privileged: bool = False,
+        project_name: str | None = None,
     ) -> JobDescription:
         return await self._client.jobs.start(
             image=image,
@@ -408,6 +409,7 @@ class RetryReadNeuroClient(RetryConfig):
             restart_policy=restart_policy,
             life_span=life_span,
             privileged=privileged,
+            project_name=project_name,
         )
 
     @retry
@@ -1152,6 +1154,7 @@ class BatchExecutor:
             schedule_timeout=task.schedule_timeout,
             pass_config=bool(task.pass_config),
             restart_policy=restart_policy,
+            project_name=self._top_flow.project_name,
         )
         return await self._create_task(
             yaml_id=full_id,
@@ -1182,6 +1185,7 @@ class BatchExecutor:
             raise Exception(f"Failed to build image '{bake_image.ref}': {error}")
 
         cmd = ["neuro-extras", "image", "build"]
+        cmd.append(f"--project={self._top_flow.project_name}")
         cmd.append(f"--file={dockerfile_rel}")
         for arg in image_ctx.build_args:
             cmd.append(f"--build-arg={arg}")

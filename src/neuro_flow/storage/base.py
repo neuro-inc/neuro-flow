@@ -165,7 +165,9 @@ class Storage(abc.ABC):
     ) -> None:
         await self.close()
 
-    def check_can_create_for_project_name(self, project_name: str) -> None:
+    async def check_can_create_for_user_context(
+        self, project_name: str, cluster_name: str, org_name: str | None = None
+    ) -> None:
         pass
 
     @abc.abstractmethod
@@ -233,7 +235,7 @@ class Storage(abc.ABC):
         self,
         yaml_id: str,
         project_name: str,
-        cluster: Optional[str] = None,
+        cluster: str,
         org_name: Optional[str] = None,
         owner: Optional[str] = None,
     ) -> Project:
@@ -246,7 +248,9 @@ class Storage(abc.ABC):
                 project_name=project_name,
             ).get()
         except ResourceNotFound:
-            self.check_can_create_for_project_name(project_name)
+            await self.check_can_create_for_user_context(
+                project_name, cluster, org_name
+            )
             return await self.create_project(yaml_id, project_name, cluster, org_name)
 
 

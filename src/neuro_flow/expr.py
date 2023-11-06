@@ -1367,6 +1367,53 @@ class URIExpr(URIExprMixin, StrictExpr[URL]):
     pass
 
 
+class PlatformResourceURIExpr(URIExpr):
+    async def eval(self, root: RootABC) -> URL:
+        ret = await super().eval(root)
+        try:
+            # Hack to get flow's project ctx -> project_name
+            project_ctx = root.lookup("project")
+        except LookupError:
+            project_ctx = None
+
+        if project_ctx:
+            async with root.client() as cl:
+                ret = cl.parse.str_to_uri(
+                    str(ret),
+                    project_name=project_ctx.project_name,  # type: ignore
+                    short=True,
+                )
+        return ret
+
+
+class OptImageRefStrExpr(OptStrExpr):
+    async def eval(self, root: RootABC) -> str | None:
+        ret = await super().eval(root)
+        project_ctx = None
+        if ret and ret.startswith("image:"):
+            try:
+                # Hack to get flow's project ctx -> project_name
+                project_ctx = root.lookup("project")
+            except LookupError:
+                pass
+        if project_ctx:
+            async with root.client() as cl:
+                uri = cl.parse.str_to_uri(
+                    ret,
+                    project_name=project_ctx.project_name,  # type: ignore
+                    short=True,
+                )
+                ret = str(uri)
+        return ret
+
+
+class ImageRefStrExpr(OptImageRefStrExpr):
+    async def eval(self, root: RootABC) -> str:
+        ret = await super().eval(root)
+        assert ret
+        return ret
+
+
 class OptURIExpr(URIExprMixin, Expr[URL]):
     pass
 

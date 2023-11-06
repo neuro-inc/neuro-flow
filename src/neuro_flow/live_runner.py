@@ -92,6 +92,8 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
             self.flow.project.id,
             owner=self.flow.project.owner,
             project_name=project_name,
+            cluster=self._client.config.cluster_name,
+            org_name=self._client.config.org_name,
         )
         self._project_storage = self._storage.project(id=project.id)
 
@@ -403,6 +405,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
             while "--" in name:
                 name = name.replace("--", "-")
         run_args.append(f"--name={name}")
+        run_args.append(f"--project={self.flow.project.project_name}")
         if job.preset is not None:
             run_args.append(f"--preset={job.preset}")
         if job.schedule_timeout is not None:
@@ -628,6 +631,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
         cmd = []
         assert image_ctx.dockerfile_rel is not None
         assert image_ctx.context is not None
+        cmd.append(f"--project={self.flow.project.project_name}")
         cmd.append(f"--file={image_ctx.dockerfile_rel.as_posix()}")
         for arg in image_ctx.build_args:
             cmd.append(f"--build-arg={arg}")

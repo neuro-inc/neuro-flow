@@ -8,6 +8,7 @@ from .expr import (
     BaseExpr,
     EnableExpr,
     IdExpr,
+    ImageRefStrExpr,
     MappingT,
     OptBoolExpr,
     OptIdExpr,
@@ -17,6 +18,7 @@ from .expr import (
     OptRestartPolicyExpr,
     OptStrExpr,
     OptTimeDeltaExpr,
+    PlatformResourceURIExpr,
     PrimitiveExpr,
     RemotePathExpr,
     SequenceT,
@@ -27,7 +29,6 @@ from .expr import (
     SimpleOptStrExpr,
     SimpleStrExpr,
     StrExpr,
-    URIExpr,
 )
 from .tokenizer import Pos
 
@@ -84,7 +85,7 @@ class FlowKind(enum.Enum):
 
 @dataclass(frozen=True)
 class Volume(Base):
-    remote: URIExpr  # remote URI, e.g. storage:folder/subfolder
+    remote: PlatformResourceURIExpr  # remote URI, e.g. storage:folder/subfolder
     mount: RemotePathExpr  # mount path inside container
     local: OptLocalPathExpr
     read_only: OptBoolExpr  # True if mounted in read-only mode, False for read-write
@@ -92,7 +93,7 @@ class Volume(Base):
 
 @dataclass(frozen=True)
 class Image(Base):
-    ref: StrExpr  # Image reference, e.g. image:my-proj or neuromation/base@v1.6
+    ref: ImageRefStrExpr  # Image reference, e.g. image:my-proj or neuromation/base@v1.6
     context: OptStrExpr
     dockerfile: OptStrExpr
     build_args: Optional[BaseExpr[SequenceT]] = field(metadata={"allow_none": True})

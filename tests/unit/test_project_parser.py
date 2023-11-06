@@ -2,9 +2,11 @@ import pathlib
 
 from neuro_flow import ast
 from neuro_flow.expr import (
+    ImageRefStrExpr,
     MappingItemsExpr,
     OptBashExpr,
     OptBoolExpr,
+    OptImageRefStrExpr,
     OptIntExpr,
     OptLocalPathExpr,
     OptPythonExpr,
@@ -12,12 +14,12 @@ from neuro_flow.expr import (
     OptRestartPolicyExpr,
     OptStrExpr,
     OptTimeDeltaExpr,
+    PlatformResourceURIExpr,
     RemotePathExpr,
     SequenceItemsExpr,
     SimpleIdExpr,
     SimpleOptStrExpr,
     StrExpr,
-    URIExpr,
 )
 from neuro_flow.parser import parse_project_stream
 from neuro_flow.tokenizer import Pos
@@ -54,7 +56,7 @@ def test_parse_full(assets: pathlib.Path) -> None:
             "image_a": ast.Image(
                 Pos(6, 4, config_file),
                 Pos(18, 0, config_file),
-                ref=StrExpr(
+                ref=ImageRefStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "image:banana"
                 ),
                 context=OptStrExpr(
@@ -104,7 +106,7 @@ def test_parse_full(assets: pathlib.Path) -> None:
             "volume_a": ast.Volume(
                 Pos(20, 4, config_file),
                 Pos(24, 2, config_file),
-                remote=URIExpr(
+                remote=PlatformResourceURIExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "storage:dir"
                 ),
                 mount=RemotePathExpr(
@@ -120,7 +122,7 @@ def test_parse_full(assets: pathlib.Path) -> None:
             "volume_b": ast.Volume(
                 Pos(25, 4, config_file),
                 Pos(27, 0, config_file),
-                remote=URIExpr(
+                remote=PlatformResourceURIExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "storage:other"
                 ),
                 mount=RemotePathExpr(
@@ -206,7 +208,7 @@ def test_parse_full(assets: pathlib.Path) -> None:
                 _specified_fields={"image", "preset"},
                 mixins=None,
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
-                image=OptStrExpr(
+                image=OptImageRefStrExpr(
                     Pos(0, 0, config_file),
                     Pos(0, 0, config_file),
                     "mixin-image",
@@ -250,7 +252,7 @@ def test_parse_full(assets: pathlib.Path) -> None:
                 _specified_fields={"image", "cmd"},
                 mixins=None,
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
-                image=OptStrExpr(
+                image=OptImageRefStrExpr(
                     Pos(0, 0, config_file),
                     Pos(0, 0, config_file),
                     "mixin-image",
@@ -296,7 +298,7 @@ def test_parse_full(assets: pathlib.Path) -> None:
                 _specified_fields={"image", "cmd"},
                 mixins=None,
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
-                image=OptStrExpr(
+                image=OptImageRefStrExpr(
                     Pos(0, 0, config_file),
                     Pos(0, 0, config_file),
                     "mixin-image",
@@ -342,7 +344,7 @@ def test_parse_full(assets: pathlib.Path) -> None:
                 _specified_fields={"image", "cmd"},
                 mixins=None,
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
-                image=OptStrExpr(
+                image=OptImageRefStrExpr(
                     Pos(0, 0, config_file),
                     Pos(0, 0, config_file),
                     "mixin-image",
@@ -383,4 +385,27 @@ def test_parse_full(assets: pathlib.Path) -> None:
                 ),
             ),
         },
+    )
+
+
+def test_parse_minimal(assets: pathlib.Path) -> None:
+    config_file = assets / "with_project_yaml" / "minimal_project.yaml"
+    with config_file.open() as st:
+        project = parse_project_stream(st)
+
+    assert project == ast.Project(
+        Pos(0, 0, config_file),
+        Pos(1, 0, config_file),
+        SimpleIdExpr(
+            Pos(0, 0, config_file),
+            Pos(0, 0, config_file),
+            "myflow",
+        ),
+        project_name=SimpleOptStrExpr(None, None, pattern=None),
+        owner=SimpleOptStrExpr(None, None, pattern=None),
+        role=SimpleOptStrExpr(None, None, pattern=None),
+        images=None,
+        volumes=None,
+        defaults=None,
+        mixins=None,
     )
