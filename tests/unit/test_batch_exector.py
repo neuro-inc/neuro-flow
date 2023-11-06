@@ -1503,7 +1503,7 @@ async def test_image_builds_cancel(
     job_id = await _wait_for_build("image:banana1")
     project_storage = batch_storage.project(
         yaml_id="batch_images",
-        project_name=batch_runner._project.project_name,
+        project_name=batch_runner.project_name,
         cluster=batch_runner._client.config.cluster_name,
     )
     bake = [bake async for bake in project_storage.list_bakes()][0]

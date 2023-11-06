@@ -1396,7 +1396,7 @@ class OptImageRefStrExpr(OptStrExpr):
                 project_ctx = root.lookup("project")
             except LookupError:
                 pass
-        if project_ctx:
+        if ret and project_ctx:
             async with root.client() as cl:
                 uri = cl.parse.str_to_uri(
                     ret,

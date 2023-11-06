@@ -342,6 +342,11 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         return self._project.role
 
     @property
+    def project_name(self) -> str:
+        assert self._project is not None
+        return self._project.project_name
+
+    @property
     def config_loader(self) -> BatchLocalCL:
         assert self._config_loader is not None
         return self._config_loader

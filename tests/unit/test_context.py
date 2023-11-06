@@ -174,7 +174,7 @@ async def test_project_level_defaults_live(
     )
     cl = LiveLocalCL(config_dir, client)
     try:
-        type(client.config).project_name = PropertyMock(
+        type(client.config).project_name = PropertyMock(  # type: ignore
             return_value="test-project-name"
         )
         flow = await RunningLiveFlow.create(cl, "live")
@@ -1252,7 +1252,7 @@ async def test_early_images_include_globals(
     )
     cl = BatchLocalCL(config_dir, client)
     try:
-        type(client.config).project_name = PropertyMock(
+        type(client.config).project_name = PropertyMock(  # type: ignore
             return_value="test-project-name",
         )
         flow = await RunningBatchFlow.create(cl, "batch", "bake-id")
@@ -1276,7 +1276,7 @@ async def test_batch_with_project_globals(assets: pathlib.Path, client: Client) 
     )
     cl = BatchLocalCL(config_dir, client)
     try:
-        type(client.config).project_name = PropertyMock(
+        type(client.config).project_name = PropertyMock(  # type: ignore
             return_value="test-project-name",
         )
         flow = await RunningBatchFlow.create(cl, "batch", "bake-id")
@@ -1314,10 +1314,10 @@ async def test_batch_with_non_current_project(
     )
     cl = BatchLocalCL(config_dir, client)
     try:
-        type(client.config).project_name = PropertyMock(
+        type(client.config).project_name = PropertyMock(  # type: ignore
             return_value="other-project-name",
         )
-        type(client.config).cluster_name = PropertyMock(
+        type(client.config).cluster_name = PropertyMock(  # type: ignore
             return_value="other-cluster",
         )
         flow = await RunningBatchFlow.create(cl, "batch", "bake-id")

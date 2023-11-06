@@ -401,9 +401,15 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
             Pos(0, 0, config_file),
             "myflow",
         ),
-        project_name=SimpleOptStrExpr(None, None, pattern=None),
-        owner=SimpleOptStrExpr(None, None, pattern=None),
-        role=SimpleOptStrExpr(None, None, pattern=None),
+        project_name=SimpleOptStrExpr(
+            Pos(0, 0, config_file), Pos(0, 0, config_file), pattern=None
+        ),
+        owner=SimpleOptStrExpr(
+            Pos(0, 0, config_file), Pos(0, 0, config_file), pattern=None
+        ),
+        role=SimpleOptStrExpr(
+            Pos(0, 0, config_file), Pos(0, 0, config_file), pattern=None
+        ),
         images=None,
         volumes=None,
         defaults=None,
