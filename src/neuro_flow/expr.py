@@ -1387,7 +1387,7 @@ class PlatformResourceURIExpr(URIExpr):
 
 
 class OptImageRefStrExpr(OptStrExpr):
-    async def eval(self, root: RootABC) -> str | None:
+    async def eval(self, root: RootABC) -> Optional[str]:
         ret = await super().eval(root)
         project_ctx = None
         if ret and ret.startswith("image:"):
