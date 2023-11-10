@@ -1386,7 +1386,7 @@ class PlatformResourceURIExpr(URIExpr):
         return ret
 
 
-class OptImageRefStrExpr(OptStrExpr):
+class ImageRefExprMixin:
     async def eval(self, root: RootABC) -> Optional[str]:
         ret = await super().eval(root)
         project_ctx = None
@@ -1407,11 +1407,12 @@ class OptImageRefStrExpr(OptStrExpr):
         return ret
 
 
-class ImageRefStrExpr(OptImageRefStrExpr):
-    async def eval(self, root: RootABC) -> str:
-        ret = await super().eval(root)
-        assert ret
-        return ret
+class OptImageRefStrExpr(ImageRefExprMixin, OptStrExpr):
+    pass
+
+
+class ImageRefStrExpr(ImageRefExprMixin, StrExpr):
+    pass
 
 
 class OptURIExpr(URIExprMixin, Expr[URL]):

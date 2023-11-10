@@ -258,13 +258,8 @@ async def upload_image_data(
                 # Reusing image ref between bakes introduces
                 # race condition anyway, so we can safely use it
                 # as remote context dir name
-                img_part = image.ref.replace(":", "/")
-                while "//" in img_part:
-                    img_part = img_part.replace("//", "/")
-
-                storage_context_dir: Optional[URL] = URL(
-                    f"storage:/{top_flow.project_name}/.flow/"
-                    f"{top_flow.project_id}/{img_part}"
+                storage_context_dir: Optional[URL] = image.get_ctx_storage_dir(
+                    top_flow.project_name, top_flow.project_id
                 )
             else:
                 storage_context_dir = image.context
@@ -505,7 +500,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                 f"--tag=flow:{bake.batch}",
                 f"--tag=bake_id:{bake.id}",
                 f"--tag=remote_executor",
-                f"--project={flow._ast_project.project_name}",
+                f"--project={flow.project_name}",
             ]
             project_role = self.project_role
             if project_role is not None:

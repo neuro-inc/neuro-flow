@@ -199,6 +199,12 @@ class EarlyImageCtx:
             force_rebuild=force_rebuild,
         )
 
+    def get_ctx_storage_dir(self, project_name: str, project_id: str) -> URL:
+        img_part = self.ref.replace(":", "/")
+        while "//" in img_part:
+            img_part = img_part.replace("//", "/")
+        return URL(f"storage:/{project_name}/.flow/{project_id}/{img_part}")
+
 
 @dataclass(frozen=True)
 class ImageCtx(EarlyImageCtx):
