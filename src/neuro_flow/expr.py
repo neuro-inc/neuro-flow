@@ -1386,33 +1386,37 @@ class PlatformResourceURIExpr(URIExpr):
         return ret
 
 
-class ImageRefExprMixin:
+async def project_image_ref(img_ref: str, root: RootABC) -> str:
+    project_ctx = None
+    if img_ref.startswith("image:"):
+        try:
+            # Hack to get flow's project ctx -> project_name
+            project_ctx = root.lookup("project")
+        except LookupError:
+            pass
+    if project_ctx:
+        async with root.client() as cl:
+            uri = cl.parse.str_to_uri(
+                img_ref,
+                project_name=project_ctx.project_name,  # type: ignore
+                short=True,
+            )
+            img_ref = str(uri)
+    return img_ref
+
+
+class OptImageRefStrExpr(OptStrExpr):
     async def eval(self, root: RootABC) -> Optional[str]:
-        ret = await super().eval(root)
-        project_ctx = None
-        if ret and ret.startswith("image:"):
-            try:
-                # Hack to get flow's project ctx -> project_name
-                project_ctx = root.lookup("project")
-            except LookupError:
-                pass
-        if ret and project_ctx:
-            async with root.client() as cl:
-                uri = cl.parse.str_to_uri(
-                    ret,
-                    project_name=project_ctx.project_name,  # type: ignore
-                    short=True,
-                )
-                ret = str(uri)
-        return ret
+        img_ref = await super().eval(root)
+        if img_ref is not None:
+            return await project_image_ref(img_ref, root)
+        return None
 
 
-class OptImageRefStrExpr(ImageRefExprMixin, OptStrExpr):
-    pass
-
-
-class ImageRefStrExpr(ImageRefExprMixin, StrExpr):
-    pass
+class ImageRefStrExpr(StrExpr):
+    async def eval(self, root: RootABC) -> str:
+        img_ref = await super().eval(root)
+        return await project_image_ref(img_ref, root)
 
 
 class OptURIExpr(URIExprMixin, Expr[URL]):
