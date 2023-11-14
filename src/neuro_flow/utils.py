@@ -5,7 +5,7 @@ import humanize
 import logging
 import time
 from functools import wraps
-from neuro_sdk import ClientError, JobStatus, ServerNotAvailable
+from neuro_sdk import BadGateway, ClientError, JobStatus, ServerNotAvailable
 from typing import (
     Any,
     Awaitable,
@@ -251,7 +251,7 @@ def retry(
             delay=self._delay,
             factor=self._delay_factor,
             cap=self._delay_cap,
-            exceptions=(ClientError, ServerNotAvailable, OSError),
+            exceptions=(ClientError, ServerNotAvailable, BadGateway, OSError),
         ):
             async with retry:
                 return await func(self, *args, **kwargs)

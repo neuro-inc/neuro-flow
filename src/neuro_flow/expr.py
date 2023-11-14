@@ -909,7 +909,7 @@ def make_dict(
 ) -> DictMaker:
     lst = [(args[0], args[1])]
     if len(args) > 2:
-        lst += args[2]  # type: ignore
+        lst += args[2]
     return DictMaker(lst[0][0].start, lst[-1][1].end, lst)
 
 
