@@ -7,23 +7,25 @@ from neuro_flow.ast import NeedsLevel
 from neuro_flow.expr import (
     EnableExpr,
     IdExpr,
+    ImageRefStrExpr,
     MappingItemsExpr,
     OptBashExpr,
     OptBoolExpr,
     OptIdExpr,
+    OptImageRefStrExpr,
     OptIntExpr,
     OptLocalPathExpr,
     OptRemotePathExpr,
     OptRestartPolicyExpr,
     OptStrExpr,
     OptTimeDeltaExpr,
+    PlatformResourceURIExpr,
     PrimitiveExpr,
     RemotePathExpr,
     SequenceItemsExpr,
     SimpleOptIdExpr,
     SimpleOptStrExpr,
     StrExpr,
-    URIExpr,
 )
 from neuro_flow.parser import parse_batch
 from neuro_flow.tokenizer import Pos
@@ -55,7 +57,7 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
             "image_a": ast.Image(
                 _start=Pos(4, 4, config_file),
                 _end=Pos(12, 0, config_file),
-                ref=StrExpr(
+                ref=ImageRefStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "image:banana"
                 ),
                 context=OptStrExpr(
@@ -91,7 +93,7 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
             "volume_a": ast.Volume(
                 _start=Pos(14, 4, config_file),
                 _end=Pos(18, 2, config_file),
-                remote=URIExpr(
+                remote=PlatformResourceURIExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "storage:dir"
                 ),
                 mount=RemotePathExpr(
@@ -107,7 +109,7 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
             "volume_b": ast.Volume(
                 _start=Pos(19, 4, config_file),
                 _end=Pos(21, 0, config_file),
-                remote=URIExpr(
+                remote=PlatformResourceURIExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "storage:other"
                 ),
                 mount=RemotePathExpr(
@@ -208,7 +210,7 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
                 name=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "job-name"
                 ),
-                image=OptStrExpr(
+                image=OptImageRefStrExpr(
                     Pos(0, 0, config_file),
                     Pos(0, 0, config_file),
                     "${{ images.image_a.ref }}",
@@ -335,7 +337,7 @@ def test_parse_seq(assets: pathlib.Path) -> None:
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 needs=None,
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
-                image=OptStrExpr(
+                image=OptImageRefStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"
                 ),
                 preset=OptStrExpr(
@@ -388,7 +390,7 @@ def test_parse_seq(assets: pathlib.Path) -> None:
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 needs=None,
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
-                image=OptStrExpr(
+                image=OptImageRefStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"
                 ),
                 preset=OptStrExpr(
@@ -472,7 +474,7 @@ def test_parse_needs(assets: pathlib.Path) -> None:
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 needs=None,
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
-                image=OptStrExpr(
+                image=OptImageRefStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"
                 ),
                 preset=OptStrExpr(
@@ -529,7 +531,7 @@ def test_parse_needs(assets: pathlib.Path) -> None:
                     ): NeedsLevel.COMPLETED
                 },
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
-                image=OptStrExpr(
+                image=OptImageRefStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"
                 ),
                 preset=OptStrExpr(
@@ -613,7 +615,7 @@ def test_parse_needs_dict(assets: pathlib.Path) -> None:
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 needs=None,
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
-                image=OptStrExpr(
+                image=OptImageRefStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"
                 ),
                 preset=OptStrExpr(
@@ -672,7 +674,7 @@ def test_parse_needs_dict(assets: pathlib.Path) -> None:
                     ): NeedsLevel.RUNNING
                 },
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
-                image=OptStrExpr(
+                image=OptImageRefStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"
                 ),
                 preset=OptStrExpr(
@@ -754,7 +756,7 @@ def test_parse_matrix(assets: pathlib.Path) -> None:
                 mixins=None,
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
-                image=OptStrExpr(
+                image=OptImageRefStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"
                 ),
                 preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
@@ -926,7 +928,7 @@ def test_parse_matrix_with_strategy(assets: pathlib.Path) -> None:
                 mixins=None,
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
-                image=OptStrExpr(
+                image=OptImageRefStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"
                 ),
                 preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
@@ -1056,7 +1058,7 @@ def test_parse_matrix_with_strategy(assets: pathlib.Path) -> None:
                 cache=None,
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
-                image=OptStrExpr(
+                image=OptImageRefStrExpr(
                     Pos(26, 11, config_file), Pos(26, 17, config_file), "ubuntu"
                 ),
                 preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
@@ -1213,7 +1215,7 @@ def test_parse_args(assets: pathlib.Path) -> None:
                 mixins=None,
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
-                image=OptStrExpr(
+                image=OptImageRefStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"
                 ),
                 preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
@@ -1297,7 +1299,7 @@ def test_parse_enable(assets: pathlib.Path) -> None:
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 needs=None,
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
-                image=OptStrExpr(
+                image=OptImageRefStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"
                 ),
                 preset=OptStrExpr(
@@ -1354,7 +1356,7 @@ def test_parse_enable(assets: pathlib.Path) -> None:
                     ): NeedsLevel.COMPLETED
                 },
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
-                image=OptStrExpr(
+                image=OptImageRefStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"
                 ),
                 preset=OptStrExpr(
@@ -1434,7 +1436,7 @@ def test_parse_mixin(assets: pathlib.Path) -> None:
                 _specified_fields={"image", "preset", "restart"},
                 mixins=None,
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
-                image=OptStrExpr(
+                image=OptImageRefStrExpr(
                     Pos(0, 0, config_file),
                     Pos(0, 0, config_file),
                     "ubuntu",
@@ -1493,7 +1495,9 @@ def test_parse_mixin(assets: pathlib.Path) -> None:
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 needs=None,
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
-                image=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                image=OptImageRefStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
                 preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 schedule_timeout=OptTimeDeltaExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
@@ -1544,7 +1548,9 @@ def test_parse_mixin(assets: pathlib.Path) -> None:
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 needs=None,
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
-                image=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
+                image=OptImageRefStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
                 preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 schedule_timeout=OptTimeDeltaExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None

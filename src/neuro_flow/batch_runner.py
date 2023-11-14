@@ -258,8 +258,8 @@ async def upload_image_data(
                 # Reusing image ref between bakes introduces
                 # race condition anyway, so we can safely use it
                 # as remote context dir name
-                storage_context_dir: Optional[URL] = URL(
-                    f"storage:.flow/{top_flow.project_id}/{image.ref.replace(':', '/')}"
+                storage_context_dir: Optional[URL] = image.get_ctx_storage_dir(
+                    top_flow.project_name, top_flow.project_id
                 )
             else:
                 storage_context_dir = image.context
@@ -337,6 +337,11 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         return self._project.role
 
     @property
+    def project_name(self) -> str:
+        assert self._project is not None
+        return self._project.project_name
+
+    @property
     def config_loader(self) -> BatchLocalCL:
         assert self._config_loader is not None
         return self._config_loader
@@ -360,6 +365,8 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             self._project.id,
             owner=self._project.owner,
             project_name=project_name,
+            cluster=self._client.config.cluster_name,
+            org_name=self._client.config.org_name,
         )
         self._project_storage = self._storage.project(id=project.id)
         return self
@@ -493,6 +500,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                 f"--tag=flow:{bake.batch}",
                 f"--tag=bake_id:{bake.id}",
                 f"--tag=remote_executor",
+                f"--project={flow.project_name}",
             ]
             project_role = self.project_role
             if project_role is not None:

@@ -4,7 +4,7 @@ from datetime import timedelta
 from neuro_sdk import Client
 from textwrap import dedent
 from typing import AsyncIterator, Mapping, Optional, Tuple, Union
-from unittest.mock import ANY
+from unittest.mock import ANY, PropertyMock
 from yarl import URL
 
 from neuro_flow import ast
@@ -174,6 +174,9 @@ async def test_project_level_defaults_live(
     )
     cl = LiveLocalCL(config_dir, client)
     try:
+        type(client.config).project_name = PropertyMock(  # type: ignore
+            return_value="test-project-name"
+        )
         flow = await RunningLiveFlow.create(cl, "live")
         job = await flow.get_job("test", {})
         assert "tag-a" in job.tags
@@ -1249,6 +1252,9 @@ async def test_early_images_include_globals(
     )
     cl = BatchLocalCL(config_dir, client)
     try:
+        type(client.config).project_name = PropertyMock(  # type: ignore
+            return_value="test-project-name",
+        )
         flow = await RunningBatchFlow.create(cl, "batch", "bake-id")
         assert flow.early_images["image_a"].ref == "image:banana"
         assert flow.early_images["image_a"].context == ws / "dir"
@@ -1270,6 +1276,9 @@ async def test_batch_with_project_globals(assets: pathlib.Path, client: Client) 
     )
     cl = BatchLocalCL(config_dir, client)
     try:
+        type(client.config).project_name = PropertyMock(  # type: ignore
+            return_value="test-project-name",
+        )
         flow = await RunningBatchFlow.create(cl, "batch", "bake-id")
         task = await flow.get_task((), "task", needs={}, state={})
         assert "tag-a" in task.tags
@@ -1285,6 +1294,47 @@ async def test_batch_with_project_globals(assets: pathlib.Path, client: Client) 
         assert task.preset == "cpu-large"
         assert task.schedule_timeout == 2157741.0
         assert task.image == "image:main"
+
+        assert not task.strategy.fail_fast
+        assert task.strategy.max_parallel == 20
+        assert task.cache.strategy == CacheStrategy.NONE
+        assert task.cache.life_span == 9000.0
+
+    finally:
+        await cl.close()
+
+
+async def test_batch_with_non_current_project(
+    assets: pathlib.Path, client: Client
+) -> None:
+    ws = assets / "with_project_yaml"
+    config_dir = ConfigDir(
+        workspace=ws,
+        config_dir=ws,
+    )
+    cl = BatchLocalCL(config_dir, client)
+    try:
+        type(client.config).project_name = PropertyMock(  # type: ignore
+            return_value="other-project-name",
+        )
+        type(client.config).cluster_name = PropertyMock(  # type: ignore
+            return_value="other-cluster",
+        )
+        flow = await RunningBatchFlow.create(cl, "batch", "bake-id")
+        task = await flow.get_task((), "task", needs={}, state={})
+        assert "tag-a" in task.tags
+        assert "tag-b" in task.tags
+        assert task.env["global_a"] == "val-a"
+        assert task.env["global_b"] == "val-b"
+        assert task.volumes == [
+            "storage:common:/mnt/common:rw",
+            f"storage://other-cluster/test-project-name/dir:/var/dir:ro",
+        ]
+        assert task.workdir == RemotePath("/global/dir")
+        assert task.life_span == 100800.0
+        assert task.preset == "cpu-large"
+        assert task.schedule_timeout == 2157741.0
+        assert task.image == "image://other-cluster/test-project-name/main"
 
         assert not task.strategy.fail_fast
         assert task.strategy.max_parallel == 20

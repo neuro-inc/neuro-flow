@@ -5,10 +5,12 @@ from neuro_flow import ast
 from neuro_flow.ast import BatchActionOutputs
 from neuro_flow.expr import (
     EnableExpr,
+    ImageRefStrExpr,
     MappingItemsExpr,
     OptBashExpr,
     OptBoolExpr,
     OptIdExpr,
+    OptImageRefStrExpr,
     OptIntExpr,
     OptRemotePathExpr,
     OptRestartPolicyExpr,
@@ -79,7 +81,9 @@ def test_parse_live_action(assets: LocalPath) -> None:
             _specified_fields={"cmd", "image", "env"},
             mixins=None,
             name=OptStrExpr(Pos(3, 4, config_file), Pos(5, 0, config_file), None),
-            image=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
+            image=OptImageRefStrExpr(
+                Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"
+            ),
             preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
             schedule_timeout=OptTimeDeltaExpr(
                 Pos(0, 0, config_file), Pos(0, 0, config_file), None
@@ -227,7 +231,7 @@ def test_parse_batch_action(assets: LocalPath) -> None:
             "image_a": ast.Image(
                 _start=Pos(23, 4, config_file),
                 _end=Pos(35, 0, config_file),
-                ref=StrExpr(
+                ref=ImageRefStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "image:banana"
                 ),
                 context=OptStrExpr(
@@ -281,7 +285,7 @@ def test_parse_batch_action(assets: LocalPath) -> None:
                 mixins=None,
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
-                image=OptStrExpr(
+                image=OptImageRefStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "image:banana"
                 ),
                 preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
@@ -334,7 +338,7 @@ def test_parse_batch_action(assets: LocalPath) -> None:
                 mixins=None,
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
-                image=OptStrExpr(
+                image=OptImageRefStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"
                 ),
                 preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
@@ -443,7 +447,9 @@ def test_parse_stateful_action(assets: LocalPath) -> None:
             Pos(16, 0, config_file),
             title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
             name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
-            image=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
+            image=OptImageRefStrExpr(
+                Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"
+            ),
             preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
             schedule_timeout=OptTimeDeltaExpr(
                 Pos(0, 0, config_file), Pos(0, 0, config_file), None
@@ -477,7 +483,9 @@ def test_parse_stateful_action(assets: LocalPath) -> None:
             Pos(19, 0, config_file),
             title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
             name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
-            image=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"),
+            image=OptImageRefStrExpr(
+                Pos(0, 0, config_file), Pos(0, 0, config_file), "ubuntu"
+            ),
             preset=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
             schedule_timeout=OptTimeDeltaExpr(
                 Pos(0, 0, config_file), Pos(0, 0, config_file), None

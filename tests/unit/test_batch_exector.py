@@ -219,6 +219,7 @@ class JobsMock:
         restart_policy: JobRestartPolicy = JobRestartPolicy.NEVER,
         life_span: Optional[float] = None,
         privileged: bool = False,
+        project_name: str = "test-project",
     ) -> JobDescription:
         job_id = f"job-{self._make_next_id()}"
 
@@ -241,7 +242,7 @@ class JobsMock:
             id=job_id,
             owner="test-user",
             cluster_name="default",
-            project_name="test-project",
+            project_name=project_name,
             preset_name=preset_name,
             status=JobStatus.PENDING,
             history=JobStatusHistory(
@@ -1327,6 +1328,7 @@ async def test_image_builds(
     project_storage = batch_storage.project(
         yaml_id="batch_images",
         project_name=client.config.project_name,
+        cluster=client.config.cluster_name,
     )
     bake = [bake async for bake in project_storage.list_bakes()][0]
     bake_storage = project_storage.bake(id=bake.id)
@@ -1335,6 +1337,7 @@ async def test_image_builds(
         "neuro-extras",
         "image",
         "build",
+        f"--project={client.config.project_name}",
         "--file=Dockerfile",
         str(image.context_on_storage),
         "image:banana1",
@@ -1350,6 +1353,7 @@ async def test_image_builds(
         "neuro-extras",
         "image",
         "build",
+        f"--project={client.config.project_name}",
         "--file=Dockerfile",
         "storage://default/foo/val1",
         "image:banana2",
@@ -1366,6 +1370,7 @@ async def test_image_builds(
         "neuro-extras",
         "image",
         "build",
+        f"--project={client.config.project_name}",
         "--file=Dockerfile",
         str(image.context_on_storage),
         "image:main",
@@ -1412,6 +1417,7 @@ async def test_image_builds_skip_if_present(
     project_storage = batch_storage.project(
         yaml_id="batch_images",
         project_name=client.config.project_name,
+        cluster=client.config.cluster_name,
     )
     bake = [bake async for bake in project_storage.list_bakes()][0]
     bake_storage = project_storage.bake(id=bake.id)
@@ -1450,6 +1456,7 @@ async def test_image_builds_if_present_but_force(
     project_storage = batch_storage.project(
         yaml_id="batch_images",
         project_name=client.config.project_name,
+        cluster=client.config.cluster_name,
     )
     bake = [bake async for bake in project_storage.list_bakes()][0]
     bake_storage = project_storage.bake(id=bake.id)
@@ -1458,6 +1465,7 @@ async def test_image_builds_if_present_but_force(
         "neuro-extras",
         "image",
         "build",
+        f"--project={client.config.project_name}",
         "--file=Dockerfile",
         "--force-overwrite",
         str(image.context_on_storage),
@@ -1495,7 +1503,8 @@ async def test_image_builds_cancel(
     job_id = await _wait_for_build("image:banana1")
     project_storage = batch_storage.project(
         yaml_id="batch_images",
-        project_name=batch_runner._client.config.project_name_or_raise,
+        project_name=batch_runner.project_name,
+        cluster=batch_runner._client.config.cluster_name,
     )
     bake = [bake async for bake in project_storage.list_bakes()][0]
     await batch_runner.cancel(bake.id)

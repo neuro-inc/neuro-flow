@@ -40,12 +40,14 @@ from .expr import (
     EnableExpr,
     Expr,
     IdExpr,
+    ImageRefStrExpr,
     MappingExpr,
     MappingItemsExpr,
     MappingT,
     OptBashExpr,
     OptBoolExpr,
     OptIdExpr,
+    OptImageRefStrExpr,
     OptIntExpr,
     OptLocalPathExpr,
     OptPythonExpr,
@@ -53,6 +55,7 @@ from .expr import (
     OptRestartPolicyExpr,
     OptStrExpr,
     OptTimeDeltaExpr,
+    PlatformResourceURIExpr,
     PortPairExpr,
     PrimitiveExpr,
     RemotePathExpr,
@@ -67,7 +70,6 @@ from .expr import (
     SimpleStrExpr,
     StrExpr,
     TypeT,
-    URIExpr,
     port_pair_item,
 )
 from .tokenizer import Pos
@@ -451,7 +453,7 @@ def parse_volume(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Volume:
         ctor,
         node,
         {
-            "remote": URIExpr,
+            "remote": PlatformResourceURIExpr,
             "mount": RemotePathExpr,
             "read_only": OptBoolExpr,
             "local": OptLocalPathExpr,
@@ -480,7 +482,7 @@ def parse_image(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Image:
         ctor,
         node,
         {
-            "ref": StrExpr,
+            "ref": ImageRefStrExpr,
             "context": OptStrExpr,
             "dockerfile": OptStrExpr,
             "build_args": ExprOrSeq(StrExpr, type2str),
@@ -623,7 +625,7 @@ FlowLoader.add_constructor("flow:cache", parse_cache)  # type: ignore
 EXEC_UNIT = {
     "title": OptStrExpr,
     "name": OptStrExpr,
-    "image": OptStrExpr,
+    "image": OptImageRefStrExpr,
     "preset": OptStrExpr,
     "schedule_timeout": OptTimeDeltaExpr,
     "entrypoint": OptStrExpr,

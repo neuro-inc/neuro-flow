@@ -5,7 +5,7 @@ import aiohttp
 import datetime
 import json
 from contextlib import asynccontextmanager
-from neuro_sdk import Client
+from neuro_sdk import Client, Project as NeuroProject
 from typing import (
     AbstractSet,
     Any,
@@ -342,12 +342,21 @@ class ApiStorage(Storage):
             self._client, _raw_client=RetryingReadRawApiClient(self._client)
         )
 
-    def check_can_create_for_project_name(self, project_name: str) -> None:
-        if project_name != self._client.config.project_name_or_raise:
-            raise ValueError(
-                f"Cannot create flow within project '{project_name}' that is"
-                f" different from current project '{self._client.config.project_name}'."
+    async def check_can_create_for_user_context(
+        self,
+        project_name: str,
+        cluster_name: str,
+        org_name: Optional[str] = None,
+    ) -> None:
+        await self._client.config.fetch()
+        needed_key = NeuroProject.Key(cluster_name, org_name, project_name)
+        if needed_key not in self._client.config.projects.keys():
+            org_msg = f"organization '{org_name}', " if org_name else ""
+            msg = (
+                "Cannot create flow within your user context. Make sure you have access"
+                f" to {org_msg}cluster '{cluster_name}' and project '{project_name}'"
             )
+            raise ValueError(msg)
 
     async def close(self) -> None:
         pass
