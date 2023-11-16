@@ -6,7 +6,7 @@ humanize==4.8.0
 neuro-cli==23.11.0
 neuro-extras==23.11.0
 pyyaml==6.0.1
-rich==13.6.0
+rich==13.7.0
 trafaret==2.1.1
 
 typing-extensions==4.8.0
