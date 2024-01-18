@@ -29,12 +29,12 @@ jobs:
       with:
         python-version: 3.9
     - name: Cache pre-commit hooks
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: ~/.cache/pre-commit
         key: pre-commit|py3.9|${{ hashFiles('.pre-commit-config.yaml') }}
     - name: Cache PyPI
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         key: pip-lint-${{ hashFiles('requirements/*.txt') }}
         path: ~/.cache/pip
@@ -87,7 +87,7 @@ jobs:
       run: |
         echo "dir=$(pip cache dir)" >> $GITHUB_OUTPUT
     - name: Cache PyPI
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         key: pip-ci-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('requirements/*.txt') }}
         path: ${{ steps.pip-cache.outputs.dir }}
@@ -141,7 +141,7 @@ jobs:
       run: |
         echo "dir=$(pip cache dir)" >> $GITHUB_OUTPUT
     - name: Cache PyPI
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         key: pip-ci-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('requirements/*.txt') }}
         path: ${{ steps.pip-cache.outputs.dir }}
