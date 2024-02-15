@@ -2,20 +2,9 @@ import asyncio
 import os
 import pathlib
 import pytest
-from neuro_cli.asyncio_utils import setup_child_watcher
 from neuro_sdk import Client, get as api_get, login_with_token
 from typing import Any, AsyncIterator, Iterator
 from yarl import URL
-
-
-@pytest.fixture
-def loop() -> Iterator[asyncio.AbstractEventLoop]:
-    setup_child_watcher()
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    yield loop
-    loop.run_until_complete(loop.shutdown_asyncgens())
-    loop.close()
 
 
 @pytest.fixture
@@ -46,9 +35,7 @@ def api_config(tmp_path_factory: Any) -> Iterator[pathlib.Path]:
 
 
 @pytest.fixture
-async def client(
-    loop: asyncio.AbstractEventLoop, api_config: pathlib.Path
-) -> AsyncIterator[Client]:
+async def client(api_config: pathlib.Path) -> AsyncIterator[Client]:
     cluster = os.environ.get("E2E_CLUSTER")
     async with api_get(path=api_config) as client:
         if cluster:

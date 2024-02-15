@@ -33,6 +33,10 @@ images:
     volumes:
       - secret:key:/var/secret/key.txt
     build_preset: gpu-small
+    extra_kaniko_args: >-
+      --reproducible
+      --cache-ttl=1h
+      --single-snapshot
 tasks:
 - id: task_1
   needs: [ ]  # checks parser

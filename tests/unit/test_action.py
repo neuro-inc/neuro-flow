@@ -146,7 +146,7 @@ def test_parse_batch_action(assets: LocalPath) -> None:
     action = parse_action(config_file)
     assert action == ast.BatchAction(
         Pos(0, 0, config_file),
-        Pos(43, 0, config_file),
+        Pos(47, 0, config_file),
         kind=ast.ActionKind.BATCH,
         name=SimpleOptStrExpr(
             Pos(0, 0, config_file),
@@ -230,7 +230,7 @@ def test_parse_batch_action(assets: LocalPath) -> None:
         images={
             "image_a": ast.Image(
                 _start=Pos(23, 4, config_file),
-                _end=Pos(35, 0, config_file),
+                _end=Pos(39, 0, config_file),
                 ref=ImageRefStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "image:banana"
                 ),
@@ -275,12 +275,17 @@ def test_parse_batch_action(assets: LocalPath) -> None:
                 force_rebuild=OptBoolExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
+                extra_kaniko_args=OptStrExpr(
+                    Pos(0, 0, config_file),
+                    Pos(0, 0, config_file),
+                    "--reproducible --cache-ttl=1h --single-snapshot",
+                ),
             )
         },
         tasks=[
             ast.Task(
-                Pos(36, 2, config_file),
-                Pos(40, 0, config_file),
+                Pos(40, 2, config_file),
+                Pos(44, 0, config_file),
                 _specified_fields={"needs", "image", "cmd", "id"},
                 mixins=None,
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
@@ -332,8 +337,8 @@ def test_parse_batch_action(assets: LocalPath) -> None:
                 ),
             ),
             ast.Task(
-                Pos(40, 2, config_file),
-                Pos(43, 0, config_file),
+                Pos(44, 2, config_file),
+                Pos(47, 0, config_file),
                 _specified_fields={"image", "cmd", "id"},
                 mixins=None,
                 title=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),

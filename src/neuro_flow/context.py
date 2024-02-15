@@ -185,6 +185,7 @@ class EarlyImageCtx:
         volumes: Sequence[str],
         build_preset: Optional[str],
         force_rebuild: bool,
+        extra_kaniko_args: Optional[str],
     ) -> "ImageCtx":
         return ImageCtx(
             id=self.id,
@@ -197,6 +198,7 @@ class EarlyImageCtx:
             volumes=volumes,
             build_preset=build_preset,
             force_rebuild=force_rebuild,
+            extra_kaniko_args=extra_kaniko_args,
         )
 
     def get_ctx_storage_dir(self, project_name: str, project_id: str) -> URL:
@@ -213,6 +215,7 @@ class ImageCtx(EarlyImageCtx):
     volumes: Sequence[str]
     build_preset: Optional[str]
     force_rebuild: bool
+    extra_kaniko_args: Optional[str]
 
 
 @dataclass(frozen=True)
@@ -1025,6 +1028,7 @@ async def setup_images_ctx(
                 volumes=image_volumes,
                 build_preset=await i.build_preset.eval(ctx),
                 force_rebuild=await i.force_rebuild.eval(ctx) or False,
+                extra_kaniko_args=await i.extra_kaniko_args.eval(ctx),
             )
             if image_ctx.context is None:  # if true, dockerfile is None also
                 # Context was not computed during early evaluation,
@@ -2053,9 +2057,11 @@ class RunningBatchBase(Generic[_T], EarlyBatch, ABC):
             inputs=await setup_inputs_ctx(ctx, prep_task.call, prep_task.action.inputs),
             default_tags=self._default_tags,
             bake_id=self._bake_id,
-            local_info=self._local_info.children_info.get(real_id)
-            if self._local_info
-            else None,
+            local_info=(
+                self._local_info.children_info.get(real_id)
+                if self._local_info
+                else None
+            ),
             config_loader=self._cl,
             defaults=defaults,
             mixins=mixins,

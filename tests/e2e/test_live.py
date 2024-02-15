@@ -74,6 +74,7 @@ async def test_live_context(
                 "env": {},
                 "volumes": [],
                 "force_rebuild": False,
+                "extra_kaniko_args": None,
             }
         },
         "params": {"arg1": "cli-value", "arg2": "val2"},

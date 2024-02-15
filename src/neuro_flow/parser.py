@@ -490,6 +490,7 @@ def parse_image(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Image:
             "volumes": ExprOrSeq(OptStrExpr, type2str),
             "build_preset": OptStrExpr,
             "force_rebuild": OptBoolExpr,
+            "extra_kaniko_args": OptStrExpr,
         },
         ast.Image,
     )

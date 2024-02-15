@@ -101,6 +101,7 @@ class Image(Base):
     volumes: Optional[BaseExpr[SequenceT]] = field(metadata={"allow_none": True})
     build_preset: OptStrExpr
     force_rebuild: OptBoolExpr
+    extra_kaniko_args: OptStrExpr
 
 
 @dataclass(frozen=True)
