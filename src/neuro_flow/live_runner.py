@@ -643,6 +643,10 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
             cmd.append("--force-overwrite")
         if image_ctx.build_preset is not None:
             cmd.append(f"--preset={image_ctx.build_preset}")
+        if image_ctx.extra_kaniko_args:
+            cmd.append(
+                f"--extra-kaniko-args={shlex.quote(image_ctx.extra_kaniko_args)}"
+            )
         cmd.append(str(image_ctx.context))
         cmd.append(str(image_ctx.ref))
         await self._run_extras_cli("image", "build", *cmd)

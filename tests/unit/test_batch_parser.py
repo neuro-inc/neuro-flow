@@ -37,7 +37,7 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
     flow = parse_batch(workspace, config_file)
     assert flow == ast.BatchFlow(
         Pos(0, 0, config_file),
-        Pos(57, 0, config_file),
+        Pos(61, 0, config_file),
         id=SimpleOptIdExpr(
             Pos(0, 0, config_file),
             Pos(0, 0, config_file),
@@ -56,7 +56,7 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
         images={
             "image_a": ast.Image(
                 _start=Pos(4, 4, config_file),
-                _end=Pos(12, 0, config_file),
+                _end=Pos(16, 0, config_file),
                 ref=ImageRefStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "image:banana"
                 ),
@@ -87,12 +87,17 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
                 force_rebuild=OptBoolExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), True
                 ),
+                extra_kaniko_args=OptStrExpr(
+                    Pos(0, 0, config_file),
+                    Pos(0, 0, config_file),
+                    "--reproducible --cache-ttl=1h --single-snapshot",
+                ),
             )
         },
         volumes={
             "volume_a": ast.Volume(
-                _start=Pos(14, 4, config_file),
-                _end=Pos(18, 2, config_file),
+                _start=Pos(18, 4, config_file),
+                _end=Pos(22, 2, config_file),
                 remote=PlatformResourceURIExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "storage:dir"
                 ),
@@ -107,8 +112,8 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
                 ),
             ),
             "volume_b": ast.Volume(
-                _start=Pos(19, 4, config_file),
-                _end=Pos(21, 0, config_file),
+                _start=Pos(23, 4, config_file),
+                _end=Pos(25, 0, config_file),
                 remote=PlatformResourceURIExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "storage:other"
                 ),
@@ -124,8 +129,8 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
             ),
         },
         defaults=ast.BatchFlowDefaults(
-            _start=Pos(22, 2, config_file),
-            _end=Pos(34, 0, config_file),
+            _start=Pos(26, 2, config_file),
+            _end=Pos(38, 0, config_file),
             _specified_fields={
                 "env",
                 "fail_fast",
@@ -181,8 +186,8 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
         mixins=None,
         tasks=[
             ast.Task(
-                _start=Pos(35, 4, config_file),
-                _end=Pos(57, 0, config_file),
+                _start=Pos(39, 4, config_file),
+                _end=Pos(61, 0, config_file),
                 _specified_fields={
                     "life_span",
                     "http_auth",

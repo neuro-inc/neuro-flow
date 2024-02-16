@@ -13,16 +13,7 @@ import sys
 from datetime import datetime, timedelta
 from neuro_sdk import Config, get as api_get, login_with_token
 from pathlib import Path
-from typing import (
-    Any,
-    AsyncIterator,
-    Awaitable,
-    Callable,
-    Dict,
-    Iterator,
-    List,
-    Optional,
-)
+from typing import Any, AsyncIterator, Awaitable, Callable, Dict, List, Optional
 from yarl import URL
 
 
@@ -30,15 +21,6 @@ NETWORK_TIMEOUT = 3 * 60.0
 CLIENT_TIMEOUT = aiohttp.ClientTimeout(None, None, NETWORK_TIMEOUT, NETWORK_TIMEOUT)
 
 log = logging.getLogger(__name__)
-
-
-@pytest.fixture
-def loop() -> Iterator[asyncio.AbstractEventLoop]:
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    yield loop
-    loop.run_until_complete(loop.shutdown_asyncgens())
-    loop.close()
 
 
 @pytest.fixture
@@ -126,9 +108,7 @@ RunCLI = Callable[[List[str]], Awaitable[SysCap]]
 
 
 @pytest.fixture
-def _run_cli(
-    loop: None, ws: pathlib.Path, api_config: Optional[pathlib.Path]
-) -> RunCLI:
+def _run_cli(ws: pathlib.Path, api_config: Optional[pathlib.Path]) -> RunCLI:
     async def _run(
         arguments: List[str],
     ) -> SysCap:

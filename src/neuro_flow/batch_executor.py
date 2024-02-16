@@ -134,9 +134,9 @@ async def get_running_flow(
                 ref=image.ref,
                 context=image.context_on_storage,
                 dockerfile=dockerfile,
-                dockerfile_rel=RemotePath(image.dockerfile_rel)
-                if image.dockerfile_rel
-                else None,
+                dockerfile_rel=(
+                    RemotePath(image.dockerfile_rel) if image.dockerfile_rel else None
+                ),
             )
     return await RunningBatchFlow.create(
         config_loader=config_loader,
@@ -1197,6 +1197,10 @@ class BatchExecutor:
             cmd.append("--force-overwrite")
         if image_ctx.build_preset is not None:
             cmd.append(f"--preset={image_ctx.build_preset}")
+        if image_ctx.extra_kaniko_args is not None:
+            cmd.append(
+                f"--extra-kaniko-args={shlex.quote(image_ctx.extra_kaniko_args)}"
+            )
         cmd.append(str(context))
         cmd.append(str(bake_image.ref))
         builder_job_id = await self._run_builder_job(*cmd)

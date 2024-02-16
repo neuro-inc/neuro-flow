@@ -236,7 +236,7 @@ def test_parse_full(assets: pathlib.Path) -> None:
     flow = parse_live(workspace, config_file)
     assert flow == ast.LiveFlow(
         Pos(0, 0, config_file),
-        Pos(70, 0, config_file),
+        Pos(74, 0, config_file),
         id=SimpleOptIdExpr(
             Pos(0, 0, config_file),
             Pos(0, 0, config_file),
@@ -251,7 +251,7 @@ def test_parse_full(assets: pathlib.Path) -> None:
         images={
             "image_a": ast.Image(
                 Pos(4, 4, config_file),
-                Pos(16, 0, config_file),
+                Pos(20, 0, config_file),
                 ref=ImageRefStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "image:banana"
                 ),
@@ -296,12 +296,17 @@ def test_parse_full(assets: pathlib.Path) -> None:
                 force_rebuild=OptBoolExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
+                extra_kaniko_args=OptStrExpr(
+                    Pos(0, 0, config_file),
+                    Pos(0, 0, config_file),
+                    "--reproducible --cache-ttl=1h --single-snapshots",
+                ),
             )
         },
         volumes={
             "volume_a": ast.Volume(
-                Pos(18, 4, config_file),
-                Pos(22, 2, config_file),
+                Pos(22, 4, config_file),
+                Pos(26, 2, config_file),
                 remote=PlatformResourceURIExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "storage:dir"
                 ),
@@ -316,8 +321,8 @@ def test_parse_full(assets: pathlib.Path) -> None:
                 ),
             ),
             "volume_b": ast.Volume(
-                Pos(23, 4, config_file),
-                Pos(25, 0, config_file),
+                Pos(27, 4, config_file),
+                Pos(29, 0, config_file),
                 remote=PlatformResourceURIExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "storage:other"
                 ),
@@ -333,8 +338,8 @@ def test_parse_full(assets: pathlib.Path) -> None:
             ),
         },
         defaults=ast.FlowDefaults(
-            Pos(26, 2, config_file),
-            Pos(36, 0, config_file),
+            Pos(30, 2, config_file),
+            Pos(40, 0, config_file),
             _specified_fields={
                 "env",
                 "volumes",
@@ -384,8 +389,8 @@ def test_parse_full(assets: pathlib.Path) -> None:
         ),
         mixins={
             "envs": ast.JobMixin(
-                Pos(38, 4, config_file),
-                Pos(41, 0, config_file),
+                Pos(42, 4, config_file),
+                Pos(45, 0, config_file),
                 _specified_fields={"env"},
                 mixins=None,
                 name=OptStrExpr(Pos(0, 0, config_file), Pos(0, 0, config_file), None),
@@ -452,8 +457,8 @@ def test_parse_full(assets: pathlib.Path) -> None:
         },
         jobs={
             "test_a": ast.Job(
-                Pos(43, 4, config_file),
-                Pos(70, 0, config_file),
+                Pos(47, 4, config_file),
+                Pos(74, 0, config_file),
                 _specified_fields={
                     "workdir",
                     "http_auth",
@@ -639,6 +644,9 @@ def test_parse_full_exprs(assets: pathlib.Path) -> None:
                     Pos(0, 0, config_file), Pos(0, 0, config_file), "gpu-small"
                 ),
                 force_rebuild=OptBoolExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
+                extra_kaniko_args=OptStrExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
             )

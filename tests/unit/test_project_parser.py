@@ -100,6 +100,9 @@ def test_parse_full(assets: pathlib.Path) -> None:
                 force_rebuild=OptBoolExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None
                 ),
+                extra_kaniko_args=OptStrExpr(
+                    Pos(0, 0, config_file), Pos(0, 0, config_file), None
+                ),
             )
         },
         volumes={
