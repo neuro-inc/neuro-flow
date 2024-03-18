@@ -236,9 +236,11 @@ async def test_upload_image_data(
                     "--recursive",
                     "--update",
                     "--no-target-directory",
-                    str(assets / "batch_images/dir")
-                    if ref == "image:main"
-                    else str(assets / "batch_images/subdir"),
+                    (
+                        str(assets / "batch_images/dir")
+                        if ref == "image:main"
+                        else str(assets / "batch_images/subdir")
+                    ),
                     str(img.context_on_storage),
                 )
                 for run in runs

@@ -199,8 +199,7 @@ class LiveContextFactory(Protocol):
         tags: TagsCtx = frozenset(),
         dry_run: bool = False,
         volumes: Optional[VolumesCtx] = None,
-    ) -> LiveContext:
-        ...
+    ) -> LiveContext: ...
 
 
 @pytest.fixture
