@@ -1269,8 +1269,7 @@ def check_module_call_is_local(action_name: str, call_ast: ast.BaseModuleCall) -
 
 class SupportsAstMerge(Protocol):
     @property
-    def _specified_fields(self) -> AbstractSet[str]:
-        ...
+    def _specified_fields(self) -> AbstractSet[str]: ...
 
 
 _MergeTarget = TypeVar("_MergeTarget", bound=SupportsAstMerge)
@@ -1308,12 +1307,10 @@ async def merge_asts(child: _MergeTarget, parent: SupportsAstMerge) -> _MergeTar
 
 class MixinApplyTarget(Protocol):
     @property
-    def mixins(self) -> Optional[Sequence[StrExpr]]:
-        ...
+    def mixins(self) -> Optional[Sequence[StrExpr]]: ...
 
     @property
-    def _specified_fields(self) -> AbstractSet[str]:
-        ...
+    def _specified_fields(self) -> AbstractSet[str]: ...
 
 
 _MixinApplyTarget = TypeVar("_MixinApplyTarget", bound=MixinApplyTarget)

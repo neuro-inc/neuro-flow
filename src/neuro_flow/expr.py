@@ -76,26 +76,21 @@ _IT = TypeVar("_IT", bound=TypeT)
 
 @runtime_checkable
 class ContainerT(Protocol):
-    def __getattr__(self, attr: str) -> TypeT:
-        ...
+    def __getattr__(self, attr: str) -> TypeT: ...
 
 
 @runtime_checkable
 class MappingT(Protocol):
-    def __getitem__(self, key: LiteralT) -> TypeT:
-        ...
+    def __getitem__(self, key: LiteralT) -> TypeT: ...
 
-    def __iter__(self) -> Iterator[LiteralT]:
-        ...
+    def __iter__(self) -> Iterator[LiteralT]: ...
 
 
 @runtime_checkable
 class SequenceT(Protocol):
-    def __getitem__(self, idx: LiteralT) -> TypeT:
-        ...
+    def __getitem__(self, idx: LiteralT) -> TypeT: ...
 
-    def __iter__(self) -> Iterator[TypeT]:
-        ...
+    def __iter__(self) -> Iterator[TypeT]: ...
 
 
 class RootABC(abc.ABC):
@@ -109,8 +104,7 @@ class RootABC(abc.ABC):
 
     @property
     @abc.abstractmethod
-    def dry_run(self) -> bool:
-        ...
+    def dry_run(self) -> bool: ...
 
 
 class LocalScope(RootABC):
