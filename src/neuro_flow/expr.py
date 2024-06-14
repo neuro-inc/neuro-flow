@@ -292,6 +292,8 @@ async def hash_files_relative(ctx: CallCtx, root: LocalPath, *patterns: str) -> 
             # resolve() restores the case.
             relative_fname = fname.resolve().relative_to(root.resolve()).as_posix()
             hasher.update(relative_fname.encode("utf-8"))
+            if not fname.is_file():
+                continue
             with fname.open("rb", buffering=0) as stream:
                 read = stream.readinto(buffer)
                 while read:
