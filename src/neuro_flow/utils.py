@@ -112,12 +112,10 @@ async def run_subproc(exe: str, *args: str) -> None:
 
 class GlobalOptions(Protocol):
     @property
-    def verbosity(self) -> int:
-        ...
+    def verbosity(self) -> int: ...
 
     @property
-    def show_traceback(self) -> bool:
-        ...
+    def show_traceback(self) -> bool: ...
 
 
 def encode_global_options(options: GlobalOptions) -> List[str]:
@@ -133,8 +131,7 @@ def encode_global_options(options: GlobalOptions) -> List[str]:
 
 
 class CommandRunner(Protocol):
-    async def __call__(self, *args: str) -> None:
-        ...
+    async def __call__(self, *args: str) -> None: ...
 
 
 def make_cmd_exec(exe: str, *, global_options: Iterable[str] = ()) -> CommandRunner:
