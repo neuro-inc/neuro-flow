@@ -2,9 +2,9 @@ import pathlib
 import pytest
 from yaml.constructor import ConstructorError
 
-from neuro_flow import ast
-from neuro_flow.ast import NeedsLevel
-from neuro_flow.expr import (
+from apolo_flow import ast
+from apolo_flow.ast import NeedsLevel
+from apolo_flow.expr import (
     EnableExpr,
     IdExpr,
     ImageRefStrExpr,
@@ -27,8 +27,8 @@ from neuro_flow.expr import (
     SimpleOptStrExpr,
     StrExpr,
 )
-from neuro_flow.parser import parse_batch
-from neuro_flow.tokenizer import Pos
+from apolo_flow.parser import parse_batch
+from apolo_flow.tokenizer import Pos
 
 
 def test_parse_minimal(assets: pathlib.Path) -> None:

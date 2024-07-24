@@ -10,8 +10,8 @@ import secrets
 import shutil
 import subprocess
 import sys
+from apolo_sdk import Config, get as api_get, login_with_token
 from datetime import datetime, timedelta
-from neuro_sdk import Config, get as api_get, login_with_token
 from pathlib import Path
 from typing import Any, AsyncIterator, Awaitable, Callable, Dict, List, Optional
 from yarl import URL
@@ -146,7 +146,7 @@ def run_cli(_run_cli: RunCLI) -> RunCLI:
 
 
 @pytest.fixture
-def run_neuro_cli(_run_cli: RunCLI) -> RunCLI:
+def run_apolo_cli(_run_cli: RunCLI) -> RunCLI:
     return lambda args: _run_cli(["neuro", "--show-traceback"] + args)
 
 
@@ -168,7 +168,7 @@ def _drop_once_flag() -> Dict[str, bool]:
 # https://github.com/neuro-inc/neuro-cli/issues/2913
 # @pytest.fixture(autouse=True)
 async def drop_old_test_images(
-    run_neuro_cli: RunCLI, _drop_once_flag: Dict[str, bool]
+    run_apolo_cli: RunCLI, _drop_once_flag: Dict[str, bool]
 ) -> None:
     if _drop_once_flag.get("cleaned_images"):
         return
@@ -186,11 +186,11 @@ async def drop_old_test_images(
             image_time = datetime.strptime(time_str, DATETIME_FORMAT)
             if datetime.now() - image_time < timedelta(days=1):
                 return
-            await run_neuro_cli(["image", "rm", image_str])
+            await run_apolo_cli(["image", "rm", image_str])
         except Exception:
             pass
 
-    res: SysCap = await run_neuro_cli(["-q", "image", "ls", "--full-uri"])
+    res: SysCap = await run_apolo_cli(["-q", "image", "ls", "--full-uri"])
 
     tasks = []
     for image_str in res.out.splitlines():
@@ -204,12 +204,12 @@ async def drop_old_test_images(
 
 @pytest.fixture(autouse=True)
 async def drop_old_roles(
-    run_neuro_cli: RunCLI, _drop_once_flag: Dict[str, bool], username: str
+    run_apolo_cli: RunCLI, _drop_once_flag: Dict[str, bool], username: str
 ) -> None:
     if _drop_once_flag.get("cleaned_roles"):
         return
 
-    res: SysCap = await run_neuro_cli(
+    res: SysCap = await run_apolo_cli(
         ["acl", "ls", "--shared", f"role://{username}/projects"]
     )
 
@@ -222,7 +222,7 @@ async def drop_old_roles(
             proj_time = datetime.strptime(time_str, DATETIME_FORMAT)
             if datetime.now() - proj_time < timedelta(hours=4):
                 return
-            await run_neuro_cli(
+            await run_apolo_cli(
                 ["acl", "remove-role", f"{username}/projects/{role_name}"]
             )
         except Exception:

@@ -10,7 +10,7 @@ from pathlib import Path
 from textwrap import dedent
 from typing import Any, List
 
-from neuro_flow.cli.main import cli
+from apolo_flow.cli.main import cli
 
 
 @dataclass()

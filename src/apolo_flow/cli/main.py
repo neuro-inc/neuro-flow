@@ -1,17 +1,17 @@
 import click
 import logging
 import sys
+from apolo_cli.asyncio_utils import setup_child_watcher
+from apolo_cli.log_formatter import ConsoleHandler
 from click.exceptions import Abort as ClickAbort, Exit as ClickExit
 from datetime import datetime
-from neuro_cli.asyncio_utils import setup_child_watcher
-from neuro_cli.log_formatter import ConsoleHandler
 from rich.console import Console
 from typing import Any, List, Optional
 
-import neuro_flow
-from neuro_flow.cli import batch, completion, file_logging, flow, images, live, storage
-from neuro_flow.parser import ConfigDir, find_workspace
-from neuro_flow.types import LocalPath, TaskStatus
+import apolo_flow
+from apolo_flow.cli import batch, completion, file_logging, flow, images, live, storage
+from apolo_flow.parser import ConfigDir, find_workspace
+from apolo_flow.types import LocalPath, TaskStatus
 
 from ..batch_runner import BakeFailedError
 from ..expr import MultiError
@@ -151,7 +151,7 @@ class MainGroup(click.Group):
     required=False,
 )
 @click.version_option(
-    version=neuro_flow.__version__, message="neuro-flow package version: %(version)s"
+    version=apolo_flow.__version__, message="neuro-flow package version: %(version)s"
 )
 def cli(
     config: Optional[str],

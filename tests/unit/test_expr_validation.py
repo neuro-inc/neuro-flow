@@ -1,13 +1,13 @@
-from neuro_flow.context import (
+from apolo_flow.context import (
     BatchActionContext,
     BatchContext,
     BatchTaskContext,
     EmptyRoot,
 )
-from neuro_flow.expr import StrExpr
-from neuro_flow.expr_validation import validate_expr
-from neuro_flow.tokenizer import Pos
-from neuro_flow.types import LocalPath
+from apolo_flow.expr import StrExpr
+from apolo_flow.expr_validation import validate_expr
+from apolo_flow.tokenizer import Pos
+from apolo_flow.types import LocalPath
 
 
 def test_expr_validation_ok() -> None:

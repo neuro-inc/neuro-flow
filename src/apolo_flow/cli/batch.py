@@ -1,17 +1,17 @@
+import apolo_sdk
 import click
-import neuro_sdk
 import signal
+from apolo_cli.parse_utils import parse_timedelta
 from contextlib import AsyncExitStack
 from datetime import datetime, timezone
 from dateutil.parser import isoparse
-from neuro_cli.parse_utils import parse_timedelta
 from typing import List, Optional, Sequence, Tuple
 
-from neuro_flow.batch_runner import BatchRunner
-from neuro_flow.cli.click_types import BAKE, BATCH, BATCH_OR_ALL, BakeTaskType
-from neuro_flow.cli.utils import argument, option, resolve_bake, wrap_async
-from neuro_flow.storage.api import ApiStorage
-from neuro_flow.types import LocalPath
+from apolo_flow.batch_runner import BatchRunner
+from apolo_flow.cli.click_types import BAKE, BATCH, BATCH_OR_ALL, BakeTaskType
+from apolo_flow.cli.utils import argument, option, resolve_bake, wrap_async
+from apolo_flow.storage.api import ApiStorage
+from apolo_flow.types import LocalPath
 
 from ..parser import parse_bake_meta
 from ..storage.base import Storage
@@ -64,7 +64,7 @@ async def bake(
     Run BATCH pipeline remotely on the cluster.
     """
     async with AsyncExitStack() as stack:
-        client = await stack.enter_async_context(neuro_sdk.get())
+        client = await stack.enter_async_context(apolo_sdk.get())
         storage: Storage = await stack.enter_async_context(ApiStorage(client))
         runner = await stack.enter_async_context(
             BatchRunner(root.config_dir, root.console, client, storage, root)
@@ -108,7 +108,7 @@ async def execute(
         # ignore everything, use neuro-flow cancel to stop the master job.
         signal.signal(signame, signal.SIG_IGN)
     async with AsyncExitStack() as stack:
-        client = await stack.enter_async_context(neuro_sdk.get())
+        client = await stack.enter_async_context(apolo_sdk.get())
         storage: Storage = await stack.enter_async_context(ApiStorage(client))
         runner = await stack.enter_async_context(
             BatchRunner(root.config_dir, root.console, client, storage, root)
@@ -155,7 +155,7 @@ async def bakes(
 ) -> None:
     """List existing bakes."""
     async with AsyncExitStack() as stack:
-        client = await stack.enter_async_context(neuro_sdk.get())
+        client = await stack.enter_async_context(apolo_sdk.get())
         storage: Storage = await stack.enter_async_context(ApiStorage(client))
         runner = await stack.enter_async_context(
             BatchRunner(root.config_dir, root.console, client, storage, root)
@@ -216,7 +216,7 @@ async def inspect(
     Display a list of started/finished tasks of BAKE\\_ID.
     """
     async with AsyncExitStack() as stack:
-        client = await stack.enter_async_context(neuro_sdk.get())
+        client = await stack.enter_async_context(apolo_sdk.get())
         storage: Storage = await stack.enter_async_context(ApiStorage(client))
         runner = await stack.enter_async_context(
             BatchRunner(root.config_dir, root.console, client, storage, root)
@@ -277,7 +277,7 @@ async def show(
     Display a logged output of TASK\\_ID from BAKE\\_ID.
     """
     async with AsyncExitStack() as stack:
-        client = await stack.enter_async_context(neuro_sdk.get())
+        client = await stack.enter_async_context(apolo_sdk.get())
         storage: Storage = await stack.enter_async_context(ApiStorage(client))
         runner = await stack.enter_async_context(
             BatchRunner(root.config_dir, root.console, client, storage, root)
@@ -306,7 +306,7 @@ async def cancel(
     Cancel a bake execution by stopping all started tasks.
     """
     async with AsyncExitStack() as stack:
-        client = await stack.enter_async_context(neuro_sdk.get())
+        client = await stack.enter_async_context(apolo_sdk.get())
         storage: Storage = await stack.enter_async_context(ApiStorage(client))
         runner = await stack.enter_async_context(
             BatchRunner(root.config_dir, root.console, client, storage, root)
@@ -333,7 +333,7 @@ async def clear_cache(
     `neuro-flow clear-cache ALL` clears all caches.
     """
     async with AsyncExitStack() as stack:
-        client = await stack.enter_async_context(neuro_sdk.get())
+        client = await stack.enter_async_context(apolo_sdk.get())
         storage: Storage = await stack.enter_async_context(ApiStorage(client))
         runner = await stack.enter_async_context(
             BatchRunner(root.config_dir, root.console, client, storage, root)
@@ -373,7 +373,7 @@ async def restart(
     Run BATCH pipeline remotely on the cluster.
     """
     async with AsyncExitStack() as stack:
-        client = await stack.enter_async_context(neuro_sdk.get())
+        client = await stack.enter_async_context(apolo_sdk.get())
         storage: Storage = await stack.enter_async_context(ApiStorage(client))
         runner = await stack.enter_async_context(
             BatchRunner(root.config_dir, root.console, client, storage, root)

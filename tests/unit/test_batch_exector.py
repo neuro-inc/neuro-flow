@@ -4,9 +4,7 @@ import asyncio
 import pytest
 import shutil
 import sys
-from datetime import datetime, timedelta, timezone
-from decimal import Decimal
-from neuro_sdk import (
+from apolo_sdk import (
     Client,
     Container,
     DiskVolume,
@@ -23,6 +21,8 @@ from neuro_sdk import (
     Volume,
     get as api_get,
 )
+from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 from pathlib import Path
 from rich import get_console
 from tempfile import TemporaryDirectory
@@ -41,12 +41,12 @@ from typing import (
 )
 from yarl import URL
 
-from neuro_flow.batch_executor import BatchExecutor, LocalsBatchExecutor
-from neuro_flow.batch_runner import BatchRunner
-from neuro_flow.parser import ConfigDir
-from neuro_flow.storage.base import Storage, Task
-from neuro_flow.storage.in_memory import InMemoryStorage
-from neuro_flow.types import ImageStatus, LocalPath, TaskStatus
+from apolo_flow.batch_executor import BatchExecutor, LocalsBatchExecutor
+from apolo_flow.batch_runner import BatchRunner
+from apolo_flow.parser import ConfigDir
+from apolo_flow.storage.base import Storage, Task
+from apolo_flow.storage.in_memory import InMemoryStorage
+from apolo_flow.types import ImageStatus, LocalPath, TaskStatus
 
 
 MakeBatchRunner = Callable[[Path], Awaitable[BatchRunner]]
@@ -326,7 +326,7 @@ class MockCliRunner:
 
 
 @pytest.fixture()
-async def mock_neuro_cli_runner() -> MockCliRunner:
+async def mock_apolo_cli_runner() -> MockCliRunner:
     return MockCliRunner()
 
 
@@ -354,7 +354,7 @@ async def mock_builder(
 async def make_batch_runner(
     batch_storage: Storage,
     client: Client,
-    mock_neuro_cli_runner: MockCliRunner,
+    mock_apolo_cli_runner: MockCliRunner,
 ) -> AsyncIterator[MakeBatchRunner]:
     runner: Optional[BatchRunner] = None
 
@@ -372,7 +372,7 @@ async def make_batch_runner(
             client,
             batch_storage,
             FakeGlobalOptions(),
-            run_neuro_cli=mock_neuro_cli_runner.run,
+            run_apolo_cli=mock_apolo_cli_runner.run,
         )
         await runner.__aenter__()
         return runner

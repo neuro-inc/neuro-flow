@@ -4,10 +4,7 @@ import os
 import shlex
 import sys
 import textwrap
-from collections import defaultdict
-from contextlib import asynccontextmanager
-from datetime import datetime, timedelta, timezone
-from neuro_sdk import (
+from apolo_sdk import (
     Client,
     DiskVolume,
     EnvParseResult,
@@ -23,6 +20,9 @@ from neuro_sdk import (
     Volume,
     VolumeParseResult,
 )
+from collections import defaultdict
+from contextlib import asynccontextmanager
+from datetime import datetime, timedelta, timezone
 from rich.console import Console
 from rich.panel import Panel
 from rich.progress import BarColumn, Progress, TaskID, TextColumn

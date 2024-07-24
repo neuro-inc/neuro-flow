@@ -2,8 +2,8 @@ import click
 import os
 import sys
 
-from neuro_flow.cli.utils import wrap_async
-from neuro_flow.types import LocalPath
+from apolo_flow.cli.utils import wrap_async
+from apolo_flow.types import LocalPath
 
 from .root import Root
 
@@ -11,7 +11,7 @@ from .root import Root
 CFG_FILE = {"bash": LocalPath("~/.bashrc"), "zsh": LocalPath("~/.zshrc")}
 SOURCE_CMD = {"bash": "bash_source", "zsh": "zsh_source"}
 
-ACTIVATION_TEMPLATE = 'eval "$(_NEURO_FLOW_COMPLETE={cmd} {exe})"'
+ACTIVATION_TEMPLATE = 'eval "$(_APOLO_FLOW_COMPLETE={cmd} {exe})"'
 
 
 @click.group()

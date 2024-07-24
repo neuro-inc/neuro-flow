@@ -2,7 +2,7 @@ import pathlib
 import pytest
 from yaml.constructor import ConstructorError
 
-from neuro_flow.parser import parse_bake_meta
+from apolo_flow.parser import parse_bake_meta
 
 
 def test_dict_correct(assets: pathlib.Path) -> None:

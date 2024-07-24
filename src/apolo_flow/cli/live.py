@@ -1,16 +1,16 @@
+import apolo_sdk
 import click
-import neuro_sdk
 from contextlib import AsyncExitStack
 from typing import List, Optional, Sequence, Tuple
 
-from neuro_flow.cli.click_types import (
+from apolo_flow.cli.click_types import (
     LIVE_JOB,
     LIVE_JOB_OR_ALL,
     PROJECT,
     LiveJobSuffixType,
 )
-from neuro_flow.cli.utils import argument, option, wrap_async
-from neuro_flow.live_runner import LiveRunner
+from apolo_flow.cli.utils import argument, option, wrap_async
+from apolo_flow.live_runner import LiveRunner
 
 from ..storage.api import ApiStorage
 from ..storage.base import Storage
@@ -24,7 +24,7 @@ async def ps(
 ) -> None:
     """List all jobs"""
     async with AsyncExitStack() as stack:
-        client = await stack.enter_async_context(neuro_sdk.get())
+        client = await stack.enter_async_context(apolo_sdk.get())
         storage: Storage = await stack.enter_async_context(ApiStorage(client))
         runner = await stack.enter_async_context(
             LiveRunner(root.config_dir, root.console, client, storage, root)
@@ -69,7 +69,7 @@ async def run(
             "[yellow]args are deprecated, use --param instead",
         )
     async with AsyncExitStack() as stack:
-        client = await stack.enter_async_context(neuro_sdk.get())
+        client = await stack.enter_async_context(apolo_sdk.get())
         storage: Storage = await stack.enter_async_context(ApiStorage(client))
         runner = await stack.enter_async_context(
             LiveRunner(root.config_dir, root.console, client, storage, root, dry_run)
@@ -96,7 +96,7 @@ async def logs(
     Display logs for JOB-ID
     """
     async with AsyncExitStack() as stack:
-        client = await stack.enter_async_context(neuro_sdk.get())
+        client = await stack.enter_async_context(apolo_sdk.get())
         storage: Storage = await stack.enter_async_context(ApiStorage(client))
         runner = await stack.enter_async_context(
             LiveRunner(root.config_dir, root.console, client, storage, root)
@@ -118,7 +118,7 @@ async def status(
     Print status for JOB-ID
     """
     async with AsyncExitStack() as stack:
-        client = await stack.enter_async_context(neuro_sdk.get())
+        client = await stack.enter_async_context(apolo_sdk.get())
         storage: Storage = await stack.enter_async_context(ApiStorage(client))
         runner = await stack.enter_async_context(
             LiveRunner(root.config_dir, root.console, client, storage, root)
@@ -139,7 +139,7 @@ async def kill(
 
     Kill JOB-ID, use `kill ALL` for killing all jobs."""
     async with AsyncExitStack() as stack:
-        client = await stack.enter_async_context(neuro_sdk.get())
+        client = await stack.enter_async_context(apolo_sdk.get())
         storage: Storage = await stack.enter_async_context(ApiStorage(client))
         runner = await stack.enter_async_context(
             LiveRunner(root.config_dir, root.console, client, storage, root)
@@ -163,7 +163,7 @@ async def delete_flow(
 ) -> None:
     """Completely remove flow with all related entities"""
     async with AsyncExitStack() as stack:
-        client = await stack.enter_async_context(neuro_sdk.get())
+        client = await stack.enter_async_context(apolo_sdk.get())
         storage: Storage = await stack.enter_async_context(ApiStorage(client))
         for flow_id in flow_ids:
             await storage.project(yaml_id=flow_id).delete()

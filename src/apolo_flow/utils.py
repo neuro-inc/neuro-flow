@@ -4,8 +4,8 @@ import datetime
 import humanize
 import logging
 import time
+from apolo_sdk import BadGateway, ClientError, JobStatus, ServerNotAvailable
 from functools import wraps
-from neuro_sdk import BadGateway, ClientError, JobStatus, ServerNotAvailable
 from typing import (
     Any,
     Awaitable,
@@ -147,7 +147,7 @@ def make_cmd_exec(exe: str, *, global_options: Iterable[str] = ()) -> CommandRun
 log = logging.getLogger(__name__)
 
 
-# Copied from neuro_sdk.utils to avoid dependency on private class
+# Copied from apolo_sdk.utils to avoid dependency on private class
 class retries:
     def __init__(
         self,

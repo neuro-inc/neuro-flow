@@ -3,16 +3,16 @@ import dataclasses
 import abc
 import asyncio
 import logging
+from apolo_sdk import Client
 from contextlib import asynccontextmanager, suppress
 from io import StringIO, TextIOWrapper
-from neuro_sdk import Client
 from pathlib import PureWindowsPath
 from subprocess import CalledProcessError
 from tempfile import TemporaryDirectory
 from typing import Any, AsyncIterator, Dict, Optional, Sequence, TextIO, Union
 
-from neuro_flow import ast
-from neuro_flow.parser import (
+from apolo_flow import ast
+from apolo_flow.parser import (
     ConfigDir,
     make_default_project,
     parse_action_stream,
@@ -20,8 +20,8 @@ from neuro_flow.parser import (
     parse_live_stream,
     parse_project_stream,
 )
-from neuro_flow.storage.base import BakeStorage, ConfigsMeta
-from neuro_flow.types import LocalPath
+from apolo_flow.storage.base import BakeStorage, ConfigsMeta
+from apolo_flow.types import LocalPath
 
 
 log = logging.getLogger(__name__)
@@ -341,7 +341,7 @@ class BatchLocalCL(
         collect_to: Dict[str, str],
         bake_storage: BakeStorage,
     ) -> None:
-        from neuro_flow.context import EMPTY_ROOT
+        from apolo_flow.context import EMPTY_ROOT
 
         # Local import here to avoid circular imports
         # In general, config loader should not use

@@ -3,14 +3,14 @@ import pathlib
 import pytest
 import sys
 from _pytest.capture import CaptureFixture
+from apolo_sdk import Client
 from contextlib import asynccontextmanager
-from neuro_sdk import Client
 from re_assert import Matches
 from typing import AbstractSet, Any, AsyncIterator, List, Mapping, Optional
 from typing_extensions import Protocol
 from yarl import URL
 
-from neuro_flow.context import (
+from apolo_flow.context import (
     FlowCtx,
     GitCtx,
     LiveContext,
@@ -19,7 +19,7 @@ from neuro_flow.context import (
     VolumeCtx,
     VolumesCtx,
 )
-from neuro_flow.expr import (
+from apolo_flow.expr import (
     EvalError,
     PrimitiveExpr,
     RootABC,
@@ -27,8 +27,8 @@ from neuro_flow.expr import (
     StrExpr,
     TypeT,
 )
-from neuro_flow.tokenizer import Pos
-from neuro_flow.types import LocalPath, RemotePath
+from apolo_flow.tokenizer import Pos
+from apolo_flow.types import LocalPath, RemotePath
 
 
 POS = Pos(0, 0, LocalPath(__file__))
@@ -131,7 +131,7 @@ async def test_hash_files(client: Client) -> None:
     expr = StrExpr(POS, POS, "${{ hash_files('Dockerfile', 'requirements/*.txt') }}")
     folder = LocalPath(__file__).parent / "hash_files"
     ret = await expr.eval(Root({"flow": {"workspace": folder}}, client))
-    assert ret == "081fde04651e1184890a0470501bff3db8e0014260224e07acf5688e70e0edbe"
+    assert ret == "c7585b29f26bc0cd2d4851429c9e3a56b94759278fe517861e72eacac61696bd"
 
 
 async def test_lower(client: Client) -> None:

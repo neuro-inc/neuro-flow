@@ -1,11 +1,11 @@
 import pytest
+from apolo_sdk import Client
 from contextlib import asynccontextmanager
-from neuro_sdk import Client
 from typing import Any, AsyncIterator, Dict, List
 from typing_extensions import Final
 
-from neuro_flow.context import DepCtx
-from neuro_flow.expr import (
+from apolo_flow.context import DepCtx
+from apolo_flow.expr import (
     PARSER,
     EvalError,
     FloatExpr,
@@ -15,8 +15,8 @@ from neuro_flow.expr import (
     StrExpr,
     TypeT,
 )
-from neuro_flow.tokenizer import Pos, tokenize
-from neuro_flow.types import LocalPath, TaskStatus
+from apolo_flow.tokenizer import Pos, tokenize
+from apolo_flow.types import LocalPath, TaskStatus
 
 
 FNAME = LocalPath("<test>")

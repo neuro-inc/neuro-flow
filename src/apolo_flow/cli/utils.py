@@ -2,14 +2,14 @@ import click
 import functools
 import re
 import sys
+from apolo_cli.asyncio_utils import Runner
+from apolo_sdk import ResourceNotFound
 from asyncio import iscoroutinefunction
 from click.types import convert_type
 from contextlib import contextmanager
-from neuro_cli.asyncio_utils import Runner
-from neuro_sdk import ResourceNotFound
 from typing import Any, Awaitable, Callable, Iterator, TypeVar
 
-from neuro_flow.storage.base import Storage
+from apolo_flow.storage.base import Storage
 
 
 @contextmanager

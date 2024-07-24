@@ -10,10 +10,10 @@ import logging
 import re
 import shlex
 from abc import ABC, abstractmethod
+from apolo_sdk import Client
 from contextlib import asynccontextmanager
 from datetime import timedelta
 from functools import lru_cache
-from neuro_sdk import Client
 from typing import (
     AbstractSet,
     Any,
@@ -35,11 +35,11 @@ from typing import (
 from typing_extensions import Annotated, Protocol
 from yarl import URL
 
-from neuro_flow import ast
-from neuro_flow.ast import InputType
-from neuro_flow.colored_topo_sorter import ColoredTopoSorter
-from neuro_flow.config_loader import ActionSpec, ConfigLoader
-from neuro_flow.expr import (
+from apolo_flow import ast
+from apolo_flow.ast import InputType
+from apolo_flow.colored_topo_sorter import ColoredTopoSorter
+from apolo_flow.config_loader import ActionSpec, ConfigLoader
+from apolo_flow.expr import (
     BaseMappingExpr,
     BaseSequenceExpr,
     ConcatSequenceExpr,
@@ -54,8 +54,8 @@ from neuro_flow.expr import (
     StrExpr,
     TypeT,
 )
-from neuro_flow.types import AlwaysT, FullID, GitInfo, LocalPath, RemotePath, TaskStatus
-from neuro_flow.utils import collect_git_info
+from apolo_flow.types import AlwaysT, FullID, GitInfo, LocalPath, RemotePath, TaskStatus
+from apolo_flow.utils import collect_git_info
 
 
 log = logging.getLogger(__name__)

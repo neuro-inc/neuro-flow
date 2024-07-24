@@ -1,12 +1,12 @@
 import dataclasses
 
+import apolo_extras
 import click
 import datetime
-import neuro_extras
+from apolo_cli import __version__ as cli_version
+from apolo_sdk import Client, ResourceNotFound, __version__ as sdk_version
 from collections import defaultdict
 from graphviz import Digraph
-from neuro_cli import __version__ as cli_version
-from neuro_sdk import Client, ResourceNotFound, __version__ as sdk_version
 from operator import attrgetter
 from rich import box
 from rich.console import Console
@@ -31,7 +31,7 @@ from typing import (
 )
 from yarl import URL
 
-import neuro_flow
+import apolo_flow
 
 from . import ast
 from .batch_executor import BatchExecutor, LocalsBatchExecutor, get_running_flow
@@ -69,7 +69,7 @@ from .utils import (
 )
 
 
-EXECUTOR_IMAGE = f"ghcr.io/neuro-inc/neuro-flow:{neuro_flow.__version__}"
+EXECUTOR_IMAGE = f"ghcr.io/neuro-inc/apolo-flow:{apolo_flow.__version__}"
 
 
 GRAPH_COLORS = {
@@ -241,7 +241,7 @@ async def build_graphs(
 
 async def upload_image_data(
     top_flow: RunningBatchFlow,
-    neuro_runner: CommandRunner,
+    apolo_runner: CommandRunner,
     storage: BakeStorage,
 ) -> List[BakeImage]:
     @dataclasses.dataclass
@@ -274,12 +274,12 @@ async def upload_image_data(
                 prev_entry.yaml_defs.append(prefix + (image.id,))
             else:
                 if isinstance(image.context, LocalPath):
-                    await neuro_runner(
+                    await apolo_runner(
                         "mkdir",
                         "--parents",
                         str(storage_context_dir),
                     )
-                    await neuro_runner(
+                    await apolo_runner(
                         "cp",
                         "--recursive",
                         "--update",
@@ -312,7 +312,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         client: Client,
         storage: Storage,
         global_options: GlobalOptions,
-        run_neuro_cli: Optional[CommandRunner] = None,
+        run_apolo_cli: Optional[CommandRunner] = None,
     ) -> None:
         self._config_dir = config_dir
         self._console = console
@@ -321,7 +321,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         self._project_storage: Optional[ProjectStorage] = None
         self._config_loader: Optional[BatchLocalCL] = None
         self._project: Optional[ProjectCtx] = None
-        self._run_neuro_cli = run_neuro_cli or make_cmd_exec(
+        self._run_apolo_cli = run_apolo_cli or make_cmd_exec(
             "neuro", global_options=encode_global_options(global_options)
         )
         self._global_options = global_options
@@ -389,10 +389,10 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
     ) -> Tuple[Bake, RunningBatchFlow]:
         # batch_name is a name of yaml config inside self._workspace / .neuro
         # folder without the file extension
-        self._console.log(f"[bright_black]neuro_sdk=={sdk_version}")
-        self._console.log(f"[bright_black]neuro_cli=={cli_version}")
-        self._console.log(f"[bright_black]neuro-extras=={neuro_extras.__version__}")
-        self._console.log(f"[bright_black]neuro-flow=={neuro_flow.__version__}")
+        self._console.log(f"[bright_black]apolo_sdk=={sdk_version}")
+        self._console.log(f"[bright_black]apolo_cli=={cli_version}")
+        self._console.log(f"[bright_black]neuro-extras=={apolo_extras.__version__}")
+        self._console.log(f"[bright_black]neuro-flow=={apolo_flow.__version__}")
         self._console.log(f"Use config file {self.config_loader.flow_path(batch_name)}")
 
         # Check that the yaml is parseable
@@ -436,7 +436,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             f"flow [b]{self.project_id}[/b] is created"
         )
         self._console.log("Uploading image contexts/dockerfiles...")
-        await upload_image_data(flow, self._run_neuro_cli, bake_storage)
+        await upload_image_data(flow, self._run_apolo_cli, bake_storage)
 
         return bake, flow
 
@@ -514,7 +514,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
                 "execute",
                 bake.id,
             ]
-            await self._run_neuro_cli(*run_args)
+            await self._run_apolo_cli(*run_args)
 
     async def process(
         self,

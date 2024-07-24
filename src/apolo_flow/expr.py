@@ -15,6 +15,7 @@ import operator
 import re
 import shlex
 from abc import ABC
+from apolo_sdk import Client, JobDescription, JobRestartPolicy, JobStatus
 from ast import literal_eval
 from collections.abc import Sized
 from contextlib import asynccontextmanager
@@ -28,7 +29,6 @@ from funcparserlib.parser import (
     skip,
     some,
 )
-from neuro_sdk import Client, JobDescription, JobRestartPolicy, JobStatus
 from typing import (
     Any,
     AsyncContextManager,

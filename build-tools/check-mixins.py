@@ -4,7 +4,7 @@ import dataclasses
 
 from typing import AbstractSet, Type
 
-from neuro_flow import ast, expr
+from apolo_flow import ast, expr
 
 
 def check_mixin(

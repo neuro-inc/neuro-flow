@@ -2,11 +2,11 @@ import pathlib
 import pytest
 import sys
 import textwrap
+from apolo_sdk import Client
 from contextlib import asynccontextmanager
-from neuro_sdk import Client
 from typing import AsyncContextManager, AsyncIterator, Callable, Mapping
 
-from neuro_flow.batch_runner import (
+from apolo_flow.batch_runner import (
     ImageRefNotUniqueError,
     build_graphs,
     check_image_refs_unique,
@@ -15,13 +15,13 @@ from neuro_flow.batch_runner import (
     iter_flows,
     upload_image_data,
 )
-from neuro_flow.colored_topo_sorter import CycleError
-from neuro_flow.config_loader import BatchLocalCL, ConfigLoader
-from neuro_flow.context import EarlyBatchAction, RunningBatchFlow
-from neuro_flow.expr import MultiError
-from neuro_flow.parser import ConfigDir
-from neuro_flow.storage.base import BakeImage, BakeMeta, Storage
-from neuro_flow.storage.in_memory import InMemoryStorage
+from apolo_flow.colored_topo_sorter import CycleError
+from apolo_flow.config_loader import BatchLocalCL, ConfigLoader
+from apolo_flow.context import EarlyBatchAction, RunningBatchFlow
+from apolo_flow.expr import MultiError
+from apolo_flow.parser import ConfigDir
+from apolo_flow.storage.base import BakeImage, BakeMeta, Storage
+from apolo_flow.storage.in_memory import InMemoryStorage
 
 
 BatchClFactory = Callable[[str], AsyncContextManager[ConfigLoader]]
@@ -236,9 +236,11 @@ async def test_upload_image_data(
                     "--recursive",
                     "--update",
                     "--no-target-directory",
-                    str(assets / "batch_images/dir")
-                    if ref == "image:main"
-                    else str(assets / "batch_images/subdir"),
+                    (
+                        str(assets / "batch_images/dir")
+                        if ref == "image:main"
+                        else str(assets / "batch_images/subdir")
+                    ),
                     str(img.context_on_storage),
                 )
                 for run in runs
