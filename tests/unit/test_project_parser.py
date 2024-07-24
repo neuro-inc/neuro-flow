@@ -381,7 +381,7 @@ def test_parse_full(assets: pathlib.Path) -> None:
                 cmd=OptPythonExpr(
                     Pos(0, 0, config_file),
                     Pos(0, 0, config_file),
-                    'print("hello neuro-flow")\n',
+                    'print("hello apolo-flow")\n',
                 ),
                 restart=OptRestartPolicyExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None

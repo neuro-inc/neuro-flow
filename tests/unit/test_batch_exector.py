@@ -1334,7 +1334,7 @@ async def test_image_builds(
     bake_storage = project_storage.bake(id=bake.id)
     image = await bake_storage.bake_image(ref="image:banana1").get()
     assert mock_builder.runs[-1] == (
-        "neuro-extras",
+        "apolo-extras",
         "image",
         "build",
         f"--project={client.config.project_name}",
@@ -1350,7 +1350,7 @@ async def test_image_builds(
 
     job_id = await _wait_for_build(mock_builder, "image:banana2")
     assert mock_builder.runs[-1] == (
-        "neuro-extras",
+        "apolo-extras",
         "image",
         "build",
         f"--project={client.config.project_name}",
@@ -1367,7 +1367,7 @@ async def test_image_builds(
     job_id = await _wait_for_build(mock_builder, "image:main")
     image = await bake_storage.bake_image(ref="image:main").get()
     assert mock_builder.runs[-1] == (
-        "neuro-extras",
+        "apolo-extras",
         "image",
         "build",
         f"--project={client.config.project_name}",
@@ -1462,7 +1462,7 @@ async def test_image_builds_if_present_but_force(
     bake_storage = project_storage.bake(id=bake.id)
     image = await bake_storage.bake_image(ref="image:main").get()
     assert mock_builder.runs[-1] == (
-        "neuro-extras",
+        "apolo-extras",
         "image",
         "build",
         f"--project={client.config.project_name}",

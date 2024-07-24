@@ -142,12 +142,12 @@ def _run_cli(ws: pathlib.Path, api_config: Optional[pathlib.Path]) -> RunCLI:
 
 @pytest.fixture
 def run_cli(_run_cli: RunCLI) -> RunCLI:
-    return lambda args: _run_cli(["neuro-flow", "--show-traceback"] + args)
+    return lambda args: _run_cli(["apolo-flow", "--show-traceback"] + args)
 
 
 @pytest.fixture
 def run_apolo_cli(_run_cli: RunCLI) -> RunCLI:
-    return lambda args: _run_cli(["neuro", "--show-traceback"] + args)
+    return lambda args: _run_cli(["apolo", "--show-traceback"] + args)
 
 
 DATETIME_FORMAT = "%Y%m%d%H%M"

@@ -80,7 +80,7 @@ class UnknownTask(KeyError):
 PROJECT_ROLE_DEPRECATED_MSG = (
     "Flow roles are deprecated and will be ignored. "
     "To grant access to the flow and its artifacts, please add users "
-    "to the corresponding project using `neuro admin add-project-user`."
+    "to the corresponding project using `apolo admin add-project-user`."
 )
 
 # ...Ctx types, they define parts that can be available in expressions
@@ -372,7 +372,7 @@ class EmptyRoot(RootABC):
 
     @asynccontextmanager
     async def client(self) -> AsyncIterator[Client]:
-        raise RuntimeError("neuro API is not available in <empty> context")
+        raise RuntimeError("apolo API is not available in <empty> context")
         yield Client()  # fake lint to make the code a real async iterator
 
     @property
@@ -1269,8 +1269,7 @@ def check_module_call_is_local(action_name: str, call_ast: ast.BaseModuleCall) -
 
 class SupportsAstMerge(Protocol):
     @property
-    def _specified_fields(self) -> AbstractSet[str]:
-        ...
+    def _specified_fields(self) -> AbstractSet[str]: ...
 
 
 _MergeTarget = TypeVar("_MergeTarget", bound=SupportsAstMerge)
@@ -1308,12 +1307,10 @@ async def merge_asts(child: _MergeTarget, parent: SupportsAstMerge) -> _MergeTar
 
 class MixinApplyTarget(Protocol):
     @property
-    def mixins(self) -> Optional[Sequence[StrExpr]]:
-        ...
+    def mixins(self) -> Optional[Sequence[StrExpr]]: ...
 
     @property
-    def _specified_fields(self) -> AbstractSet[str]:
-        ...
+    def _specified_fields(self) -> AbstractSet[str]: ...
 
 
 _MixinApplyTarget = TypeVar("_MixinApplyTarget", bound=MixinApplyTarget)

@@ -1,12 +1,12 @@
 # Expression syntax
 
-`neuro-flow` allows writing custom expressions in YAML configuration files.
+`apolo-flow` allows writing custom expressions in YAML configuration files.
 
 ## About contexts and expressions
 
 You can use expressions to programmatically set variables in workflow files and access contexts. An expression can be any combination of literal values, references to a context, or functions. You can combine literals, context references, and functions with the help of operators.
 
-You need to use specific syntax to tell Neuro Flow to evaluate an expression rather than to treat it as a string.
+You need to use specific syntax to tell Apolo Flow to evaluate an expression rather than to treat it as a string.
 
 ```
 ${{ <expression> }}
@@ -22,7 +22,7 @@ env:
 {% hint style="info" %}
 Sometimes curly brackets conflict with other tools in your toolchain. For example, `cookiecutter` uses `Jinja2` templates which also uses curly brackets for template formatting.
 
-In this case, `neuro-flow` accepts the square brackets syntax for expressions: `$[[ <expression> ]]`. Both notations are equal and interchangeable.
+In this case, `apolo-flow` accepts the square brackets syntax for expressions: `$[[ <expression> ]]`. Both notations are equal and interchangeable.
 {% endhint %}
 
 ## Contexts

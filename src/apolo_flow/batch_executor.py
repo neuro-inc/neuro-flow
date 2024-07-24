@@ -341,7 +341,7 @@ async def start_image_build(*cmd: str) -> str:
         log.debug(f"start_image_build: read line: {line}")
         stdout += line
         if line.startswith("Job ID: "):
-            # Job is started, we can freely kill neuro-cli
+            # Job is started, we can freely kill apolo-cli
             subprocess.terminate()
             return line[len("Job ID: ") :].strip()
 
@@ -947,7 +947,7 @@ class BatchExecutor:
                 "[blue b]Hint:[/blue b] you can restart bake starting "
                 "from first failed task "
                 "by the following command:\n"
-                f"[b]neuro-flow restart {self._bake.id}[/b]"
+                f"[b]apolo-flow restart {self._bake.id}[/b]"
             )
 
     async def _cancel_unfinished(self) -> None:
@@ -1081,7 +1081,7 @@ class BatchExecutor:
         log.debug(f"BatchExecutor: checking should we build image for {full_id}")
         remote_image = self._client.parse_remote_image(task.image)
         log.debug(f"BatchExecutor: image name is {remote_image}")
-        if remote_image.cluster_name is None:  # Not a neuro registry image
+        if remote_image.cluster_name is None:  # Not a platform registry image
             return await self._run_task(full_id, task)
 
         image_storage = self._bake_storage.bake_image(ref=task.image)
@@ -1184,7 +1184,7 @@ class BatchExecutor:
                 error = "dockerfile not specified"
             raise Exception(f"Failed to build image '{bake_image.ref}': {error}")
 
-        cmd = ["neuro-extras", "image", "build"]
+        cmd = ["apolo-extras", "image", "build"]
         cmd.append(f"--project={self._top_flow.project_name}")
         cmd.append(f"--file={dockerfile_rel}")
         for arg in image_ctx.build_args:

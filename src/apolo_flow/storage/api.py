@@ -4,7 +4,7 @@ import abc
 import aiohttp
 import datetime
 import json
-from apolo_sdk import Client, Project as NeuroProject
+from apolo_sdk import Client, Project as ApoloProject
 from contextlib import asynccontextmanager
 from typing import (
     AbstractSet,
@@ -349,7 +349,7 @@ class ApiStorage(Storage):
         org_name: Optional[str] = None,
     ) -> None:
         await self._client.config.fetch()
-        needed_key = NeuroProject.Key(cluster_name, org_name, project_name)
+        needed_key = ApoloProject.Key(cluster_name, org_name, project_name)
         if needed_key not in self._client.config.projects.keys():
             org_msg = f"organization '{org_name}', " if org_name else ""
             msg = (

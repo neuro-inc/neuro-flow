@@ -322,7 +322,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         self._config_loader: Optional[BatchLocalCL] = None
         self._project: Optional[ProjectCtx] = None
         self._run_apolo_cli = run_apolo_cli or make_cmd_exec(
-            "neuro", global_options=encode_global_options(global_options)
+            "apolo", global_options=encode_global_options(global_options)
         )
         self._global_options = global_options
 
@@ -391,8 +391,8 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         # folder without the file extension
         self._console.log(f"[bright_black]apolo_sdk=={sdk_version}")
         self._console.log(f"[bright_black]apolo_cli=={cli_version}")
-        self._console.log(f"[bright_black]neuro-extras=={apolo_extras.__version__}")
-        self._console.log(f"[bright_black]neuro-flow=={apolo_flow.__version__}")
+        self._console.log(f"[bright_black]apolo-extras=={apolo_extras.__version__}")
+        self._console.log(f"[bright_black]apolo-flow=={apolo_flow.__version__}")
         self._console.log(f"Use config file {self.config_loader.flow_path(batch_name)}")
 
         # Check that the yaml is parseable
@@ -508,7 +508,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             run_args += [
                 EXECUTOR_IMAGE,
                 "--",
-                "neuro-flow",
+                "apolo-flow",
                 *encode_global_options(self._global_options),
                 "--fake-workspace",
                 "execute",

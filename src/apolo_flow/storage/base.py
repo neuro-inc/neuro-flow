@@ -27,7 +27,7 @@ class Project:
     owner: str
     cluster: str
     org_name: str
-    project_name: str  # in platform scope, not neuro-flow
+    project_name: str  # in platform scope, not apolo-flow
 
 
 @dataclass(frozen=True)

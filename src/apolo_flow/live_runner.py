@@ -66,9 +66,9 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
         self._storage = storage
         self._project_storage: Optional[ProjectStorage] = None
         self._run_apolo_cli = make_cmd_exec(
-            "neuro", global_options=encode_global_options(global_options)
+            "apolo", global_options=encode_global_options(global_options)
         )
-        self._run_extras_cli = make_cmd_exec("neuro-extras")
+        self._run_extras_cli = make_cmd_exec("apolo-extras")
         self._dry_run = dry_run
 
     async def init_flow(self) -> None:
@@ -450,7 +450,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
             run_args.extend(args)
 
         if self._dry_run:
-            run_args = ["neuro", *run_args]
+            run_args = ["apolo", *run_args]
             self._console.print(
                 " ".join(shlex.quote(arg) for arg in run_args), soft_wrap=True
             )

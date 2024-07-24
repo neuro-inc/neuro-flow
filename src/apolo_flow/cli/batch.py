@@ -93,7 +93,7 @@ async def execute(
 
     Run BATCH pipeline remotely on the cluster.
     """
-    # neuro-flow execute is run in linux container only,
+    # apolo-flow execute is run in linux container only,
     # Linux signals are always defined.
     for signame in (
         signal.SIGHUP,
@@ -105,7 +105,7 @@ async def execute(
         signal.SIGTTOU,
         signal.SIGWINCH,
     ):
-        # ignore everything, use neuro-flow cancel to stop the master job.
+        # ignore everything, use apolo-flow cancel to stop the master job.
         signal.signal(signame, signal.SIG_IGN)
     async with AsyncExitStack() as stack:
         client = await stack.enter_async_context(apolo_sdk.get())
@@ -326,11 +326,11 @@ async def clear_cache(
 ) -> None:
     """Clear cache.
 
-    Use `neuro-flow clear-cache <BATCH>` for cleaning up the cache for BATCH;
-    Use `neuro-flow clear-cache <BATCH> <TASK_ID>` for cleaning up the cache
+    Use `apolo-flow clear-cache <BATCH>` for cleaning up the cache for BATCH;
+    Use `apolo-flow clear-cache <BATCH> <TASK_ID>` for cleaning up the cache
     for TASK_ID in BATCH;
 
-    `neuro-flow clear-cache ALL` clears all caches.
+    `apolo-flow clear-cache ALL` clears all caches.
     """
     async with AsyncExitStack() as stack:
         client = await stack.enter_async_context(apolo_sdk.get())

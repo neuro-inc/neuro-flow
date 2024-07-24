@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 for trial in {1..10}; do
-    pip download --no-deps neuro-flow==$1
+    pip download --no-deps apolo-flow==$1
     if [ $? -eq 0 ]; then
         exit 0
     fi

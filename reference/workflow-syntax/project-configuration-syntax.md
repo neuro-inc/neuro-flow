@@ -1,7 +1,7 @@
 # Project configuration syntax
 
 {% hint style="warning" %}
-Platform project semantics differs from neuro-flow projects. Refer neuro-flow project as a set of related workflows. This collision is temporal.
+Platform project semantics differs from apolo-flow projects. Refer apolo-flow project as a set of related workflows. This collision is temporal.
 {% endhint %}
 
 By default, the project name is generated automatically based on the name of the flow folder (a folder that contains a `.neuro` subfolder for configuration YAML files).
@@ -20,15 +20,15 @@ Optional owner name available as a `${{ project.owner }}` context. Shared projec
 
 ## project\_name
 
-Platform project name, where the flow belongs to. Available as `${{ project.project_name }}`. Default value -  the currently selected project in neuro CLI configuration.
+Platform project name, where the flow belongs to. Available as `${{ project.project_name }}`. Default value -  the currently selected project in Apolo CLI configuration.
 
 ## role
 
 {% hint style="warning" %}
-Flow roles are deprecated and will be ignored. To grant access to the flow and its artifacts, please add users to the corresponding platform project using `neuro admin add-project-user`.
+Flow roles are deprecated and will be ignored. To grant access to the flow and its artifacts, please add users to the corresponding platform project using `apolo admin add-project-user`.
 {% endhint %}
 
-Optional project role name available as a `${{ project.role }}` context. By default the `role` is `{owner}/projects/{id}` if `owner` is defined. Shared projects require `owner` or `role`. This role name might be used to share the project with other platform `<user>` via `neuro acl grant <role> <user>`
+Optional project role name available as a `${{ project.role }}` context. By default the `role` is `{owner}/projects/{id}` if `owner` is defined. Shared projects require `owner` or `role`. This role name might be used to share the project with other platform `<user>` via `apolo acl grant <role> <user>`
 
 ## Project-wide configuration
 

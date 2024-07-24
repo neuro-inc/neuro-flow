@@ -151,7 +151,7 @@ class MainGroup(click.Group):
     required=False,
 )
 @click.version_option(
-    version=apolo_flow.__version__, message="neuro-flow package version: %(version)s"
+    version=apolo_flow.__version__, message="apolo-flow package version: %(version)s"
 )
 def cli(
     config: Optional[str],
