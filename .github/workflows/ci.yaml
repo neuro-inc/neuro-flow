@@ -9,7 +9,7 @@ on:
   pull_request_target:
     branches: [master]
   schedule:
-    - cron: 0 4 * * *
+    - cron: 0 15 * * *
 jobs:
   lint:
     name: Linter
