@@ -1371,7 +1371,7 @@ async def test_batch_with_project_mixins(assets: pathlib.Path, client: Client) -
 
         task = await flow.get_task((), "test_mixin_python", needs={}, state={})
         assert task.image == "mixin-image"
-        assert task.cmd == "python3 -uc 'print(\"hello neuro-flow\")\n'"
+        assert task.cmd == "python3 -uc 'print(\"hello apolo-flow\")\n'"
 
     finally:
         await cl.close()
