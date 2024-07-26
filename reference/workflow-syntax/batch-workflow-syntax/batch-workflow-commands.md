@@ -1,6 +1,6 @@
 # Batch workflow commands
 
-Tasks executed during _batch_ workflows set some values using commands. To execute a command, a task should print a specifically formatted line to the standard output stream. Neuro Flow automatically scans this stream and detects commands in it.
+Tasks executed during _batch_ workflows set some values using commands. To execute a command, a task should print a specifically formatted line to the standard output stream. Apolo Flow automatically scans this stream and detects commands in it.
 
 ## `set-output` command
 

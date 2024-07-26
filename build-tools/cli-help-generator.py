@@ -10,7 +10,7 @@ from pathlib import Path
 from textwrap import dedent
 from typing import Any, List
 
-from neuro_flow.cli.main import cli
+from apolo_flow.cli.main import cli
 
 
 @dataclass()
@@ -209,7 +209,7 @@ def main():
     with open(input_file) as input:
         with open(output_file, "w") as output:
             template = input.read()
-            info = parse_command(None, cli, ["neuro-flow"])
+            info = parse_command(None, cli, ["apolo-flow"])
             cli_doc = generate_command_markdown(info, "#", filename=filename)
             generated_md = template.format(cli_doc=cli_doc)
             output.write(generated_md)

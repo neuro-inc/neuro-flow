@@ -3,4 +3,4 @@ def test_imports_ok() -> None:
     # in all supported envs and python versions
     #
     # Will be replaced with some proper e2e tests
-    import neuro_flow.cli  # noqa
+    import apolo_flow.cli  # noqa

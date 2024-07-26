@@ -2,7 +2,7 @@ import dataclasses
 
 from rich.console import Console
 
-from neuro_flow.parser import ConfigDir
+from apolo_flow.parser import ConfigDir
 
 
 @dataclasses.dataclass(frozen=True)

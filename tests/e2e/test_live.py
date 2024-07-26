@@ -103,7 +103,7 @@ async def test_volumes(
 
 async def test_image_build(
     run_cli: RunCLI,
-    run_neuro_cli: RunCLI,
+    run_apolo_cli: RunCLI,
     project_id: str,
     project_name: str,
     cluster_name: str,
@@ -126,6 +126,6 @@ async def test_image_build(
         assert random_text in captured.out
     finally:
         try:
-            await run_neuro_cli(["image", "rm", str(image_uri)])
+            await run_apolo_cli(["image", "rm", str(image_uri)])
         except Exception as e:
             logging.warning(f"Unable to remove test image {str(image_uri)}: {e}")

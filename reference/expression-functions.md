@@ -154,7 +154,7 @@ ${{ hash_files('Dockerfile', 'requiremtnts/*.txt', 'modules/**/*.py') }}
 
 ### `inspect_job(job_name, [suffix])`
 
-Fetch info about a [job](workflow-syntax/live-workflow-syntax/#jobs-job-id-env) in live mode. The `suffix` argument should be used with [multi jobs](workflow-syntax/live-workflow-syntax/#jobs-less-than-job-id-greater-than-multi). The returned object is a [JobDescription](https://neuro-sdk.readthedocs.io/en/latest/jobs\_reference.html#jobdescription).
+Fetch info about a [job](workflow-syntax/live-workflow-syntax/#jobs-job-id-env) in live mode. The `suffix` argument should be used with [multi jobs](workflow-syntax/live-workflow-syntax/#jobs-less-than-job-id-greater-than-multi). The returned object is a [JobDescription](https://apolo-sdk.readthedocs.io/en/latest/jobs\_reference.html#jobdescription).
 
 **Example:**
 
@@ -252,7 +252,7 @@ tasks:
 
 ### `always()`
 
-Returns a special mark so that Neuro Flow will always run this task, even if some tasks in [`tasks.needs`](workflow-syntax/batch-workflow-syntax/#tasks-needs) have failed or were skipped, or the workflow was [cancelled](cli.md#neuro-flow-cancel).
+Returns a special mark so that Apolo Flow will always run this task, even if some tasks in [`tasks.needs`](workflow-syntax/batch-workflow-syntax/#tasks-needs) have failed or were skipped, or the workflow was [cancelled](cli.md#apolo-flow-cancel).
 
 **Example:**
 

@@ -1,18 +1,18 @@
 import abc
+import apolo_sdk
 import click
-import neuro_sdk
+from apolo_cli.asyncio_utils import Runner
+from apolo_sdk import ResourceNotFound
 from click.shell_completion import CompletionItem
 from contextlib import AsyncExitStack
-from neuro_cli.asyncio_utils import Runner
-from neuro_sdk import ResourceNotFound
 from typing import Generic, List, Optional, TypeVar, cast
 
-from neuro_flow.batch_runner import BatchRunner
-from neuro_flow.cli.root import Root
-from neuro_flow.cli.utils import resolve_bake
-from neuro_flow.live_runner import LiveRunner
-from neuro_flow.storage.api import ApiStorage
-from neuro_flow.storage.base import Storage
+from apolo_flow.batch_runner import BatchRunner
+from apolo_flow.cli.root import Root
+from apolo_flow.cli.utils import resolve_bake
+from apolo_flow.live_runner import LiveRunner
+from apolo_flow.storage.api import ApiStorage
+from apolo_flow.storage.base import Storage
 
 
 _T = TypeVar("_T")
@@ -73,7 +73,7 @@ class LiveJobType(AsyncType[str]):
         self, root: Root, ctx: click.Context, param: click.Parameter, incomplete: str
     ) -> List[CompletionItem]:
         async with AsyncExitStack() as stack:
-            client = await stack.enter_async_context(neuro_sdk.get())
+            client = await stack.enter_async_context(apolo_sdk.get())
             storage: Storage = await stack.enter_async_context(ApiStorage(client))
             runner = await stack.enter_async_context(
                 LiveRunner(root.config_dir, root.console, client, storage, root)
@@ -112,7 +112,7 @@ class LiveJobSuffixType(AsyncType[str]):
     ) -> List[CompletionItem]:
         job_id = ctx.params[self._job_id_param_name]
         async with AsyncExitStack() as stack:
-            client = await stack.enter_async_context(neuro_sdk.get())
+            client = await stack.enter_async_context(apolo_sdk.get())
             storage: Storage = await stack.enter_async_context(ApiStorage(client))
             runner = await stack.enter_async_context(
                 LiveRunner(root.config_dir, root.console, client, storage, root)
@@ -144,7 +144,7 @@ class LiveImageType(AsyncType[str]):
         self, root: Root, ctx: click.Context, param: click.Parameter, incomplete: str
     ) -> List[CompletionItem]:
         async with AsyncExitStack() as stack:
-            client = await stack.enter_async_context(neuro_sdk.get())
+            client = await stack.enter_async_context(apolo_sdk.get())
             storage: Storage = await stack.enter_async_context(ApiStorage(client))
             runner = await stack.enter_async_context(
                 LiveRunner(root.config_dir, root.console, client, storage, root)
@@ -183,7 +183,7 @@ class LiveVolumeType(AsyncType[str]):
         self, root: Root, ctx: click.Context, param: click.Parameter, incomplete: str
     ) -> List[CompletionItem]:
         async with AsyncExitStack() as stack:
-            client = await stack.enter_async_context(neuro_sdk.get())
+            client = await stack.enter_async_context(apolo_sdk.get())
             storage: Storage = await stack.enter_async_context(ApiStorage(client))
             runner = await stack.enter_async_context(
                 LiveRunner(root.config_dir, root.console, client, storage, root)
@@ -255,7 +255,7 @@ class BakeType(AsyncType[str]):
     ) -> List[CompletionItem]:
         variants = []
         async with AsyncExitStack() as stack:
-            client = await stack.enter_async_context(neuro_sdk.get())
+            client = await stack.enter_async_context(apolo_sdk.get())
             storage: Storage = await stack.enter_async_context(ApiStorage(client))
             runner: BatchRunner = await stack.enter_async_context(
                 BatchRunner(root.config_dir, root.console, client, storage, root)
@@ -307,7 +307,7 @@ class BakeTaskType(AsyncType[str]):
         bake_id = ctx.params[self._bake_id_param_name]
         attempt_no = ctx.params[self._attempt_no_param_name]
         async with AsyncExitStack() as stack:
-            client = await stack.enter_async_context(neuro_sdk.get())
+            client = await stack.enter_async_context(apolo_sdk.get())
             storage: Storage = await stack.enter_async_context(ApiStorage(client))
             runner: BatchRunner = await stack.enter_async_context(
                 BatchRunner(root.config_dir, root.console, client, storage, root)
@@ -355,7 +355,7 @@ class ProjectType(AsyncType[str]):
     ) -> List[CompletionItem]:
         variants = []
         async with AsyncExitStack() as stack:
-            client = await stack.enter_async_context(neuro_sdk.get())
+            client = await stack.enter_async_context(apolo_sdk.get())
             storage: Storage = await stack.enter_async_context(ApiStorage(client))
             try:
                 async for project in storage.list_projects():

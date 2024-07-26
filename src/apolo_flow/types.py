@@ -23,7 +23,7 @@ class AlwaysT:
 
 
 class TaskStatus(str, enum.Enum):
-    # Almost copy of neuro_sdk.JobStatus, but adds new SKIPPED state
+    # Almost copy of apolo_sdk.JobStatus, but adds new SKIPPED state
 
     def __rich__(self) -> str:
         return f"[{COLORS[self]}]{self.value}"

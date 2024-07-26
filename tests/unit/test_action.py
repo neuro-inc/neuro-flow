@@ -1,9 +1,9 @@
 import pytest
 from unittest.mock import ANY
 
-from neuro_flow import ast
-from neuro_flow.ast import BatchActionOutputs
-from neuro_flow.expr import (
+from apolo_flow import ast
+from apolo_flow.ast import BatchActionOutputs
+from apolo_flow.expr import (
     EnableExpr,
     ImageRefStrExpr,
     MappingItemsExpr,
@@ -25,9 +25,9 @@ from neuro_flow.expr import (
     SimpleStrExpr,
     StrExpr,
 )
-from neuro_flow.parser import parse_action, parse_batch, parse_live
-from neuro_flow.tokenizer import Pos
-from neuro_flow.types import LocalPath
+from apolo_flow.parser import parse_action, parse_batch, parse_live
+from apolo_flow.tokenizer import Pos
+from apolo_flow.types import LocalPath
 
 
 def test_parse_live_action(assets: LocalPath) -> None:

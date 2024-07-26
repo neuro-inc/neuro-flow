@@ -2,7 +2,7 @@ from dataclasses import replace
 
 import datetime
 import secrets
-from neuro_sdk import ResourceNotFound
+from apolo_sdk import ResourceNotFound
 from typing import (
     AbstractSet,
     AsyncIterator,
@@ -17,7 +17,7 @@ from typing import (
 )
 from yarl import URL
 
-from neuro_flow.storage.base import (
+from apolo_flow.storage.base import (
     Attempt,
     AttemptStorage,
     Bake,
@@ -40,7 +40,7 @@ from neuro_flow.storage.base import (
     TaskStorage,
     _Unset,
 )
-from neuro_flow.types import FullID, ImageStatus, TaskStatus
+from apolo_flow.types import FullID, ImageStatus, TaskStatus
 
 
 def _make_id() -> str:

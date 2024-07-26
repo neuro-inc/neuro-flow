@@ -4,8 +4,8 @@ import datetime
 import humanize
 import logging
 import time
+from apolo_sdk import BadGateway, ClientError, JobStatus, ServerNotAvailable
 from functools import wraps
-from neuro_sdk import BadGateway, ClientError, JobStatus, ServerNotAvailable
 from typing import (
     Any,
     Awaitable,
@@ -104,7 +104,7 @@ async def run_subproc(exe: str, *args: str) -> None:
             raise SystemExit(retcode)
     finally:
         if proc.returncode is None:
-            # Kill neuro process if not finished
+            # Kill apolo process if not finished
             # (e.g. if KeyboardInterrupt or cancellation was received)
             proc.kill()
             await proc.wait()
@@ -112,12 +112,10 @@ async def run_subproc(exe: str, *args: str) -> None:
 
 class GlobalOptions(Protocol):
     @property
-    def verbosity(self) -> int:
-        ...
+    def verbosity(self) -> int: ...
 
     @property
-    def show_traceback(self) -> bool:
-        ...
+    def show_traceback(self) -> bool: ...
 
 
 def encode_global_options(options: GlobalOptions) -> List[str]:
@@ -133,8 +131,7 @@ def encode_global_options(options: GlobalOptions) -> List[str]:
 
 
 class CommandRunner(Protocol):
-    async def __call__(self, *args: str) -> None:
-        ...
+    async def __call__(self, *args: str) -> None: ...
 
 
 def make_cmd_exec(exe: str, *, global_options: Iterable[str] = ()) -> CommandRunner:
@@ -147,7 +144,7 @@ def make_cmd_exec(exe: str, *, global_options: Iterable[str] = ()) -> CommandRun
 log = logging.getLogger(__name__)
 
 
-# Copied from neuro_sdk.utils to avoid dependency on private class
+# Copied from apolo_sdk.utils to avoid dependency on private class
 class retries:
     def __init__(
         self,

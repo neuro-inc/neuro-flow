@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 import abc
 import datetime
-from neuro_sdk import JobStatusItem, ResourceNotFound
+from apolo_sdk import JobStatusItem, ResourceNotFound
 from types import TracebackType
 from typing import (
     AbstractSet,
@@ -17,7 +17,7 @@ from typing import (
 )
 from yarl import URL
 
-from neuro_flow.types import FullID, GitInfo, ImageStatus, TaskStatus
+from apolo_flow.types import FullID, GitInfo, ImageStatus, TaskStatus
 
 
 @dataclass(frozen=True)
@@ -27,7 +27,7 @@ class Project:
     owner: str
     cluster: str
     org_name: str
-    project_name: str  # in platform scope, not neuro-flow
+    project_name: str  # in platform scope, not apolo-flow
 
 
 @dataclass(frozen=True)

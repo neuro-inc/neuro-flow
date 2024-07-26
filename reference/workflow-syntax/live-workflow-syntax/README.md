@@ -32,7 +32,7 @@ Note: Don't confuse this with `${{ flow.project_id }}`, which is defined in the 
 
 A mapping of environment variables that will be set in all jobs of the workflow. You can also set environment variables that are only available to specific jobs. For more information, see [`jobs.<job-id>.env`](./#jobs-job-id-env-1).
 
-When two or more environment variables are defined with the same name, `neuro-flow` uses the most specific environment variable. For example, an environment variable defined in a job will override the workflow's default.
+When two or more environment variables are defined with the same name, `apolo-flow` uses the most specific environment variable. For example, an environment variable defined in a job will override the workflow's default.
 
 **Example**:
 
@@ -151,7 +151,7 @@ defaults:
 
 **Optional section** A mapping of image definitions used by the _live_ workflow.
 
-`neuro-flow build <image-id>` creates an image from the passed `Dockerfile` and uploads it to the Neu.ro Registry. The `${{ images.img_id.ref }}` expression can be used for pointing an image from a [`jobs.<job-id>.image`](./#jobs-less-than-job-id-greater-than-image).
+`apolo-flow build <image-id>` creates an image from the passed `Dockerfile` and uploads it to the Neu.ro Registry. The `${{ images.img_id.ref }}` expression can be used for pointing an image from a [`jobs.<job-id>.image`](./#jobs-less-than-job-id-greater-than-image).
 
 {% hint style="info" %}
 The `images` section is not required. A job can specify the image name in a plain string without referring to the `${{ images.my_image.ref }}` context.
@@ -175,7 +175,7 @@ images:
     ref: image:my_image:latest
 ```
 
-You can use the image definition to _address_ images hosted on [_Docker Hub_](https://hub.docker.com/search?q=\&type=image) as an _external_ source (while you can't use `neuro-flow` to build this image). All other attributes except for `ref` don't work for _external_ images.
+You can use the image definition to _address_ images hosted on [_Docker Hub_](https://hub.docker.com/search?q=\&type=image) as an _external_ source (while you can't use `apolo-flow` to build this image). All other attributes except for `ref` don't work for _external_ images.
 
 **Example of external image:**
 
@@ -216,7 +216,7 @@ The flow's root folder is the folder that contains the '.neuro' directory. Its p
 {% endhint %}
 
 {% hint style="warning" %}
-`neuro-flow` cannot build images without the context.
+`apolo-flow` cannot build images without the context.
 {% endhint %}
 
 **Expression contexts:** [`flow` context](live-contexts.md#flow-context).
@@ -329,7 +329,7 @@ Let's assume you have a `secret:aws_account_credentials` file which gives you ac
 
 **Optional section** A mapping of volume definitions available in the _live_ workflow. A volume defines a link between the Neu.ro storage folder, a remote folder that can be mounted to a _live_ job, and a local folder.
 
-Volumes can be synchronized between local and storage versions with the `neuro-flow upload` and `neuro-flow download` commands and they can be mounted to a job by using the [`jobs.<job-id>.volumes`](./#jobs-less-than-job-id-greater-than-volumes) attribute.
+Volumes can be synchronized between local and storage versions with the `apolo-flow upload` and `apolo-flow download` commands and they can be mounted to a job by using the [`jobs.<job-id>.volumes`](./#jobs-less-than-job-id-greater-than-volumes) attribute.
 
 {% hint style="info" %}
 The `volumes` section is optional. A job can mount a volume by a direct reference string.
@@ -381,7 +381,7 @@ volumes:
 
 **Optional** Volumes can also be associated with folders on a local machine. A _local_ path should be relative to the flow's root and will be used for uploading/downloading content to the storage.
 
-Volumes without a set `local` attribute cannot be used by the `neuro-flow upload` and `neuro-flow download` commands.
+Volumes without a set `local` attribute cannot be used by the `apolo-flow upload` and `apolo-flow download` commands.
 
 **Example:**
 
@@ -392,7 +392,7 @@ volumes:
 ```
 
 {% hint style="warning" %}
-`neuro-flow upload` and `neuro-flow download` will not work for volumes whose remote is the Neu.ro Disk due to specifics of how disks work.
+`apolo-flow upload` and `apolo-flow download` will not work for volumes whose remote is the Neu.ro Disk due to specifics of how disks work.
 {% endhint %}
 
 **Expression contexts:** [`flow` context](live-contexts.md#flow-context).
@@ -413,7 +413,7 @@ volumes:
 
 ## `jobs`
 
-A _live_ workflow can run jobs by their identifiers using the `neuro-flow run <job-id>` command. Each job runs remotely on the Neu.ro Platform. Jobs could be defined in two different ways: (1) directly in this file or in a separate file and called as an [`action`](../actions-syntax/).
+A _live_ workflow can run jobs by their identifiers using the `apolo-flow run <job-id>` command. Each job runs remotely on the Neu.ro Platform. Jobs could be defined in two different ways: (1) directly in this file or in a separate file and called as an [`action`](../actions-syntax/).
 
 ### `jobs.<job-id>` <a href="#jobs-job-id-env" id="jobs-job-id-env"></a>
 
@@ -425,7 +425,7 @@ The attributes described in this section can be applied both to plain jobs and a
 
 ### `jobs.<job-id>.params`
 
-Params is a mapping of key-value pairs that have default value and could be overridden from a command line by using `neuro-flow run <job-id> --param name1 val1 --param name2 val2`.
+Params is a mapping of key-value pairs that have default value and could be overridden from a command line by using `apolo-flow run <job-id> --param name1 val1 --param name2 val2`.
 
 This attribute describes a set of names and default values of parameters accepted by a job.
 
@@ -442,7 +442,7 @@ jobs:
       name3: ""  # Empty string by default
 ```
 
-The long form also allows to specify parameter descriptions. This can be useful for `neuro-flow run` command introspection, shell autocompletion, and generation of more detailed error messages.
+The long form also allows to specify parameter descriptions. This can be useful for `apolo-flow run` command introspection, shell autocompletion, and generation of more detailed error messages.
 
 ```yaml
 jobs:
@@ -590,7 +590,7 @@ jobs:
 
 ### `jobs.<job-id>.detach`
 
-**Optional** By default, `neuro-flow run <job-id>` keeps the terminal attached to the spawned job. This can help with viewing the job's logs and running commands in its embedded bash session.
+**Optional** By default, `apolo-flow run <job-id>` keeps the terminal attached to the spawned job. This can help with viewing the job's logs and running commands in its embedded bash session.
 
 Enable the `detach` attribute to disable this behavior.
 
@@ -622,7 +622,7 @@ jobs:
 
 **Optional** Set environment variables for `<job-id>` to use in the executed job. You can also set environment variables for the entire workflow. For more information, see [`defaults.env`](./#defaults-env).
 
-When two ore more environment variables are defined with the same name, `neuro-flow` uses the most specific environment variable. For example, an environment variable defined in a task will override the [workflow default](./#defaults-env).
+When two ore more environment variables are defined with the same name, `apolo-flow` uses the most specific environment variable. For example, an environment variable defined in a task will override the [workflow default](./#defaults-env).
 
 **Example:**
 
@@ -666,7 +666,7 @@ jobs:
 
 **Optional** The job's HTTP port number that will be exposed globally on the platform.
 
-By default, the Neu.ro Platform exposes the job's internal `80` port as an HTTPS-protected resource. This will be listed in the oputput of the `neuro-flow status <job-id>` command as _Http URL_.
+By default, the Neu.ro Platform exposes the job's internal `80` port as an HTTPS-protected resource. This will be listed in the oputput of the `apolo-flow status <job-id>` command as _Http URL_.
 
 You may want to expose a different local port. Use `0` to disable the feature entirely.
 
@@ -711,7 +711,7 @@ jobs:
 
 ### `jobs.<job-id>.name`
 
-**Optional** Allows you to specify a job's name. This name becomes a part of the job's internal hostname and exposed HTTP URL, and the job can then be controlled by its name through the low-level `neuro` tool.
+**Optional** Allows you to specify a job's name. This name becomes a part of the job's internal hostname and exposed HTTP URL, and the job can then be controlled by its name through the low-level `apolo` tool.
 
 The name is completely _optional_.
 
@@ -735,7 +735,7 @@ The `[-<MULTI_SUFFIX>]` part makes sure that a job will have a unique name even 
 
 ### `jobs.<job-id>.multi`
 
-**Optional** By default, a job can only have one running instance at a time. Calling `neuro-flow run <job-id>` for the same job ID will attach to the already running job instead of creating a new one. This can be overridden by enabling the `multi` attribute.
+**Optional** By default, a job can only have one running instance at a time. Calling `apolo-flow run <job-id>` for the same job ID will attach to the already running job instead of creating a new one. This can be overridden by enabling the `multi` attribute.
 
 **Example:**
 
@@ -749,7 +749,7 @@ jobs:
 
 ### `jobs.<job-id>.pass_config`
 
-**Optional** Set this attribute to `true` if you want to pass the Neu.ro config used to execute the `neuro-flow run ...` command into the spawned job. This can be useful if you're using a job image with Neuro CLI installed and want to execute `neuro ...` commands _inside_ the running job.
+**Optional** Set this attribute to `true` if you want to pass the Neu.ro config used to execute the `apolo-flow run ...` command into the spawned job. This can be useful if you're using a job image with Apolo CLI installed and want to execute `apolo ...` commands _inside_ the running job.
 
 By default, the config is not passed.
 

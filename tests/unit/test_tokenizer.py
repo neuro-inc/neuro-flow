@@ -1,5 +1,5 @@
-from neuro_flow.tokenizer import Pos, Token, tokenize
-from neuro_flow.types import LocalPath
+from apolo_flow.tokenizer import Pos, Token, tokenize
+from apolo_flow.types import LocalPath
 
 
 def test_empty() -> None:

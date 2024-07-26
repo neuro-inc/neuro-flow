@@ -1,6 +1,6 @@
+apolo-all
 black
 flake8
 isort
 mypy
-neuro-all
 wandb

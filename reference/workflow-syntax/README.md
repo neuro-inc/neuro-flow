@@ -1,5 +1,5 @@
 ---
-description: Syntax of Neuro-Flow workflows
+description: Syntax of Apolo-Flow workflows
 ---
 
 # Workflow syntax

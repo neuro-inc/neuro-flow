@@ -2,7 +2,7 @@
 
 ## Action file
 
-Neuro Flow supports two sources of action files: local filesystem and Github repository.
+Apolo Flow supports two sources of action files: local filesystem and Github repository.
 
 For filesystem actions, you can place a config file in any location inside the flow's workspace. No special name is required.
 
@@ -169,7 +169,7 @@ This attribute can accept the following values:
 Default: `14d` (two weeks)
 
 {% hint style="info" %}
-If you decrease this value and re-run the workflow, `neuro-flow` will ignore all cache entries that were added longer ago than the new `cache.life_span` value specifies.
+If you decrease this value and re-run the workflow, `apolo-flow` will ignore all cache entries that were added longer ago than the new `cache.life_span` value specifies.
 {% endhint %}
 
 **Example:**
@@ -255,7 +255,7 @@ This attribute can accept one of the following values:
 Default: `14d` (two weeks)
 
 {% hint style="info" %}
-If you decrease this value and re-run the flow, `neuro-flow` will ignore all cache entries that were added longer ago than the new `cache.life_span` value specifies.
+If you decrease this value and re-run the flow, `apolo-flow` will ignore all cache entries that were added longer ago than the new `cache.life_span` value specifies.
 {% endhint %}
 
 **Example:**
@@ -325,13 +325,13 @@ outputs:
 
 ### `cmd`
 
-A command line code to execute locally. The shell type and the available commands depend on the user's system configuration, but you can safely assume that the low-level `neuro` commands are available.
+A command line code to execute locally. The shell type and the available commands depend on the user's system configuration, but you can safely assume that the low-level `apolo` commands are available.
 
 **Example:**
 
 ```yaml
 cmd:
-  neuro cp -r ${{ inputs.from }} ${{ inputs.to }} # Copy files to storage
+  apolo cp -r ${{ inputs.from }} ${{ inputs.to }} # Copy files to storage
 ```
 
 **Expression contexts:** [`inputs` context](live-actions-contexts.md#inputs-context).

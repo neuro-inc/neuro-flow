@@ -15,6 +15,7 @@ import operator
 import re
 import shlex
 from abc import ABC
+from apolo_sdk import Client, JobDescription, JobRestartPolicy, JobStatus
 from ast import literal_eval
 from collections.abc import Sized
 from contextlib import asynccontextmanager
@@ -28,7 +29,6 @@ from funcparserlib.parser import (
     skip,
     some,
 )
-from neuro_sdk import Client, JobDescription, JobRestartPolicy, JobStatus
 from typing import (
     Any,
     AsyncContextManager,
@@ -76,26 +76,21 @@ _IT = TypeVar("_IT", bound=TypeT)
 
 @runtime_checkable
 class ContainerT(Protocol):
-    def __getattr__(self, attr: str) -> TypeT:
-        ...
+    def __getattr__(self, attr: str) -> TypeT: ...
 
 
 @runtime_checkable
 class MappingT(Protocol):
-    def __getitem__(self, key: LiteralT) -> TypeT:
-        ...
+    def __getitem__(self, key: LiteralT) -> TypeT: ...
 
-    def __iter__(self) -> Iterator[LiteralT]:
-        ...
+    def __iter__(self) -> Iterator[LiteralT]: ...
 
 
 @runtime_checkable
 class SequenceT(Protocol):
-    def __getitem__(self, idx: LiteralT) -> TypeT:
-        ...
+    def __getitem__(self, idx: LiteralT) -> TypeT: ...
 
-    def __iter__(self) -> Iterator[TypeT]:
-        ...
+    def __iter__(self) -> Iterator[TypeT]: ...
 
 
 class RootABC(abc.ABC):
@@ -109,8 +104,7 @@ class RootABC(abc.ABC):
 
     @property
     @abc.abstractmethod
-    def dry_run(self) -> bool:
-        ...
+    def dry_run(self) -> bool: ...
 
 
 class LocalScope(RootABC):
@@ -306,13 +300,13 @@ async def upload(ctx: CallCtx, volume_ctx: ContainerT) -> ContainerT:
     if not isinstance(volume_ctx, VolumeCtx):
         raise ValueError("upload() argument should be volume")
     mkdir_cmd = [
-        "neuro",
+        "apolo",
         "mkdir",
         "--parents",
         str(volume_ctx.remote.parent),
     ]
     cp_cmd = [
-        "neuro",
+        "apolo",
         "cp",
         "--recursive",
         "--update",
@@ -1181,7 +1175,7 @@ class Expr(BaseExpr[_T]):
                     )
                 self._parsed = [Text(start, end, "")]
             assert self._parsed
-            if len(self._parsed) == 1 and type(self._parsed[0]) == Text:
+            if len(self._parsed) == 1 and isinstance(self._parsed[0], Text):
                 self._try_convert(self._parsed[0].arg, start, end)
             elif not self.allow_expr:
                 raise EvalError(f"Expressions are not allowed in {pattern}", start, end)
@@ -1243,7 +1237,7 @@ class Expr(BaseExpr[_T]):
         return f"{self.__class__.__qualname__}({self._pattern!r})"
 
     def __eq__(self, other: Any) -> bool:
-        if type(self) != type(other):
+        if type(self) is not type(other):
             return False
         assert isinstance(other, self.__class__)
         return self._pattern == other._pattern
@@ -1629,7 +1623,7 @@ class SequenceItemsExpr(BaseSequenceExpr, Generic[_IT]):
         return f"{self.__class__.__qualname__}({self._items!r})"
 
     def __eq__(self, other: Any) -> bool:
-        if type(self) != type(other):
+        if type(self) is not type(other):
             return False
         assert isinstance(other, self.__class__)
         return self._items == other._items
@@ -1694,7 +1688,7 @@ class MappingItemsExpr(BaseMappingExpr, Generic[_IT]):
         return f"{self.__class__.__qualname__}({self._items!r})"
 
     def __eq__(self, other: Any) -> bool:
-        if type(self) != type(other):
+        if type(self) is not type(other):
             return False
         assert isinstance(other, self.__class__)
         return self._items == other._items

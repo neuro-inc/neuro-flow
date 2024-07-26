@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from neuro_flow.cli.flow import Spec, gen_cmd
+from apolo_flow.cli.flow import Spec, gen_cmd
 
 
 def test_gen_cmd_no_checkout() -> None:

@@ -1,16 +1,16 @@
 import pathlib
 import pytest
+from apolo_sdk import Client
 from datetime import timedelta
-from neuro_sdk import Client
 from textwrap import dedent
 from typing import AsyncIterator, Mapping, Optional, Tuple, Union
 from unittest.mock import ANY, PropertyMock
 from yarl import URL
 
-from neuro_flow import ast
-from neuro_flow.ast import CacheStrategy, InputType
-from neuro_flow.config_loader import BatchLocalCL, ConfigLoader, LiveLocalCL
-from neuro_flow.context import (
+from apolo_flow import ast
+from apolo_flow.ast import CacheStrategy, InputType
+from apolo_flow.config_loader import BatchLocalCL, ConfigLoader, LiveLocalCL
+from apolo_flow.context import (
     EMPTY_ROOT,
     ActionFlowCtx,
     CacheConf,
@@ -21,16 +21,16 @@ from neuro_flow.context import (
     sanitize_name,
     setup_inputs_ctx,
 )
-from neuro_flow.expr import (
+from apolo_flow.expr import (
     EvalError,
     PrimitiveExpr,
     SimpleOptPrimitiveExpr,
     SimpleOptStrExpr,
     SimpleStrExpr,
 )
-from neuro_flow.parser import ConfigDir
-from neuro_flow.tokenizer import Pos
-from neuro_flow.types import LocalPath, RemotePath, TaskStatus
+from apolo_flow.parser import ConfigDir
+from apolo_flow.tokenizer import Pos
+from apolo_flow.types import LocalPath, RemotePath, TaskStatus
 
 
 def test_inavailable_context_ctor() -> None:
@@ -1371,7 +1371,7 @@ async def test_batch_with_project_mixins(assets: pathlib.Path, client: Client) -
 
         task = await flow.get_task((), "test_mixin_python", needs={}, state={})
         assert task.image == "mixin-image"
-        assert task.cmd == "python3 -uc 'print(\"hello neuro-flow\")\n'"
+        assert task.cmd == "python3 -uc 'print(\"hello apolo-flow\")\n'"
 
     finally:
         await cl.close()

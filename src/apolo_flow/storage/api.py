@@ -4,8 +4,8 @@ import abc
 import aiohttp
 import datetime
 import json
+from apolo_sdk import Client, Project as ApoloProject
 from contextlib import asynccontextmanager
-from neuro_sdk import Client, Project as NeuroProject
 from typing import (
     AbstractSet,
     Any,
@@ -27,7 +27,7 @@ from typing import (
 from typing_extensions import TypedDict
 from yarl import URL
 
-from neuro_flow.storage.base import (
+from apolo_flow.storage.base import (
     Attempt,
     AttemptStorage,
     Bake,
@@ -50,8 +50,8 @@ from neuro_flow.storage.base import (
     TaskStorage,
     _Unset,
 )
-from neuro_flow.types import FullID, GitInfo, ImageStatus, TaskStatus
-from neuro_flow.utils import RetryConfig, retry
+from apolo_flow.types import FullID, GitInfo, ImageStatus, TaskStatus
+from apolo_flow.utils import RetryConfig, retry
 
 
 def _id_from_json(sid: str) -> FullID:
@@ -349,7 +349,7 @@ class ApiStorage(Storage):
         org_name: Optional[str] = None,
     ) -> None:
         await self._client.config.fetch()
-        needed_key = NeuroProject.Key(cluster_name, org_name, project_name)
+        needed_key = ApoloProject.Key(cluster_name, org_name, project_name)
         if needed_key not in self._client.config.projects.keys():
             org_msg = f"organization '{org_name}', " if org_name else ""
             msg = (
@@ -561,13 +561,15 @@ class ApiProjectStorage(DeferredIdMixin[Project, ProjectInitArgs], ProjectStorag
             "name": name,
             "tags": tags,
             "meta": {
-                "git_info": {
-                    "sha": meta.git_info.sha,
-                    "branch": meta.git_info.branch,
-                    "tags": meta.git_info.tags,
-                }
-                if meta.git_info
-                else None,
+                "git_info": (
+                    {
+                        "sha": meta.git_info.sha,
+                        "branch": meta.git_info.branch,
+                        "tags": meta.git_info.tags,
+                    }
+                    if meta.git_info
+                    else None
+                ),
             },
         }
         return await self._raw_client.create(
@@ -820,9 +822,9 @@ class ApiBakeStorage(DeferredIdMixin[Bake, BakeInitArgs], BakeStorage):
             "yaml_defs": [_id_to_json(yaml_id) for yaml_id in yaml_defs],
             "ref": ref,
             "status": status.value,
-            "context_on_storage": str(context_on_storage)
-            if context_on_storage
-            else None,
+            "context_on_storage": (
+                str(context_on_storage) if context_on_storage else None
+            ),
             "dockerfile_rel": dockerfile_rel,
             "builder_job_id": builder_job_id,
         }

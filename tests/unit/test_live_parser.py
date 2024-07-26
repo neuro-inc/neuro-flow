@@ -4,8 +4,8 @@ import yaml
 from textwrap import dedent
 from yaml.constructor import ConstructorError
 
-from neuro_flow import ast
-from neuro_flow.expr import (
+from apolo_flow import ast
+from apolo_flow.expr import (
     EvalError,
     ImageRefStrExpr,
     MappingExpr,
@@ -31,8 +31,8 @@ from neuro_flow.expr import (
     StrExpr,
     port_pair_item,
 )
-from neuro_flow.parser import parse_live, type2str
-from neuro_flow.tokenizer import Pos
+from apolo_flow.parser import parse_live, type2str
+from apolo_flow.tokenizer import Pos
 
 
 def test_parse_minimal(assets: pathlib.Path) -> None:
