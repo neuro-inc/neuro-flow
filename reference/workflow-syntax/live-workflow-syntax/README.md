@@ -151,7 +151,7 @@ defaults:
 
 **Optional section** A mapping of image definitions used by the _live_ workflow.
 
-`apolo-flow build <image-id>` creates an image from the passed `Dockerfile` and uploads it to the Neu.ro Registry. The `${{ images.img_id.ref }}` expression can be used for pointing an image from a [`jobs.<job-id>.image`](./#jobs-less-than-job-id-greater-than-image).
+`apolo-flow build <image-id>` creates an image from the passed `Dockerfile` and uploads it to the Apolo Registry. The `${{ images.img_id.ref }}` expression can be used for pointing an image from a [`jobs.<job-id>.image`](./#jobs-less-than-job-id-greater-than-image).
 
 {% hint style="info" %}
 The `images` section is not required. A job can specify the image name in a plain string without referring to the `${{ images.my_image.ref }}` context.
@@ -327,7 +327,7 @@ Let's assume you have a `secret:aws_account_credentials` file which gives you ac
 
 ## `volumes`
 
-**Optional section** A mapping of volume definitions available in the _live_ workflow. A volume defines a link between the Neu.ro storage folder, a remote folder that can be mounted to a _live_ job, and a local folder.
+**Optional section** A mapping of volume definitions available in the _live_ workflow. A volume defines a link between the Apolo storage folder, a remote folder that can be mounted to a _live_ job, and a local folder.
 
 Volumes can be synchronized between local and storage versions with the `apolo-flow upload` and `apolo-flow download` commands and they can be mounted to a job by using the [`jobs.<job-id>.volumes`](./#jobs-less-than-job-id-greater-than-volumes) attribute.
 
@@ -343,7 +343,7 @@ The key `volume-id` is a string and its value is a map of the volume's configura
 
 ### `volumes.<volume-id>.remote`
 
-**Required** The volume URI on the [Neu.ro Storage](https://docs.neu.ro/core/platform-storage/storage) ('storage:path/on/storage') or [Neu.ro Disk](https://docs.neu.ro/core/platform-storage/disks) ('disk:').
+**Required** The volume URI on the [Apolo Storage](https://docs.apolo.us/core/platform-storage/storage) ('storage:path/on/storage') or [Apolo Disk](https://docs.apolo.us/core/platform-storage/disks) ('disk:').
 
 **Example:**
 
@@ -392,7 +392,7 @@ volumes:
 ```
 
 {% hint style="warning" %}
-`apolo-flow upload` and `apolo-flow download` will not work for volumes whose remote is the Neu.ro Disk due to specifics of how disks work.
+`apolo-flow upload` and `apolo-flow download` will not work for volumes whose remote is the Apolo Disk due to specifics of how disks work.
 {% endhint %}
 
 **Expression contexts:** [`flow` context](live-contexts.md#flow-context).
@@ -413,7 +413,7 @@ volumes:
 
 ## `jobs`
 
-A _live_ workflow can run jobs by their identifiers using the `apolo-flow run <job-id>` command. Each job runs remotely on the Neu.ro Platform. Jobs could be defined in two different ways: (1) directly in this file or in a separate file and called as an [`action`](../actions-syntax/).
+A _live_ workflow can run jobs by their identifiers using the `apolo-flow run <job-id>` command. Each job runs remotely on the Apolo Platform. Jobs could be defined in two different ways: (1) directly in this file or in a separate file and called as an [`action`](../actions-syntax/).
 
 ### `jobs.<job-id>` <a href="#jobs-job-id-env" id="jobs-job-id-env"></a>
 
@@ -477,11 +477,11 @@ jobs:
 
 ## Attributes for jobs
 
-The attributes described in this section are only applicable to plain jobs that are executed by running docker images on the Neu.ro platform.
+The attributes described in this section are only applicable to plain jobs that are executed by running docker images on the Apolo platform.
 
 ### `jobs.<job-id>.image`
 
-**Required** Each job is executed remotely on the Neu.ro cluster using a _Docker image_. This image can be hosted on [_Docker Hub_](https://hub.docker.com/search?q=\&type=image) (`python:3.9` or `ubuntu:20.04`) or on the Neu.ro Registry (`image:my_image:v2.3`). If the image is hosted on the Neu.ro Registry, the image name must start with the `image:` prefix.
+**Required** Each job is executed remotely on the Apolo cluster using a _Docker image_. This image can be hosted on [_Docker Hub_](https://hub.docker.com/search?q=\&type=image) (`python:3.9` or `ubuntu:20.04`) or on the Apolo Registry (`image:my_image:v2.3`). If the image is hosted on the Apolo Registry, the image name must start with the `image:` prefix.
 
 **Example with a constant image string:**
 
@@ -646,7 +646,7 @@ jobs:
 
 ### `jobs.<job-id>.http_auth`
 
-**Optional** Control whether the HTTP port exposed by the job requires the Neu.ro Platform authentication for access.
+**Optional** Control whether the HTTP port exposed by the job requires the Apolo Platform authentication for access.
 
 You may want to disable the authentication to allow everybody to access your job's exposed web resource.
 
@@ -666,7 +666,7 @@ jobs:
 
 **Optional** The job's HTTP port number that will be exposed globally on the platform.
 
-By default, the Neu.ro Platform exposes the job's internal `80` port as an HTTPS-protected resource. This will be listed in the oputput of the `apolo-flow status <job-id>` command as _Http URL_.
+By default, the Apolo Platform exposes the job's internal `80` port as an HTTPS-protected resource. This will be listed in the oputput of the `apolo-flow status <job-id>` command as _Http URL_.
 
 You may want to expose a different local port. Use `0` to disable the feature entirely.
 
@@ -749,7 +749,7 @@ jobs:
 
 ### `jobs.<job-id>.pass_config`
 
-**Optional** Set this attribute to `true` if you want to pass the Neu.ro config used to execute the `apolo-flow run ...` command into the spawned job. This can be useful if you're using a job image with Apolo CLI installed and want to execute `apolo ...` commands _inside_ the running job.
+**Optional** Set this attribute to `true` if you want to pass the Apolo config used to execute the `apolo-flow run ...` command into the spawned job. This can be useful if you're using a job image with Apolo CLI installed and want to execute `apolo ...` commands _inside_ the running job.
 
 By default, the config is not passed.
 
@@ -821,9 +821,9 @@ jobs:
 
 ### `jobs.<job-id>.schedule_timeout`
 
-**Optional** Use this attribute if you want to increase the _schedule timeout_. This will prevent a job from failing if the Neu.ro cluster is under high load and requested resources are likely to not be available at the moment.
+**Optional** Use this attribute if you want to increase the _schedule timeout_. This will prevent a job from failing if the Apolo cluster is under high load and requested resources are likely to not be available at the moment.
 
-If the Neu.ro cluster has no resources to launch a job immediately, this job is pushed into the waiting queue. If the job is still not started at the end of the _schedule timeout_, it will be failed.
+If the Apolo cluster has no resources to launch a job immediately, this job is pushed into the waiting queue. If the job is still not started at the end of the _schedule timeout_, it will be failed.
 
 The default system-wide _schedule timeout_ is controlled by the cluster administrator and is usually about 5-10 minutes.
 

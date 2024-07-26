@@ -13,7 +13,7 @@ All expressions (`${{ <expression }}`) support a set of pre-built functions:
 | [fmt()](expression-functions.md#fmt-format\_string-arg-1)       | Perform string formatting.                                               |
 | [to\_json()](expression-functions.md#to\_json-data)             | Convert an object to a JSON string.                                      |
 | [from\_json()](expression-functions.md#from\_json-json\_string) | Convert a JSON string to an object.                                      |
-| [upload()](expression-functions.md#upload-volume\_ctx)          | Upload a volume to the Neu.ro storage.                                   |
+| [upload()](expression-functions.md#upload-volume\_ctx)          | Upload a volume to the Apolo storage.                                   |
 | [parse\_volume()](expression-functions.md#parse\_volume-string) | Parse a volume reference string to an object.                            |
 | [hash\_files()](expression-functions.md#hash\_files-pattern)    | Calculate a SHA256 hash of given files.                                  |
 | [values()](expression-functions.md#values-dict\_instance)       | Get values from a dictionary.                                            |
@@ -101,7 +101,7 @@ ${{ from_json('{"array": [1, 2, 3], "value": "value"}').value }}
 
 ### `upload(volume_ctx)`
 
-Upload the volume to the Neu.ro storage and then return the passed argument back. The argument should contain an entry of the [`volumes` context](workflow-syntax/live-workflow-syntax/live-contexts.md#volumes-context). The function will fail if the [`local` attribute](workflow-syntax/live-workflow-syntax/#volumes-less-than-volume-id-greater-than-local) is not set for the corresponding volume definition in the workflow file.
+Upload the volume to the Apolo storage and then return the passed argument back. The argument should contain an entry of the [`volumes` context](workflow-syntax/live-workflow-syntax/live-contexts.md#volumes-context). The function will fail if the [`local` attribute](workflow-syntax/live-workflow-syntax/#volumes-less-than-volume-id-greater-than-local) is not set for the corresponding volume definition in the workflow file.
 
 This function allows to automatically upload a volume before a job runs.
 

@@ -105,7 +105,7 @@ env:
 
 ## Functions
 
-To allow some operations in expressions, Neu.ro provides a set of built-in functions. The function call syntax is the following:
+To allow some operations in expressions, Apolo provides a set of built-in functions. The function call syntax is the following:
 
 ```
 ${{ function_name(arg1, arg2, arg3) }}

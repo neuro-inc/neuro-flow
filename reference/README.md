@@ -8,7 +8,7 @@ There are two _kinds_ of workflows: _live_ and _batch_.
 
 ### _Live_ workflows
 
-[_Live_](workflow-syntax/live-workflow-syntax/#live-workflow) workflows are executed locally on the developer's machine. They contain a set of job definitions that spawn jobs in the Neu.ro cloud.
+[_Live_](workflow-syntax/live-workflow-syntax/#live-workflow) workflows are executed locally on the developer's machine. They contain a set of job definitions that spawn jobs in the Apolo cloud.
 
 Here's an example of a typical job: 1. Executing a Jupyter Notebook server in the cloud on a powerful node with a lot of memory and a high-performant GPU 2. Opening a browser with a Jupyter web client connected to this server
 

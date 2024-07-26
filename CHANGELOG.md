@@ -5,6 +5,11 @@
 
 [comment]: # (towncrier release notes start)
 
+# Apolo Flow 24.7.0 (2024-07-26)
+
+No significant changes.
+
+
 # Neuro Flow 24.2.0 (2024-02-16)
 
 ### Features

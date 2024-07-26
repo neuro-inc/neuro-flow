@@ -208,7 +208,7 @@ cache:
 
 A mapping of image definitions used by the _batch_ workflow.
 
-If the specified image reference is available at the Neu.ro registry and the [`.force_rebuild`](./#images-less-than-image-id-greater-than-force-rebuild) flag is not set, then Neu.ro Flow will not attempt to build the image from scratch. If this flag is set or the image is not in the registry, then the platform will start buliding the image.
+If the specified image reference is available at the Apolo registry and the [`.force_rebuild`](./#images-less-than-image-id-greater-than-force-rebuild) flag is not set, then Apolo Flow will not attempt to build the image from scratch. If this flag is set or the image is not in the registry, then the platform will start buliding the image.
 
 {% hint style="info" %}
 The `images` section is not required. A task can specify the image name in a plain string without referring to the `${{ images.my_image.ref }}` context.
@@ -450,14 +450,14 @@ The key `image-id` is a string and its value is a map of the task's configuratio
 
 **Required** Image _reference_ that can be used in the `tasks.image` expression.
 
-You can use the image definition to _address_ images hosted either on the Neu.ro registry or [_Docker Hub_](https://hub.docker.com/search?q=\&type=image).
+You can use the image definition to _address_ images hosted either on the Apolo registry or [_Docker Hub_](https://hub.docker.com/search?q=\&type=image).
 
 **Example:**
 
 ```yaml
 images:
   my_image:
-    ref: image:my_image:latest # Neu.ro registry hosted iamge 
+    ref: image:my_image:latest # Apolo registry hosted iamge 
   python:
     ref: python:3.9.0 # Docker Hub hosted image
 ```
@@ -466,7 +466,7 @@ images:
 
 ## `volumes`
 
-A mapping of volume definitions available in this workflow. A volume defines a link between the Neu.ro storage folder and a remote folder that can be mounted to a task.
+A mapping of volume definitions available in this workflow. A volume defines a link between the Apolo storage folder and a remote folder that can be mounted to a task.
 
 Unlike _live_ flow volumes, _batch_ flow volumes **cannot** be synchronized by `apolo-flow upload` and `apolo-flow download` commands. They can only be mounted to a task by using `task.volumes` attribute.
 
@@ -482,7 +482,7 @@ The key `volume-id` is a string and its value is a map of the volume's configura
 
 ### `volumes.<volume-id>.remote`
 
-**Required** Volume URI on the Neu.ro Storage.
+**Required** Volume URI on the Apolo Storage.
 
 **Example:**
 
@@ -781,11 +781,11 @@ cache:
 
 ## Attributes for tasks
 
-The attributes in this section are only applicable to plain tasks that are executed by running Docker images on the Neu.ro platform.
+The attributes in this section are only applicable to plain tasks that are executed by running Docker images on the Apolo platform.
 
 ### `tasks.image`
 
-**Required** Each task is executed remotely on the Neu.ro cluster using a _Docker image_. The image can be hosted on [_Docker Hub_](https://hub.docker.com/search?q=\&type=image) (`python:3.9` or `ubuntu:20.04`) or on the Neu.ro Registry (`image:my_image:v2.3`).
+**Required** Each task is executed remotely on the Apolo cluster using a _Docker image_. The image can be hosted on [_Docker Hub_](https://hub.docker.com/search?q=\&type=image) (`python:3.9` or `ubuntu:20.04`) or on the Apolo Registry (`image:my_image:v2.3`).
 
 **Example with a constant image string:**
 
@@ -910,7 +910,7 @@ tasks:
 
 ### `tasks.http_auth`
 
-Control whether the HTTP port exposed by the tasks requires the Neu.ro Platform authentication for access.
+Control whether the HTTP port exposed by the tasks requires the Apolo Platform authentication for access.
 
 You may want to disable the authentication to allow everybody to access your task's exposed web resource.
 
@@ -929,7 +929,7 @@ tasks:
 
 The number of the task's HTTP port that will be exposed globally.
 
-By default, the Neu.ro Platform exposes the task's internal `80` port as an HTTPS-protected resource.
+By default, the Apolo Platform exposes the task's internal `80` port as an HTTPS-protected resource.
 
 You may want to expose a different local port. Use `0` to disable the feature entirely.
 
@@ -981,7 +981,7 @@ task:
 
 ### `tasks.pass_config`
 
-Set this attribute to `true` if you want to pass the Neu.ro config used to execute `apolo-flow run ...` command into the spawned task. This can be useful if you use a task image with Apolo CLI installed and want to execute `apolo ...` commands _inside_ the running task.
+Set this attribute to `true` if you want to pass the Apolo config used to execute `apolo-flow run ...` command into the spawned task. This can be useful if you use a task image with Apolo CLI installed and want to execute `apolo ...` commands _inside_ the running task.
 
 By default, the config is not passed.
 
@@ -1019,9 +1019,9 @@ The preset to execute the task with.
 
 ### `tasks.schedule_timeout`
 
-Use this attribute if you want to increase the _schedule timeout_. This will prevent a task from failing if the Neu.ro cluster is under high load and requested resources are likely to not be available at the moment.
+Use this attribute if you want to increase the _schedule timeout_. This will prevent a task from failing if the Apolo cluster is under high load and requested resources are likely to not be available at the moment.
 
-If the Neu.ro cluster has no resources to launch a task immediately, this task is pushed into the waiting queue. If the task is not started yet at the end of the _schedule timeout_, it will be failed.
+If the Apolo cluster has no resources to launch a task immediately, this task is pushed into the waiting queue. If the task is not started yet at the end of the _schedule timeout_, it will be failed.
 
 The default system-wide _schedule timeout_ is controlled by the cluster administrator and is usually about 5-10 minutes.
 
