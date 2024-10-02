@@ -192,7 +192,9 @@ async def test_upload_image_data(
 ) -> None:
     async with batch_cl_factory("batch_images") as cl:
         flow = await RunningBatchFlow.create(cl, "batch", "bake-id")
-        project = await batch_storage.get_or_create_project("test", "test", "test")
+        project = await batch_storage.get_or_create_project(
+            "test", "test", "test", "test"
+        )
         project_storage = batch_storage.project(id=project.id)
         bake = await project_storage.create_bake(
             batch="batch",
