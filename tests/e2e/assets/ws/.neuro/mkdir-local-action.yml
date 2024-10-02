@@ -3,4 +3,4 @@ inputs:
   path:
     descr: "Path on storage. Should start with 'storage:'"
 cmd:
-  neuro mkdir -p ${{ inputs.path }}
+  apolo mkdir -p ${{ inputs.path }}

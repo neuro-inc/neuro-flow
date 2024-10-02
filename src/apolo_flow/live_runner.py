@@ -6,7 +6,7 @@ import datetime
 import secrets
 import shlex
 import sys
-from neuro_sdk import Client, JobDescription, JobStatus, ResourceNotFound
+from apolo_sdk import Client, JobDescription, JobStatus, ResourceNotFound
 from rich import box
 from rich.console import Console
 from rich.table import Table
@@ -65,10 +65,10 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
         self._client = client
         self._storage = storage
         self._project_storage: Optional[ProjectStorage] = None
-        self._run_neuro_cli = make_cmd_exec(
-            "neuro", global_options=encode_global_options(global_options)
+        self._run_apolo_cli = make_cmd_exec(
+            "apolo", global_options=encode_global_options(global_options)
         )
-        self._run_extras_cli = make_cmd_exec("neuro-extras")
+        self._run_extras_cli = make_cmd_exec("apolo-extras")
         self._dry_run = dry_run
 
     async def init_flow(self) -> None:
@@ -295,7 +295,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
         meta_ctx = await self._ensure_meta(job_id, suffix)
         try:
             async for descr in self._resolve_jobs(meta_ctx, suffix):
-                await self._run_neuro_cli("status", descr.id)
+                await self._run_apolo_cli("status", descr.id)
         except ResourceNotFound:
             self._console.print(f"Job [b]{job_id}[/b] is not running")
             sys.exit(1)
@@ -344,9 +344,9 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
                         job = await self.flow.get_multi_job(job_id, suffix, (), params)
                     # attach to job if needed, browse first
                     if job.browse:
-                        await self._run_neuro_cli("job", "browse", descr.id)
+                        await self._run_apolo_cli("job", "browse", descr.id)
                     if not job.detach:
-                        await self._run_neuro_cli("attach", descr.id)
+                        await self._run_apolo_cli("attach", descr.id)
                     return True
                 # Here the status is SUCCEED, CANCELLED or FAILED, restart
             except ResourceNotFound:
@@ -450,7 +450,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
             run_args.extend(args)
 
         if self._dry_run:
-            run_args = ["neuro", *run_args]
+            run_args = ["apolo", *run_args]
             self._console.print(
                 " ".join(shlex.quote(arg) for arg in run_args), soft_wrap=True
             )
@@ -466,14 +466,14 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
                 yaml_id=job_meta.id,
                 tags=job_meta.tags,
             )
-        await self._run_neuro_cli(*run_args)
+        await self._run_apolo_cli(*run_args)
 
     async def logs(self, job_id: str, suffix: Optional[str]) -> None:
         """Return job logs"""
         meta_ctx = await self._ensure_meta(job_id, suffix)
         try:
             async for descr in self._resolve_jobs(meta_ctx, suffix):
-                await self._run_neuro_cli("logs", descr.id)
+                await self._run_apolo_cli("logs", descr.id)
         except ResourceNotFound:
             self._console.print(f"Job {fmt_id(job_id)} is not running")
             sys.exit(1)
@@ -553,12 +553,12 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
 
     async def upload(self, volume: str) -> None:
         volume_ctx = await self.find_volume(volume)
-        await self._run_neuro_cli(
+        await self._run_apolo_cli(
             "mkdir",
             "--parents",
             str(volume_ctx.remote.parent),
         )
-        await self._run_neuro_cli(
+        await self._run_apolo_cli(
             "cp",
             "--recursive",
             "--update",
@@ -569,7 +569,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
 
     async def download(self, volume: str) -> None:
         volume_ctx = await self.find_volume(volume)
-        await self._run_neuro_cli(
+        await self._run_apolo_cli(
             "cp",
             "--recursive",
             "--update",
@@ -580,7 +580,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
 
     async def clean(self, volume: str) -> None:
         volume_ctx = await self.find_volume(volume)
-        await self._run_neuro_cli("rm", "--recursive", str(volume_ctx.remote))
+        await self._run_apolo_cli("rm", "--recursive", str(volume_ctx.remote))
 
     async def upload_all(self) -> None:
         for volume in self.flow.volumes.values():
@@ -602,7 +602,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
             if volume.local is not None:
                 volume_ctx = await self.find_volume(volume.id)
                 self._console.print(f"Create volume [b]{volume.id}[/b]")
-                await self._run_neuro_cli(
+                await self._run_apolo_cli(
                     "mkdir",
                     "--parents",
                     str(volume_ctx.remote),

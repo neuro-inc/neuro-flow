@@ -10,10 +10,10 @@ import logging
 import re
 import shlex
 from abc import ABC, abstractmethod
+from apolo_sdk import Client
 from contextlib import asynccontextmanager
 from datetime import timedelta
 from functools import lru_cache
-from neuro_sdk import Client
 from typing import (
     AbstractSet,
     Any,
@@ -35,11 +35,11 @@ from typing import (
 from typing_extensions import Annotated, Protocol
 from yarl import URL
 
-from neuro_flow import ast
-from neuro_flow.ast import InputType
-from neuro_flow.colored_topo_sorter import ColoredTopoSorter
-from neuro_flow.config_loader import ActionSpec, ConfigLoader
-from neuro_flow.expr import (
+from apolo_flow import ast
+from apolo_flow.ast import InputType
+from apolo_flow.colored_topo_sorter import ColoredTopoSorter
+from apolo_flow.config_loader import ActionSpec, ConfigLoader
+from apolo_flow.expr import (
     BaseMappingExpr,
     BaseSequenceExpr,
     ConcatSequenceExpr,
@@ -54,8 +54,8 @@ from neuro_flow.expr import (
     StrExpr,
     TypeT,
 )
-from neuro_flow.types import AlwaysT, FullID, GitInfo, LocalPath, RemotePath, TaskStatus
-from neuro_flow.utils import collect_git_info
+from apolo_flow.types import AlwaysT, FullID, GitInfo, LocalPath, RemotePath, TaskStatus
+from apolo_flow.utils import collect_git_info
 
 
 log = logging.getLogger(__name__)
@@ -80,7 +80,7 @@ class UnknownTask(KeyError):
 PROJECT_ROLE_DEPRECATED_MSG = (
     "Flow roles are deprecated and will be ignored. "
     "To grant access to the flow and its artifacts, please add users "
-    "to the corresponding project using `neuro admin add-project-user`."
+    "to the corresponding project using `apolo admin add-project-user`."
 )
 
 # ...Ctx types, they define parts that can be available in expressions
@@ -372,7 +372,7 @@ class EmptyRoot(RootABC):
 
     @asynccontextmanager
     async def client(self) -> AsyncIterator[Client]:
-        raise RuntimeError("neuro API is not available in <empty> context")
+        raise RuntimeError("apolo API is not available in <empty> context")
         yield Client()  # fake lint to make the code a real async iterator
 
     @property
@@ -1269,8 +1269,7 @@ def check_module_call_is_local(action_name: str, call_ast: ast.BaseModuleCall) -
 
 class SupportsAstMerge(Protocol):
     @property
-    def _specified_fields(self) -> AbstractSet[str]:
-        ...
+    def _specified_fields(self) -> AbstractSet[str]: ...
 
 
 _MergeTarget = TypeVar("_MergeTarget", bound=SupportsAstMerge)
@@ -1308,12 +1307,10 @@ async def merge_asts(child: _MergeTarget, parent: SupportsAstMerge) -> _MergeTar
 
 class MixinApplyTarget(Protocol):
     @property
-    def mixins(self) -> Optional[Sequence[StrExpr]]:
-        ...
+    def mixins(self) -> Optional[Sequence[StrExpr]]: ...
 
     @property
-    def _specified_fields(self) -> AbstractSet[str]:
-        ...
+    def _specified_fields(self) -> AbstractSet[str]: ...
 
 
 _MixinApplyTarget = TypeVar("_MixinApplyTarget", bound=MixinApplyTarget)

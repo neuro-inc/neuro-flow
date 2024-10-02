@@ -55,5 +55,5 @@ check-mixins:
 
 .PHONY: changelog
 changelog:
-	@echo Do not forget to update src/neuro_flow/__init__.py
+	@echo Do not forget to update src/apolo_flow/__init__.py
 	towncrier

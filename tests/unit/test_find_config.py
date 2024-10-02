@@ -1,11 +1,11 @@
 import pytest
 import socket
 import sys
-from neuro_sdk import Client
+from apolo_sdk import Client
 from pathlib import Path
 
-from neuro_flow.config_loader import LiveLocalCL
-from neuro_flow.parser import find_workspace
+from apolo_flow.config_loader import LiveLocalCL
+from apolo_flow.parser import find_workspace
 
 
 async def test_not_exists(tmp_path: Path, client: Client) -> None:
@@ -15,7 +15,7 @@ async def test_not_exists(tmp_path: Path, client: Client) -> None:
         LiveLocalCL(find_workspace(d), client).flow_path("live")
 
 
-def test_neuro_not_found(tmp_path: Path) -> None:
+def test_apolo_not_found(tmp_path: Path) -> None:
     with pytest.raises(
         ValueError, match=r"\.neuro folder was not found in lookup for .+"
     ):

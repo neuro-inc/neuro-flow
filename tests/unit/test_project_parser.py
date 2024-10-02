@@ -1,7 +1,7 @@
 import pathlib
 
-from neuro_flow import ast
-from neuro_flow.expr import (
+from apolo_flow import ast
+from apolo_flow.expr import (
     ImageRefStrExpr,
     MappingItemsExpr,
     OptBashExpr,
@@ -21,8 +21,8 @@ from neuro_flow.expr import (
     SimpleOptStrExpr,
     StrExpr,
 )
-from neuro_flow.parser import parse_project_stream
-from neuro_flow.tokenizer import Pos
+from apolo_flow.parser import parse_project_stream
+from apolo_flow.tokenizer import Pos
 
 
 def test_parse_full(assets: pathlib.Path) -> None:
@@ -381,7 +381,7 @@ def test_parse_full(assets: pathlib.Path) -> None:
                 cmd=OptPythonExpr(
                     Pos(0, 0, config_file),
                     Pos(0, 0, config_file),
-                    'print("hello neuro-flow")\n',
+                    'print("hello apolo-flow")\n',
                 ),
                 restart=OptRestartPolicyExpr(
                     Pos(0, 0, config_file), Pos(0, 0, config_file), None

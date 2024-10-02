@@ -1,13 +1,13 @@
+import apolo_sdk
 import click
-import neuro_sdk
 from contextlib import AsyncExitStack
 
-from neuro_flow.cli.click_types import LIVE_VOLUME_OR_ALL
-from neuro_flow.cli.root import Root
-from neuro_flow.cli.utils import argument, wrap_async
-from neuro_flow.live_runner import LiveRunner
-from neuro_flow.storage.api import ApiStorage
-from neuro_flow.storage.base import Storage
+from apolo_flow.cli.click_types import LIVE_VOLUME_OR_ALL
+from apolo_flow.cli.root import Root
+from apolo_flow.cli.utils import argument, wrap_async
+from apolo_flow.live_runner import LiveRunner
+from apolo_flow.storage.api import ApiStorage
+from apolo_flow.storage.base import Storage
 
 
 @click.command()
@@ -22,7 +22,7 @@ async def upload(
     Upload local files to remote for VOLUME,
     use `upload ALL` for uploading all volumes."""
     async with AsyncExitStack() as stack:
-        client = await stack.enter_async_context(neuro_sdk.get())
+        client = await stack.enter_async_context(apolo_sdk.get())
         storage: Storage = await stack.enter_async_context(ApiStorage(client))
         runner = await stack.enter_async_context(
             LiveRunner(root.config_dir, root.console, client, storage, root)
@@ -45,7 +45,7 @@ async def download(
     Download remote files to local for VOLUME,
     use `download ALL` for downloading all volumes."""
     async with AsyncExitStack() as stack:
-        client = await stack.enter_async_context(neuro_sdk.get())
+        client = await stack.enter_async_context(apolo_sdk.get())
         storage: Storage = await stack.enter_async_context(ApiStorage(client))
         runner = await stack.enter_async_context(
             LiveRunner(root.config_dir, root.console, client, storage, root)
@@ -68,7 +68,7 @@ async def clean(
     Clean remote files on VOLUME,
     use `clean ALL` for cleaning up all volumes."""
     async with AsyncExitStack() as stack:
-        client = await stack.enter_async_context(neuro_sdk.get())
+        client = await stack.enter_async_context(apolo_sdk.get())
         storage: Storage = await stack.enter_async_context(ApiStorage(client))
         runner = await stack.enter_async_context(
             LiveRunner(root.config_dir, root.console, client, storage, root)
@@ -86,7 +86,7 @@ async def mkvolumes(
 ) -> None:
     """Create all remote folders for volumes."""
     async with AsyncExitStack() as stack:
-        client = await stack.enter_async_context(neuro_sdk.get())
+        client = await stack.enter_async_context(apolo_sdk.get())
         storage: Storage = await stack.enter_async_context(ApiStorage(client))
         runner = await stack.enter_async_context(
             LiveRunner(root.config_dir, root.console, client, storage, root)

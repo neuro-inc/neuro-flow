@@ -1,6 +1,6 @@
 from textwrap import dedent
 
-from neuro_flow.commands import CmdProcessor
+from apolo_flow.commands import CmdProcessor
 
 
 async def test_empty() -> None:

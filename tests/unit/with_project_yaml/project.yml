@@ -8,9 +8,9 @@ images:
     context: dir
     dockerfile: dir/Dockerfile
     build_args:
-    - --arg1
-    - val1
-    - --arg2=val2
+      - --arg1
+      - val1
+      - --arg2=val2
     env:
       SECRET_ENV: secret:key
     volumes:
@@ -56,4 +56,4 @@ mixins:
   with_python:
     image: mixin-image
     python: |
-      print("hello neuro-flow")
+      print("hello apolo-flow")

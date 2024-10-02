@@ -9,9 +9,8 @@ on:
   pull_request_target:
     branches: [master]
   schedule:
-  - cron: 0 4 * * *
+    - cron: 0 15 * * *
 jobs:
-
   lint:
     name: Linter
     runs-on: ubuntu-latest
@@ -22,53 +21,53 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.version }}
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4
-    - name: Setup Python 3.9
-      uses: actions/setup-python@v5
-      with:
-        python-version: 3.9
-    - name: Cache pre-commit hooks
-      uses: actions/cache@v4
-      with:
-        path: ~/.cache/pre-commit
-        key: pre-commit|py3.9|${{ hashFiles('.pre-commit-config.yaml') }}
-    - name: Cache PyPI
-      uses: actions/cache@v4
-      with:
-        key: pip-lint-${{ hashFiles('requirements/*.txt') }}
-        path: ~/.cache/pip
-        restore-keys: |
-          pip-lint-
-    - name: Install dependencies
-      uses: py-actions/py-dependency-install@v4
-      with:
-        path: requirements/ci.txt
-    - name: Run linters
-      run: |
-        make lint
-      env:
-        CI_LINT_RUN: 1
-    - name: Save the package version
-      id: version
-      run: |
-        echo "version=$(python setup.py --version)" >> $GITHUB_OUTPUT
-    - name: Show version
-      run: |
-        echo ${{ steps.version.outputs.version }}
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Python 3.9
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.9
+      - name: Cache pre-commit hooks
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pre-commit
+          key: pre-commit|py3.9|${{ hashFiles('.pre-commit-config.yaml') }}
+      - name: Cache PyPI
+        uses: actions/cache@v4
+        with:
+          key: pip-lint-${{ hashFiles('requirements/*.txt') }}
+          path: ~/.cache/pip
+          restore-keys: |
+            pip-lint-
+      - name: Install dependencies
+        uses: py-actions/py-dependency-install@v4
+        with:
+          path: requirements/ci.txt
+      - name: Run linters
+        run: |
+          make lint
+        env:
+          CI_LINT_RUN: 1
+      - name: Save the package version
+        id: version
+        run: |
+          echo "version=$(python setup.py --version)" >> $GITHUB_OUTPUT
+      - name: Show version
+        run: |
+          echo ${{ steps.version.outputs.version }}
 
   unit:
     name: Unit
     needs: [lint]
     strategy:
       matrix:
-        python-version: ['3.8', '3.9', '3.10', '3.11']
+        python-version: ["3.8", "3.9", "3.10", "3.11"]
         os: [ubuntu, macos, windows]
         exclude:
-        - python-version: '3.9'
-          os: macos
-        - python-version: '3.10'
-          os: windows
+          - python-version: "3.9"
+            os: macos
+          - python-version: "3.10"
+            os: windows
       fail-fast: false
     runs-on: ${{ matrix.os }}-latest
     timeout-minutes: 10
@@ -76,53 +75,54 @@ jobs:
       run:
         shell: bash
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4
-    - name: Setup Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
-      with:
-        python-version: ${{ matrix.python-version }}
-    - name: Get pip cache dir
-      id: pip-cache
-      run: |
-        echo "dir=$(pip cache dir)" >> $GITHUB_OUTPUT
-    - name: Cache PyPI
-      uses: actions/cache@v4
-      with:
-        key: pip-ci-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('requirements/*.txt') }}
-        path: ${{ steps.pip-cache.outputs.dir }}
-        restore-keys: |
-          pip-ci-${{ runner.os }}-${{ matrix.python-version }}-
-    - name: Install dependencies
-      uses: py-actions/py-dependency-install@v4
-      with:
-        path: requirements/ci.txt
-    - name: Authorize ssh agent
-      uses: webfactory/ssh-agent@v0.9.0
-      with:
-        ssh-private-key: ${{ secrets.MLOPS_TEST_ACTION_SSH_KEY }}
-    - name: Run unittests
-      env:
-        E2E_USER_TOKEN: ${{ secrets.CLIENT_TEST_E2E_USER_NAME }}
-        E2E_API_ENDPOINT: https://dev.neu.ro/api/v1
-        E2E_CLUSTER: default
-        COLOR: yes
-      run: |
-        make test
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Get pip cache dir
+        id: pip-cache
+        run: |
+          echo "dir=$(pip cache dir)" >> $GITHUB_OUTPUT
+      - name: Cache PyPI
+        uses: actions/cache@v4
+        with:
+          key: pip-ci-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('requirements/*.txt') }}
+          path: ${{ steps.pip-cache.outputs.dir }}
+          restore-keys: |
+            pip-ci-${{ runner.os }}-${{ matrix.python-version }}-
+      - name: Install dependencies
+        uses: py-actions/py-dependency-install@v4
+        with:
+          path: requirements/ci.txt
+      - name: Authorize ssh agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.MLOPS_TEST_ACTION_SSH_KEY }}
+      - name: Run unittests
+        env:
+          E2E_USER_TOKEN: ${{ secrets.CLIENT_TEST_E2E_USER_NAME }}
+          E2E_API_ENDPOINT: https://dev.neu.ro/api/v1
+          E2E_CLUSTER: default
+          COLOR: yes
+        run: |
+          make test
 
   e2e:
     name: E2E
     needs: [unit]
     continue-on-error: true
     strategy:
+      max-parallel: 2
       matrix:
-        python-version: ['3.8', '3.9', '3.10', '3.11']
+        python-version: ["3.8", "3.9", "3.10", "3.11"]
         os: [ubuntu, macos, windows]
         exclude:
-        - python-version: '3.9'
-          os: macos
-        - python-version: '3.10'
-          os: windows
+          - python-version: "3.9"
+            os: macos
+          - python-version: "3.10"
+            os: windows
       fail-fast: false
     runs-on: ${{ matrix.os }}-latest
     timeout-minutes: 20
@@ -130,37 +130,37 @@ jobs:
       run:
         shell: bash
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4
-    - name: Setup Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
-      with:
-        python-version: ${{ matrix.python-version }}
-    - name: Get pip cache dir
-      id: pip-cache
-      run: |
-        echo "dir=$(pip cache dir)" >> $GITHUB_OUTPUT
-    - name: Cache PyPI
-      uses: actions/cache@v4
-      with:
-        key: pip-ci-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('requirements/*.txt') }}
-        path: ${{ steps.pip-cache.outputs.dir }}
-        restore-keys: |
-          pip-ci-${{ runner.os }}-${{ matrix.python-version }}-
-    - name: Install dependencies
-      uses: py-actions/py-dependency-install@v4
-      with:
-        path: requirements/ci.txt
-    - name: Run e2e tests
-      env:
-        E2E_USER_TOKEN: ${{ secrets.CLIENT_TEST_E2E_USER_NAME }}
-        E2E_API_ENDPOINT: https://dev.neu.ro/api/v1
-        E2E_CLUSTER: default
-        COLOR: yes
-      run: |
-        make test-e2e
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Get pip cache dir
+        id: pip-cache
+        run: |
+          echo "dir=$(pip cache dir)" >> $GITHUB_OUTPUT
+      - name: Cache PyPI
+        uses: actions/cache@v4
+        with:
+          key: pip-ci-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('requirements/*.txt') }}
+          path: ${{ steps.pip-cache.outputs.dir }}
+          restore-keys: |
+            pip-ci-${{ runner.os }}-${{ matrix.python-version }}-
+      - name: Install dependencies
+        uses: py-actions/py-dependency-install@v4
+        with:
+          path: requirements/ci.txt
+      - name: Run e2e tests
+        env:
+          E2E_USER_TOKEN: ${{ secrets.CLIENT_TEST_E2E_USER_NAME }}
+          E2E_API_ENDPOINT: https://dev.neu.ro/api/v1
+          E2E_CLUSTER: default
+          COLOR: yes
+        run: |
+          make test-e2e
 
-  check:  # This job does nothing and is only used for the branch protection
+  check: # This job does nothing and is only used for the branch protection
     name: Check
     needs: [lint, unit, e2e]
     runs-on: ubuntu-latest
@@ -176,54 +176,67 @@ jobs:
     # Run only on pushing a tag
     if: github.event_name == 'push' && contains(github.ref, 'refs/tags/')
     steps:
-    - name: Sanity check for tag and version
-      run: |
-        if [ "refs/tags/v${{ needs.lint.outputs.version }}" != "${{ github.ref }}" ]
-        then
-          echo "Tag ${{ github.ref }} mismatches with ${{ needs.lint.outputs.version }}"
-          exit 1
-        else
-          echo "Tag matches version ${{ needs.lint.outputs.version }}"
-        fi
-    - name: Checkout
-      uses: actions/checkout@v4
-    - name: Setup Python 3.9
-      uses: actions/setup-python@v5
-      with:
-        python-version: 3.9
-    - name: Install dependencies
-      uses: py-actions/py-dependency-install@v4
-      with:
-        path: requirements/ci.txt
-    - name: Login to DockerHub
-      uses: docker/login-action@v3.0.0
-      with:
-        registry: ghcr.io
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
-    - name: Make dists
-      run: |
-        python setup.py sdist bdist_wheel
-    - name: Build Docker Image
-      run: |
-        docker build -t "ghcr.io/neuro-inc/neuro-flow:${VERSION}" \
-            --build-arg NEURO_FLOW_DIST="$( find dist -name '*.whl' )" \
-            .
-      env:
-        VERSION: ${{ needs.lint.outputs.version }}
-    - name: Push Docker Image
-      run: |
-        docker push ghcr.io/neuro-inc/neuro-flow:${{ needs.lint.outputs.version }}
-    - name: GitHub Release
-      uses: aio-libs/create-release@v1.6.6
-      with:
-        changes_file: CHANGELOG.md
-        name: Neuro Flow
-        github_token: ${{ secrets.GITHUB_TOKEN }}
-        pypi_token: ${{ secrets.PYPI_TOKEN }}
-        version_file: src/neuro_flow/__init__.py   # CLI has the same version
-        start_line: "[comment]: # (towncrier release notes start)"
-        head_line: "# Neuro Flow {version}\\s+\\({date}\\)\n?"
-        fix_issue_regex: "\\(\\[#(\\d+)\\]\\(https://github.com/neuro-inc/neuro-flow/issues/\\\
-          1\\)\\)"
-        fix_issue_repl: "(#\\1)"
+      - name: Sanity check for tag and version
+        run: |
+          if [ "refs/tags/v${{ needs.lint.outputs.version }}" != "${{ github.ref }}" ]
+          then
+            echo "Tag ${{ github.ref }} mismatches with ${{ needs.lint.outputs.version }}"
+            exit 1
+          else
+            echo "Tag matches version ${{ needs.lint.outputs.version }}"
+          fi
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Python 3.9
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.9
+      - name: Install dependencies
+        uses: py-actions/py-dependency-install@v4
+        with:
+          path: requirements/ci.txt
+      - name: Login to DockerHub
+        uses: docker/login-action@v3.3.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Make dists
+        run: |
+          python setup.py sdist bdist_wheel
+      - name: Build Docker Image
+        run: |
+          docker build -t "ghcr.io/neuro-inc/apolo-flow:${VERSION}" \
+              --build-arg APOLO_FLOW_DIST="$( find dist -name '*.whl' )" \
+              .
+        env:
+          VERSION: ${{ needs.lint.outputs.version }}
+      - name: Push Docker Image
+        run: |
+          docker push ghcr.io/neuro-inc/apolo-flow:${{ needs.lint.outputs.version }}
+      - name: GitHub Release
+        uses: aio-libs/create-release@v1.6.6
+        with:
+          changes_file: CHANGELOG.md
+          name: Apolo Flow
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          pypi_token: ${{ secrets.PYPI_TOKEN }}
+          version_file: src/apolo_flow/__init__.py # CLI has the same version
+          start_line: "[comment]: # (towncrier release notes start)"
+          head_line: "# Apolo Flow {version}\\s+\\({date}\\)\n?"
+          fix_issue_regex:
+            "\\(\\[#(\\d+)\\]\\(https://github.com/neuro-inc/neuro-flow/issues/\\\
+            1\\)\\)"
+          fix_issue_repl: "(#\\1)"
+
+      - name: Make publish neuro dist
+        # publishing neuro-flow for backward compatibility
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_NEURO_TOKEN }}
+        run: |
+          rm -r dist build
+          python -m pip install twine
+          sed -i 's/name = apolo-flow/name = neuro-flow/g' setup.cfg
+          python setup.py sdist bdist_wheel
+          twine upload dist/*

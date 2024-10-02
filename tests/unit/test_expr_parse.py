@@ -5,7 +5,7 @@ from textwrap import dedent
 from typing import Any
 from typing_extensions import Final
 
-from neuro_flow.expr import (
+from apolo_flow.expr import (
     FUNCTIONS,
     PARSER,
     AttrGetter,
@@ -21,8 +21,8 @@ from neuro_flow.expr import (
     logical_and,
     logical_or,
 )
-from neuro_flow.tokenizer import Pos, tokenize
-from neuro_flow.types import LocalPath
+from apolo_flow.tokenizer import Pos, tokenize
+from apolo_flow.types import LocalPath
 
 
 FNAME = LocalPath("<test>")

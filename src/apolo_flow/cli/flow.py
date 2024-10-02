@@ -5,7 +5,7 @@ import click
 from pathlib import Path
 from typing import List, Optional
 
-from neuro_flow.cli.utils import wrap_async
+from apolo_flow.cli.utils import wrap_async
 
 from .root import Root
 
