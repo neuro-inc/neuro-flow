@@ -5,7 +5,9 @@ import shlex
 import sys
 import textwrap
 from apolo_sdk import (
+    BadGateway,
     Client,
+    ClientError,
     DiskVolume,
     EnvParseResult,
     HTTPPort,
@@ -16,6 +18,7 @@ from apolo_sdk import (
     RemoteImage,
     ResourceNotFound,
     SecretFile,
+    ServerNotAvailable,
     Tag,
     Volume,
     VolumeParseResult,
@@ -34,7 +37,6 @@ from typing import (
     Dict,
     Generic,
     Iterable,
-    List,
     Mapping,
     Optional,
     Sequence,
@@ -87,6 +89,7 @@ from .utils import (
     fmt_id,
     fmt_raw_id,
     fmt_status,
+    retries,
     retry,
 )
 
@@ -416,16 +419,35 @@ class RetryReadNeuroClient(RetryConfig):
     async def job_status(self, raw_id: str) -> JobDescription:
         return await self._client.jobs.status(raw_id)
 
-    @retry
-    async def _job_logs(self, raw_id: str) -> List[bytes]:
-        chunks = []
-        async for chunk in self._client.jobs.monitor(raw_id):
-            chunks.append(chunk)
-        return chunks
-
     async def job_logs(self, raw_id: str) -> AsyncIterator[bytes]:
-        for chunk in await self._job_logs(raw_id):
-            yield chunk
+        processed_bytes = 0
+        for attempt in retries(
+            f"job_logs({raw_id!r})",
+            timeout=self._retry_timeout,
+            delay=self._delay,
+            factor=self._delay_factor,
+            cap=self._delay_cap,
+            exceptions=(ClientError, ServerNotAvailable, BadGateway, OSError),
+        ):
+            async with attempt:
+                left = 0
+                async for chunk in self._client.jobs.monitor(raw_id):
+                    chunk_len = len(chunk)
+                    if left == processed_bytes:
+                        # yield the whole chunk
+                        yield chunk
+                        processed_bytes += chunk_len
+                        left = processed_bytes
+                    elif left + chunk_len <= processed_bytes:
+                        # skip the whole chunk
+                        left += chunk_len
+                    else:
+                        # yield a partial chunk
+                        yield chunk[processed_bytes - left :]
+                        processed_bytes += chunk_len
+                        left = processed_bytes
+                return
+        assert False, "Unreachable"
 
     async def job_kill(self, raw_id: str) -> None:
         await self._client.jobs.kill(raw_id)
