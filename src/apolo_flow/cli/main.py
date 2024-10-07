@@ -1,7 +1,6 @@
 import click
 import logging
 import sys
-from apolo_cli.asyncio_utils import setup_child_watcher
 from apolo_cli.log_formatter import ConsoleHandler
 from click.exceptions import Abort as ClickAbort, Exit as ClickExit
 from datetime import datetime
@@ -19,8 +18,6 @@ from .root import Root
 
 
 log = logging.getLogger(__name__)
-
-setup_child_watcher()
 
 
 def setup_logging(color: bool, verbosity: int, show_traceback: bool) -> None:

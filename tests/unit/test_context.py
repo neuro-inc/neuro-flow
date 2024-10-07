@@ -41,7 +41,6 @@ def test_inavailable_context_ctor() -> None:
 
 @pytest.fixture
 async def live_config_loader(
-    loop: None,
     assets: pathlib.Path,
     client: Client,
 ) -> AsyncIterator[ConfigLoader]:
@@ -56,7 +55,6 @@ async def live_config_loader(
 
 @pytest.fixture
 async def batch_config_loader(
-    loop: None,
     assets: pathlib.Path,
     client: Client,
 ) -> AsyncIterator[ConfigLoader]:
@@ -227,7 +225,9 @@ async def test_local_remote_path_images(
     )
     assert ctx.images["image_local"].dockerfile_rel == LocalPath("Dockerfile")
 
-    cluster_project = f"{client.cluster_name}/{client.config.project_name_or_raise}"
+    cluster_project = (
+        f"{client.cluster_name}/NO_ORG/{client.config.project_name_or_raise}"
+    )
     assert ctx.images["image_remote"].context == URL(f"storage://{cluster_project}/dir")
     assert ctx.images["image_remote"].dockerfile == URL(
         f"storage://{cluster_project}/dir/Dockerfile"
@@ -1328,13 +1328,13 @@ async def test_batch_with_non_current_project(
         assert task.env["global_b"] == "val-b"
         assert task.volumes == [
             "storage:common:/mnt/common:rw",
-            f"storage://other-cluster/test-project-name/dir:/var/dir:ro",
+            f"storage://other-cluster/NO_ORG/test-project-name/dir:/var/dir:ro",
         ]
         assert task.workdir == RemotePath("/global/dir")
         assert task.life_span == 100800.0
         assert task.preset == "cpu-large"
         assert task.schedule_timeout == 2157741.0
-        assert task.image == "image://other-cluster/test-project-name/main"
+        assert task.image == "image://other-cluster/NO_ORG/test-project-name/main"
 
         assert not task.strategy.fail_fast
         assert task.strategy.max_parallel == 20

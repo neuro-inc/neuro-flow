@@ -346,7 +346,7 @@ class ApiStorage(Storage):
         self,
         project_name: str,
         cluster_name: str,
-        org_name: Optional[str] = None,
+        org_name: str,
     ) -> None:
         await self._client.config.fetch()
         needed_key = ApoloProject.Key(cluster_name, org_name, project_name)

@@ -1190,7 +1190,7 @@ async def setup_matrix(
     for row in itertools.product(*products):
         dct: Dict[str, LiteralT] = {}
         for elem in row:
-            dct.update(elem)
+            dct.update(elem)  # type: ignore[arg-type]
         matrices.append(dct)
     # Exclude
     exclude = []
@@ -2940,7 +2940,7 @@ def _hash(val: Any) -> str:
 
 
 def _ctx_default(val: Any) -> Any:
-    if dataclasses.is_dataclass(val):
+    if not isinstance(val, type) and dataclasses.is_dataclass(val):
         if hasattr(val, "_client"):
             val = dataclasses.replace(val, _client=None)
         if hasattr(val, "_parent") and hasattr(val._parent, "_client"):

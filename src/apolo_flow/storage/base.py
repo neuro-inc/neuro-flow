@@ -166,7 +166,7 @@ class Storage(abc.ABC):
         await self.close()
 
     async def check_can_create_for_user_context(
-        self, project_name: str, cluster_name: str, org_name: Optional[str] = None
+        self, project_name: str, cluster_name: str, org_name: str
     ) -> None:
         pass
 
@@ -236,7 +236,7 @@ class Storage(abc.ABC):
         yaml_id: str,
         project_name: str,
         cluster: str,
-        org_name: Optional[str] = None,
+        org_name: str,
         owner: Optional[str] = None,
     ) -> Project:
         try:
