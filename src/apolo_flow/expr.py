@@ -235,7 +235,7 @@ async def fmt(ctx: CallCtx, spec: str, *args: TypeT) -> str:
 
 class JSONEncoder(json.JSONEncoder):
     def default(self, obj: Any) -> Any:
-        if dataclasses.is_dataclass(obj):
+        if not isinstance(obj, type) and dataclasses.is_dataclass(obj):
             return dataclasses.asdict(obj)
         elif isinstance(obj, enum.Enum):
             return obj.value

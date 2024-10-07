@@ -29,7 +29,6 @@ BatchClFactory = Callable[[str], AsyncContextManager[ConfigLoader]]
 
 @pytest.fixture
 async def batch_cl_factory(
-    loop: None,
     assets: pathlib.Path,
     client: Client,
 ) -> Callable[[str], AsyncContextManager[ConfigLoader]]:
@@ -47,7 +46,7 @@ async def batch_cl_factory(
 
 
 @pytest.fixture()
-def batch_storage(loop: None) -> Storage:
+async def batch_storage() -> Storage:
     return InMemoryStorage()
 
 
@@ -192,7 +191,9 @@ async def test_upload_image_data(
 ) -> None:
     async with batch_cl_factory("batch_images") as cl:
         flow = await RunningBatchFlow.create(cl, "batch", "bake-id")
-        project = await batch_storage.get_or_create_project("test", "test", "test")
+        project = await batch_storage.get_or_create_project(
+            "test", "test", "test", "test"
+        )
         project_storage = batch_storage.project(id=project.id)
         bake = await project_storage.create_bake(
             batch="batch",

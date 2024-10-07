@@ -194,7 +194,7 @@ async def drop_old_test_images(
 
     tasks = []
     for image_str in res.out.splitlines():
-        tasks.append(asyncio.ensure_future(_drop_iamge(image_str)))
+        tasks.append(asyncio.create_task(_drop_iamge(image_str)))
 
     if tasks:
         await asyncio.wait(tasks)
@@ -230,7 +230,7 @@ async def drop_old_roles(
 
     tasks = []
     for project in res.out.splitlines():
-        tasks.append(asyncio.ensure_future(_drop_role(project)))
+        tasks.append(asyncio.create_task(_drop_role(project)))
 
     if tasks:
         await asyncio.wait(tasks)

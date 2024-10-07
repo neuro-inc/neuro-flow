@@ -8,6 +8,7 @@ from asyncio import iscoroutinefunction
 from click.types import convert_type
 from contextlib import contextmanager
 from typing import Any, Awaitable, Callable, Iterator, TypeVar
+from typing_extensions import ParamSpec
 
 from apolo_flow.storage.base import Storage
 
@@ -20,27 +21,28 @@ def _runner() -> Iterator[Runner]:
     try:
         with Runner() as runner:
             yield runner
-            sys.stderr = None  # type: ignore
+            sys.stderr = None
     finally:
         sys.stderr = sys.__stderr__
 
 
 _T = TypeVar("_T")
+_P = ParamSpec("_P")
 
 
 def wrap_async(
     pass_obj: bool = True, init_client: bool = True
-) -> Callable[[Callable[..., Awaitable[_T]]], Callable[..., _T]]:
-    def _decorator(callback: Callable[..., Awaitable[_T]]) -> Callable[..., _T]:
+) -> Callable[[Callable[_P, Awaitable[_T]]], Callable[_P, _T]]:
+    def _decorator(callback: Callable[_P, Awaitable[_T]]) -> Callable[_P, _T]:
         assert iscoroutinefunction(callback)
 
         @functools.wraps(callback)
-        def wrapper(*args: Any, **kwargs: Any) -> _T:
+        def wrapper(*args: _P.args, **kwargs: _P.kwargs) -> _T:
             with _runner() as runner:
                 return runner.run(callback(*args, **kwargs))
 
         if pass_obj:
-            wrapper = click.pass_obj(wrapper)
+            wrapper = click.pass_obj(wrapper)  # type: ignore[assignment]
 
         return wrapper
 
