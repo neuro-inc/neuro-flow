@@ -39,9 +39,14 @@ from typing import (
     Sequence,
     Tuple,
 )
+from unittest.mock import AsyncMock, MagicMock, Mock
 from yarl import URL
 
-from apolo_flow.batch_executor import BatchExecutor, LocalsBatchExecutor
+from apolo_flow.batch_executor import (
+    BatchExecutor,
+    LocalsBatchExecutor,
+    RetryReadNeuroClient,
+)
 from apolo_flow.batch_runner import BatchRunner
 from apolo_flow.parser import ConfigDir
 from apolo_flow.storage.base import Storage, Task
@@ -1462,3 +1467,51 @@ async def test_image_builds_cancel(
 
     descr = await jobs_mock.get_task(job_id)
     assert descr.status == JobStatus.CANCELLED
+
+
+class TestRetryReadNeuroClientLogs:
+    @pytest.fixture
+    def logs(self) -> Mock:
+        return Mock()
+
+    @pytest.fixture
+    def client(self, logs: Mock) -> RetryReadNeuroClient:
+        client = AsyncMock()
+        client.jobs = Mock()
+
+        async def iterate(_: Any) -> AsyncIterator[bytes]:
+            for item in logs.return_value:
+                if (
+                    isinstance(item, type) and issubclass(item, Exception)
+                ) or isinstance(item, Exception):
+                    raise item
+                else:
+                    yield item
+
+        client.jobs.monitor.return_value = ret = MagicMock()
+        ret.__aiter__ = iterate
+        result = RetryReadNeuroClient(client)
+        result._delay = 0.01  # default retry delay is 15 sec
+        return result
+
+    async def get_logs(self, client: RetryReadNeuroClient) -> bytes:
+        ret = []
+        async for chunk in client.job_logs("<raw-id>"):
+            ret.append(chunk)
+        return b"".join(ret)
+
+    async def test_logs_normal(self, logs: Mock, client: RetryReadNeuroClient) -> None:
+        logs.return_value = iter([b"abc", b"de", b"fgij"])
+        assert await self.get_logs(client) == b"abcdefgij"
+
+    async def test_logs_skip_first(
+        self, logs: Mock, client: RetryReadNeuroClient
+    ) -> None:
+        logs.return_value = iter([b"abc", OSError, b"abc", b"de", b"fgij"])
+        assert await self.get_logs(client) == b"abcdefgij"
+
+    async def test_logs_skip_middle(
+        self, logs: Mock, client: RetryReadNeuroClient
+    ) -> None:
+        logs.return_value = iter([b"ab", b"cd", OSError, b"abc", b"de", b"fgij"])
+        assert await self.get_logs(client) == b"abcdefgij"

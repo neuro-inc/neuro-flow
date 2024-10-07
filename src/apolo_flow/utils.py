@@ -227,10 +227,10 @@ def async_retried(
 
 class RetryConfig:
     def __init__(self) -> None:
-        self._retry_timeout = 15 * 60
-        self._delay = 15
+        self._retry_timeout = 15 * 60.0
+        self._delay = 15.0
         self._delay_factor = 1.5
-        self._delay_cap = 60
+        self._delay_cap = 60.0
 
 
 _P = ParamSpec("_P")
