@@ -120,12 +120,16 @@ jobs:
     strategy:
       max-parallel: 2
       matrix:
-        python-version: ["3.8", "3.9", "3.10", "3.11"]
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
         os: [ubuntu, macos, windows]
         exclude:
-          - python-version: "3.9"
+          - python-version: "3.10"
             os: macos
           - python-version: "3.10"
+            os: windows
+          - python-version: "3.11"
+            os: macos
+          - python-version: "3.11"
             os: windows
       fail-fast: false
     runs-on: ${{ matrix.os }}-latest
@@ -218,20 +222,20 @@ jobs:
       - name: Push Docker Image
         run: |
           docker push ghcr.io/neuro-inc/apolo-flow:${{ needs.lint.outputs.version }}
-      - name: GitHub Release
-        uses: aio-libs/create-release@v1.6.6
-        with:
-          changes_file: CHANGELOG.md
-          name: Apolo Flow
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          pypi_token: ${{ secrets.PYPI_TOKEN }}
-          version_file: src/apolo_flow/__init__.py # CLI has the same version
-          start_line: "[comment]: # (towncrier release notes start)"
-          head_line: "# Apolo Flow {version}\\s+\\({date}\\)\n?"
-          fix_issue_regex:
-            "\\(\\[#(\\d+)\\]\\(https://github.com/neuro-inc/neuro-flow/issues/\\\
-            1\\)\\)"
-          fix_issue_repl: "(#\\1)"
+      # - name: GitHub Release
+      #   uses: aio-libs/create-release@v1.6.6
+      #   with:
+      #     changes_file: CHANGELOG.md
+      #     name: Apolo Flow
+      #     github_token: ${{ secrets.GITHUB_TOKEN }}
+      #     pypi_token: ${{ secrets.PYPI_TOKEN }}
+      #     version_file: src/apolo_flow/__init__.py # CLI has the same version
+      #     start_line: "[comment]: # (towncrier release notes start)"
+      #     head_line: "# Apolo Flow {version}\\s+\\({date}\\)\n?"
+      #     fix_issue_regex:
+      #       "\\(\\[#(\\d+)\\]\\(https://github.com/neuro-inc/neuro-flow/issues/\\\
+      #       1\\)\\)"
+      #     fix_issue_repl: "(#\\1)"
 
       - name: Make publish neuro dist
         # publishing neuro-flow for backward compatibility
