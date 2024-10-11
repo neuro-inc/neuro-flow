@@ -222,6 +222,7 @@ jobs:
       - name: Push Docker Image
         run: |
           docker push ghcr.io/neuro-inc/apolo-flow:${{ needs.lint.outputs.version }}
+      # aio-libs/create-release@v1.6.6 is broken, need a fix
       # - name: GitHub Release
       #   uses: aio-libs/create-release@v1.6.6
       #   with:
@@ -237,6 +238,12 @@ jobs:
       #       1\\)\\)"
       #     fix_issue_repl: "(#\\1)"
 
+      - name: Publish apolo dist
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_NEURO_TOKEN }}
+        run: |
+          twine upload dist/*
       - name: Make publish neuro dist
         # publishing neuro-flow for backward compatibility
         env:
