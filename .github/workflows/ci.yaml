@@ -243,6 +243,7 @@ jobs:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_NEURO_TOKEN }}
         run: |
+          python -m pip install twine
           twine upload dist/*
       - name: Make publish neuro dist
         # publishing neuro-flow for backward compatibility
