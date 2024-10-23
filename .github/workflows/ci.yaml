@@ -100,10 +100,10 @@ jobs:
         uses: py-actions/py-dependency-install@v4
         with:
           path: requirements/ci.txt
-      - name: Authorize ssh agent
-        uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.MLOPS_TEST_ACTION_SSH_KEY }}
+      # - name: Authorize ssh agent
+      #   uses: webfactory/ssh-agent@v0.9.0
+      #   with:
+      #     ssh-private-key: ${{ secrets.MLOPS_TEST_ACTION_SSH_KEY }}
       - name: Run unittests
         env:
           E2E_USER_TOKEN: ${{ secrets.CLIENT_TEST_E2E_USER_NAME }}
