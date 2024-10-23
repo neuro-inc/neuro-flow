@@ -107,7 +107,7 @@ jobs:
       - name: Run unittests
         env:
           E2E_USER_TOKEN: ${{ secrets.CLIENT_TEST_E2E_USER_NAME }}
-          E2E_API_ENDPOINT: https://dev.neu.ro/api/v1
+          E2E_API_ENDPOINT: https://api.dev.apolo.us/api/v1
           E2E_CLUSTER: default
           COLOR: yes
         run: |
@@ -162,7 +162,7 @@ jobs:
       - name: Run e2e tests
         env:
           E2E_USER_TOKEN: ${{ secrets.CLIENT_TEST_E2E_USER_NAME }}
-          E2E_API_ENDPOINT: https://dev.neu.ro/api/v1
+          E2E_API_ENDPOINT: https://api.dev.apolo.us/api/v1
           E2E_CLUSTER: default
           COLOR: yes
         run: |
