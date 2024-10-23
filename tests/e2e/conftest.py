@@ -83,7 +83,7 @@ def ws(
 async def api_config(tmp_path_factory: Any) -> AsyncIterator[Optional[pathlib.Path]]:
     e2e_test_token = os.environ.get("E2E_USER_TOKEN")
     e2e_test_api_endpoint = os.environ.get(
-        "E2E_API_ENDPOINT", "https://dev.neu.ro/api/v1"
+        "E2E_API_ENDPOINT", "https://api.dev.apolo.us/api/v1"
     )
     if e2e_test_token:
         tmp_path = tmp_path_factory.mktemp("config")
