@@ -250,7 +250,7 @@ async def test_upload_image_data(
 
 
 @pytest.mark.xfail(
-    condition=sys.platform == "win32" or "GITHUB_USER" in os.environ,
+    condition=sys.platform == "win32" or "GITHUB_ACTOR" in os.environ,
     reason="ssh-agent config action does not properly work on Windows runners, \n"
     "TODO: setup ssh private key for fetching from external github repo",
 )
