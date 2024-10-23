@@ -250,12 +250,9 @@ async def test_upload_image_data(
 
 
 @pytest.mark.xfail(
-    condition=sys.platform == "win32",
-    reason="ssh-agent config action does not properly work on Windows runners",
-)
-@pytest.mark.skipif(
-    "GITHUB_USER" in os.environ,
-    reason="TODO: setup ssh private key for fetching from external github repo",
+    condition=sys.platform == "win32" or "GITHUB_USER" in os.environ,
+    reason="ssh-agent config action does not properly work on Windows runners, \n"
+    "TODO: setup ssh private key for fetching from external github repo",
 )
 async def test_check_image_refs_unique_gh(
     batch_cl_factory: BatchClFactory,
