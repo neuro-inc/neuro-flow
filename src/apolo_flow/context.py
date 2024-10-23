@@ -112,6 +112,7 @@ class FlowCtx:
     project_id: str
     workspace: LocalPath
     title: str
+    username: str
 
     @property
     def id(self) -> str:
@@ -133,6 +134,7 @@ class FlowCtx:
             project_id=self.project_id,
             workspace=self.workspace,
             title=self.title,
+            username=self.username,
             action_path=action_path,
         )
 
@@ -792,6 +794,7 @@ async def setup_flow_ctx(
         project_id=project.id,
         workspace=config_loader.workspace,
         title=flow_title or flow_id,
+        username=config_loader.client.config.username,
     )
 
 
@@ -809,6 +812,7 @@ async def setup_batch_flow_ctx(
         project_id=base_flow.project_id,
         workspace=base_flow.workspace,
         title=base_flow.title,
+        username=config_loader.client.config.username,
         life_span=life_span,
     )
 

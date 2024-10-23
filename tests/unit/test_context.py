@@ -1389,6 +1389,7 @@ async def test_batch_action_path(batch_config_loader: ConfigLoader) -> None:
         project_id="unit",
         workspace=ANY,
         title="batch_action_call",
+        username="username",
         action_path=here,
     )
 
