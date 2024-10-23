@@ -15,9 +15,7 @@ def assets() -> pathlib.Path:
 @pytest.fixture(scope="session")
 def api_config(tmp_path_factory: Any) -> Iterator[pathlib.Path]:
     e2e_test_token = os.environ.get("E2E_USER_TOKEN")
-    e2e_test_api_endpoint = os.environ.get(
-        "E2E_API_ENDPOINT", "https://api.dev.apolo.us/api/v1"
-    )
+    e2e_test_api_endpoint = "https://api.dev.apolo.us/api/v1"
     if e2e_test_token:
         tmp_path = tmp_path_factory.mktemp("config")
         config_path = tmp_path / "conftest"
