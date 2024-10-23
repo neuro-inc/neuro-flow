@@ -5,6 +5,11 @@
 
 [comment]: # (towncrier release notes start)
 
+# Apolo Flow 24.10.0 (2024-10-23)
+
+No significant changes.
+
+
 # Apolo Flow 24.8.0 (2024-10-08)
 
 No significant changes.
