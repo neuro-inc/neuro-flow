@@ -63,6 +63,10 @@ repos:
 #   hooks:
 #   - id: pyupgrade
 #     args: ['--py37-plus']
+- repo: https://github.com/twisted/towncrier
+  rev: 23.11.0  # run 'pre-commit autoupdate' to update
+  hooks:
+    - id: towncrier-check
 - repo: https://github.com/PyCQA/flake8
   rev: '7.1.0'
   hooks:

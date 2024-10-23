@@ -32,14 +32,14 @@ No significant changes.
 
   ```
   images:
-    image_a:
-      ref: image:imagea
-      context: dir
-      dockerfile: dir/Dockerfile
-      extra_kaniko_args: >-
-        --reproducible
-        --cache-ttl=1h
-        --single-snapshot
+	image_a:
+	  ref: image:imagea
+	  context: dir
+	  dockerfile: dir/Dockerfile
+	  extra_kaniko_args: >-
+		--reproducible
+		--cache-ttl=1h
+		--single-snapshot
   ```
 
   More details on available arguments could be found in [official Kaniko documentation](https://github.com/GoogleContainerTools/kaniko?tab=readme-ov-file#additional-flags). ([#1110](https://github.com/neuro-inc/neuro-flow/issues/1110))
@@ -65,7 +65,7 @@ No significant changes.
   kind: batch
   life_span: 30d
   tasks:
-    ...
+	...
   ``` ([#1075](https://github.com/neuro-inc/neuro-flow/issues/1075))
 
 
@@ -97,7 +97,7 @@ Features
 - Added `hash_files_relative` function to expression, it works same as `hash_files` but requires additional leading
   parameters that defines directory to glob over. It can be used to glob over action files:
   ```
-    ${{ hash_files_relative(flow.action_path, "**/pattern/here/**/*.py", "other/**/pattern")
+	${{ hash_files_relative(flow.action_path, "**/pattern/here/**/*.py", "other/**/pattern")
   ``` ([#904](https://github.com/neuro-inc/neuro-flow/issues/904))
 
 
@@ -188,16 +188,16 @@ Features
 
   ```
   matrix:
-    old_way_key: ["1", "2", "3"]
-    new_way_key: ${{ ["1", "2", "3"] }}
+	old_way_key: ["1", "2", "3"]
+	new_way_key: ${{ ["1", "2", "3"] }}
   ```
 
   This can be helpful when used together with new `range()` function:
 
   ```
   matrix:
-    old_way_key: [0, 1, 2, 3]
-    new_way_key: ${{ range(4) }}
+	old_way_key: [0, 1, 2, 3]
+	new_way_key: ${{ range(4) }}
   ```
 
   The `range()` function supports same parameters as python's `range()`, but it returns list.
@@ -209,16 +209,16 @@ Features
 
   ```
   matrix:
-    old_way_key: ["k1", "k2", "k3"]
-    new_way_key: ${{ [fmt("k{}", str(it)) for it in range(1, 4)] }}
+	old_way_key: ["k1", "k2", "k3"]
+	new_way_key: ${{ [fmt("k{}", str(it)) for it in range(1, 4)] }}
   ```
 
   You can also filter some values in comprehension same way as in python:
 
   ```
   matrix:
-    old_way_key: [0, 4, 16]
-    new_way_key: ${{ [it * it for it in range(1, 5) if it % 2 == 0] }}
+	old_way_key: [0, 4, 16]
+	new_way_key: ${{ [it * it for it in range(1, 5) if it % 2 == 0] }}
   ``` ([#741](https://github.com/neuro-inc/neuro-flow/issues/741))
 
 

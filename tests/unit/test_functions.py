@@ -224,6 +224,7 @@ async def live_context_factory(assets: pathlib.Path) -> LiveContextFactory:
                 project_id="test",
                 workspace=assets,
                 title="unit test flow",
+                username="username",
             ),
             git=GitCtx(None),
             env={},
