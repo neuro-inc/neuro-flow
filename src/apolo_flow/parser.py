@@ -1174,7 +1174,6 @@ def parse_action_output(ctor: BaseConstructor, node: yaml.MappingNode) -> ast.Ou
 @dataclasses.dataclass(frozen=True)
 class ParsedActionOutputs(ast.Base):
     # Temporary container. Mapped to real ast in preprocess_action
-    needs: Optional[Sequence[IdExpr]]
     values: Optional[Mapping[str, ast.Output]]
 
 
@@ -1182,18 +1181,13 @@ def parse_action_outputs(
     ctor: BaseConstructor, node: yaml.MappingNode
 ) -> ParsedActionOutputs:
     values = {}
-    needs = None
     for k, v in node.value:
         key = ctor.construct_id(k)
-        if key == "needs" and isinstance(v, yaml.SequenceNode):
-            needs = SimpleSeq(IdExpr).construct(ctor, v)
-        else:
-            value = parse_action_output(ctor, v)
-            values[key] = value
+        value = parse_action_output(ctor, v)
+        values[key] = value
     return ParsedActionOutputs(
         _start=mark2pos(node.start_mark),
         _end=mark2pos(node.end_mark),
-        needs=needs,  # type: ignore[arg-type]
         values=values,
     )
 
@@ -1357,22 +1351,10 @@ def select_action(
             )
 
     outputs_tmp: Optional[ParsedActionOutputs] = dct.get("outputs")
-    needs_list_node = _deep_get(node, ("outputs", "needs"))
 
     if outputs_tmp and kind != ast.ActionKind.BATCH:
-        if outputs_tmp.needs is not None:
-            raise ConnectionError(
-                f"outputs.needs list is not supported for {kind.value} action kind",
-                (needs_list_node or node).start_mark,
-            )
         ret["outputs"] = outputs_tmp.values
     elif outputs_tmp:
-        if outputs_tmp.needs is not None:
-            log.warning(
-                "outputs.needs is deprecated and will have no effect. "
-                "All action tasks are available in actions outputs expressions."
-                f"\n{(needs_list_node or node).start_mark}"
-            )
         ret["outputs"] = ast.BatchActionOutputs(
             _start=outputs_tmp._start,
             _end=outputs_tmp._end,
@@ -1623,11 +1605,6 @@ def make_default_project(workspace_stem: str) -> ast.Project:
             None,
         ),
         owner=SimpleOptStrExpr(
-            Pos(0, 0, LocalPath("<default>")),
-            Pos(0, 0, LocalPath("<default>")),
-            None,
-        ),
-        role=SimpleOptStrExpr(
             Pos(0, 0, LocalPath("<default>")),
             Pos(0, 0, LocalPath("<default>")),
             None,

@@ -64,7 +64,6 @@ class Project(Base):
     id: SimpleIdExpr
     project_name: SimpleOptStrExpr  # project name can contain "-"
     owner: SimpleOptStrExpr  # user name can contain "-"
-    role: SimpleOptStrExpr
 
     images: Optional[Mapping[str, "Image"]] = field(metadata={"allow_none": True})
     volumes: Optional[Mapping[str, "Volume"]] = field(metadata={"allow_none": True})

@@ -22,16 +22,6 @@ Optional owner name available as a `${{ project.owner }}` context. Shared projec
 
 Platform project name, where the flow belongs to. Available as `${{ project.project_name }}`. Default value -  the currently selected project in Apolo CLI configuration.
 
-## role
-
-{% hint style="warning" %}
-Flow roles are deprecated and will be ignored. To grant access to the flow and its artifacts, please add users to the corresponding platform project using `apolo admin add-project-user`.
-{% endhint %}
-
-Optional project role name available as a `${{ project.role }}` context. By default the `role` is `{owner}/projects/{id}` if `owner` is defined. Shared projects require `owner` or `role`. This role name might be used to share the project with other platform `<user>` via `apolo acl grant <role> <user>`
-
-## Project-wide configuration
-
 You can define jobs and workflows globally by specifying the desired project-wide behavior in the following sections of the `project.yml` file:
 
 * defaults

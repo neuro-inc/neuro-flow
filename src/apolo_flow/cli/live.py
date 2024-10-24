@@ -55,7 +55,6 @@ async def run(
     job_id: str,
     suffix: Optional[str],
     dry_run: bool,
-    args: Optional[Tuple[str]],
     param: List[Tuple[str, str]],
 ) -> None:
     """Run a job.
@@ -64,10 +63,6 @@ async def run(
 
     For multi-jobs an explicit job suffix can be used with explicit job arguments.
     """
-    if args:
-        root.console.print(
-            "[yellow]args are deprecated, use --param instead",
-        )
     async with AsyncExitStack() as stack:
         client = await stack.enter_async_context(apolo_sdk.get())
         storage: Storage = await stack.enter_async_context(ApiStorage(client))
@@ -77,7 +72,6 @@ async def run(
         await runner.run(
             job_id,
             suffix=suffix,
-            args=args,
             params={key: value for key, value in param},
         )
 
