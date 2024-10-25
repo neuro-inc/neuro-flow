@@ -1,6 +1,6 @@
 ci:
     # pre-commit ci do not install dependencies from setup.py
-  skip: [gen-cli-docs, check-mixin-classes, actionlint-docker, check-github-actions]
+  skip: [gen-cli-docs, check-mixin-classes]
 repos:
 - repo: local
   hooks:
