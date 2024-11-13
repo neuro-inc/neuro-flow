@@ -17,8 +17,8 @@ class Spec:
 
 
 SPECS = {
-    "barebone": Spec("gh:neuro-inc/cookiecutter-neuro-project"),
-    "default": Spec("gh:neuro-inc/cookiecutter-neuro-project", checkout="release"),
+    "barebone": Spec("gh:neuro-inc/flow-template-barebone"),
+    "default": Spec("gh:neuro-inc/flow-template", checkout="release"),
 }
 
 
