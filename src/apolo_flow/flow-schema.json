@@ -1,0 +1,499 @@
+{
+  "$defs": {
+    "BatchDefaults": {
+      "additionalProperties": false,
+      "properties": {
+        "fail_fast": {
+          "title": "Fail Fast",
+          "type": "boolean"
+        },
+        "max_parallel": {
+          "title": "Max Parallel",
+          "type": "integer"
+        },
+        "cache": {
+          "$ref": "#/$defs/Cache"
+        }
+      },
+      "title": "BatchDefaults",
+      "type": "object"
+    },
+    "BatchFlow": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "batch",
+          "title": "Kind",
+          "type": "string"
+        },
+        "defaults": {
+          "$ref": "#/$defs/BatchDefaults",
+          "title": "Defaults"
+        },
+        "mixins": {
+          "additionalProperties": {
+            "$ref": "#/$defs/TaskMixin"
+          },
+          "title": "Mixins",
+          "type": "object"
+        },
+        "tasks": {
+          "items": {
+            "$ref": "#/$defs/Task"
+          },
+          "title": "Tasks",
+          "type": "array"
+        }
+      },
+      "required": [
+        "kind",
+        "tasks"
+      ],
+      "title": "BatchFlow",
+      "type": "object"
+    },
+    "Cache": {
+      "additionalProperties": false,
+      "properties": {
+        "strategy": {
+          "$ref": "#/$defs/CacheStrategy"
+        },
+        "life_span": {
+          "title": "Life Span",
+          "type": "string"
+        }
+      },
+      "required": [
+        "strategy"
+      ],
+      "title": "Cache",
+      "type": "object"
+    },
+    "CacheStrategy": {
+      "enum": [
+        "none",
+        "default",
+        "inherit"
+      ],
+      "title": "CacheStrategy",
+      "type": "string"
+    },
+    "JobMixin": {
+      "additionalProperties": false,
+      "properties": {
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "image": {
+          "title": "Image",
+          "type": "string"
+        },
+        "preset": {
+          "title": "Preset",
+          "type": "string"
+        },
+        "schedule_timeout": {
+          "title": "Schedule Timeout",
+          "type": "string"
+        },
+        "entrypoint": {
+          "title": "Entrypoint",
+          "type": "string"
+        },
+        "cmd": {
+          "title": "Cmd",
+          "type": "string"
+        },
+        "bash": {
+          "title": "Bash",
+          "type": "string"
+        },
+        "python": {
+          "title": "Python",
+          "type": "string"
+        },
+        "workdir": {
+          "title": "Workdir",
+          "type": "string"
+        },
+        "env": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Env",
+          "type": "object"
+        },
+        "volumes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Volumes",
+          "type": "array"
+        },
+        "tags": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Tags",
+          "type": "array"
+        },
+        "life_span": {
+          "title": "Life Span",
+          "type": "string"
+        },
+        "http_port": {
+          "title": "Http Port",
+          "type": "integer"
+        },
+        "http_auth": {
+          "title": "Http Auth",
+          "type": "boolean"
+        },
+        "pass_config": {
+          "title": "Pass Config",
+          "type": "boolean"
+        },
+        "restart": {
+          "$ref": "#/$defs/JobRestartPolicy",
+          "title": "Restart"
+        },
+        "detach": {
+          "title": "Detach",
+          "type": "boolean"
+        },
+        "browse": {
+          "title": "Browse",
+          "type": "boolean"
+        },
+        "multi": {
+          "title": "Multi",
+          "type": "boolean"
+        },
+        "port_forward": {
+          "title": "Port Forward",
+          "type": "string"
+        },
+        "params": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "$ref": "#/$defs/Param"
+              }
+            ]
+          },
+          "title": "Params",
+          "type": "object"
+        },
+        "mixins": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Mixins",
+          "type": "array"
+        }
+      },
+      "title": "JobMixin",
+      "type": "object"
+    },
+    "JobRestartPolicy": {
+      "enum": [
+        "never",
+        "on-failure",
+        "always"
+      ],
+      "title": "JobRestartPolicy",
+      "type": "string"
+    },
+    "LiveDefaults": {
+      "additionalProperties": false,
+      "properties": {
+        "tags": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Tags",
+          "type": "array"
+        },
+        "env": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Env",
+          "type": "object"
+        },
+        "volumes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Volumes",
+          "type": "array"
+        },
+        "workdir": {
+          "title": "Workdir",
+          "type": "string"
+        },
+        "life_span": {
+          "title": "Life Span",
+          "type": "string"
+        },
+        "preset": {
+          "title": "Preset",
+          "type": "string"
+        },
+        "schedule_timeout": {
+          "title": "Schedule Timeout",
+          "type": "string"
+        }
+      },
+      "title": "LiveDefaults",
+      "type": "object"
+    },
+    "LiveFlow": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "live",
+          "title": "Kind",
+          "type": "string"
+        },
+        "params": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "$ref": "#/$defs/Param"
+              }
+            ]
+          },
+          "title": "Params",
+          "type": "object"
+        },
+        "defaults": {
+          "$ref": "#/$defs/LiveDefaults",
+          "title": "Defaults"
+        },
+        "mixins": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JobMixin"
+          },
+          "title": "Mixins",
+          "type": "object"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "LiveFlow",
+      "type": "object"
+    },
+    "Param": {
+      "additionalProperties": false,
+      "properties": {
+        "default": {
+          "type": "string",
+          "title": "Default"
+        },
+        "descr": {
+          "title": "Descr",
+          "type": "string"
+        }
+      },
+      "title": "Param",
+      "type": "object"
+    },
+    "Strategy": {
+      "additionalProperties": false,
+      "properties": {
+        "matrix": {
+          "additionalProperties": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object"
+                }
+              ]
+            },
+            "type": "array"
+          },
+          "title": "Matrix",
+          "type": "object"
+        },
+        "fail_fast": {
+          "title": "Fail Fast",
+          "type": "boolean"
+        },
+        "max_parallel": {
+          "title": "Max Parallel",
+          "type": "integer"
+        }
+      },
+      "title": "Strategy",
+      "type": "object"
+    },
+    "Task": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "needs": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Needs",
+          "type": "array"
+        },
+        "strategy": {
+          "items": {
+            "$ref": "#/$defs/Strategy"
+          },
+          "title": "Strategy",
+          "type": "array"
+        },
+        "enable": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "title": "Enable"
+        },
+        "cache": {
+          "$ref": "#/$defs/Cache"
+        }
+      },
+      "title": "Task",
+      "type": "object"
+    },
+    "TaskMixin": {
+      "additionalProperties": false,
+      "properties": {
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "image": {
+          "title": "Image",
+          "type": "string"
+        },
+        "preset": {
+          "title": "Preset",
+          "type": "string"
+        },
+        "schedule_timeout": {
+          "title": "Schedule Timeout",
+          "type": "string"
+        },
+        "entrypoint": {
+          "title": "Entrypoint",
+          "type": "string"
+        },
+        "cmd": {
+          "title": "Cmd",
+          "type": "string"
+        },
+        "bash": {
+          "title": "Bash",
+          "type": "string"
+        },
+        "python": {
+          "title": "Python",
+          "type": "string"
+        },
+        "workdir": {
+          "title": "Workdir",
+          "type": "string"
+        },
+        "env": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Env",
+          "type": "object"
+        },
+        "volumes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Volumes",
+          "type": "array"
+        },
+        "tags": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Tags",
+          "type": "array"
+        },
+        "life_span": {
+          "title": "Life Span",
+          "type": "string"
+        },
+        "http_port": {
+          "title": "Http Port",
+          "type": "integer"
+        },
+        "http_auth": {
+          "title": "Http Auth",
+          "type": "boolean"
+        },
+        "pass_config": {
+          "title": "Pass Config",
+          "type": "boolean"
+        },
+        "restart": {
+          "$ref": "#/$defs/JobRestartPolicy",
+          "title": "Restart"
+        },
+        "mixins": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Mixins",
+          "type": "array"
+        }
+      },
+      "title": "TaskMixin",
+      "type": "object"
+    }
+  },
+  "discriminator": {
+    "mapping": {
+      "batch": "#/$defs/BatchFlow",
+      "live": "#/$defs/LiveFlow"
+    },
+    "propertyName": "kind"
+  },
+  "oneOf": [
+    {
+      "$ref": "#/$defs/LiveFlow"
+    },
+    {
+      "$ref": "#/$defs/BatchFlow"
+    }
+  ]
+}
