@@ -1,11 +1,12 @@
 from dataclasses import dataclass
 
 import pytest
+import sys
 import yaml
 from importlib.resources import open_text
 from itertools import chain
 from json import load
-from jsonschema import validate
+from jsonschema import ValidationError, validate
 from pathlib import Path
 
 import apolo_flow
@@ -35,14 +36,18 @@ def schemas() -> Schemas:
     return Schemas(action_schema, flow_schema, project_schema)
 
 
+@pytest.mark.skipif(sys.version_info < (3, 11), reason="ExceptionGroup required")
 def test_all_yamls(yaml_file: Path, schemas: Schemas) -> None:
     yml = yaml.safe_load(yaml_file.read_text())
-    if yaml_file.stem in ("project", "minimal_project", "with_pname_project"):
-        validate(instance=yml, schema=schemas.project)
-    elif "inputs" in yml:
-        validate(instance=yml, schema=schemas.action)
+    excs = []
+    for schema in (schemas.project, schemas.action, schemas.flow):
+        try:
+            validate(instance=yml, schema=schema)
+            break
+        except ValidationError as exc:
+            excs.append(exc)
     else:
-        validate(instance=yml, schema=schemas.flow)
+        raise ExceptionGroup(f"Cannot validate [{yaml_file}]", excs)
 
 
 def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
@@ -57,6 +62,8 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
         if fname.name.startswith("."):
             continue
         if "bad" in fname.stem.split("-"):
+            continue
+        if "bake_meta" in fname.parts:
             continue
         params.append(pytest.param(fname, id=str(fname.relative_to(toplevel))))
     metafunc.parametrize("yaml_file", params)

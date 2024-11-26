@@ -13,8 +13,15 @@ from apolo_flow import ast
 
 LiteralT = int | float | str | bool
 
+EXPR = Annotated[str, Field(pattern=r"^\$\{\{.+\}\}$")]
 
-TIMEDELTA_RE = r"^((?P<d>\d+)d)?((?P<h>\d+)h)?((?P<m>\d+)m)?((?P<s>\d+)s)?$"
+TIMEDELTA_CONST = Annotated[
+    str, Field(pattern=r"^((?P<d>\d+)d)?((?P<h>\d+)h)?((?P<m>\d+)m)?((?P<s>\d+)s)?$")
+]
+TIMEDELTA = EXPR | TIMEDELTA_CONST
+
+PORT_FORWARD_CONST = Annotated[str, Field(pattern=r"^\d+:\d+$")]
+PORT_FORWARD = EXPR | PORT_FORWARD_CONST
 
 
 def pop_default_from_schema(s: dict[str, Any]) -> None:
@@ -23,13 +30,13 @@ def pop_default_from_schema(s: dict[str, Any]) -> None:
 
 class Cache(BaseModel, use_enum_values=True, extra="forbid"):
     strategy: ast.CacheStrategy
-    life_span: str | SkipJsonSchema[None] = Field(
-        default=None, pattern=TIMEDELTA_RE, json_schema_extra=pop_default_from_schema
+    life_span: TIMEDELTA | SkipJsonSchema[None] = Field(
+        default=None, json_schema_extra=pop_default_from_schema
     )
 
 
 class Param(BaseModel, use_enum_values=True, extra="forbid"):
-    default: str | SkipJsonSchema[None] = Field(
+    default: LiteralT | None | SkipJsonSchema[None] = Field(
         default=None, json_schema_extra=pop_default_from_schema
     )
     descr: str | SkipJsonSchema[None] = Field(
@@ -39,9 +46,10 @@ class Param(BaseModel, use_enum_values=True, extra="forbid"):
 
 class Strategy(BaseModel, use_enum_values=True, extra="forbid"):
     #    matrix: Any
-    matrix: dict[str, list[LiteralT | dict[str, LiteralT]]] | SkipJsonSchema[None] = (
-        Field(default=None, json_schema_extra=pop_default_from_schema)
-    )
+    matrix: (
+        dict[str, EXPR | bool | int | list[LiteralT | dict[str, LiteralT]]]
+        | SkipJsonSchema[None]
+    ) = Field(default=None, json_schema_extra=pop_default_from_schema)
     fail_fast: bool | SkipJsonSchema[None] = Field(
         default=None, json_schema_extra=pop_default_from_schema
     )
@@ -58,13 +66,13 @@ class Image(BaseModel, use_enum_values=True, extra="forbid"):
     dockerfile: str | SkipJsonSchema[None] = Field(
         default=None, json_schema_extra=pop_default_from_schema
     )
-    build_args: list[str] | SkipJsonSchema[None] = Field(
+    build_args: EXPR | list[str] | SkipJsonSchema[None] = Field(
         default=None, json_schema_extra=pop_default_from_schema
     )
-    env: dict[str, str] | SkipJsonSchema[None] = Field(
+    env: EXPR | dict[str, str] | SkipJsonSchema[None] = Field(
         default=None, json_schema_extra=pop_default_from_schema
     )
-    volumes: list[str] | SkipJsonSchema[None] = Field(
+    volumes: EXPR | list[str | None] | SkipJsonSchema[None] = Field(
         default=None, json_schema_extra=pop_default_from_schema
     )
     build_preset: str | SkipJsonSchema[None] = Field(
@@ -102,8 +110,8 @@ class ExecUnit(BaseModel, use_enum_values=True, extra="forbid"):
     preset: str | SkipJsonSchema[None] = Field(
         default=None, json_schema_extra=pop_default_from_schema
     )
-    schedule_timeout: str | SkipJsonSchema[None] = Field(
-        default=None, pattern=TIMEDELTA_RE, json_schema_extra=pop_default_from_schema
+    schedule_timeout: TIMEDELTA | SkipJsonSchema[None] = Field(
+        default=None, json_schema_extra=pop_default_from_schema
     )
     entrypoint: str | SkipJsonSchema[None] = Field(
         default=None, json_schema_extra=pop_default_from_schema
@@ -123,23 +131,23 @@ class ExecUnit(BaseModel, use_enum_values=True, extra="forbid"):
     module: str | SkipJsonSchema[None] = Field(
         default=None, json_schema_extra=pop_default_from_schema
     )
-    args: dict[str, str] | SkipJsonSchema[None] = Field(
+    args: dict[str, LiteralT | None] | SkipJsonSchema[None] = Field(
         default=None, json_schema_extra=pop_default_from_schema
     )
     workdir: str | SkipJsonSchema[None] = Field(
         default=None, json_schema_extra=pop_default_from_schema
     )
-    env: dict[str, str] | SkipJsonSchema[None] = Field(
+    env: EXPR | dict[str, str] | SkipJsonSchema[None] = Field(
         default=None, json_schema_extra=pop_default_from_schema
     )
-    volumes: list[str] | SkipJsonSchema[None] = Field(
+    volumes: EXPR | list[str | None] | SkipJsonSchema[None] = Field(
         default=None, json_schema_extra=pop_default_from_schema
     )
-    tags: list[str] | SkipJsonSchema[None] = Field(
+    tags: EXPR | list[str] | SkipJsonSchema[None] = Field(
         default=None, json_schema_extra=pop_default_from_schema
     )
-    life_span: str | SkipJsonSchema[None] = Field(
-        default=None, pattern=TIMEDELTA_RE, json_schema_extra=pop_default_from_schema
+    life_span: TIMEDELTA | SkipJsonSchema[None] = Field(
+        default=None, json_schema_extra=pop_default_from_schema
     )
     http_port: int | str | SkipJsonSchema[None] = Field(
         default=None, json_schema_extra=pop_default_from_schema
@@ -150,7 +158,7 @@ class ExecUnit(BaseModel, use_enum_values=True, extra="forbid"):
     pass_config: bool | SkipJsonSchema[None] = Field(
         default=None, json_schema_extra=pop_default_from_schema
     )
-    restart: JobRestartPolicy | str | SkipJsonSchema[None] = Field(
+    restart: EXPR | JobRestartPolicy | SkipJsonSchema[None] = Field(
         default=None, json_schema_extra=pop_default_from_schema
     )
 
@@ -171,10 +179,10 @@ class JobMixin(ExecUnit, use_enum_values=True, extra="forbid"):
     multi: bool | SkipJsonSchema[None] = Field(
         default=None, json_schema_extra=pop_default_from_schema
     )
-    port_forward: list[str] | SkipJsonSchema[None] = Field(
-        default=None, pattern=r"^\d+:\d+$", json_schema_extra=pop_default_from_schema
+    port_forward: EXPR | list[PORT_FORWARD] | SkipJsonSchema[None] = Field(
+        default=None, json_schema_extra=pop_default_from_schema
     )
-    params: dict[str, str | Param] | SkipJsonSchema[None] = Field(
+    params: dict[str, LiteralT | Param | None] | SkipJsonSchema[None] = Field(
         default=None, json_schema_extra=pop_default_from_schema
     )
     mixins: list[str] | SkipJsonSchema[None] = Field(
@@ -192,10 +200,10 @@ class Job(ExecUnit, use_enum_values=True, extra="forbid"):
     multi: bool | SkipJsonSchema[None] = Field(
         default=None, json_schema_extra=pop_default_from_schema
     )
-    port_forward: list[str] | SkipJsonSchema[None] = Field(
-        default=None, pattern=r"^\d+:\d+$", json_schema_extra=pop_default_from_schema
+    port_forward: EXPR | list[PORT_FORWARD] | SkipJsonSchema[None] = Field(
+        default=None, json_schema_extra=pop_default_from_schema
     )
-    params: dict[str, str | Param] | SkipJsonSchema[None] = Field(
+    params: dict[str, LiteralT | Param | None] | SkipJsonSchema[None] = Field(
         default=None, json_schema_extra=pop_default_from_schema
     )
     mixins: list[str] | SkipJsonSchema[None] = Field(
@@ -218,7 +226,7 @@ class JobModuleCall(BaseModel, use_enum_values=True, extra="forbid"):
     args: dict[str, LiteralT] | SkipJsonSchema[None] = Field(
         default=None, json_schema_extra=pop_default_from_schema
     )
-    params: dict[str, str | Param] | SkipJsonSchema[None] = Field(
+    params: dict[str, EXPR | Param] | SkipJsonSchema[None] = Field(
         default=None, json_schema_extra=pop_default_from_schema
     )
 
@@ -233,7 +241,9 @@ class TaskBase(BaseModel, use_enum_values=True, extra="forbid"):
     id: str | SkipJsonSchema[None] = Field(
         default=None, json_schema_extra=pop_default_from_schema
     )
-    needs: list[str] = Field(default=None, json_schema_extra=pop_default_from_schema)
+    needs: list[str] | dict[str, str] = Field(
+        default=None, json_schema_extra=pop_default_from_schema
+    )
     strategy: Strategy | SkipJsonSchema[None] = Field(
         default=None, json_schema_extra=pop_default_from_schema
     )
@@ -250,26 +260,26 @@ class Task(TaskBase, ExecUnit, use_enum_values=True, extra="forbid"):
 
 
 class BaseDefaults(BaseModel, use_enum_values=True, extra="forbid"):
-    tags: list[str] | SkipJsonSchema[None] = Field(
+    tags: EXPR | list[str] | SkipJsonSchema[None] = Field(
         default=None, json_schema_extra=pop_default_from_schema
     )
-    env: dict[str, str] | SkipJsonSchema[None] = Field(
+    env: EXPR | dict[str, str] | SkipJsonSchema[None] = Field(
         default=None, json_schema_extra=pop_default_from_schema
     )
-    volumes: list[str] | SkipJsonSchema[None] = Field(
+    volumes: EXPR | list[str | None] | SkipJsonSchema[None] = Field(
         default=None, json_schema_extra=pop_default_from_schema
     )
     workdir: str | SkipJsonSchema[None] = Field(
         default=None, json_schema_extra=pop_default_from_schema
     )
-    life_span: str | SkipJsonSchema[None] = Field(
-        default=None, pattern=TIMEDELTA_RE, json_schema_extra=pop_default_from_schema
+    life_span: TIMEDELTA | SkipJsonSchema[None] = Field(
+        default=None, json_schema_extra=pop_default_from_schema
     )
     preset: str | SkipJsonSchema[None] = Field(
         default=None, json_schema_extra=pop_default_from_schema
     )
-    schedule_timeout: str | SkipJsonSchema[None] = Field(
-        default=None, pattern=TIMEDELTA_RE, json_schema_extra=pop_default_from_schema
+    schedule_timeout: TIMEDELTA | SkipJsonSchema[None] = Field(
+        default=None, json_schema_extra=pop_default_from_schema
     )
 
 
@@ -296,8 +306,8 @@ class BaseFlow(BaseModel, use_enum_values=True, extra="forbid"):
     title: str | SkipJsonSchema[None] = Field(
         default=None, json_schema_extra=pop_default_from_schema
     )
-    life_span: str | SkipJsonSchema[None] = Field(
-        default=None, pattern=TIMEDELTA_RE, json_schema_extra=pop_default_from_schema
+    life_span: TIMEDELTA | SkipJsonSchema[None] = Field(
+        default=None, json_schema_extra=pop_default_from_schema
     )
     images: dict[str, Image] | SkipJsonSchema[None] = Field(
         default=None, json_schema_extra=pop_default_from_schema
@@ -408,9 +418,15 @@ class StatefulAction(BaseAction, use_enum_values=True, extra="forbid"):
     cache: Cache | SkipJsonSchema[None] = Field(
         default=None, json_schema_extra=pop_default_from_schema
     )
-    main: str
-    post: str
-    post_if: str
+    main: ExecUnit | SkipJsonSchema[None] = Field(
+        default=None, json_schema_extra=pop_default_from_schema
+    )
+    post: ExecUnit | SkipJsonSchema[None] = Field(
+        default=None, json_schema_extra=pop_default_from_schema
+    )
+    post_if: EXPR | bool | SkipJsonSchema[None] = Field(
+        default=None, json_schema_extra=pop_default_from_schema
+    )
 
 
 class LocalAction(BaseAction, use_enum_values=True, extra="forbid"):

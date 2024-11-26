@@ -154,8 +154,17 @@
           "$ref": "#/$defs/CacheStrategy"
         },
         "life_span": {
-          "title": "Life Span",
-          "type": "string"
+          "anyOf": [
+            {
+              "pattern": "^\\$\\{\\{.+\\}\\}$",
+              "type": "string"
+            },
+            {
+              "pattern": "^((?P<d>\\d+)d)?((?P<h>\\d+)h)?((?P<m>\\d+)m)?((?P<s>\\d+)s)?$",
+              "type": "string"
+            }
+          ],
+          "title": "Life Span"
         }
       },
       "required": [
@@ -173,6 +182,189 @@
       "title": "CacheStrategy",
       "type": "string"
     },
+    "ExecUnit": {
+      "additionalProperties": false,
+      "properties": {
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "image": {
+          "title": "Image",
+          "type": "string"
+        },
+        "preset": {
+          "title": "Preset",
+          "type": "string"
+        },
+        "schedule_timeout": {
+          "anyOf": [
+            {
+              "pattern": "^\\$\\{\\{.+\\}\\}$",
+              "type": "string"
+            },
+            {
+              "pattern": "^((?P<d>\\d+)d)?((?P<h>\\d+)h)?((?P<m>\\d+)m)?((?P<s>\\d+)s)?$",
+              "type": "string"
+            }
+          ],
+          "title": "Schedule Timeout"
+        },
+        "entrypoint": {
+          "title": "Entrypoint",
+          "type": "string"
+        },
+        "cmd": {
+          "title": "Cmd",
+          "type": "string"
+        },
+        "bash": {
+          "title": "Bash",
+          "type": "string"
+        },
+        "python": {
+          "title": "Python",
+          "type": "string"
+        },
+        "action": {
+          "title": "Action",
+          "type": "string"
+        },
+        "module": {
+          "title": "Module",
+          "type": "string"
+        },
+        "args": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": "Args",
+          "type": "object"
+        },
+        "workdir": {
+          "title": "Workdir",
+          "type": "string"
+        },
+        "env": {
+          "anyOf": [
+            {
+              "pattern": "^\\$\\{\\{.+\\}\\}$",
+              "type": "string"
+            },
+            {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            }
+          ],
+          "title": "Env"
+        },
+        "volumes": {
+          "anyOf": [
+            {
+              "pattern": "^\\$\\{\\{.+\\}\\}$",
+              "type": "string"
+            },
+            {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "type": "array"
+            }
+          ],
+          "title": "Volumes"
+        },
+        "tags": {
+          "anyOf": [
+            {
+              "pattern": "^\\$\\{\\{.+\\}\\}$",
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          ],
+          "title": "Tags"
+        },
+        "life_span": {
+          "anyOf": [
+            {
+              "pattern": "^\\$\\{\\{.+\\}\\}$",
+              "type": "string"
+            },
+            {
+              "pattern": "^((?P<d>\\d+)d)?((?P<h>\\d+)h)?((?P<m>\\d+)m)?((?P<s>\\d+)s)?$",
+              "type": "string"
+            }
+          ],
+          "title": "Life Span"
+        },
+        "http_port": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "title": "Http Port"
+        },
+        "http_auth": {
+          "title": "Http Auth",
+          "type": "boolean"
+        },
+        "pass_config": {
+          "title": "Pass Config",
+          "type": "boolean"
+        },
+        "restart": {
+          "anyOf": [
+            {
+              "pattern": "^\\$\\{\\{.+\\}\\}$",
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/JobRestartPolicy"
+            }
+          ],
+          "title": "Restart"
+        }
+      },
+      "title": "ExecUnit",
+      "type": "object"
+    },
     "Image": {
       "additionalProperties": false,
       "properties": {
@@ -189,25 +381,56 @@
           "type": "string"
         },
         "build_args": {
-          "items": {
-            "type": "string"
-          },
-          "title": "Build Args",
-          "type": "array"
+          "anyOf": [
+            {
+              "pattern": "^\\$\\{\\{.+\\}\\}$",
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          ],
+          "title": "Build Args"
         },
         "env": {
-          "additionalProperties": {
-            "type": "string"
-          },
-          "title": "Env",
-          "type": "object"
+          "anyOf": [
+            {
+              "pattern": "^\\$\\{\\{.+\\}\\}$",
+              "type": "string"
+            },
+            {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            }
+          ],
+          "title": "Env"
         },
         "volumes": {
-          "items": {
-            "type": "string"
-          },
-          "title": "Volumes",
-          "type": "array"
+          "anyOf": [
+            {
+              "pattern": "^\\$\\{\\{.+\\}\\}$",
+              "type": "string"
+            },
+            {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "type": "array"
+            }
+          ],
+          "title": "Volumes"
         },
         "build_preset": {
           "title": "Build Preset",
@@ -248,8 +471,17 @@
           "type": "string"
         },
         "schedule_timeout": {
-          "title": "Schedule Timeout",
-          "type": "string"
+          "anyOf": [
+            {
+              "pattern": "^\\$\\{\\{.+\\}\\}$",
+              "type": "string"
+            },
+            {
+              "pattern": "^((?P<d>\\d+)d)?((?P<h>\\d+)h)?((?P<m>\\d+)m)?((?P<s>\\d+)s)?$",
+              "type": "string"
+            }
+          ],
+          "title": "Schedule Timeout"
         },
         "entrypoint": {
           "title": "Entrypoint",
@@ -277,7 +509,23 @@
         },
         "args": {
           "additionalProperties": {
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "title": "Args",
           "type": "object"
@@ -287,29 +535,69 @@
           "type": "string"
         },
         "env": {
-          "additionalProperties": {
-            "type": "string"
-          },
-          "title": "Env",
-          "type": "object"
+          "anyOf": [
+            {
+              "pattern": "^\\$\\{\\{.+\\}\\}$",
+              "type": "string"
+            },
+            {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            }
+          ],
+          "title": "Env"
         },
         "volumes": {
-          "items": {
-            "type": "string"
-          },
-          "title": "Volumes",
-          "type": "array"
+          "anyOf": [
+            {
+              "pattern": "^\\$\\{\\{.+\\}\\}$",
+              "type": "string"
+            },
+            {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "type": "array"
+            }
+          ],
+          "title": "Volumes"
         },
         "tags": {
-          "items": {
-            "type": "string"
-          },
-          "title": "Tags",
-          "type": "array"
+          "anyOf": [
+            {
+              "pattern": "^\\$\\{\\{.+\\}\\}$",
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          ],
+          "title": "Tags"
         },
         "life_span": {
-          "title": "Life Span",
-          "type": "string"
+          "anyOf": [
+            {
+              "pattern": "^\\$\\{\\{.+\\}\\}$",
+              "type": "string"
+            },
+            {
+              "pattern": "^((?P<d>\\d+)d)?((?P<h>\\d+)h)?((?P<m>\\d+)m)?((?P<s>\\d+)s)?$",
+              "type": "string"
+            }
+          ],
+          "title": "Life Span"
         },
         "http_port": {
           "anyOf": [
@@ -333,10 +621,11 @@
         "restart": {
           "anyOf": [
             {
-              "$ref": "#/$defs/JobRestartPolicy"
+              "pattern": "^\\$\\{\\{.+\\}\\}$",
+              "type": "string"
             },
             {
-              "type": "string"
+              "$ref": "#/$defs/JobRestartPolicy"
             }
           ],
           "title": "Restart"
@@ -354,20 +643,49 @@
           "type": "boolean"
         },
         "port_forward": {
-          "items": {
-            "type": "string"
-          },
-          "title": "Port Forward",
-          "type": "array"
+          "anyOf": [
+            {
+              "pattern": "^\\$\\{\\{.+\\}\\}$",
+              "type": "string"
+            },
+            {
+              "items": {
+                "anyOf": [
+                  {
+                    "pattern": "^\\$\\{\\{.+\\}\\}$",
+                    "type": "string"
+                  },
+                  {
+                    "pattern": "^\\d+:\\d+$",
+                    "type": "string"
+                  }
+                ]
+              },
+              "type": "array"
+            }
+          ],
+          "title": "Port Forward"
         },
         "params": {
           "additionalProperties": {
             "anyOf": [
               {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
                 "type": "string"
               },
               {
+                "type": "boolean"
+              },
+              {
                 "$ref": "#/$defs/Param"
+              },
+              {
+                "type": "null"
               }
             ]
           },
@@ -516,7 +834,23 @@
       "additionalProperties": false,
       "properties": {
         "default": {
-          "type": "string",
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
           "title": "Default"
         },
         "descr": {
@@ -575,23 +909,28 @@
           "$ref": "#/$defs/Cache"
         },
         "main": {
-          "title": "Main",
-          "type": "string"
+          "$ref": "#/$defs/ExecUnit",
+          "title": "Main"
         },
         "post": {
-          "title": "Post",
-          "type": "string"
+          "$ref": "#/$defs/ExecUnit",
+          "title": "Post"
         },
         "post_if": {
-          "title": "Post If",
-          "type": "string"
+          "anyOf": [
+            {
+              "pattern": "^\\$\\{\\{.+\\}\\}$",
+              "type": "string"
+            },
+            {
+              "type": "boolean"
+            }
+          ],
+          "title": "Post If"
         }
       },
       "required": [
-        "kind",
-        "main",
-        "post",
-        "post_if"
+        "kind"
       ],
       "title": "StatefulAction",
       "type": "object"
@@ -601,42 +940,56 @@
       "properties": {
         "matrix": {
           "additionalProperties": {
-            "items": {
-              "anyOf": [
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "number"
-                },
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "boolean"
-                },
-                {
-                  "additionalProperties": {
-                    "anyOf": [
-                      {
-                        "type": "integer"
+            "anyOf": [
+              {
+                "pattern": "^\\$\\{\\{.+\\}\\}$",
+                "type": "string"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "additionalProperties": {
+                        "anyOf": [
+                          {
+                            "type": "integer"
+                          },
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "boolean"
+                          }
+                        ]
                       },
-                      {
-                        "type": "number"
-                      },
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "boolean"
-                      }
-                    ]
-                  },
-                  "type": "object"
-                }
-              ]
-            },
-            "type": "array"
+                      "type": "object"
+                    }
+                  ]
+                },
+                "type": "array"
+              }
+            ]
           },
           "title": "Matrix",
           "type": "object"
@@ -673,8 +1026,17 @@
           "type": "string"
         },
         "schedule_timeout": {
-          "title": "Schedule Timeout",
-          "type": "string"
+          "anyOf": [
+            {
+              "pattern": "^\\$\\{\\{.+\\}\\}$",
+              "type": "string"
+            },
+            {
+              "pattern": "^((?P<d>\\d+)d)?((?P<h>\\d+)h)?((?P<m>\\d+)m)?((?P<s>\\d+)s)?$",
+              "type": "string"
+            }
+          ],
+          "title": "Schedule Timeout"
         },
         "entrypoint": {
           "title": "Entrypoint",
@@ -702,7 +1064,23 @@
         },
         "args": {
           "additionalProperties": {
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "title": "Args",
           "type": "object"
@@ -712,29 +1090,69 @@
           "type": "string"
         },
         "env": {
-          "additionalProperties": {
-            "type": "string"
-          },
-          "title": "Env",
-          "type": "object"
+          "anyOf": [
+            {
+              "pattern": "^\\$\\{\\{.+\\}\\}$",
+              "type": "string"
+            },
+            {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            }
+          ],
+          "title": "Env"
         },
         "volumes": {
-          "items": {
-            "type": "string"
-          },
-          "title": "Volumes",
-          "type": "array"
+          "anyOf": [
+            {
+              "pattern": "^\\$\\{\\{.+\\}\\}$",
+              "type": "string"
+            },
+            {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "type": "array"
+            }
+          ],
+          "title": "Volumes"
         },
         "tags": {
-          "items": {
-            "type": "string"
-          },
-          "title": "Tags",
-          "type": "array"
+          "anyOf": [
+            {
+              "pattern": "^\\$\\{\\{.+\\}\\}$",
+              "type": "string"
+            },
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          ],
+          "title": "Tags"
         },
         "life_span": {
-          "title": "Life Span",
-          "type": "string"
+          "anyOf": [
+            {
+              "pattern": "^\\$\\{\\{.+\\}\\}$",
+              "type": "string"
+            },
+            {
+              "pattern": "^((?P<d>\\d+)d)?((?P<h>\\d+)h)?((?P<m>\\d+)m)?((?P<s>\\d+)s)?$",
+              "type": "string"
+            }
+          ],
+          "title": "Life Span"
         },
         "http_port": {
           "anyOf": [
@@ -758,10 +1176,11 @@
         "restart": {
           "anyOf": [
             {
-              "$ref": "#/$defs/JobRestartPolicy"
+              "pattern": "^\\$\\{\\{.+\\}\\}$",
+              "type": "string"
             },
             {
-              "type": "string"
+              "$ref": "#/$defs/JobRestartPolicy"
             }
           ],
           "title": "Restart"
@@ -771,11 +1190,21 @@
           "type": "string"
         },
         "needs": {
-          "items": {
-            "type": "string"
-          },
-          "title": "Needs",
-          "type": "array"
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            }
+          ],
+          "title": "Needs"
         },
         "strategy": {
           "$ref": "#/$defs/Strategy"
