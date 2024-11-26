@@ -11,6 +11,9 @@ from typing import Annotated, Any, Literal
 from apolo_flow import ast
 
 
+LiteralT = int | float | str | bool
+
+
 TIMEDELTA_RE = r"^((?P<d>\d+)d)?((?P<h>\d+)h)?((?P<m>\d+)m)?((?P<s>\d+)s)?$"
 
 
@@ -35,8 +38,9 @@ class Param(BaseModel, use_enum_values=True, extra="forbid"):
 
 
 class Strategy(BaseModel, use_enum_values=True, extra="forbid"):
-    matrix: dict[str, list[str | dict[str, str]]] | SkipJsonSchema[None] = Field(
-        default=None, json_schema_extra=pop_default_from_schema
+    #    matrix: Any
+    matrix: dict[str, list[LiteralT | dict[str, LiteralT]]] | SkipJsonSchema[None] = (
+        Field(default=None, json_schema_extra=pop_default_from_schema)
     )
     fail_fast: bool | SkipJsonSchema[None] = Field(
         default=None, json_schema_extra=pop_default_from_schema
@@ -113,6 +117,15 @@ class ExecUnit(BaseModel, use_enum_values=True, extra="forbid"):
     python: str | SkipJsonSchema[None] = Field(
         default=None, json_schema_extra=pop_default_from_schema
     )
+    action: str | SkipJsonSchema[None] = Field(
+        default=None, json_schema_extra=pop_default_from_schema
+    )
+    module: str | SkipJsonSchema[None] = Field(
+        default=None, json_schema_extra=pop_default_from_schema
+    )
+    args: dict[str, str] | SkipJsonSchema[None] = Field(
+        default=None, json_schema_extra=pop_default_from_schema
+    )
     workdir: str | SkipJsonSchema[None] = Field(
         default=None, json_schema_extra=pop_default_from_schema
     )
@@ -180,7 +193,7 @@ class TaskBase(BaseModel, use_enum_values=True, extra="forbid"):
         default=None, json_schema_extra=pop_default_from_schema
     )
     needs: list[str] = Field(default=None, json_schema_extra=pop_default_from_schema)
-    strategy: list[Strategy] = Field(
+    strategy: Strategy | SkipJsonSchema[None] = Field(
         default=None, json_schema_extra=pop_default_from_schema
     )
     enable: bool | str = Field(default=None, json_schema_extra=pop_default_from_schema)
@@ -189,8 +202,10 @@ class TaskBase(BaseModel, use_enum_values=True, extra="forbid"):
     )
 
 
-class Task(TaskBase, use_enum_values=True, extra="forbid"):
-    pass
+class Task(TaskBase, ExecUnit, use_enum_values=True, extra="forbid"):
+    mixins: list[str] | SkipJsonSchema[None] = Field(
+        default=None, json_schema_extra=pop_default_from_schema
+    )
 
 
 class BaseDefaults(BaseModel, use_enum_values=True, extra="forbid"):
@@ -292,6 +307,91 @@ FLOW = TypeAdapter(
 )
 
 
+class ActionInput(BaseModel, use_enum_values=True, extra="forbid"):
+    type: Literal["int"] | Literal["float"] | Literal["bool"] | Literal["str"] = "str"
+    descr: str | SkipJsonSchema[None] = Field(
+        default=None, json_schema_extra=pop_default_from_schema
+    )
+    default: LiteralT | SkipJsonSchema[None] = Field(
+        default=None, json_schema_extra=pop_default_from_schema
+    )
+
+
+class ActionOutput(BaseModel, use_enum_values=True, extra="forbid"):
+    descr: str | SkipJsonSchema[None] = Field(
+        default=None, json_schema_extra=pop_default_from_schema
+    )
+    value: LiteralT | SkipJsonSchema[None] = Field(
+        default=None, json_schema_extra=pop_default_from_schema
+    )
+
+
+class BaseAction(BaseModel, use_enum_values=True, extra="forbid"):
+    name: str | SkipJsonSchema[None] = Field(
+        default=None, json_schema_extra=pop_default_from_schema
+    )
+    author: str | SkipJsonSchema[None] = Field(
+        default=None, json_schema_extra=pop_default_from_schema
+    )
+    descr: str | SkipJsonSchema[None] = Field(
+        default=None, json_schema_extra=pop_default_from_schema
+    )
+    inputs: dict[str, ActionInput] | SkipJsonSchema[None] = Field(
+        default=None, json_schema_extra=pop_default_from_schema
+    )
+    outputs: dict[str, ActionInput] | SkipJsonSchema[None] = Field(
+        default=None, json_schema_extra=pop_default_from_schema
+    )
+
+
+class LiveAction(BaseAction, use_enum_values=True, extra="forbid"):
+    kind: Literal["live"]
+    job: str
+
+
+class BatchAction(BaseAction, use_enum_values=True, extra="forbid"):
+    kind: Literal["batch"]
+    cache: Cache | SkipJsonSchema[None] = Field(
+        default=None, json_schema_extra=pop_default_from_schema
+    )
+    images: dict[str, Image] | SkipJsonSchema[None] = Field(
+        default=None, json_schema_extra=pop_default_from_schema
+    )
+    tasks: list[Task]
+
+
+class StatefulAction(BaseAction, use_enum_values=True, extra="forbid"):
+    kind: Literal["stateful"]
+    cache: Cache | SkipJsonSchema[None] = Field(
+        default=None, json_schema_extra=pop_default_from_schema
+    )
+    main: str
+    post: str
+    post_if: str
+
+
+class LocalAction(BaseAction, use_enum_values=True, extra="forbid"):
+    kind: Literal["local"]
+    cmd: str
+    bash: str
+    python: str
+
+
+ACTION = TypeAdapter(
+    Annotated[
+        Annotated[LiveAction, Tag("live")]
+        | Annotated[BatchAction, Tag("batch")]
+        | Annotated[StatefulAction, Tag("stateful")]
+        | Annotated[LocalAction, Tag("local")],
+        Discriminator("kind"),
+    ],
+    config=ConfigDict(
+        title="Flow",
+        extra="forbid",
+    ),
+)
+
+
 class ProjectDefaults(ExtendedDefaults, use_enum_values=True, extra="forbid"):
     pass
 
@@ -334,6 +434,10 @@ def main() -> None:
     project_schema = package / "project-schema.json"
     with project_schema.open("w") as f:
         f.write(json.dumps(Project.model_json_schema(), indent=2))
+
+    action_schema = package / "action-schema.json"
+    with action_schema.open("w") as f:
+        f.write(json.dumps(ACTION.json_schema(), indent=2))
 
 
 if __name__ == "__main__":

@@ -16,25 +16,31 @@ JSON = None | bool | int | float | str | list["JSON"] | dict[str, "JSON"]
 
 @dataclass
 class Schemas:
+    action: dict[str, JSON]
     flow: dict[str, JSON]
     project: dict[str, JSON]
 
 
 @pytest.fixture(scope="module")
 def schemas() -> Schemas:
+    with open_text(apolo_flow, "action-schema.json") as f:
+        action_schema = load(f)
+
     with open_text(apolo_flow, "flow-schema.json") as f:
         flow_schema = load(f)
 
     with open_text(apolo_flow, "project-schema.json") as f:
         project_schema = load(f)
 
-    return Schemas(flow_schema, project_schema)
+    return Schemas(action_schema, flow_schema, project_schema)
 
 
 def test_all_yamls(yaml_file: Path, schemas: Schemas) -> None:
     yml = yaml.safe_load(yaml_file.read_text())
     if yaml_file.stem in ("project", "minimal_project", "with_pname_project"):
         validate(instance=yml, schema=schemas.project)
+    elif "inputs" in yml:
+        validate(instance=yml, schema=schemas.action)
     else:
         validate(instance=yml, schema=schemas.flow)
 

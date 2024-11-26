@@ -65,6 +65,21 @@
           "title": "Python",
           "type": "string"
         },
+        "action": {
+          "title": "Action",
+          "type": "string"
+        },
+        "module": {
+          "title": "Module",
+          "type": "string"
+        },
+        "args": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Args",
+          "type": "object"
+        },
         "workdir": {
           "title": "Workdir",
           "type": "string"

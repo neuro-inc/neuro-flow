@@ -1,40 +1,97 @@
 {
   "$defs": {
-    "BatchDefaults": {
+    "ActionInput": {
       "additionalProperties": false,
       "properties": {
-        "fail_fast": {
-          "title": "Fail Fast",
-          "type": "boolean"
+        "type": {
+          "anyOf": [
+            {
+              "const": "int",
+              "type": "string"
+            },
+            {
+              "const": "float",
+              "type": "string"
+            },
+            {
+              "const": "bool",
+              "type": "string"
+            },
+            {
+              "const": "str",
+              "type": "string"
+            }
+          ],
+          "default": "str",
+          "title": "Type"
         },
-        "max_parallel": {
-          "title": "Max Parallel",
-          "type": "integer"
+        "descr": {
+          "title": "Descr",
+          "type": "string"
         },
-        "cache": {
-          "$ref": "#/$defs/Cache"
+        "default": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "boolean"
+            }
+          ],
+          "title": "Default"
         }
       },
-      "title": "BatchDefaults",
+      "title": "ActionInput",
       "type": "object"
     },
-    "BatchFlow": {
+    "BatchAction": {
       "additionalProperties": false,
       "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "author": {
+          "title": "Author",
+          "type": "string"
+        },
+        "descr": {
+          "title": "Descr",
+          "type": "string"
+        },
+        "inputs": {
+          "additionalProperties": {
+            "$ref": "#/$defs/ActionInput"
+          },
+          "title": "Inputs",
+          "type": "object"
+        },
+        "outputs": {
+          "additionalProperties": {
+            "$ref": "#/$defs/ActionInput"
+          },
+          "title": "Outputs",
+          "type": "object"
+        },
         "kind": {
           "const": "batch",
           "title": "Kind",
           "type": "string"
         },
-        "defaults": {
-          "$ref": "#/$defs/BatchDefaults",
-          "title": "Defaults"
+        "cache": {
+          "$ref": "#/$defs/Cache"
         },
-        "mixins": {
+        "images": {
           "additionalProperties": {
-            "$ref": "#/$defs/TaskMixin"
+            "$ref": "#/$defs/Image"
           },
-          "title": "Mixins",
+          "title": "Images",
           "type": "object"
         },
         "tasks": {
@@ -49,7 +106,7 @@
         "kind",
         "tasks"
       ],
-      "title": "BatchFlow",
+      "title": "BatchAction",
       "type": "object"
     },
     "Cache": {
@@ -78,31 +135,148 @@
       "title": "CacheStrategy",
       "type": "string"
     },
-    "JobMixin": {
+    "Image": {
       "additionalProperties": false,
       "properties": {
-        "title": {
-          "title": "Title",
+        "ref": {
+          "title": "Ref",
           "type": "string"
         },
+        "context": {
+          "title": "Context",
+          "type": "string"
+        },
+        "dockerfile": {
+          "title": "Dockerfile",
+          "type": "string"
+        },
+        "build_args": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Build Args",
+          "type": "array"
+        },
+        "env": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Env",
+          "type": "object"
+        },
+        "volumes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Volumes",
+          "type": "array"
+        },
+        "build_preset": {
+          "title": "Build Preset",
+          "type": "string"
+        },
+        "force_rebuild": {
+          "title": "Force Rebuild",
+          "type": "boolean"
+        },
+        "extra_kaniko_args": {
+          "title": "Extra Kaniko Args",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ref"
+      ],
+      "title": "Image",
+      "type": "object"
+    },
+    "JobRestartPolicy": {
+      "enum": [
+        "never",
+        "on-failure",
+        "always"
+      ],
+      "title": "JobRestartPolicy",
+      "type": "string"
+    },
+    "LiveAction": {
+      "additionalProperties": false,
+      "properties": {
         "name": {
           "title": "Name",
           "type": "string"
         },
-        "image": {
-          "title": "Image",
+        "author": {
+          "title": "Author",
           "type": "string"
         },
-        "preset": {
-          "title": "Preset",
+        "descr": {
+          "title": "Descr",
           "type": "string"
         },
-        "schedule_timeout": {
-          "title": "Schedule Timeout",
+        "inputs": {
+          "additionalProperties": {
+            "$ref": "#/$defs/ActionInput"
+          },
+          "title": "Inputs",
+          "type": "object"
+        },
+        "outputs": {
+          "additionalProperties": {
+            "$ref": "#/$defs/ActionInput"
+          },
+          "title": "Outputs",
+          "type": "object"
+        },
+        "kind": {
+          "const": "live",
+          "title": "Kind",
           "type": "string"
         },
-        "entrypoint": {
-          "title": "Entrypoint",
+        "job": {
+          "title": "Job",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "job"
+      ],
+      "title": "LiveAction",
+      "type": "object"
+    },
+    "LocalAction": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "author": {
+          "title": "Author",
+          "type": "string"
+        },
+        "descr": {
+          "title": "Descr",
+          "type": "string"
+        },
+        "inputs": {
+          "additionalProperties": {
+            "$ref": "#/$defs/ActionInput"
+          },
+          "title": "Inputs",
+          "type": "object"
+        },
+        "outputs": {
+          "additionalProperties": {
+            "$ref": "#/$defs/ActionInput"
+          },
+          "title": "Outputs",
+          "type": "object"
+        },
+        "kind": {
+          "const": "local",
+          "title": "Kind",
           "type": "string"
         },
         "cmd": {
@@ -116,214 +290,74 @@
         "python": {
           "title": "Python",
           "type": "string"
-        },
-        "action": {
-          "title": "Action",
-          "type": "string"
-        },
-        "module": {
-          "title": "Module",
-          "type": "string"
-        },
-        "args": {
-          "additionalProperties": {
-            "type": "string"
-          },
-          "title": "Args",
-          "type": "object"
-        },
-        "workdir": {
-          "title": "Workdir",
-          "type": "string"
-        },
-        "env": {
-          "additionalProperties": {
-            "type": "string"
-          },
-          "title": "Env",
-          "type": "object"
-        },
-        "volumes": {
-          "items": {
-            "type": "string"
-          },
-          "title": "Volumes",
-          "type": "array"
-        },
-        "tags": {
-          "items": {
-            "type": "string"
-          },
-          "title": "Tags",
-          "type": "array"
-        },
-        "life_span": {
-          "title": "Life Span",
-          "type": "string"
-        },
-        "http_port": {
-          "title": "Http Port",
-          "type": "integer"
-        },
-        "http_auth": {
-          "title": "Http Auth",
-          "type": "boolean"
-        },
-        "pass_config": {
-          "title": "Pass Config",
-          "type": "boolean"
-        },
-        "restart": {
-          "$ref": "#/$defs/JobRestartPolicy",
-          "title": "Restart"
-        },
-        "detach": {
-          "title": "Detach",
-          "type": "boolean"
-        },
-        "browse": {
-          "title": "Browse",
-          "type": "boolean"
-        },
-        "multi": {
-          "title": "Multi",
-          "type": "boolean"
-        },
-        "port_forward": {
-          "title": "Port Forward",
-          "type": "string"
-        },
-        "params": {
-          "additionalProperties": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "$ref": "#/$defs/Param"
-              }
-            ]
-          },
-          "title": "Params",
-          "type": "object"
-        },
-        "mixins": {
-          "items": {
-            "type": "string"
-          },
-          "title": "Mixins",
-          "type": "array"
-        }
-      },
-      "title": "JobMixin",
-      "type": "object"
-    },
-    "JobRestartPolicy": {
-      "enum": [
-        "never",
-        "on-failure",
-        "always"
-      ],
-      "title": "JobRestartPolicy",
-      "type": "string"
-    },
-    "LiveDefaults": {
-      "additionalProperties": false,
-      "properties": {
-        "tags": {
-          "items": {
-            "type": "string"
-          },
-          "title": "Tags",
-          "type": "array"
-        },
-        "env": {
-          "additionalProperties": {
-            "type": "string"
-          },
-          "title": "Env",
-          "type": "object"
-        },
-        "volumes": {
-          "items": {
-            "type": "string"
-          },
-          "title": "Volumes",
-          "type": "array"
-        },
-        "workdir": {
-          "title": "Workdir",
-          "type": "string"
-        },
-        "life_span": {
-          "title": "Life Span",
-          "type": "string"
-        },
-        "preset": {
-          "title": "Preset",
-          "type": "string"
-        },
-        "schedule_timeout": {
-          "title": "Schedule Timeout",
-          "type": "string"
-        }
-      },
-      "title": "LiveDefaults",
-      "type": "object"
-    },
-    "LiveFlow": {
-      "additionalProperties": false,
-      "properties": {
-        "kind": {
-          "const": "live",
-          "title": "Kind",
-          "type": "string"
-        },
-        "params": {
-          "additionalProperties": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "$ref": "#/$defs/Param"
-              }
-            ]
-          },
-          "title": "Params",
-          "type": "object"
-        },
-        "defaults": {
-          "$ref": "#/$defs/LiveDefaults",
-          "title": "Defaults"
-        },
-        "mixins": {
-          "additionalProperties": {
-            "$ref": "#/$defs/JobMixin"
-          },
-          "title": "Mixins",
-          "type": "object"
         }
       },
       "required": [
-        "kind"
+        "kind",
+        "cmd",
+        "bash",
+        "python"
       ],
-      "title": "LiveFlow",
+      "title": "LocalAction",
       "type": "object"
     },
-    "Param": {
+    "StatefulAction": {
       "additionalProperties": false,
       "properties": {
-        "default": {
-          "type": "string",
-          "title": "Default"
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "author": {
+          "title": "Author",
+          "type": "string"
         },
         "descr": {
           "title": "Descr",
           "type": "string"
+        },
+        "inputs": {
+          "additionalProperties": {
+            "$ref": "#/$defs/ActionInput"
+          },
+          "title": "Inputs",
+          "type": "object"
+        },
+        "outputs": {
+          "additionalProperties": {
+            "$ref": "#/$defs/ActionInput"
+          },
+          "title": "Outputs",
+          "type": "object"
+        },
+        "kind": {
+          "const": "stateful",
+          "title": "Kind",
+          "type": "string"
+        },
+        "cache": {
+          "$ref": "#/$defs/Cache"
+        },
+        "main": {
+          "title": "Main",
+          "type": "string"
+        },
+        "post": {
+          "title": "Post",
+          "type": "string"
+        },
+        "post_if": {
+          "title": "Post If",
+          "type": "string"
         }
       },
-      "title": "Param",
+      "required": [
+        "kind",
+        "main",
+        "post",
+        "post_if"
+      ],
+      "title": "StatefulAction",
       "type": "object"
     },
     "Strategy": {
@@ -520,131 +554,29 @@
       },
       "title": "Task",
       "type": "object"
-    },
-    "TaskMixin": {
-      "additionalProperties": false,
-      "properties": {
-        "title": {
-          "title": "Title",
-          "type": "string"
-        },
-        "name": {
-          "title": "Name",
-          "type": "string"
-        },
-        "image": {
-          "title": "Image",
-          "type": "string"
-        },
-        "preset": {
-          "title": "Preset",
-          "type": "string"
-        },
-        "schedule_timeout": {
-          "title": "Schedule Timeout",
-          "type": "string"
-        },
-        "entrypoint": {
-          "title": "Entrypoint",
-          "type": "string"
-        },
-        "cmd": {
-          "title": "Cmd",
-          "type": "string"
-        },
-        "bash": {
-          "title": "Bash",
-          "type": "string"
-        },
-        "python": {
-          "title": "Python",
-          "type": "string"
-        },
-        "action": {
-          "title": "Action",
-          "type": "string"
-        },
-        "module": {
-          "title": "Module",
-          "type": "string"
-        },
-        "args": {
-          "additionalProperties": {
-            "type": "string"
-          },
-          "title": "Args",
-          "type": "object"
-        },
-        "workdir": {
-          "title": "Workdir",
-          "type": "string"
-        },
-        "env": {
-          "additionalProperties": {
-            "type": "string"
-          },
-          "title": "Env",
-          "type": "object"
-        },
-        "volumes": {
-          "items": {
-            "type": "string"
-          },
-          "title": "Volumes",
-          "type": "array"
-        },
-        "tags": {
-          "items": {
-            "type": "string"
-          },
-          "title": "Tags",
-          "type": "array"
-        },
-        "life_span": {
-          "title": "Life Span",
-          "type": "string"
-        },
-        "http_port": {
-          "title": "Http Port",
-          "type": "integer"
-        },
-        "http_auth": {
-          "title": "Http Auth",
-          "type": "boolean"
-        },
-        "pass_config": {
-          "title": "Pass Config",
-          "type": "boolean"
-        },
-        "restart": {
-          "$ref": "#/$defs/JobRestartPolicy",
-          "title": "Restart"
-        },
-        "mixins": {
-          "items": {
-            "type": "string"
-          },
-          "title": "Mixins",
-          "type": "array"
-        }
-      },
-      "title": "TaskMixin",
-      "type": "object"
     }
   },
   "discriminator": {
     "mapping": {
-      "batch": "#/$defs/BatchFlow",
-      "live": "#/$defs/LiveFlow"
+      "batch": "#/$defs/BatchAction",
+      "live": "#/$defs/LiveAction",
+      "local": "#/$defs/LocalAction",
+      "stateful": "#/$defs/StatefulAction"
     },
     "propertyName": "kind"
   },
   "oneOf": [
     {
-      "$ref": "#/$defs/LiveFlow"
+      "$ref": "#/$defs/LiveAction"
     },
     {
-      "$ref": "#/$defs/BatchFlow"
+      "$ref": "#/$defs/BatchAction"
+    },
+    {
+      "$ref": "#/$defs/StatefulAction"
+    },
+    {
+      "$ref": "#/$defs/LocalAction"
     }
   ]
 }
