@@ -50,6 +50,34 @@
       "title": "ActionInput",
       "type": "object"
     },
+    "ActionOutput": {
+      "additionalProperties": false,
+      "properties": {
+        "descr": {
+          "title": "Descr",
+          "type": "string"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "boolean"
+            }
+          ],
+          "title": "Value"
+        }
+      },
+      "title": "ActionOutput",
+      "type": "object"
+    },
     "BatchAction": {
       "additionalProperties": false,
       "properties": {
@@ -74,7 +102,17 @@
         },
         "outputs": {
           "additionalProperties": {
-            "$ref": "#/$defs/ActionInput"
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ActionOutput"
+              },
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            ]
           },
           "title": "Outputs",
           "type": "object"
@@ -190,6 +228,163 @@
       "title": "Image",
       "type": "object"
     },
+    "Job": {
+      "additionalProperties": false,
+      "properties": {
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "image": {
+          "title": "Image",
+          "type": "string"
+        },
+        "preset": {
+          "title": "Preset",
+          "type": "string"
+        },
+        "schedule_timeout": {
+          "title": "Schedule Timeout",
+          "type": "string"
+        },
+        "entrypoint": {
+          "title": "Entrypoint",
+          "type": "string"
+        },
+        "cmd": {
+          "title": "Cmd",
+          "type": "string"
+        },
+        "bash": {
+          "title": "Bash",
+          "type": "string"
+        },
+        "python": {
+          "title": "Python",
+          "type": "string"
+        },
+        "action": {
+          "title": "Action",
+          "type": "string"
+        },
+        "module": {
+          "title": "Module",
+          "type": "string"
+        },
+        "args": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Args",
+          "type": "object"
+        },
+        "workdir": {
+          "title": "Workdir",
+          "type": "string"
+        },
+        "env": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Env",
+          "type": "object"
+        },
+        "volumes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Volumes",
+          "type": "array"
+        },
+        "tags": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Tags",
+          "type": "array"
+        },
+        "life_span": {
+          "title": "Life Span",
+          "type": "string"
+        },
+        "http_port": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "title": "Http Port"
+        },
+        "http_auth": {
+          "title": "Http Auth",
+          "type": "boolean"
+        },
+        "pass_config": {
+          "title": "Pass Config",
+          "type": "boolean"
+        },
+        "restart": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/JobRestartPolicy"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "title": "Restart"
+        },
+        "detach": {
+          "title": "Detach",
+          "type": "boolean"
+        },
+        "browse": {
+          "title": "Browse",
+          "type": "boolean"
+        },
+        "multi": {
+          "title": "Multi",
+          "type": "boolean"
+        },
+        "port_forward": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Port Forward",
+          "type": "array"
+        },
+        "params": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "$ref": "#/$defs/Param"
+              }
+            ]
+          },
+          "title": "Params",
+          "type": "object"
+        },
+        "mixins": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Mixins",
+          "type": "array"
+        }
+      },
+      "title": "Job",
+      "type": "object"
+    },
     "JobRestartPolicy": {
       "enum": [
         "never",
@@ -223,7 +418,17 @@
         },
         "outputs": {
           "additionalProperties": {
-            "$ref": "#/$defs/ActionInput"
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ActionOutput"
+              },
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            ]
           },
           "title": "Outputs",
           "type": "object"
@@ -234,8 +439,7 @@
           "type": "string"
         },
         "job": {
-          "title": "Job",
-          "type": "string"
+          "$ref": "#/$defs/Job"
         }
       },
       "required": [
@@ -269,7 +473,17 @@
         },
         "outputs": {
           "additionalProperties": {
-            "$ref": "#/$defs/ActionInput"
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ActionOutput"
+              },
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            ]
           },
           "title": "Outputs",
           "type": "object"
@@ -293,12 +507,24 @@
         }
       },
       "required": [
-        "kind",
-        "cmd",
-        "bash",
-        "python"
+        "kind"
       ],
       "title": "LocalAction",
+      "type": "object"
+    },
+    "Param": {
+      "additionalProperties": false,
+      "properties": {
+        "default": {
+          "type": "string",
+          "title": "Default"
+        },
+        "descr": {
+          "title": "Descr",
+          "type": "string"
+        }
+      },
+      "title": "Param",
       "type": "object"
     },
     "StatefulAction": {
@@ -325,7 +551,17 @@
         },
         "outputs": {
           "additionalProperties": {
-            "$ref": "#/$defs/ActionInput"
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ActionOutput"
+              },
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            ]
           },
           "title": "Outputs",
           "type": "object"
@@ -501,8 +737,15 @@
           "type": "string"
         },
         "http_port": {
-          "title": "Http Port",
-          "type": "integer"
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "title": "Http Port"
         },
         "http_auth": {
           "title": "Http Auth",
@@ -513,7 +756,14 @@
           "type": "boolean"
         },
         "restart": {
-          "$ref": "#/$defs/JobRestartPolicy",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/JobRestartPolicy"
+            },
+            {
+              "type": "string"
+            }
+          ],
           "title": "Restart"
         },
         "id": {

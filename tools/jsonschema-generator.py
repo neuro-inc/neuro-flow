@@ -141,7 +141,7 @@ class ExecUnit(BaseModel, use_enum_values=True, extra="forbid"):
     life_span: str | SkipJsonSchema[None] = Field(
         default=None, pattern=TIMEDELTA_RE, json_schema_extra=pop_default_from_schema
     )
-    http_port: int | SkipJsonSchema[None] = Field(
+    http_port: int | str | SkipJsonSchema[None] = Field(
         default=None, json_schema_extra=pop_default_from_schema
     )
     http_auth: bool | SkipJsonSchema[None] = Field(
@@ -150,7 +150,7 @@ class ExecUnit(BaseModel, use_enum_values=True, extra="forbid"):
     pass_config: bool | SkipJsonSchema[None] = Field(
         default=None, json_schema_extra=pop_default_from_schema
     )
-    restart: JobRestartPolicy | SkipJsonSchema[None] = Field(
+    restart: JobRestartPolicy | str | SkipJsonSchema[None] = Field(
         default=None, json_schema_extra=pop_default_from_schema
     )
 
@@ -171,13 +171,54 @@ class JobMixin(ExecUnit, use_enum_values=True, extra="forbid"):
     multi: bool | SkipJsonSchema[None] = Field(
         default=None, json_schema_extra=pop_default_from_schema
     )
-    port_forward: str | SkipJsonSchema[None] = Field(
+    port_forward: list[str] | SkipJsonSchema[None] = Field(
         default=None, pattern=r"^\d+:\d+$", json_schema_extra=pop_default_from_schema
     )
     params: dict[str, str | Param] | SkipJsonSchema[None] = Field(
         default=None, json_schema_extra=pop_default_from_schema
     )
     mixins: list[str] | SkipJsonSchema[None] = Field(
+        default=None, json_schema_extra=pop_default_from_schema
+    )
+
+
+class Job(ExecUnit, use_enum_values=True, extra="forbid"):
+    detach: bool | SkipJsonSchema[None] = Field(
+        default=None, json_schema_extra=pop_default_from_schema
+    )
+    browse: bool | SkipJsonSchema[None] = Field(
+        default=None, json_schema_extra=pop_default_from_schema
+    )
+    multi: bool | SkipJsonSchema[None] = Field(
+        default=None, json_schema_extra=pop_default_from_schema
+    )
+    port_forward: list[str] | SkipJsonSchema[None] = Field(
+        default=None, pattern=r"^\d+:\d+$", json_schema_extra=pop_default_from_schema
+    )
+    params: dict[str, str | Param] | SkipJsonSchema[None] = Field(
+        default=None, json_schema_extra=pop_default_from_schema
+    )
+    mixins: list[str] | SkipJsonSchema[None] = Field(
+        default=None, json_schema_extra=pop_default_from_schema
+    )
+
+
+class JobActionCall(BaseModel, use_enum_values=True, extra="forbid"):
+    action: str
+    args: dict[str, LiteralT] | SkipJsonSchema[None] = Field(
+        default=None, json_schema_extra=pop_default_from_schema
+    )
+    params: dict[str, str | Param] | SkipJsonSchema[None] = Field(
+        default=None, json_schema_extra=pop_default_from_schema
+    )
+
+
+class JobModuleCall(BaseModel, use_enum_values=True, extra="forbid"):
+    module: str
+    args: dict[str, LiteralT] | SkipJsonSchema[None] = Field(
+        default=None, json_schema_extra=pop_default_from_schema
+    )
+    params: dict[str, str | Param] | SkipJsonSchema[None] = Field(
         default=None, json_schema_extra=pop_default_from_schema
     )
 
@@ -232,7 +273,7 @@ class BaseDefaults(BaseModel, use_enum_values=True, extra="forbid"):
     )
 
 
-class ExtendedDefaults(BaseModel, use_enum_values=True, extra="forbid"):
+class ExtendedDefaults(BaseDefaults, use_enum_values=True, extra="forbid"):
     fail_fast: bool | SkipJsonSchema[None] = Field(
         default=None, json_schema_extra=pop_default_from_schema
     )
@@ -264,26 +305,27 @@ class BaseFlow(BaseModel, use_enum_values=True, extra="forbid"):
     volumes: dict[str, Volume] | SkipJsonSchema[None] = Field(
         default=None, json_schema_extra=pop_default_from_schema
     )
-
-
-class LiveFlow(BaseModel, use_enum_values=True, extra="forbid"):
-    kind: Literal["live"]
     params: dict[str, str | Param] | SkipJsonSchema[None] = Field(
         default=None, json_schema_extra=pop_default_from_schema
     )
+
+
+class LiveFlow(BaseFlow, use_enum_values=True, extra="forbid"):
+    kind: Literal["live"]
     defaults: LiveDefaults | SkipJsonSchema[None] = Field(
         default=None, json_schema_extra=pop_default_from_schema
     )
     mixins: dict[str, JobMixin] | SkipJsonSchema[None] = Field(
         default=None, json_schema_extra=pop_default_from_schema
     )
+    jobs: dict[str, Job | JobActionCall | JobModuleCall]
 
 
 class BatchDefaults(ExtendedDefaults, use_enum_values=True, extra="forbid"):
     pass
 
 
-class BatchFlow(BaseModel, use_enum_values=True, extra="forbid"):
+class BatchFlow(BaseFlow, use_enum_values=True, extra="forbid"):
     kind: Literal["batch"]
     defaults: BatchDefaults | SkipJsonSchema[None] = Field(
         default=None, json_schema_extra=pop_default_from_schema
@@ -339,14 +381,15 @@ class BaseAction(BaseModel, use_enum_values=True, extra="forbid"):
     inputs: dict[str, ActionInput] | SkipJsonSchema[None] = Field(
         default=None, json_schema_extra=pop_default_from_schema
     )
-    outputs: dict[str, ActionInput] | SkipJsonSchema[None] = Field(
+    # list[str] is for outputs.needs
+    outputs: dict[str, ActionOutput | list[str]] | SkipJsonSchema[None] = Field(
         default=None, json_schema_extra=pop_default_from_schema
     )
 
 
 class LiveAction(BaseAction, use_enum_values=True, extra="forbid"):
     kind: Literal["live"]
-    job: str
+    job: Job
 
 
 class BatchAction(BaseAction, use_enum_values=True, extra="forbid"):
@@ -372,9 +415,15 @@ class StatefulAction(BaseAction, use_enum_values=True, extra="forbid"):
 
 class LocalAction(BaseAction, use_enum_values=True, extra="forbid"):
     kind: Literal["local"]
-    cmd: str
-    bash: str
-    python: str
+    cmd: str | SkipJsonSchema[None] = Field(
+        default=None, json_schema_extra=pop_default_from_schema
+    )
+    bash: str | SkipJsonSchema[None] = Field(
+        default=None, json_schema_extra=pop_default_from_schema
+    )
+    python: str | SkipJsonSchema[None] = Field(
+        default=None, json_schema_extra=pop_default_from_schema
+    )
 
 
 ACTION = TypeAdapter(
@@ -430,6 +479,7 @@ def main() -> None:
     flow_schema = package / "flow-schema.json"
     with flow_schema.open("w") as f:
         f.write(json.dumps(FLOW.json_schema(), indent=2))
+    #        f.write(json.dumps(LiveFlow.model_json_schema(), indent=2))
 
     project_schema = package / "project-schema.json"
     with project_schema.open("w") as f:

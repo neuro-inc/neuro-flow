@@ -1601,13 +1601,13 @@ def test_parse_mixin(assets: pathlib.Path) -> None:
 
 def test_batch_job_extra_attrs(assets: pathlib.Path) -> None:
     workspace = assets
-    config_file = workspace / "batch-task-extra-attrs.yml"
+    config_file = workspace / "bad-batch-task-extra-attrs.yml"
     with pytest.raises(ConstructorError):
         parse_batch(workspace, config_file)
 
 
 def test_batch_action_call_extra_attrs(assets: pathlib.Path) -> None:
     workspace = assets
-    config_file = workspace / "batch-action-call-extra-attrs.yml"
+    config_file = workspace / "bad-batch-action-call-extra-attrs.yml"
     with pytest.raises(ConstructorError):
         parse_batch(workspace, config_file)

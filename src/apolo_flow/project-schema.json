@@ -110,8 +110,15 @@
           "type": "string"
         },
         "http_port": {
-          "title": "Http Port",
-          "type": "integer"
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "title": "Http Port"
         },
         "http_auth": {
           "title": "Http Auth",
@@ -122,7 +129,14 @@
           "type": "boolean"
         },
         "restart": {
-          "$ref": "#/$defs/JobRestartPolicy",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/JobRestartPolicy"
+            },
+            {
+              "type": "string"
+            }
+          ],
           "title": "Restart"
         },
         "mixins": {
@@ -203,6 +217,43 @@
     "ProjectDefaults": {
       "additionalProperties": false,
       "properties": {
+        "tags": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Tags",
+          "type": "array"
+        },
+        "env": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Env",
+          "type": "object"
+        },
+        "volumes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Volumes",
+          "type": "array"
+        },
+        "workdir": {
+          "title": "Workdir",
+          "type": "string"
+        },
+        "life_span": {
+          "title": "Life Span",
+          "type": "string"
+        },
+        "preset": {
+          "title": "Preset",
+          "type": "string"
+        },
+        "schedule_timeout": {
+          "title": "Schedule Timeout",
+          "type": "string"
+        },
         "fail_fast": {
           "title": "Fail Fast",
           "type": "boolean"

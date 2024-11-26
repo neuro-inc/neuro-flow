@@ -3,6 +3,43 @@
     "BatchDefaults": {
       "additionalProperties": false,
       "properties": {
+        "tags": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Tags",
+          "type": "array"
+        },
+        "env": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Env",
+          "type": "object"
+        },
+        "volumes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Volumes",
+          "type": "array"
+        },
+        "workdir": {
+          "title": "Workdir",
+          "type": "string"
+        },
+        "life_span": {
+          "title": "Life Span",
+          "type": "string"
+        },
+        "preset": {
+          "title": "Preset",
+          "type": "string"
+        },
+        "schedule_timeout": {
+          "title": "Schedule Timeout",
+          "type": "string"
+        },
         "fail_fast": {
           "title": "Fail Fast",
           "type": "boolean"
@@ -21,6 +58,46 @@
     "BatchFlow": {
       "additionalProperties": false,
       "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "life_span": {
+          "title": "Life Span",
+          "type": "string"
+        },
+        "images": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Image"
+          },
+          "title": "Images",
+          "type": "object"
+        },
+        "volumes": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Volume"
+          },
+          "title": "Volumes",
+          "type": "object"
+        },
+        "params": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "$ref": "#/$defs/Param"
+              }
+            ]
+          },
+          "title": "Params",
+          "type": "object"
+        },
         "kind": {
           "const": "batch",
           "title": "Kind",
@@ -77,6 +154,266 @@
       ],
       "title": "CacheStrategy",
       "type": "string"
+    },
+    "Image": {
+      "additionalProperties": false,
+      "properties": {
+        "ref": {
+          "title": "Ref",
+          "type": "string"
+        },
+        "context": {
+          "title": "Context",
+          "type": "string"
+        },
+        "dockerfile": {
+          "title": "Dockerfile",
+          "type": "string"
+        },
+        "build_args": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Build Args",
+          "type": "array"
+        },
+        "env": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Env",
+          "type": "object"
+        },
+        "volumes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Volumes",
+          "type": "array"
+        },
+        "build_preset": {
+          "title": "Build Preset",
+          "type": "string"
+        },
+        "force_rebuild": {
+          "title": "Force Rebuild",
+          "type": "boolean"
+        },
+        "extra_kaniko_args": {
+          "title": "Extra Kaniko Args",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ref"
+      ],
+      "title": "Image",
+      "type": "object"
+    },
+    "Job": {
+      "additionalProperties": false,
+      "properties": {
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "image": {
+          "title": "Image",
+          "type": "string"
+        },
+        "preset": {
+          "title": "Preset",
+          "type": "string"
+        },
+        "schedule_timeout": {
+          "title": "Schedule Timeout",
+          "type": "string"
+        },
+        "entrypoint": {
+          "title": "Entrypoint",
+          "type": "string"
+        },
+        "cmd": {
+          "title": "Cmd",
+          "type": "string"
+        },
+        "bash": {
+          "title": "Bash",
+          "type": "string"
+        },
+        "python": {
+          "title": "Python",
+          "type": "string"
+        },
+        "action": {
+          "title": "Action",
+          "type": "string"
+        },
+        "module": {
+          "title": "Module",
+          "type": "string"
+        },
+        "args": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Args",
+          "type": "object"
+        },
+        "workdir": {
+          "title": "Workdir",
+          "type": "string"
+        },
+        "env": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Env",
+          "type": "object"
+        },
+        "volumes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Volumes",
+          "type": "array"
+        },
+        "tags": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Tags",
+          "type": "array"
+        },
+        "life_span": {
+          "title": "Life Span",
+          "type": "string"
+        },
+        "http_port": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "title": "Http Port"
+        },
+        "http_auth": {
+          "title": "Http Auth",
+          "type": "boolean"
+        },
+        "pass_config": {
+          "title": "Pass Config",
+          "type": "boolean"
+        },
+        "restart": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/JobRestartPolicy"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "title": "Restart"
+        },
+        "detach": {
+          "title": "Detach",
+          "type": "boolean"
+        },
+        "browse": {
+          "title": "Browse",
+          "type": "boolean"
+        },
+        "multi": {
+          "title": "Multi",
+          "type": "boolean"
+        },
+        "port_forward": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Port Forward",
+          "type": "array"
+        },
+        "params": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "$ref": "#/$defs/Param"
+              }
+            ]
+          },
+          "title": "Params",
+          "type": "object"
+        },
+        "mixins": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Mixins",
+          "type": "array"
+        }
+      },
+      "title": "Job",
+      "type": "object"
+    },
+    "JobActionCall": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "title": "Action",
+          "type": "string"
+        },
+        "args": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "boolean"
+              }
+            ]
+          },
+          "title": "Args",
+          "type": "object"
+        },
+        "params": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "$ref": "#/$defs/Param"
+              }
+            ]
+          },
+          "title": "Params",
+          "type": "object"
+        }
+      },
+      "required": [
+        "action"
+      ],
+      "title": "JobActionCall",
+      "type": "object"
     },
     "JobMixin": {
       "additionalProperties": false,
@@ -162,8 +499,15 @@
           "type": "string"
         },
         "http_port": {
-          "title": "Http Port",
-          "type": "integer"
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "title": "Http Port"
         },
         "http_auth": {
           "title": "Http Auth",
@@ -174,7 +518,14 @@
           "type": "boolean"
         },
         "restart": {
-          "$ref": "#/$defs/JobRestartPolicy",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/JobRestartPolicy"
+            },
+            {
+              "type": "string"
+            }
+          ],
           "title": "Restart"
         },
         "detach": {
@@ -190,8 +541,11 @@
           "type": "boolean"
         },
         "port_forward": {
+          "items": {
+            "type": "string"
+          },
           "title": "Port Forward",
-          "type": "string"
+          "type": "array"
         },
         "params": {
           "additionalProperties": {
@@ -216,6 +570,54 @@
         }
       },
       "title": "JobMixin",
+      "type": "object"
+    },
+    "JobModuleCall": {
+      "additionalProperties": false,
+      "properties": {
+        "module": {
+          "title": "Module",
+          "type": "string"
+        },
+        "args": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "boolean"
+              }
+            ]
+          },
+          "title": "Args",
+          "type": "object"
+        },
+        "params": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "$ref": "#/$defs/Param"
+              }
+            ]
+          },
+          "title": "Params",
+          "type": "object"
+        }
+      },
+      "required": [
+        "module"
+      ],
+      "title": "JobModuleCall",
       "type": "object"
     },
     "JobRestartPolicy": {
@@ -274,10 +676,31 @@
     "LiveFlow": {
       "additionalProperties": false,
       "properties": {
-        "kind": {
-          "const": "live",
-          "title": "Kind",
+        "id": {
+          "title": "Id",
           "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "life_span": {
+          "title": "Life Span",
+          "type": "string"
+        },
+        "images": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Image"
+          },
+          "title": "Images",
+          "type": "object"
+        },
+        "volumes": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Volume"
+          },
+          "title": "Volumes",
+          "type": "object"
         },
         "params": {
           "additionalProperties": {
@@ -293,6 +716,11 @@
           "title": "Params",
           "type": "object"
         },
+        "kind": {
+          "const": "live",
+          "title": "Kind",
+          "type": "string"
+        },
         "defaults": {
           "$ref": "#/$defs/LiveDefaults",
           "title": "Defaults"
@@ -303,10 +731,28 @@
           },
           "title": "Mixins",
           "type": "object"
+        },
+        "jobs": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Job"
+              },
+              {
+                "$ref": "#/$defs/JobActionCall"
+              },
+              {
+                "$ref": "#/$defs/JobModuleCall"
+              }
+            ]
+          },
+          "title": "Jobs",
+          "type": "object"
         }
       },
       "required": [
-        "kind"
+        "kind",
+        "jobs"
       ],
       "title": "LiveFlow",
       "type": "object"
@@ -467,8 +913,15 @@
           "type": "string"
         },
         "http_port": {
-          "title": "Http Port",
-          "type": "integer"
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "title": "Http Port"
         },
         "http_auth": {
           "title": "Http Auth",
@@ -479,7 +932,14 @@
           "type": "boolean"
         },
         "restart": {
-          "$ref": "#/$defs/JobRestartPolicy",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/JobRestartPolicy"
+            },
+            {
+              "type": "string"
+            }
+          ],
           "title": "Restart"
         },
         "id": {
@@ -605,8 +1065,15 @@
           "type": "string"
         },
         "http_port": {
-          "title": "Http Port",
-          "type": "integer"
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "title": "Http Port"
         },
         "http_auth": {
           "title": "Http Auth",
@@ -617,7 +1084,14 @@
           "type": "boolean"
         },
         "restart": {
-          "$ref": "#/$defs/JobRestartPolicy",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/JobRestartPolicy"
+            },
+            {
+              "type": "string"
+            }
+          ],
           "title": "Restart"
         },
         "mixins": {
@@ -629,6 +1103,33 @@
         }
       },
       "title": "TaskMixin",
+      "type": "object"
+    },
+    "Volume": {
+      "additionalProperties": false,
+      "properties": {
+        "remote": {
+          "title": "Remote",
+          "type": "string"
+        },
+        "mount": {
+          "title": "Mount",
+          "type": "string"
+        },
+        "read_only": {
+          "title": "Read Only",
+          "type": "boolean"
+        },
+        "local": {
+          "title": "Local",
+          "type": "string"
+        }
+      },
+      "required": [
+        "remote",
+        "mount"
+      ],
+      "title": "Volume",
       "type": "object"
     }
   },

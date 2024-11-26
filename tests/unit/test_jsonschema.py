@@ -56,5 +56,7 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
             continue
         if fname.name.startswith("."):
             continue
+        if "bad" in fname.stem.split("-"):
+            continue
         params.append(pytest.param(fname, id=str(fname.relative_to(toplevel))))
     metafunc.parametrize("yaml_file", params)
