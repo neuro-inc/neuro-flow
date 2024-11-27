@@ -1213,13 +1213,13 @@ def test_parse_explicit_flow_id(assets: pathlib.Path) -> None:
 
 def test_live_job_extra_attrs(assets: pathlib.Path) -> None:
     workspace = assets
-    config_file = workspace / "live-job-extra-attrs.yml"
+    config_file = workspace / "bad-live-job-extra-attrs.yml"
     with pytest.raises(ConstructorError):
         parse_live(workspace, config_file)
 
 
 def test_live_action_call_extra_attrs(assets: pathlib.Path) -> None:
     workspace = assets
-    config_file = workspace / "live-action-call-extra-attrs.yml"
+    config_file = workspace / "bad-live-action-call-extra-attrs.yml"
     with pytest.raises(ConstructorError):
         parse_live(workspace, config_file)
