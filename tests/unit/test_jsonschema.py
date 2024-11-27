@@ -8,11 +8,12 @@ from itertools import chain
 from json import load
 from jsonschema import ValidationError, validate
 from pathlib import Path
+from typing import Union
 
 import apolo_flow
 
 
-JSON = None | bool | int | float | str | list["JSON"] | dict[str, "JSON"]
+JSON = Union[None, bool, int, float, str, list["JSON"], dict[str, "JSON"]]
 
 
 @dataclass
