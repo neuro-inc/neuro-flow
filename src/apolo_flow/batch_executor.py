@@ -32,8 +32,6 @@ from rich.progress import BarColumn, Progress, TaskID, TextColumn
 from typing import (
     AbstractSet,
     AsyncIterator,
-    Awaitable,
-    Callable,
     Dict,
     Generic,
     Iterable,
@@ -474,9 +472,6 @@ class RetryReadNeuroClient(RetryConfig):
 
 class BatchExecutor:
     transient_progress: bool = False
-    run_builder_job: Callable[..., Awaitable[str]] = staticmethod(  # type: ignore
-        start_image_build
-    )
 
     def __init__(
         self,
@@ -516,7 +511,7 @@ class BatchExecutor:
         self._is_cancelling = False
         self._project_role = project_role
 
-        self._run_builder_job = self.run_builder_job
+        self._run_builder_job = start_image_build
 
         # A note about default value:
         # AS: I have no idea what timeout is better;

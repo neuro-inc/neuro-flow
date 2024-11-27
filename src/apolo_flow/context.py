@@ -410,7 +410,7 @@ class Context(RootABC):
         return self._dry_run
 
 
-_MODULE_PARENT = TypeVar("_MODULE_PARENT", bound=RootABC, covariant=True)
+_MODULE_PARENT = TypeVar("_MODULE_PARENT", bound=RootABC)
 
 
 @dataclass(frozen=True)
@@ -424,10 +424,13 @@ class ModuleContext(Context, Generic[_MODULE_PARENT]):
             return self._parent.lookup(name)
 
 
+_FLOW_CTX = TypeVar("_FLOW_CTX", bound=FlowCtx)
+
+
 @dataclass(frozen=True)
-class WithFlowContext(Context):
+class WithFlowContext(Context, Generic[_FLOW_CTX]):
     project: ProjectCtx
-    flow: FlowCtx
+    flow: _FLOW_CTX
 
 
 @dataclass(frozen=True)
@@ -436,7 +439,7 @@ class WithEnvContext(Context):
 
 
 @dataclass(frozen=True)
-class LiveContextStep1(WithFlowContext, Context):
+class LiveContextStep1(WithFlowContext[FlowCtx], Context):
     git: GitCtx
 
     def to_live_ctx(
@@ -516,8 +519,7 @@ class LiveModuleContext(ModuleContext[_MODULE_PARENT]):
 
 
 @dataclass(frozen=True)
-class BatchContextStep1(WithFlowContext, Context):
-    flow: BatchFlowCtx
+class BatchContextStep1(WithFlowContext[BatchFlowCtx], Context):
     params: ParamsCtx
     git: GitCtx
 
@@ -818,7 +820,7 @@ async def setup_batch_flow_ctx(
 
 
 async def setup_defaults_env_tags_ctx(
-    ctx: WithFlowContext,
+    ctx: WithFlowContext[_FLOW_CTX],
     ast_defaults: Optional[ast.FlowDefaults],
     ast_global_defaults: Optional[ast.FlowDefaults],
 ) -> Tuple[DefaultsConf, EnvCtx, TagsCtx]:
@@ -880,7 +882,7 @@ async def setup_defaults_env_tags_ctx(
 
 
 def _calc_full_path(
-    ctx: WithFlowContext, path: Optional[LocalPath]
+    ctx: WithFlowContext[_FLOW_CTX], path: Optional[LocalPath]
 ) -> Optional[LocalPath]:
     if path is None:
         return None
@@ -890,7 +892,7 @@ def _calc_full_path(
 
 
 async def setup_volumes_ctx(
-    ctx: WithFlowContext,
+    ctx: WithFlowContext[_FLOW_CTX],
     ast_volumes: Optional[Mapping[str, ast.Volume]],
 ) -> VolumesCtx:
     volumes = {}
@@ -911,7 +913,7 @@ async def setup_volumes_ctx(
 async def setup_local_or_storage_path(
     str_expr: OptStrExpr,
     ctx: RootABC,
-    flow_ctx: WithFlowContext,
+    flow_ctx: WithFlowContext[_FLOW_CTX],
 ) -> Optional[Union[URL, LocalPath]]:
     path_str = await str_expr.eval(ctx)
     if path_str is None:
@@ -967,7 +969,7 @@ def _get_dockerfile_rel(
 
 async def setup_images_early(
     ctx: RootABC,
-    flow_ctx: WithFlowContext,
+    flow_ctx: WithFlowContext[_FLOW_CTX],
     ast_images: Optional[Mapping[str, ast.Image]],
 ) -> Mapping[str, EarlyImageCtx]:
     images = {}
@@ -997,7 +999,7 @@ async def setup_images_early(
 
 async def setup_images_ctx(
     ctx: RootABC,
-    flow_ctx: WithFlowContext,
+    flow_ctx: WithFlowContext[_FLOW_CTX],
     ast_images: Optional[Mapping[str, ast.Image]],
     early_images: Optional[Mapping[str, EarlyImageCtx]] = None,
 ) -> ImagesCtx:
@@ -1646,11 +1648,11 @@ _T = TypeVar("_T", bound=BaseBatchContext, covariant=True)
 class EarlyBatch:
     def __init__(
         self,
-        ctx: WithFlowContext,
+        ctx: WithFlowContext[BatchFlowCtx],
         tasks: Mapping[str, "BaseEarlyTask"],
         config_loader: ConfigLoader,
     ):
-        self._flow_ctx = ctx
+        self._flow_ctx: WithFlowContext[BatchFlowCtx] = ctx
         self._cl = config_loader
         self._tasks = tasks
 
@@ -1758,9 +1760,10 @@ class EarlyBatch:
             parent_ctx = EmptyRoot
             mixins = None
 
+        # TODO: fix typing incompatibility
         ctx = replace(
             self._flow_ctx,
-            flow=self._flow_ctx.flow.with_action(
+            flow=self._flow_ctx.flow.with_action(  # type: ignore[arg-type]
                 prep_task.action._start.filename.parent
             ),
         )
@@ -1794,7 +1797,7 @@ class EarlyBatch:
 class EarlyBatchAction(EarlyBatch):
     def __init__(
         self,
-        ctx: WithFlowContext,
+        ctx: WithFlowContext[BatchFlowCtx],
         tasks: Mapping[str, "BaseEarlyTask"],
         early_images: Mapping[str, EarlyImageCtx],
         config_loader: ConfigLoader,
@@ -1858,7 +1861,7 @@ class RunningBatchBase(Generic[_T], EarlyBatch, ABC):
 
     def __init__(
         self,
-        flow_ctx: WithFlowContext,
+        flow_ctx: WithFlowContext[BatchFlowCtx],
         ctx: _T,
         default_tags: TagsCtx,
         tasks: Mapping[str, "BasePrepTask"],
@@ -2273,7 +2276,7 @@ class RunningBatchFlow(RunningBatchBase[BatchContext]):
 class RunningBatchActionFlow(RunningBatchBase[BatchActionContext[RootABC]]):
     def __init__(
         self,
-        flow_ctx: WithFlowContext,
+        flow_ctx: WithFlowContext[BatchFlowCtx],
         ctx: BatchActionContext[RootABC],
         default_tags: TagsCtx,
         tasks: Mapping[str, "BasePrepTask"],
@@ -2324,7 +2327,7 @@ class RunningBatchActionFlow(RunningBatchBase[BatchActionContext[RootABC]]):
     @classmethod
     async def create(
         cls,
-        flow_ctx: WithFlowContext,
+        flow_ctx: WithFlowContext[BatchFlowCtx],
         parent_ctx: RootABC,
         ast_action: ast.BatchAction,
         base_cache: CacheConf,
