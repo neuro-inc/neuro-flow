@@ -6,14 +6,14 @@
         "tags": {
           "anyOf": [
             {
-              "pattern": "^\\$\\{\\{.+\\}\\}$",
-              "type": "string"
-            },
-            {
               "items": {
                 "type": "string"
               },
               "type": "array"
+            },
+            {
+              "pattern": "^\\$\\{\\{.+\\}\\}$",
+              "type": "string"
             }
           ],
           "title": "Tags"
@@ -21,24 +21,20 @@
         "env": {
           "anyOf": [
             {
-              "pattern": "^\\$\\{\\{.+\\}\\}$",
-              "type": "string"
-            },
-            {
               "additionalProperties": {
                 "type": "string"
               },
               "type": "object"
+            },
+            {
+              "pattern": "^\\$\\{\\{.+\\}\\}$",
+              "type": "string"
             }
           ],
           "title": "Env"
         },
         "volumes": {
           "anyOf": [
-            {
-              "pattern": "^\\$\\{\\{.+\\}\\}$",
-              "type": "string"
-            },
             {
               "items": {
                 "anyOf": [
@@ -51,6 +47,10 @@
                 ]
               },
               "type": "array"
+            },
+            {
+              "pattern": "^\\$\\{\\{.+\\}\\}$",
+              "type": "string"
             }
           ],
           "title": "Volumes"
@@ -62,11 +62,11 @@
         "life_span": {
           "anyOf": [
             {
-              "pattern": "^\\$\\{\\{.+\\}\\}$",
+              "pattern": "^(\\d+d)?(\\d+h)?(\\d+m)?(\\d+s)?$",
               "type": "string"
             },
             {
-              "pattern": "^(\\d+d)?(\\d+h)?(\\d+m)?(\\d+s)?$",
+              "pattern": "^\\$\\{\\{.+\\}\\}$",
               "type": "string"
             }
           ],
@@ -79,11 +79,11 @@
         "schedule_timeout": {
           "anyOf": [
             {
-              "pattern": "^\\$\\{\\{.+\\}\\}$",
+              "pattern": "^(\\d+d)?(\\d+h)?(\\d+m)?(\\d+s)?$",
               "type": "string"
             },
             {
-              "pattern": "^(\\d+d)?(\\d+h)?(\\d+m)?(\\d+s)?$",
+              "pattern": "^\\$\\{\\{.+\\}\\}$",
               "type": "string"
             }
           ],
@@ -118,11 +118,11 @@
         "life_span": {
           "anyOf": [
             {
-              "pattern": "^\\$\\{\\{.+\\}\\}$",
+              "pattern": "^(\\d+d)?(\\d+h)?(\\d+m)?(\\d+s)?$",
               "type": "string"
             },
             {
-              "pattern": "^(\\d+d)?(\\d+h)?(\\d+m)?(\\d+s)?$",
+              "pattern": "^\\$\\{\\{.+\\}\\}$",
               "type": "string"
             }
           ],
@@ -196,11 +196,11 @@
         "life_span": {
           "anyOf": [
             {
-              "pattern": "^\\$\\{\\{.+\\}\\}$",
+              "pattern": "^(\\d+d)?(\\d+h)?(\\d+m)?(\\d+s)?$",
               "type": "string"
             },
             {
-              "pattern": "^(\\d+d)?(\\d+h)?(\\d+m)?(\\d+s)?$",
+              "pattern": "^\\$\\{\\{.+\\}\\}$",
               "type": "string"
             }
           ],
@@ -240,14 +240,14 @@
         "build_args": {
           "anyOf": [
             {
-              "pattern": "^\\$\\{\\{.+\\}\\}$",
-              "type": "string"
-            },
-            {
               "items": {
                 "type": "string"
               },
               "type": "array"
+            },
+            {
+              "pattern": "^\\$\\{\\{.+\\}\\}$",
+              "type": "string"
             }
           ],
           "title": "Build Args"
@@ -255,24 +255,20 @@
         "env": {
           "anyOf": [
             {
-              "pattern": "^\\$\\{\\{.+\\}\\}$",
-              "type": "string"
-            },
-            {
               "additionalProperties": {
                 "type": "string"
               },
               "type": "object"
+            },
+            {
+              "pattern": "^\\$\\{\\{.+\\}\\}$",
+              "type": "string"
             }
           ],
           "title": "Env"
         },
         "volumes": {
           "anyOf": [
-            {
-              "pattern": "^\\$\\{\\{.+\\}\\}$",
-              "type": "string"
-            },
             {
               "items": {
                 "anyOf": [
@@ -285,6 +281,10 @@
                 ]
               },
               "type": "array"
+            },
+            {
+              "pattern": "^\\$\\{\\{.+\\}\\}$",
+              "type": "string"
             }
           ],
           "title": "Volumes"
@@ -330,11 +330,11 @@
         "schedule_timeout": {
           "anyOf": [
             {
-              "pattern": "^\\$\\{\\{.+\\}\\}$",
+              "pattern": "^(\\d+d)?(\\d+h)?(\\d+m)?(\\d+s)?$",
               "type": "string"
             },
             {
-              "pattern": "^(\\d+d)?(\\d+h)?(\\d+m)?(\\d+s)?$",
+              "pattern": "^\\$\\{\\{.+\\}\\}$",
               "type": "string"
             }
           ],
@@ -394,24 +394,20 @@
         "env": {
           "anyOf": [
             {
-              "pattern": "^\\$\\{\\{.+\\}\\}$",
-              "type": "string"
-            },
-            {
               "additionalProperties": {
                 "type": "string"
               },
               "type": "object"
+            },
+            {
+              "pattern": "^\\$\\{\\{.+\\}\\}$",
+              "type": "string"
             }
           ],
           "title": "Env"
         },
         "volumes": {
           "anyOf": [
-            {
-              "pattern": "^\\$\\{\\{.+\\}\\}$",
-              "type": "string"
-            },
             {
               "items": {
                 "anyOf": [
@@ -424,6 +420,10 @@
                 ]
               },
               "type": "array"
+            },
+            {
+              "pattern": "^\\$\\{\\{.+\\}\\}$",
+              "type": "string"
             }
           ],
           "title": "Volumes"
@@ -431,14 +431,14 @@
         "tags": {
           "anyOf": [
             {
-              "pattern": "^\\$\\{\\{.+\\}\\}$",
-              "type": "string"
-            },
-            {
               "items": {
                 "type": "string"
               },
               "type": "array"
+            },
+            {
+              "pattern": "^\\$\\{\\{.+\\}\\}$",
+              "type": "string"
             }
           ],
           "title": "Tags"
@@ -446,11 +446,11 @@
         "life_span": {
           "anyOf": [
             {
-              "pattern": "^\\$\\{\\{.+\\}\\}$",
+              "pattern": "^(\\d+d)?(\\d+h)?(\\d+m)?(\\d+s)?$",
               "type": "string"
             },
             {
-              "pattern": "^(\\d+d)?(\\d+h)?(\\d+m)?(\\d+s)?$",
+              "pattern": "^\\$\\{\\{.+\\}\\}$",
               "type": "string"
             }
           ],
@@ -478,11 +478,11 @@
         "restart": {
           "anyOf": [
             {
-              "pattern": "^\\$\\{\\{.+\\}\\}$",
-              "type": "string"
+              "$ref": "#/$defs/JobRestartPolicy"
             },
             {
-              "$ref": "#/$defs/JobRestartPolicy"
+              "pattern": "^\\$\\{\\{.+\\}\\}$",
+              "type": "string"
             }
           ],
           "title": "Restart"
@@ -502,23 +502,23 @@
         "port_forward": {
           "anyOf": [
             {
-              "pattern": "^\\$\\{\\{.+\\}\\}$",
-              "type": "string"
-            },
-            {
               "items": {
                 "anyOf": [
                   {
-                    "pattern": "^\\$\\{\\{.+\\}\\}$",
+                    "pattern": "^\\d+:\\d+$",
                     "type": "string"
                   },
                   {
-                    "pattern": "^\\d+:\\d+$",
+                    "pattern": "^\\$\\{\\{.+\\}\\}$",
                     "type": "string"
                   }
                 ]
               },
               "type": "array"
+            },
+            {
+              "pattern": "^\\$\\{\\{.+\\}\\}$",
+              "type": "string"
             }
           ],
           "title": "Port Forward"
@@ -630,11 +630,11 @@
         "schedule_timeout": {
           "anyOf": [
             {
-              "pattern": "^\\$\\{\\{.+\\}\\}$",
+              "pattern": "^(\\d+d)?(\\d+h)?(\\d+m)?(\\d+s)?$",
               "type": "string"
             },
             {
-              "pattern": "^(\\d+d)?(\\d+h)?(\\d+m)?(\\d+s)?$",
+              "pattern": "^\\$\\{\\{.+\\}\\}$",
               "type": "string"
             }
           ],
@@ -694,24 +694,20 @@
         "env": {
           "anyOf": [
             {
-              "pattern": "^\\$\\{\\{.+\\}\\}$",
-              "type": "string"
-            },
-            {
               "additionalProperties": {
                 "type": "string"
               },
               "type": "object"
+            },
+            {
+              "pattern": "^\\$\\{\\{.+\\}\\}$",
+              "type": "string"
             }
           ],
           "title": "Env"
         },
         "volumes": {
           "anyOf": [
-            {
-              "pattern": "^\\$\\{\\{.+\\}\\}$",
-              "type": "string"
-            },
             {
               "items": {
                 "anyOf": [
@@ -724,6 +720,10 @@
                 ]
               },
               "type": "array"
+            },
+            {
+              "pattern": "^\\$\\{\\{.+\\}\\}$",
+              "type": "string"
             }
           ],
           "title": "Volumes"
@@ -731,14 +731,14 @@
         "tags": {
           "anyOf": [
             {
-              "pattern": "^\\$\\{\\{.+\\}\\}$",
-              "type": "string"
-            },
-            {
               "items": {
                 "type": "string"
               },
               "type": "array"
+            },
+            {
+              "pattern": "^\\$\\{\\{.+\\}\\}$",
+              "type": "string"
             }
           ],
           "title": "Tags"
@@ -746,11 +746,11 @@
         "life_span": {
           "anyOf": [
             {
-              "pattern": "^\\$\\{\\{.+\\}\\}$",
+              "pattern": "^(\\d+d)?(\\d+h)?(\\d+m)?(\\d+s)?$",
               "type": "string"
             },
             {
-              "pattern": "^(\\d+d)?(\\d+h)?(\\d+m)?(\\d+s)?$",
+              "pattern": "^\\$\\{\\{.+\\}\\}$",
               "type": "string"
             }
           ],
@@ -778,11 +778,11 @@
         "restart": {
           "anyOf": [
             {
-              "pattern": "^\\$\\{\\{.+\\}\\}$",
-              "type": "string"
+              "$ref": "#/$defs/JobRestartPolicy"
             },
             {
-              "$ref": "#/$defs/JobRestartPolicy"
+              "pattern": "^\\$\\{\\{.+\\}\\}$",
+              "type": "string"
             }
           ],
           "title": "Restart"
@@ -802,23 +802,23 @@
         "port_forward": {
           "anyOf": [
             {
-              "pattern": "^\\$\\{\\{.+\\}\\}$",
-              "type": "string"
-            },
-            {
               "items": {
                 "anyOf": [
                   {
-                    "pattern": "^\\$\\{\\{.+\\}\\}$",
+                    "pattern": "^\\d+:\\d+$",
                     "type": "string"
                   },
                   {
-                    "pattern": "^\\d+:\\d+$",
+                    "pattern": "^\\$\\{\\{.+\\}\\}$",
                     "type": "string"
                   }
                 ]
               },
               "type": "array"
+            },
+            {
+              "pattern": "^\\$\\{\\{.+\\}\\}$",
+              "type": "string"
             }
           ],
           "title": "Port Forward"
@@ -891,11 +891,11 @@
           "additionalProperties": {
             "anyOf": [
               {
-                "pattern": "^\\$\\{\\{.+\\}\\}$",
-                "type": "string"
+                "$ref": "#/$defs/Param"
               },
               {
-                "$ref": "#/$defs/Param"
+                "pattern": "^\\$\\{\\{.+\\}\\}$",
+                "type": "string"
               }
             ]
           },
@@ -924,14 +924,14 @@
         "tags": {
           "anyOf": [
             {
-              "pattern": "^\\$\\{\\{.+\\}\\}$",
-              "type": "string"
-            },
-            {
               "items": {
                 "type": "string"
               },
               "type": "array"
+            },
+            {
+              "pattern": "^\\$\\{\\{.+\\}\\}$",
+              "type": "string"
             }
           ],
           "title": "Tags"
@@ -939,24 +939,20 @@
         "env": {
           "anyOf": [
             {
-              "pattern": "^\\$\\{\\{.+\\}\\}$",
-              "type": "string"
-            },
-            {
               "additionalProperties": {
                 "type": "string"
               },
               "type": "object"
+            },
+            {
+              "pattern": "^\\$\\{\\{.+\\}\\}$",
+              "type": "string"
             }
           ],
           "title": "Env"
         },
         "volumes": {
           "anyOf": [
-            {
-              "pattern": "^\\$\\{\\{.+\\}\\}$",
-              "type": "string"
-            },
             {
               "items": {
                 "anyOf": [
@@ -969,6 +965,10 @@
                 ]
               },
               "type": "array"
+            },
+            {
+              "pattern": "^\\$\\{\\{.+\\}\\}$",
+              "type": "string"
             }
           ],
           "title": "Volumes"
@@ -980,11 +980,11 @@
         "life_span": {
           "anyOf": [
             {
-              "pattern": "^\\$\\{\\{.+\\}\\}$",
+              "pattern": "^(\\d+d)?(\\d+h)?(\\d+m)?(\\d+s)?$",
               "type": "string"
             },
             {
-              "pattern": "^(\\d+d)?(\\d+h)?(\\d+m)?(\\d+s)?$",
+              "pattern": "^\\$\\{\\{.+\\}\\}$",
               "type": "string"
             }
           ],
@@ -997,11 +997,11 @@
         "schedule_timeout": {
           "anyOf": [
             {
-              "pattern": "^\\$\\{\\{.+\\}\\}$",
+              "pattern": "^(\\d+d)?(\\d+h)?(\\d+m)?(\\d+s)?$",
               "type": "string"
             },
             {
-              "pattern": "^(\\d+d)?(\\d+h)?(\\d+m)?(\\d+s)?$",
+              "pattern": "^\\$\\{\\{.+\\}\\}$",
               "type": "string"
             }
           ],
@@ -1025,11 +1025,11 @@
         "life_span": {
           "anyOf": [
             {
-              "pattern": "^\\$\\{\\{.+\\}\\}$",
+              "pattern": "^(\\d+d)?(\\d+h)?(\\d+m)?(\\d+s)?$",
               "type": "string"
             },
             {
-              "pattern": "^(\\d+d)?(\\d+h)?(\\d+m)?(\\d+s)?$",
+              "pattern": "^\\$\\{\\{.+\\}\\}$",
               "type": "string"
             }
           ],
@@ -1142,14 +1142,14 @@
           "additionalProperties": {
             "anyOf": [
               {
-                "pattern": "^\\$\\{\\{.+\\}\\}$",
-                "type": "string"
-              },
-              {
                 "type": "boolean"
               },
               {
                 "type": "integer"
+              },
+              {
+                "pattern": "^\\$\\{\\{.+\\}\\}$",
+                "type": "string"
               },
               {
                 "items": {
@@ -1228,11 +1228,11 @@
         "schedule_timeout": {
           "anyOf": [
             {
-              "pattern": "^\\$\\{\\{.+\\}\\}$",
+              "pattern": "^(\\d+d)?(\\d+h)?(\\d+m)?(\\d+s)?$",
               "type": "string"
             },
             {
-              "pattern": "^(\\d+d)?(\\d+h)?(\\d+m)?(\\d+s)?$",
+              "pattern": "^\\$\\{\\{.+\\}\\}$",
               "type": "string"
             }
           ],
@@ -1292,24 +1292,20 @@
         "env": {
           "anyOf": [
             {
-              "pattern": "^\\$\\{\\{.+\\}\\}$",
-              "type": "string"
-            },
-            {
               "additionalProperties": {
                 "type": "string"
               },
               "type": "object"
+            },
+            {
+              "pattern": "^\\$\\{\\{.+\\}\\}$",
+              "type": "string"
             }
           ],
           "title": "Env"
         },
         "volumes": {
           "anyOf": [
-            {
-              "pattern": "^\\$\\{\\{.+\\}\\}$",
-              "type": "string"
-            },
             {
               "items": {
                 "anyOf": [
@@ -1322,6 +1318,10 @@
                 ]
               },
               "type": "array"
+            },
+            {
+              "pattern": "^\\$\\{\\{.+\\}\\}$",
+              "type": "string"
             }
           ],
           "title": "Volumes"
@@ -1329,14 +1329,14 @@
         "tags": {
           "anyOf": [
             {
-              "pattern": "^\\$\\{\\{.+\\}\\}$",
-              "type": "string"
-            },
-            {
               "items": {
                 "type": "string"
               },
               "type": "array"
+            },
+            {
+              "pattern": "^\\$\\{\\{.+\\}\\}$",
+              "type": "string"
             }
           ],
           "title": "Tags"
@@ -1344,11 +1344,11 @@
         "life_span": {
           "anyOf": [
             {
-              "pattern": "^\\$\\{\\{.+\\}\\}$",
+              "pattern": "^(\\d+d)?(\\d+h)?(\\d+m)?(\\d+s)?$",
               "type": "string"
             },
             {
-              "pattern": "^(\\d+d)?(\\d+h)?(\\d+m)?(\\d+s)?$",
+              "pattern": "^\\$\\{\\{.+\\}\\}$",
               "type": "string"
             }
           ],
@@ -1376,11 +1376,11 @@
         "restart": {
           "anyOf": [
             {
-              "pattern": "^\\$\\{\\{.+\\}\\}$",
-              "type": "string"
+              "$ref": "#/$defs/JobRestartPolicy"
             },
             {
-              "$ref": "#/$defs/JobRestartPolicy"
+              "pattern": "^\\$\\{\\{.+\\}\\}$",
+              "type": "string"
             }
           ],
           "title": "Restart"
@@ -1456,11 +1456,11 @@
         "schedule_timeout": {
           "anyOf": [
             {
-              "pattern": "^\\$\\{\\{.+\\}\\}$",
+              "pattern": "^(\\d+d)?(\\d+h)?(\\d+m)?(\\d+s)?$",
               "type": "string"
             },
             {
-              "pattern": "^(\\d+d)?(\\d+h)?(\\d+m)?(\\d+s)?$",
+              "pattern": "^\\$\\{\\{.+\\}\\}$",
               "type": "string"
             }
           ],
@@ -1520,24 +1520,20 @@
         "env": {
           "anyOf": [
             {
-              "pattern": "^\\$\\{\\{.+\\}\\}$",
-              "type": "string"
-            },
-            {
               "additionalProperties": {
                 "type": "string"
               },
               "type": "object"
+            },
+            {
+              "pattern": "^\\$\\{\\{.+\\}\\}$",
+              "type": "string"
             }
           ],
           "title": "Env"
         },
         "volumes": {
           "anyOf": [
-            {
-              "pattern": "^\\$\\{\\{.+\\}\\}$",
-              "type": "string"
-            },
             {
               "items": {
                 "anyOf": [
@@ -1550,6 +1546,10 @@
                 ]
               },
               "type": "array"
+            },
+            {
+              "pattern": "^\\$\\{\\{.+\\}\\}$",
+              "type": "string"
             }
           ],
           "title": "Volumes"
@@ -1557,14 +1557,14 @@
         "tags": {
           "anyOf": [
             {
-              "pattern": "^\\$\\{\\{.+\\}\\}$",
-              "type": "string"
-            },
-            {
               "items": {
                 "type": "string"
               },
               "type": "array"
+            },
+            {
+              "pattern": "^\\$\\{\\{.+\\}\\}$",
+              "type": "string"
             }
           ],
           "title": "Tags"
@@ -1572,11 +1572,11 @@
         "life_span": {
           "anyOf": [
             {
-              "pattern": "^\\$\\{\\{.+\\}\\}$",
+              "pattern": "^(\\d+d)?(\\d+h)?(\\d+m)?(\\d+s)?$",
               "type": "string"
             },
             {
-              "pattern": "^(\\d+d)?(\\d+h)?(\\d+m)?(\\d+s)?$",
+              "pattern": "^\\$\\{\\{.+\\}\\}$",
               "type": "string"
             }
           ],
@@ -1604,11 +1604,11 @@
         "restart": {
           "anyOf": [
             {
-              "pattern": "^\\$\\{\\{.+\\}\\}$",
-              "type": "string"
+              "$ref": "#/$defs/JobRestartPolicy"
             },
             {
-              "$ref": "#/$defs/JobRestartPolicy"
+              "pattern": "^\\$\\{\\{.+\\}\\}$",
+              "type": "string"
             }
           ],
           "title": "Restart"
