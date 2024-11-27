@@ -387,17 +387,15 @@ def start_executor(
     patched_client: Client,
     mock_builder: MockBuilder,
 ) -> Callable[[str], Coroutine[asyncio.Future[Any], None, None]]:
-    class TestBatchExecutor(BatchExecutor):
-        run_builder_job = staticmethod(mock_builder.run)
-
     async def start(bake_id: str) -> None:
-        async with TestBatchExecutor.create(
+        async with BatchExecutor.create(
             get_console(),
             bake_id,
             patched_client,
             batch_storage,
             polling_timeout=0.05,
         ) as executor:
+            executor._run_builder_job = mock_builder.run
             await executor.run()
 
     return start

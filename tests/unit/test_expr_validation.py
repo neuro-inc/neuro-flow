@@ -57,7 +57,7 @@ def test_expr_validation_not_context_field() -> None:
         pattern="${{ flow.foo }}",
     )
     errors = validate_expr(expr, BatchContext)
-    assert errors[0].args[0] == "'BatchFlowCtx' has no attribute 'foo'"
+    assert errors[0].args[0] == "'BatchFlowCtx' has no attribute 'foo'", errors
 
 
 def test_expr_validation_invalid_need() -> None:
@@ -107,7 +107,7 @@ def test_expr_validation_bad_indexing() -> None:
         pattern="${{ flow['flow_id'] }}",
     )
     errors = validate_expr(expr, BatchContext)
-    assert errors[0].args[0] == "'BatchFlowCtx' is not subscriptable"
+    assert errors[0].args[0] == "'BatchFlowCtx' is not subscriptable", errors
 
 
 def test_expr_validation_set_indexing() -> None:
