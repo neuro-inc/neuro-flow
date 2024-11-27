@@ -15,9 +15,7 @@ LiteralT = int | float | str | bool
 
 EXPR = Annotated[str, Field(pattern=r"^\$\{\{.+\}\}$")]
 
-TIMEDELTA_CONST = Annotated[
-    str, Field(pattern=r"^((?P<d>\d+)d)?((?P<h>\d+)h)?((?P<m>\d+)m)?((?P<s>\d+)s)?$")
-]
+TIMEDELTA_CONST = Annotated[str, Field(pattern=r"^(\d+d)?(\d+h)?(\d+m)?(\d+s)?$")]
 TIMEDELTA = EXPR | TIMEDELTA_CONST
 
 PORT_FORWARD_CONST = Annotated[str, Field(pattern=r"^\d+:\d+$")]
