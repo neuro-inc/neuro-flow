@@ -54,10 +54,10 @@ def test_expr_validation_not_context_field() -> None:
     expr = StrExpr(
         Pos(0, 0, LocalPath("<default>")),
         Pos(0, 0, LocalPath("<default>")),
-        pattern="${{ flow.foo }}",
+        pattern="${{ git.foo }}",
     )
     errors = validate_expr(expr, BatchContext)
-    assert errors[0].args[0] == "'BatchFlowCtx' has no attribute 'foo'", errors
+    assert errors[0].args[0] == "'GitCtx' has no attribute 'foo'"
 
 
 def test_expr_validation_invalid_need() -> None:
@@ -104,10 +104,10 @@ def test_expr_validation_bad_indexing() -> None:
     expr = StrExpr(
         Pos(0, 0, LocalPath("<default>")),
         Pos(0, 0, LocalPath("<default>")),
-        pattern="${{ flow['flow_id'] }}",
+        pattern="${{ git['flow_id'] }}",
     )
     errors = validate_expr(expr, BatchContext)
-    assert errors[0].args[0] == "'BatchFlowCtx' is not subscriptable", errors
+    assert errors[0].args[0] == "'GitCtx' is not subscriptable"
 
 
 def test_expr_validation_set_indexing() -> None:
