@@ -331,7 +331,6 @@ class BaseFlow(Base):
 
     images: Optional[Mapping[str, Image]] = field(metadata={"allow_none": True})
     volumes: Optional[Mapping[str, Volume]] = field(metadata={"allow_none": True})
-    defaults: Optional[FlowDefaults] = field(metadata={"allow_none": True})
 
 
 @dataclass(frozen=True)
@@ -339,6 +338,8 @@ class LiveFlow(BaseFlow):
     # self.kind == Kind.Job
     mixins: Optional[Mapping[str, JobMixin]] = field(metadata={"allow_none": True})
     jobs: Mapping[str, Union[Job, JobActionCall, JobModuleCall]]
+
+    defaults: Optional[FlowDefaults] = field(metadata={"allow_none": True})
 
 
 @dataclass(frozen=True)
