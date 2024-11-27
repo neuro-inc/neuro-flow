@@ -12,6 +12,11 @@ from pathlib import Path
 import apolo_flow
 
 
+if sys.version_info < (3, 11):
+    # simulate ExceptionGroup to pass static analyzers
+    ExceptionGroup = Exception
+
+
 JSON = None | bool | int | float | str | list["JSON"] | dict[str, "JSON"]
 
 
