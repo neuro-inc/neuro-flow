@@ -13,7 +13,7 @@
               "type": "string"
             },
             {
-              "pattern": "^((?P<d>\\d+)d)?((?P<h>\\d+)h)?((?P<m>\\d+)m)?((?P<s>\\d+)s)?$",
+              "pattern": "^(\\d+d)?(\\d+h)?(\\d+m)?(\\d+s)?$",
               "type": "string"
             }
           ],
@@ -61,7 +61,7 @@
               "type": "string"
             },
             {
-              "pattern": "^((?P<d>\\d+)d)?((?P<h>\\d+)h)?((?P<m>\\d+)m)?((?P<s>\\d+)s)?$",
+              "pattern": "^(\\d+d)?(\\d+h)?(\\d+m)?(\\d+s)?$",
               "type": "string"
             }
           ],
@@ -177,7 +177,7 @@
               "type": "string"
             },
             {
-              "pattern": "^((?P<d>\\d+)d)?((?P<h>\\d+)h)?((?P<m>\\d+)m)?((?P<s>\\d+)s)?$",
+              "pattern": "^(\\d+d)?(\\d+h)?(\\d+m)?(\\d+s)?$",
               "type": "string"
             }
           ],
@@ -386,7 +386,7 @@
               "type": "string"
             },
             {
-              "pattern": "^((?P<d>\\d+)d)?((?P<h>\\d+)h)?((?P<m>\\d+)m)?((?P<s>\\d+)s)?$",
+              "pattern": "^(\\d+d)?(\\d+h)?(\\d+m)?(\\d+s)?$",
               "type": "string"
             }
           ],
@@ -403,7 +403,7 @@
               "type": "string"
             },
             {
-              "pattern": "^((?P<d>\\d+)d)?((?P<h>\\d+)h)?((?P<m>\\d+)m)?((?P<s>\\d+)s)?$",
+              "pattern": "^(\\d+d)?(\\d+h)?(\\d+m)?(\\d+s)?$",
               "type": "string"
             }
           ],
