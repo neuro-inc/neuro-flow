@@ -8,7 +8,6 @@ import itertools
 import json
 import logging
 import re
-import shlex
 from abc import ABC, abstractmethod
 from apolo_sdk import Client
 from contextlib import asynccontextmanager
@@ -36,7 +35,6 @@ from typing_extensions import Annotated, Protocol
 from yarl import URL
 
 from apolo_flow import ast
-from apolo_flow.ast import InputType
 from apolo_flow.colored_topo_sorter import ColoredTopoSorter
 from apolo_flow.config_loader import ActionSpec, ConfigLoader
 from apolo_flow.expr import (
@@ -77,12 +75,6 @@ class UnknownTask(KeyError):
     pass
 
 
-PROJECT_ROLE_DEPRECATED_MSG = (
-    "Flow roles are deprecated and will be ignored. "
-    "To grant access to the flow and its artifacts, please add users "
-    "to the corresponding project using `apolo admin add-project-user`."
-)
-
 # ...Ctx types, they define parts that can be available in expressions
 
 
@@ -113,19 +105,6 @@ class FlowCtx:
     workspace: LocalPath
     title: str
     username: str
-
-    @property
-    def id(self) -> str:
-        # TODO: add a custom warning API to report with config file name and
-        # line numbers instead of bare printing
-        import click
-
-        click.echo(
-            click.style(
-                "flow.id attribute is deprecated, use flow.flow_id instead", fg="yellow"
-            )
-        )
-        return self.flow_id
 
     def with_action(self, action_path: LocalPath) -> "ActionFlowCtx":
         # action_path can be not None if an action is called from another action
@@ -222,7 +201,6 @@ class ImageCtx(EarlyImageCtx):
 
 @dataclass(frozen=True)
 class MultiCtx:
-    args: str
     suffix: str
 
 
@@ -768,15 +746,9 @@ async def setup_project_ctx(
     project_name = await ast_project.project_name.eval(ctx)
     # TODO (y.s.): Should we deprecate project_owner?
     project_owner = await ast_project.owner.eval(ctx)
-    project_role = await ast_project.role.eval(ctx)
-    if project_role:
-        log.warning(PROJECT_ROLE_DEPRECATED_MSG)
-    project_role = None
     if not project_name:
         project_name = config_loader.client.config.project_name_or_raise
-    return ProjectCtx(
-        id=project_id, owner=project_owner, role=project_role, project_name=project_name
-    )
+    return ProjectCtx(id=project_id, owner=project_owner, project_name=project_name)
 
 
 async def setup_flow_ctx(
@@ -1103,17 +1075,7 @@ async def setup_inputs_ctx(
     for key, value in inputs.copy().items():
         input_ast = ast_inputs[key]
         arg_ast = call_ast.args[key]
-        if input_ast.type == InputType.STR:
-            if not isinstance(value, str):
-                eval_error = EvalError(
-                    f"Implicit casting of action argument '{key}' to string"
-                    f" is deprecated",
-                    arg_ast.start,
-                    arg_ast.end,
-                )
-                log.warning(str(eval_error))
-            inputs[key] = str(value)
-        elif not isinstance(value, input_ast.type.to_type()):
+        if not isinstance(value, input_ast.type.to_type()):
             raise EvalError(
                 f"Type of argument '{key}' do not match to with inputs declared "
                 f"type. Argument has type '{type(value).__name__}', declared "
@@ -1466,20 +1428,15 @@ class RunningLiveFlow:
         self,
         job_id: str,
         suffix: str,
-        args: Optional[Sequence[str]],
         params: Mapping[str, str],
     ) -> Job:
         assert await self.is_multi(
             job_id
         ), "Use get_job() for not multi jobs instead of get_multi_job()"
 
-        if args is None:
-            args_str = ""
-        else:
-            args_str = " ".join(shlex.quote(arg) for arg in args)
         job_ast = await self._get_job_ast(job_id)
         ctx = self._ctx.to_multi_job_ctx(
-            multi=MultiCtx(suffix=suffix, args=args_str),
+            multi=MultiCtx(suffix=suffix),
             params=await setup_params_ctx(self._ctx, params, job_ast.params),
         )
         job = await self._get_job(ctx, ctx.env, self._defaults, job_id)

@@ -19,7 +19,6 @@ from typing import (
     List,
     Mapping,
     Optional,
-    Tuple,
     Type,
 )
 
@@ -304,7 +303,6 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
         self,
         job_id: str,
         suffix: Optional[str],
-        args: Optional[Tuple[str]],
         params: Mapping[str, str],
     ) -> bool:
         is_multi = await self.flow.is_multi(job_id)
@@ -324,10 +322,6 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
                     )
                 assert len(jobs) == 1
                 descr = jobs[0]
-                if is_multi and args:
-                    raise click.ClickException(
-                        "Multi job with such suffix is already running."
-                    )
                 if descr.status == JobStatus.PENDING:
                     self._console.print(
                         f"Job [b]{job_id}[/b] is pending, " "try again later"
@@ -341,7 +335,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
                         job = await self.flow.get_job(job_id, params)
                     else:
                         assert suffix is not None
-                        job = await self.flow.get_multi_job(job_id, suffix, (), params)
+                        job = await self.flow.get_multi_job(job_id, suffix, params)
                     # attach to job if needed, browse first
                     if job.browse:
                         await self._run_apolo_cli("job", "browse", descr.id)
@@ -358,7 +352,6 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
         self,
         job_id: str,
         suffix: Optional[str],
-        args: Optional[Tuple[str]],
         params: Mapping[str, str],
     ) -> None:
         """Run a named job"""
@@ -367,13 +360,8 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
         meta_ctx = await self._ensure_meta(job_id, suffix, skip_check=True)
         is_multi = meta_ctx.multi
 
-        if not is_multi and args:
-            raise click.BadArgumentUsage(
-                "Additional job arguments are supported by multi-jobs only"
-            )
-
         if not self._dry_run and await self._try_attach_to_running(
-            job_id, suffix, args, params
+            job_id, suffix, params
         ):
             return  # Attached to running job
 
@@ -382,7 +370,7 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
         else:
             if suffix is None:
                 suffix = secrets.token_hex(5)
-            job = await self.flow.get_multi_job(job_id, suffix, args, params)
+            job = await self.flow.get_multi_job(job_id, suffix, params)
 
         run_args = ["run"]
         if job.title:
@@ -445,9 +433,6 @@ class LiveRunner(AsyncContextManager["LiveRunner"]):
         run_args.extend(["--"])
         if job.cmd:
             run_args.extend(shlex.split(job.cmd))
-
-        if job.multi and args:
-            run_args.extend(args)
 
         if self._dry_run:
             run_args = ["apolo", *run_args]

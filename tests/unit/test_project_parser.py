@@ -47,11 +47,6 @@ def test_parse_full(assets: pathlib.Path) -> None:
             Pos(0, 0, config_file),
             "test-owner",
         ),
-        role=SimpleOptStrExpr(
-            Pos(0, 0, config_file),
-            Pos(0, 0, config_file),
-            "test-owner/roles/test-role",
-        ),
         images={
             "image_a": ast.Image(
                 Pos(6, 4, config_file),
@@ -408,9 +403,6 @@ def test_parse_minimal(assets: pathlib.Path) -> None:
             Pos(0, 0, config_file), Pos(0, 0, config_file), pattern=None
         ),
         owner=SimpleOptStrExpr(
-            Pos(0, 0, config_file), Pos(0, 0, config_file), pattern=None
-        ),
-        role=SimpleOptStrExpr(
             Pos(0, 0, config_file), Pos(0, 0, config_file), pattern=None
         ),
         images=None,

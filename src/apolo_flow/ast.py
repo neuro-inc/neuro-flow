@@ -21,6 +21,7 @@ from .expr import (
     PlatformResourceURIExpr,
     PrimitiveExpr,
     RemotePathExpr,
+    RemovedStrExpr,
     SequenceT,
     SimpleIdExpr,
     SimpleOptBoolExpr,
@@ -64,7 +65,9 @@ class Project(Base):
     id: SimpleIdExpr
     project_name: SimpleOptStrExpr  # project name can contain "-"
     owner: SimpleOptStrExpr  # user name can contain "-"
-    role: SimpleOptStrExpr
+    role: (
+        RemovedStrExpr  # keep it here for a while for the sake of better error message
+    )
 
     images: Optional[Mapping[str, "Image"]] = field(metadata={"allow_none": True})
     volumes: Optional[Mapping[str, "Volume"]] = field(metadata={"allow_none": True})
