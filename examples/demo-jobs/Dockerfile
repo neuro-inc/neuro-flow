@@ -1,4 +1,4 @@
-FROM ghcr.io/neuro-inc/base:v24.11.0-runtime
+FROM ghcr.io/neuro-inc/base:v24.12.0-runtime
 
 ENV DEBIAN_FRONTEND noninteractive
 
