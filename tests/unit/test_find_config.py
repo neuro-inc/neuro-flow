@@ -9,7 +9,7 @@ from apolo_flow.parser import find_workspace
 
 
 async def test_not_exists(tmp_path: Path, client: Client) -> None:
-    d = tmp_path / ".neuro"
+    d = tmp_path / ".apolo"
     d.mkdir()
     with pytest.raises(ValueError, match="Config file for flow '.+' not found .+"):
         LiveLocalCL(find_workspace(d), client).flow_path("live")
@@ -17,7 +17,7 @@ async def test_not_exists(tmp_path: Path, client: Client) -> None:
 
 def test_apolo_not_found(tmp_path: Path) -> None:
     with pytest.raises(
-        ValueError, match=r"\.neuro folder was not found in lookup for .+"
+        ValueError, match=r"\.apolo folder was not found in lookup for .+"
     ):
         find_workspace(tmp_path)
 
@@ -44,7 +44,7 @@ def test_not_a_file_explicit(tmp_path: Path) -> None:
     sys.platform == "darwin", reason="MacOS doesn't support too long UNIX socket names"
 )
 async def test_not_a_file_implicit(tmp_path: Path, client: Client) -> None:
-    d = tmp_path / ".neuro"
+    d = tmp_path / ".apolo"
     d.mkdir()
     f = d / "live.yml"
     s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -62,7 +62,16 @@ def test_explicit_file(tmp_path: Path) -> None:
         find_workspace(f)
 
 
-async def test_found(tmp_path: Path, client: Client) -> None:
+async def test_apolo_found(tmp_path: Path, client: Client) -> None:
+    d = tmp_path / ".apolo"
+    d.mkdir()
+    f = d / "live.yml"
+    f.touch()
+
+    assert f == LiveLocalCL(find_workspace(d), client).flow_path("live")
+
+
+async def test_neuro_found(tmp_path: Path, client: Client) -> None:
     d = tmp_path / ".neuro"
     d.mkdir()
     f = d / "live.yml"

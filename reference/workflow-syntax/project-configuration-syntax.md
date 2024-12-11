@@ -4,15 +4,15 @@
 Platform project semantics differs from apolo-flow projects. Refer apolo-flow project as a set of related workflows. This collision is temporal.
 {% endhint %}
 
-By default, the project name is generated automatically based on the name of the flow folder (a folder that contains a `.neuro` subfolder for configuration YAML files).
+By default, the project name is generated automatically based on the name of the flow folder (a folder that contains a `.apolo` subfolder for configuration YAML files).
 
 Name autogeneration will only work if the folder's name starts with a letter or an underscore symbol (`_`) and contains only letters, digits, or underscores. `ALL_CAPS` names are not supported.
 
-To override this, you can put the `project.yml`(or `project.yaml`) file into the `.neuro` configuration folder.
+To override this, you can put the `project.yml`(or `project.yaml`) file into the `.apolo` configuration folder.
 
 ## id
 
-Project `id` available as a `${{ project.id }}` or `${{ flow.project_id }}` context. Default value - folder name, where '.neuro' folder is located.
+Project `id` available as a `${{ project.id }}` or `${{ flow.project_id }}` context. Default value - folder name, where '.apolo' folder is located.
 
 ## owner
 

@@ -1076,7 +1076,7 @@ def find_workspace(path: Optional[Union[LocalPath, str]]) -> ConfigDir:
     #
     # If path is a not None -- it is used as starting point, LocalPath.cwd() otherwise.
     # The lookup searches bottom-top from path dir up to the root folder,
-    # looking for .neuro folder.
+    # looking for .apolo folder or .neuro backward-compatible name.
     # If the config folder not found -- raise an exception.
 
     if path is not None:
@@ -1093,12 +1093,16 @@ def find_workspace(path: Optional[Union[LocalPath, str]]) -> ConfigDir:
 
     while True:
         if path == path.parent:
-            raise ValueError(f".neuro folder was not found in lookup for {orig_path}")
-        if (path / ".neuro").is_dir():
+            raise ValueError(f".apolo folder was not found in lookup for {orig_path}")
+        config_dir = path / ".apolo"
+        if config_dir.is_dir():
+            break
+        config_dir = path / ".neuro"
+        if config_dir.is_dir():
             break
         path = path.parent
 
-    return ConfigDir(path, path / ".neuro")
+    return ConfigDir(path, config_dir)
 
 
 # #### Action parser ####
