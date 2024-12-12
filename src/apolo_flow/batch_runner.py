@@ -387,7 +387,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
         name: Optional[str] = None,
         tags: Sequence[str] = (),
     ) -> Tuple[Bake, RunningBatchFlow]:
-        # batch_name is a name of yaml config inside self._workspace / .neuro
+        # batch_name is a name of yaml config inside self._workspace / .apolo
         # folder without the file extension
         self._console.log(f"[bright_black]apolo_sdk=={sdk_version}")
         self._console.log(f"[bright_black]apolo_cli=={cli_version}")
@@ -494,7 +494,7 @@ class BatchRunner(AsyncContextManager["BatchRunner"]):
             run_args = [
                 "run",
                 "--pass-config",
-                f"--volume=storage:.flow/logs/{bake.id}/:/root/.neuro/logs",
+                f"--volume=storage:.flow/logs/{bake.id}/:/root/.apolo/logs",
                 f"--life-span={life_span}",
                 f"--tag=project:{self.project_id}",
                 f"--tag=flow:{bake.batch}",

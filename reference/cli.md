@@ -12,7 +12,7 @@ apolo-flow [OPTIONS] COMMAND [ARGS]...
 
 | Name | Description |
 | :--- | :--- |
-| _--config PATH_ | Path to a directory with .neuro folder inside, automatic lookup is performed if not set \(default\) |
+| _--config PATH_ | Path to a directory with .apolo folder inside, automatic lookup is performed if not set \(default\) |
 | _-v, --verbose_ | Give more output. Option is additive, and can be used up to 2 times. |
 | _-q, --quiet_ | Give less output. Option is additive, and can be used up to 2 times. |
 | _--show-traceback_ | Show python traceback on error, useful for debugging the tool. |

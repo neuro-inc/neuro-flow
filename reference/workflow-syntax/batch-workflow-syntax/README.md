@@ -2,7 +2,7 @@
 
 ## _Batch_ workflow
 
-Batch workflows are located in the `.neuro/<batch-name>.yml` or `.neuro/<batch-name>.yaml` file under the flow's root. The config filename should be lowercase and not start with a digit if the [`id`](./#id) attribute is not specified. The following YAML attributes are supported:
+Batch workflows are located in the `.apolo/<batch-name>.yml` or `.apolo/<batch-name>.yaml` file under the flow's root. The config filename should be lowercase and not start with a digit if the [`id`](./#id) attribute is not specified. The following YAML attributes are supported:
 
 ## `kind`
 
@@ -86,9 +86,9 @@ Volumes that will be mounted to all tasks by default.
 
 ```yaml
 defaults:
-  volumes: 
-    - storage:some/dir:/mnt/some/dir
-    - storage:some/another/dir:/mnt/some/another/dir
+  volumes:
+	- storage:some/dir:/mnt/some/dir
+	- storage:some/another/dir:/mnt/some/another/dir
 ```
 
 Default volumes are not passed to actions.
@@ -177,7 +177,7 @@ Default: `"default"`
 
 ```yaml
 cache:
-    strategy: "default"
+	strategy: "default"
 ```
 
 **Expression contexts:** [`flow` context](batch-contexts.md#flow-context), [`params` context](batch-contexts.md#params-context), [`env` context](batch-contexts.md#env-context), [`tags` context](batch-contexts.md#tags-context), [`volumes` context](batch-contexts.md#volumes-context), [`images` context](batch-contexts.md#images-context).
@@ -227,7 +227,7 @@ The key `image-id` is a string and its value is a map of an image's configuratio
 ```yaml
 images:
   my_image:
-    ref: image:my_image:latest
+	ref: image:my_image:latest
 ```
 
 This can only use locally accessible functions (such as `hash_files`). Its value will be calculated before the remote executor starts.
@@ -237,7 +237,7 @@ This can only use locally accessible functions (such as `hash_files`). Its value
 ```yaml
 images:
   python:
-    ref: python:3.9.0
+	ref: python:3.9.0
 ```
 
 {% hint style="info" %}
@@ -249,7 +249,7 @@ Use the embedded [`hash_files()`](../../expression-functions.md#hash\_files-patt
 ```yaml
 images:
   my_image:
-    ref: image:my_image:${{ hash_files('Dockerfile', 'requirements/*.txt', 'modules/**/*.py') }}
+	ref: image:my_image:${{ hash_files('Dockerfile', 'requirements/*.txt', 'modules/**/*.py') }}
 ```
 
 **Expression contexts:** [`flow` context](batch-contexts.md#flow-context).
@@ -263,7 +263,7 @@ The Docker _context_ used to build an image. Can be either local path (e.g. `${{
 ```yaml
 images:
   my_image:
-    context: path/to/context
+	context: path/to/context
 ```
 
 {% hint style="info" %}
@@ -283,7 +283,7 @@ Works almost the same as [`.context`](./#images-less-than-image-id-greater-than-
 ```yaml
 images:
   my_image:
-    dockerfile: MyDockerfile
+	dockerfile: MyDockerfile
 ```
 
 **Expression contexts:** [`flow` context](batch-contexts.md#flow-context).
@@ -297,9 +297,9 @@ A list of optional build arguments passed to the image builder. See [Docker docu
 ```yaml
 images:
   my_image:
-    build_args:
-    - ARG1=val1
-    - ARG2=val2
+	build_args:
+	- ARG1=val1
+	- ARG2=val2
 ```
 
 **Expression contexts:** [`flow` context](batch-contexts.md#flow-context).
@@ -313,9 +313,9 @@ A mapping of _environment variables_ passed to the image builder. Supports dynam
 ```yaml
 images:
   my_image:
-    env:
-      ENV1: val1
-      ENV2: val2
+	env:
+	  ENV1: val1
+	  ENV2: val2
 ```
 
 This attribute also supports dictionaries as values:
@@ -323,7 +323,7 @@ This attribute also supports dictionaries as values:
 ```yaml
 images:
   my_image:
-    env: ${{ {'ENV1': 'val1', 'ENV2': 'val2'} }}
+	env: ${{ {'ENV1': 'val1', 'ENV2': 'val2'} }}
 ```
 
 **Expression contexts:** [`flow` context](batch-contexts.md#flow-context).
@@ -337,9 +337,9 @@ A list of volume references mounted to the image building process. Supports dyna
 ```yaml
 images:
   my_image:
-    volumes:
-    - storage:folder1:/mnt/folder1:ro
-    - storage:folder2:/mnt/folder2
+	volumes:
+	- storage:folder1:/mnt/folder1:ro
+	- storage:folder2:/mnt/folder2
 ```
 
 This attribute also supports lists as values:
@@ -347,7 +347,7 @@ This attribute also supports lists as values:
 ```yaml
 images:
   my_image:
-    volumes: ${{ ['storage:folder1:/mnt/folder1:ro', 'storage:folder2:/mnt/folder2'] }}
+	volumes: ${{ ['storage:folder1:/mnt/folder1:ro', 'storage:folder2:/mnt/folder2'] }}
 ```
 
 **Expression contexts:** [`flow` context](batch-contexts.md#flow-context).
@@ -361,7 +361,7 @@ If this flag is enabled, the referenced image will be rebuilt from scratch for e
 ```yaml
 images:
   my_image:
-    force_rebuild: true
+	force_rebuild: true
 ```
 
 ## `params`
@@ -386,14 +386,14 @@ The long form allows to additionally specify parameter descriptions. This can be
 ```yaml
 params:
   name1:
-    default: default1
-    descr: The name1 description
+	default: default1
+	descr: The name1 description
   name2:
-    default: ~
-    descr: The name2 description
+	default: ~
+	descr: The name2 description
   name3:
-    default: ""
-    descr: The name3 description
+	default: ""
+	descr: The name3 description
 ```
 
 This attribute can be overridden from the command line in two ways while running a batch in Apolo CLI:
@@ -457,9 +457,9 @@ You can use the image definition to _address_ images hosted either on the Apolo 
 ```yaml
 images:
   my_image:
-    ref: image:my_image:latest # Apolo registry hosted iamge 
+	ref: image:my_image:latest # Apolo registry hosted iamge
   python:
-    ref: python:3.9.0 # Docker Hub hosted image
+	ref: python:3.9.0 # Docker Hub hosted image
 ```
 
 **Expression contexts:** [`flow` context](batch-contexts.md#flow-context), [`params` context](batch-contexts.md#params-context).
@@ -489,7 +489,7 @@ The key `volume-id` is a string and its value is a map of the volume's configura
 ```yaml
 volumes:
   folder:
-    remote: storage:path/to/folder
+	remote: storage:path/to/folder
 ```
 
 **Expression contexts:** [`flow` context](batch-contexts.md#flow-context), [`params` context](batch-contexts.md#params-context).
@@ -503,7 +503,7 @@ volumes:
 ```yaml
 volumes:
   folder:
-    mount: /mnt/folder
+	mount: /mnt/folder
 ```
 
 **Expression contexts:** [`flow` context](batch-contexts.md#flow-context), [`params` context](batch-contexts.md#params-context).
@@ -517,7 +517,7 @@ The volume is mounted as _read-only_ by default if this attribute is enabled, _r
 ```yaml
 volumes:
   folder:
-    read_only: true
+	read_only: true
 ```
 
 **Expression contexts:** [`flow` context](batch-contexts.md#flow-context), [`params` context](batch-contexts.md#params-context).
@@ -531,7 +531,7 @@ List of tasks and action calls that this batch workflow contains. Unlike jobs in
 ```yaml
 tasks:
   - id: task_1
-  - id: task_2 
+  - id: task_2
   - id: task_3
 ```
 
@@ -559,11 +559,11 @@ This property also specifies what entries are available in the [needs context](b
 
 ```yaml
 tasks:
-  - id: task_1  
+  - id: task_1
   - id: task_2
-    needs: [tasks_1] 
+	needs: [tasks_1]
   - id: task_3
-    needs: [tasks_2]
+	needs: [tasks_2]
 ```
 
 In this case, tasks will be executed in the following order:
@@ -578,11 +578,11 @@ The order is the same as in the default behavior without `needs`.
 
 ```yaml
 tasks:
-  - id: task_1  
+  - id: task_1
   - id: task_2
-    needs: [] 
+	needs: []
   - id: task_3
-    needs: [task_1, tasks_2]
+	needs: [task_1, tasks_2]
 ```
 
 In this case, tasks will be executed in the following order:
@@ -594,13 +594,13 @@ In this case, tasks will be executed in the following order:
 
 ```yaml
 tasks:
-  - id: task_1  
+  - id: task_1
   - id: task_2
-    needs: [] 
+	needs: []
   - id: task_3
-    needs: 
-      task_1: running
-      task_2: running
+	needs:
+	  task_1: running
+	  task_2: running
 ```
 
 Here, task\_3 will only be executed if task\_1 and task\_2 are already running.
@@ -633,7 +633,7 @@ The flag that prevents a task from running unless a condition is met. To learn h
 
 ```yaml
 tasks:
-  - enable: ${{ always() }} # Run this task in any case 
+  - enable: ${{ always() }} # Run this task in any case
   - enable: ${{ flow.id == "some-value" }} # Simple condition
 ```
 
@@ -653,7 +653,7 @@ The `matrix` attribute defines a set of configurations with which to run a task.
 id: example_${{ matrix.param }}
 strategy:
   matrix:
-    param: [a, b]
+	param: [a, b]
 ```
 
 In this example, tasks with IDs `example_a` and `example_b` will be generated.
@@ -664,8 +664,8 @@ In this example, tasks with IDs `example_a` and `example_b` will be generated.
 id: ${{ matrix.param1 }}_${{ matrix.param2 }}
 strategy:
   matrix:
-    param1: [a, b]
-    param2: [x, y]
+	param1: [a, b]
+	param2: [x, y]
 ```
 
 In this example, tasks with IDs `a_x`, `a_y`, `b_x`, `b_y` will be generated.
@@ -686,15 +686,15 @@ Auto-generated IDs for matrix tasks will have suffixes in the form of `-<param-1
 id: ${{ matrix.param1 }}_${{ matrix.param2 }}_${{ matrix.param3 }}
 strategy:
   matrix:
-    param1: [a, b]
-    param2: [x, y]
-    param3: [1, 2]
-    exclude:
-      - param1: a
-        param2: x
-        param3: 1
-      - param1: b
-        param2: y
+	param1: [a, b]
+	param2: [x, y]
+	param3: [1, 2]
+	exclude:
+	  - param1: a
+		param2: x
+		param3: 1
+	  - param1: b
+		param2: y
 ```
 
 In this example, tasks with IDs `a_x_2`, `a_y_1`, `a_y_2`, `b_x_1`, `b_x_2` will be generated.
@@ -711,11 +711,11 @@ In this example, tasks with IDs `a_x_2`, `a_y_1`, `a_y_2`, `b_x_1`, `b_x_2` will
 id: ${{ matrix.param1 }}_${{ matrix.param2 }}_${{ matrix.param3 }}
 strategy:
   matrix:
-    param1: [a, b]
-    param2: [x, y]
-    include:
-      - param1: a
-        param2: z
+	param1: [a, b]
+	param2: [x, y]
+	include:
+	  - param1: a
+		param2: z
 ```
 
 In this example, tasks with IDs `a_x`, `a_y`, `b_x`, `b_y`, `a_z` will be generated.
@@ -752,7 +752,7 @@ Default: `"inherit"`
 
 ```yaml
 cache:
-    strategy: "none"
+	strategy: "none"
 ```
 
 **Expression contexts:** [`flow` context](batch-contexts.md#flow-context), [`params` context](batch-contexts.md#params-context), [`env` context](batch-contexts.md#env-context), [`tags` context](batch-contexts.md#tags-context), [`volumes` context](batch-contexts.md#volumes-context), [`images` context](batch-contexts.md#images-context), [`matrix` context](batch-contexts.md#matrix-context), [`strategy` context](batch-contexts.md#strategy-context).
@@ -839,11 +839,11 @@ This form is especially handy for executing complex multi-line bash scripts.
 ```yaml
 tasks:
   - bash: |
-      for arg in {1..5}
-      do
-        echo "Step ${arg}"
-        sleep 1
-      done
+	  for arg in {1..5}
+	  do
+		echo "Step ${arg}"
+		sleep 1
+	  done
 ```
 
 **Expression contexts:** [`flow` context](batch-contexts.md#flow-context), [`params` context](batch-contexts.md#params-context), [`env` context](batch-contexts.md#env-context), [`tags` context](batch-contexts.md#tags-context), [`volumes` context](batch-contexts.md#volumes-context), [`images` context](batch-contexts.md#images-context), [`matrix` context](batch-contexts.md#matrix-context), [`strategy` context](batch-contexts.md#strategy-context), [`needs` context](batch-contexts.md#needs-context).
@@ -865,8 +865,8 @@ The `python` attribute is essentially a shortcut for `cmd: python3 -uc <shell_qu
 ```yaml
 tasks:
   - python: |
-      import sys
-      print("The Python version is", sys.version)
+	  import sys
+	  print("The Python version is", sys.version)
 ```
 
 **Expression contexts:** [`flow` context](batch-contexts.md#flow-context), [`params` context](batch-contexts.md#params-context), [`env` context](batch-contexts.md#env-context), [`tags` context](batch-contexts.md#tags-context), [`volumes` context](batch-contexts.md#volumes-context), [`images` context](batch-contexts.md#images-context), [`matrix` context](batch-contexts.md#matrix-context), [`strategy` context](batch-contexts.md#strategy-context), [`needs` context](batch-contexts.md#needs-context).
@@ -895,8 +895,8 @@ When two or more variables are defined with the same name, `apolo-flow` uses the
 ```yaml
 tasks:
   - env:
-      ENV1: val1
-      ENV2: val2
+	  ENV1: val1
+	  ENV2: val2
 ```
 
 This attribute also supports dictionaries as values:
@@ -1050,8 +1050,8 @@ Each task is tagged. A task's tags are taken from this attribute and system tags
 ```yaml
 task:
   - tags:
-    - tag-a
-    - tag-b
+	- tag-a
+	- tag-b
 ```
 
 This attribute also supports lists as values:
@@ -1078,8 +1078,8 @@ A list of task volumes. You can specify a plain string for the volume reference 
 ```yaml
 tasks:
   - volumes:
-    - storage:path/to:/mnt/path/to
-    - ${{ volumes.my_volume.ref }}
+	- storage:path/to:/mnt/path/to
+	- ${{ volumes.my_volume.ref }}
 ```
 
 This attribute also supports lists as values:
@@ -1139,8 +1139,8 @@ Mapping of values that will be passed to the actions as arguments. This should c
 ```yaml
 tasks:
   - args:
-      param1: value1          # You can pass constant
-      param2: ${{ flow.id }}  # Or some expresion value
+	  param1: value1          # You can pass constant
+	  param2: ${{ flow.id }}  # Or some expresion value
 ```
 
 **Expression contexts:** [`flow` context](batch-contexts.md#flow-context), [`params` context](batch-contexts.md#params-context), [`env` context](batch-contexts.md#env-context), [`tags` context](batch-contexts.md#tags-context), [`volumes` context](batch-contexts.md#volumes-context), [`images` context](batch-contexts.md#images-context), [`matrix` context](batch-contexts.md#matrix-context), [`strategy` context](batch-contexts.md#strategy-context), [`needs` context](batch-contexts.md#needs-context).
