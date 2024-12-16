@@ -1095,10 +1095,10 @@ def find_workspace(path: Optional[Union[LocalPath, str]]) -> ConfigDir:
         if path == path.parent:
             raise ValueError(f".apolo folder was not found in lookup for {orig_path}")
         config_dir = path / ".apolo"
-        if config_dir.is_dir():
+        if config_dir.is_dir() and (config_dir / "db").exists():
             break
         config_dir = path / ".neuro"
-        if config_dir.is_dir():
+        if config_dir.is_dir() and (config_dir / "db").exists():
             break
         path = path.parent
 
