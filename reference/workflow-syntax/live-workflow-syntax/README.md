@@ -2,7 +2,7 @@
 
 ## _Live_ workflow
 
-The live workflow is always located at the `.neuro/live.yml` or `.neuro/live.yaml` file in the flow's root. The following YAML attributes are supported:
+The live workflow is always located at the `.apolo/live.yml` or `.apolo/live.yaml` file in the flow's root. The following YAML attributes are supported:
 
 ## `kind`
 
@@ -90,9 +90,9 @@ Volumes that will be mounted to all jobs by default.
 
 ```yaml
 defaults:
-  volumes: 
-    - storage:some/dir:/mnt/some/dir
-    - storage:some/another/dir:/mnt/some/another/dir
+  volumes:
+	- storage:some/dir:/mnt/some/dir
+	- storage:some/another/dir:/mnt/some/another/dir
 ```
 
 Default volumes are not passed to actions.
@@ -172,7 +172,7 @@ The key `image-id` is a string and its value is a map of the job's configuration
 ```yaml
 images:
   my_image:
-    ref: image:my_image:latest
+	ref: image:my_image:latest
 ```
 
 You can use the image definition to _address_ images hosted on [_Docker Hub_](https://hub.docker.com/search?q=\&type=image) as an _external_ source (while you can't use `apolo-flow` to build this image). All other attributes except for `ref` don't work for _external_ images.
@@ -182,7 +182,7 @@ You can use the image definition to _address_ images hosted on [_Docker Hub_](ht
 ```yaml
 images:
   python:
-    ref: python:3.9.0
+	ref: python:3.9.0
 ```
 
 {% hint style="info" %}
@@ -194,7 +194,7 @@ Use the embedded [`hash_files()`](../../expression-functions.md#hash\_files-patt
 ```yaml
 images:
   my_image:
-    ref: image:my_image:${{ hash_files('Dockerfile', 'requirements/*.txt', 'modules/**/*.py') }}
+	ref: image:my_image:${{ hash_files('Dockerfile', 'requirements/*.txt', 'modules/**/*.py') }}
 ```
 
 **Expression contexts:** [`flow` context](live-contexts.md#flow-context).
@@ -208,11 +208,11 @@ images:
 ```yaml
 images:
   my_image:
-    context: path/to/context
+	context: path/to/context
 ```
 
 {% hint style="info" %}
-The flow's root folder is the folder that contains the '.neuro' directory. Its path might be referenced via `${{ flow.workspace }}/`.
+The flow's root folder is the folder that contains the '.apolo' directory. Its path might be referenced via `${{ flow.workspace }}/`.
 {% endhint %}
 
 {% hint style="warning" %}
@@ -230,7 +230,7 @@ The flow's root folder is the folder that contains the '.neuro' directory. Its p
 ```yaml
 images:
   my_image:
-    dockerfile: ${{ flow.workspace }}/MyDockerfile
+	dockerfile: ${{ flow.workspace }}/MyDockerfile
 ```
 
 **Expression contexts:** [`flow` context](live-contexts.md#flow-context).
@@ -244,7 +244,7 @@ images:
 ```yaml
 images:
   my_image:
-    build_preset: gpu-small
+	build_preset: gpu-small
 ```
 
 **Expression contexts:** [`flow` context](live-contexts.md#flow-context).
@@ -258,9 +258,9 @@ A list of optional build arguments passed to the image builder. See [Docker docu
 ```yaml
 images:
   my_image:
-    build_args:
-    - ARG1=val1
-    - ARG2=val2
+	build_args:
+	- ARG1=val1
+	- ARG2=val2
 ```
 
 **Expression contexts:** [`flow` context](live-contexts.md#flow-context).
@@ -274,9 +274,9 @@ A mapping of _environment variables_ passed to the image builder.
 ```yaml
 images:
   my_image:
-    env:
-      ENV1: val1
-      ENV2: val2
+	env:
+	  ENV1: val1
+	  ENV2: val2
 ```
 
 This attribute also supports dictionaries as values:
@@ -284,7 +284,7 @@ This attribute also supports dictionaries as values:
 ```yaml
 images:
   my_image:
-    env: ${{ {'ENV1': 'val1', 'ENV2': 'val2'} }}
+	env: ${{ {'ENV1': 'val1', 'ENV2': 'val2'} }}
 ```
 
 {% hint style="info" %}
@@ -304,9 +304,9 @@ A list of volume references mounted to the image building process.
 ```yaml
 images:
   my_image:
-    volumes:
-    - storage:folder1:/mnt/folder1:ro
-    - storage:folder2:/mnt/folder2
+	volumes:
+	- storage:folder1:/mnt/folder1:ro
+	- storage:folder2:/mnt/folder2
 ```
 
 This attribute also supports lists as values:
@@ -314,7 +314,7 @@ This attribute also supports lists as values:
 ```yaml
 images:
   my_image:
-    volumes: ${{ ['storage:folder1:/mnt/folder1:ro', 'storage:folder2:/mnt/folder2:ro'] }}
+	volumes: ${{ ['storage:folder1:/mnt/folder1:ro', 'storage:folder2:/mnt/folder2:ro'] }}
 ```
 
 {% hint style="info" %}
@@ -350,15 +350,15 @@ The key `volume-id` is a string and its value is a map of the volume's configura
 ```yaml
 volumes:
   folder:
-    remote: storage:path/to/folder
+	remote: storage:path/to/folder
 ```
 
 ```yaml
 volumes:
   folder1:
-    remote: disk:disk-a78c0319-d69b-4fe9-8a2d-fc4a0cdffe04
+	remote: disk:disk-a78c0319-d69b-4fe9-8a2d-fc4a0cdffe04
   folder2:
-    remote: disk:named-disk
+	remote: disk:named-disk
 ```
 
 **Expression contexts:** [`flow` context](live-contexts.md#flow-context).
@@ -372,7 +372,7 @@ volumes:
 ```yaml
 volumes:
   folder:
-    mount: /mnt/folder
+	mount: /mnt/folder
 ```
 
 **Expression contexts:** [`flow` context](live-contexts.md#flow-context).
@@ -388,7 +388,7 @@ Volumes without a set `local` attribute cannot be used by the `apolo-flow upload
 ```yaml
 volumes:
   folder:
-    local: path/to/folder
+	local: path/to/folder
 ```
 
 {% hint style="warning" %}
@@ -406,7 +406,7 @@ volumes:
 ```yaml
 volumes:
   folder:
-    read_only: true
+	read_only: true
 ```
 
 **Expression contexts:** [`flow` context](live-contexts.md#flow-context).
@@ -436,10 +436,10 @@ The short form is compact, but only allows to specify the parameter's name and d
 ```yaml
 jobs:
   my_job:
-    params:
-      name1: default1
-      name2: ~   # None by default
-      name3: ""  # Empty string by default
+	params:
+	  name1: default1
+	  name2: ~   # None by default
+	  name3: ""  # Empty string by default
 ```
 
 The long form also allows to specify parameter descriptions. This can be useful for `apolo-flow run` command introspection, shell autocompletion, and generation of more detailed error messages.
@@ -447,16 +447,16 @@ The long form also allows to specify parameter descriptions. This can be useful 
 ```yaml
 jobs:
   my_job:
-    params:
-      name1:
-        default: default1
-        descr: The name1 description
-      name2:
-        default: ~
-        descr: The name2 description
-      name3:
-        default: ""
-        descr: The name3 description
+	params:
+	  name1:
+		default: default1
+		descr: The name1 description
+	  name2:
+		default: ~
+		descr: The name2 description
+	  name3:
+		default: ""
+		descr: The name3 description
 ```
 
 The parameters can be used in expressions for calculating other job attributes, e.g. [`jobs.<job-id>.cmd`](./#jobs-less-than-job-id-greater-than-cmd).
@@ -466,11 +466,11 @@ The parameters can be used in expressions for calculating other job attributes, 
 ```yaml
 jobs:
   my_job:
-    params:
-      folder: "."  # search in current folder by default
-      pattern: "*"  # all files by default
-    cmd:
-      find ${{ params.folder }} -name ${{ params.pattern }}
+	params:
+	  folder: "."  # search in current folder by default
+	  pattern: "*"  # all files by default
+	cmd:
+	  find ${{ params.folder }} -name ${{ params.pattern }}
 ```
 
 **Expression contexts:** This attribute only allows expressions that don't access contexts.
@@ -488,7 +488,7 @@ The attributes described in this section are only applicable to plain jobs that 
 ```yaml
 jobs:
   my_job:
-    image: image:my_image:v2.3
+	image: image:my_image:v2.3
 ```
 
 You may often want to use the reference to [`images.<image-id>`](./#images-less-than-image-id-greater-than).
@@ -498,7 +498,7 @@ You may often want to use the reference to [`images.<image-id>`](./#images-less-
 ```yaml
 jobs:
   my_job:
-    image: ${{ images.my_image.ref }}
+	image: ${{ images.my_image.ref }}
 ```
 
 **Expression contexts:** [`flow` context](live-contexts.md#flow-context), [`env` context](live-contexts.md#env-context), [`tags` context](live-contexts.md#tags-context), [`volumes` context](live-contexts.md#volumes-context), [`images` context](live-contexts.md#images-context), [`params` context](live-contexts.md#params-context), [`multi` context](live-contexts.md#multi-context) (if [`jobs.<job-id>.multi`](./#jobs-less-than-job-id-greater-than-multi) is set).
@@ -514,7 +514,7 @@ The `cmd` attribute points to the command with optional arguments that is availa
 ```yaml
 jobs:
   my_job:
-    cmd: tensorboard --host=0.0.0.0
+	cmd: tensorboard --host=0.0.0.0
 ```
 
 **Expression contexts:** [`flow` context](live-contexts.md#flow-context), [`env` context](live-contexts.md#env-context), [`tags` context](live-contexts.md#tags-context), [`volumes` context](live-contexts.md#volumes-context), [`images` context](live-contexts.md#images-context), [`params` context](live-contexts.md#params-context), [`multi` context](live-contexts.md#multi-context) (if [`jobs.<job-id>.multi`](./#jobs-less-than-job-id-greater-than-multi) is set).
@@ -538,12 +538,12 @@ This form is especially handy for executing complex multi-line bash scripts.
 ```yaml
 jobs:
   my_job:
-    bash: |
-      for arg in {1..5}
-      do
-        echo "Step ${arg}"
-        sleep 1
-      done
+	bash: |
+	  for arg in {1..5}
+	  do
+		echo "Step ${arg}"
+		sleep 1
+	  done
 ```
 
 **Expression contexts:** [`flow` context](live-contexts.md#flow-context), [`env` context](live-contexts.md#env-context), [`tags` context](live-contexts.md#tags-context), [`volumes` context](live-contexts.md#volumes-context), [`images` context](live-contexts.md#images-context), [`params` context](live-contexts.md#params-context), [`multi` context](live-contexts.md#multi-context) (if [`jobs.<job-id>.multi`](./#jobs-less-than-job-id-greater-than-multi) is set).
@@ -565,9 +565,9 @@ The `cmd`, `bash`, and `python` are **mutually exclusive**.
 ```yaml
 jobs:
   my_job:
-    python: |
-      import sys
-      print("The Python version is", sys.version)
+	python: |
+	  import sys
+	  print("The Python version is", sys.version)
 ```
 
 **Expression contexts:** [`flow` context](live-contexts.md#flow-context), [`env` context](live-contexts.md#env-context), [`tags` context](live-contexts.md#tags-context), [`volumes` context](live-contexts.md#volumes-context), [`images` context](live-contexts.md#images-context), [`params` context](live-contexts.md#params-context), [`multi` context](live-contexts.md#multi-context) (if [`jobs.<job-id>.multi`](./#jobs-less-than-job-id-greater-than-multi) is set).
@@ -583,7 +583,7 @@ Use this attribute in scenarios like starting a Jupyter Notebook job and opening
 ```yaml
 jobs:
   my_job:
-    browse: true
+	browse: true
 ```
 
 **Expression contexts:** [`flow` context](live-contexts.md#flow-context), [`env` context](live-contexts.md#env-context), [`tags` context](live-contexts.md#tags-context), [`volumes` context](live-contexts.md#volumes-context), [`images` context](live-contexts.md#images-context), [`params` context](live-contexts.md#params-context), [`multi` context](live-contexts.md#multi-context) (if [`jobs.<job-id>.multi`](./#jobs-less-than-job-id-greater-than-multi) is set).
@@ -599,7 +599,7 @@ Enable the `detach` attribute to disable this behavior.
 ```yaml
 jobs:
   my_job:
-    detach: true
+	detach: true
 ```
 
 **Expression contexts:** [`flow` context](live-contexts.md#flow-context), [`env` context](live-contexts.md#env-context), [`tags` context](live-contexts.md#tags-context), [`volumes` context](live-contexts.md#volumes-context), [`images` context](live-contexts.md#images-context), [`params` context](live-contexts.md#params-context), [`multi` context](live-contexts.md#multi-context) (if [`jobs.<job-id>.multi`](./#jobs-less-than-job-id-greater-than-multi) is set).
@@ -613,7 +613,7 @@ jobs:
 ```yaml
 jobs:
   my_job:
-    entrypoint: sh -c "Echo $HOME"
+	entrypoint: sh -c "Echo $HOME"
 ```
 
 **Expression contexts:** [`flow` context](live-contexts.md#flow-context), [`env` context](live-contexts.md#env-context), [`tags` context](live-contexts.md#tags-context), [`volumes` context](live-contexts.md#volumes-context), [`images` context](live-contexts.md#images-context), [`params` context](live-contexts.md#params-context), [`multi` context](live-contexts.md#multi-context) (if [`jobs.<job-id>.multi`](./#jobs-less-than-job-id-greater-than-multi) is set).
@@ -629,9 +629,9 @@ When two ore more environment variables are defined with the same name, `apolo-f
 ```yaml
 jobs:
   my_job:
-    env:
-      ENV1: val1
-      ENV2: val2
+	env:
+	  ENV1: val1
+	  ENV2: val2
 ```
 
 This attribute also supports dictionaries as values:
@@ -639,7 +639,7 @@ This attribute also supports dictionaries as values:
 ```yaml
 jobs:
   my_job:
-    env: ${{ {'ENV1': 'val1', 'ENV2': 'val2'} }}
+	env: ${{ {'ENV1': 'val1', 'ENV2': 'val2'} }}
 ```
 
 **Expression contexts:** [`flow` context](live-contexts.md#flow-context), [`env` context](live-contexts.md#env-context), [`tags` context](live-contexts.md#tags-context), [`volumes` context](live-contexts.md#volumes-context), [`images` context](live-contexts.md#images-context), [`params` context](live-contexts.md#params-context), [`multi` context](live-contexts.md#multi-context) (if [`jobs.<job-id>.multi`](./#jobs-less-than-job-id-greater-than-multi) is set).
@@ -657,7 +657,7 @@ By default, jobs have HTTP protection enabled.
 ```yaml
 jobs:
   my_job:
-    http_auth: false
+	http_auth: false
 ```
 
 **Expression contexts:** [`flow` context](live-contexts.md#flow-context), [`env` context](live-contexts.md#env-context), [`tags` context](live-contexts.md#tags-context), [`volumes` context](live-contexts.md#volumes-context), [`images` context](live-contexts.md#images-context), [`params` context](live-contexts.md#params-context), [`multi` context](live-contexts.md#multi-context) (if [`jobs.<job-id>.multi`](./#jobs-less-than-job-id-greater-than-multi) is set).
@@ -675,7 +675,7 @@ You may want to expose a different local port. Use `0` to disable the feature en
 ```yaml
 jobs:
   my_job:
-    http_port: 8080
+	http_port: 8080
 ```
 
 {% hint style="warning" %}
@@ -704,7 +704,7 @@ The [`defaults.life_span`](./#defaults-life\_span) value is used if the attribut
 ```yaml
 jobs:
   my_job:
-    life_span: 14d12h
+	life_span: 14d12h
 ```
 
 **Expression contexts:** [`flow` context](live-contexts.md#flow-context), [`env` context](live-contexts.md#env-context), [`tags` context](live-contexts.md#tags-context), [`volumes` context](live-contexts.md#volumes-context), [`images` context](live-contexts.md#images-context), [`params` context](live-contexts.md#params-context), [`multi` context](live-contexts.md#multi-context) (if [`jobs.<job-id>.multi`](./#jobs-less-than-job-id-greater-than-multi) is set).
@@ -720,7 +720,7 @@ The name is completely _optional_.
 ```yaml
 jobs:
   my_job:
-    name: my-name
+	name: my-name
 ```
 
 If the name is not specified in the `name` attribute, the default name for the job will be automatically generated as follows:
@@ -742,7 +742,7 @@ The `[-<MULTI_SUFFIX>]` part makes sure that a job will have a unique name even 
 ```yaml
 jobs:
   my_job:
-    multi: true
+	multi: true
 ```
 
 **Expression contexts:** This attribute only allows expressions that don't access contexts.
@@ -758,7 +758,7 @@ By default, the config is not passed.
 ```yaml
 jobs:
   my_job:
-    pass_config: true
+	pass_config: true
 ```
 
 {% hint style="warning" %}
@@ -780,7 +780,7 @@ Set this attribute to `on-failure` if you want your job to be restarted if the m
 ```yaml
 jobs:
   my_job:
-    restart: on-failure
+	restart: on-failure
 ```
 
 **Expression contexts:** [`flow` context](live-contexts.md#flow-context), [`env` context](live-contexts.md#env-context), [`tags` context](live-contexts.md#tags-context), [`volumes` context](live-contexts.md#volumes-context), [`images` context](live-contexts.md#images-context), [`params` context](live-contexts.md#params-context), [`multi` context](live-contexts.md#multi-context) (if [`jobs.<job-id>.multi`](./#jobs-less-than-job-id-greater-than-multi) is set).
@@ -800,9 +800,9 @@ You can use this feature for remote debugging, accessing a database running in t
 ```yaml
 jobs:
   my_job:
-    port_forward:
-    - 6379:6379  # Default Redis port
-    - 9200:9200  # Default Zipkin port
+	port_forward:
+	- 6379:6379  # Default Redis port
+	- 9200:9200  # Default Zipkin port
 ```
 
 This attribute also supports lists as values:
@@ -810,7 +810,7 @@ This attribute also supports lists as values:
 ```yaml
 jobs:
   my_job:
-    port_forward: ${{ ['6379:6379', '9200:9200'] }}
+	port_forward: ${{ ['6379:6379', '9200:9200'] }}
 ```
 
 ### `jobs.<job-id>.preset`
@@ -839,7 +839,7 @@ See [`defaults.schedule_timeout`](./#defaults-schedule\_timeout) if you want to 
 ```yaml
 jobs:
   my_job:
-    schedule_timeout: 1d  # don't fail until tomorrow
+	schedule_timeout: 1d  # don't fail until tomorrow
 ```
 
 **Expression contexts:** [`flow` context](live-contexts.md#flow-context), [`env` context](live-contexts.md#env-context), [`tags` context](live-contexts.md#tags-context), [`volumes` context](live-contexts.md#volumes-context), [`images` context](live-contexts.md#images-context), [`params` context](live-contexts.md#params-context), [`multi` context](live-contexts.md#multi-context) (if [`jobs.<job-id>.multi`](./#jobs-less-than-job-id-greater-than-multi) is set).
@@ -855,9 +855,9 @@ Each _live_ job is tagged. A job's tags are taken from this attribute, [`default
 ```yaml
 jobs:
   my_job:
-    tags:
-    - tag-a
-    - tag-b
+	tags:
+	- tag-a
+	- tag-b
 ```
 
 This attribute also supports lists as values:
@@ -865,7 +865,7 @@ This attribute also supports lists as values:
 ```yaml
 jobs:
   my_job:
-    tags: {{ ['tag-a', 'tag-b'] }}
+	tags: {{ ['tag-a', 'tag-b'] }}
 ```
 
 ### `jobs.<job-id>.title`
@@ -883,9 +883,9 @@ jobs:
 ```yaml
 jobs:
   my_job:
-    volumes:
-    - storage:path/to:/mnt/path/to
-    - ${{ volumes.my_volume.ref }}
+	volumes:
+	- storage:path/to:/mnt/path/to
+	- ${{ volumes.my_volume.ref }}
 ```
 
 This attribute also supports lists as values:
@@ -893,7 +893,7 @@ This attribute also supports lists as values:
 ```yaml
 jobs:
   my_job:
-    volumes: ${{ ['storage:path/to:/mnt/path/to', volumes.my_volume.ref] }}
+	volumes: ${{ ['storage:path/to:/mnt/path/to', volumes.my_volume.ref] }}
 ```
 
 **Expression contexts:** [`flow` context](live-contexts.md#flow-context), [`env` context](live-contexts.md#env-context), [`tags` context](live-contexts.md#tags-context), [`volumes` context](live-contexts.md#volumes-context), [`images` context](live-contexts.md#images-context), [`params` context](live-contexts.md#params-context), [`multi` context](live-contexts.md#multi-context) (if [`jobs.<job-id>.multi`](./#jobs-less-than-job-id-greater-than-multi) is set).
@@ -909,7 +909,7 @@ This attribute takes precedence if specified. Otherwise, [`defaults.workdir`](./
 ```yaml
 jobs:
   my_job:
-    workdir: /users/my_user
+	workdir: /users/my_user
 ```
 
 **Expression contexts:** [`flow` context](live-contexts.md#flow-context), [`env` context](live-contexts.md#env-context), [`tags` context](live-contexts.md#tags-context), [`volumes` context](live-contexts.md#volumes-context), [`images` context](live-contexts.md#images-context), [`params` context](live-contexts.md#params-context), [`multi` context](live-contexts.md#multi-context) (if [`jobs.<job-id>.multi`](./#jobs-less-than-job-id-greater-than-multi) is set).
@@ -934,7 +934,7 @@ The `gh:` scheme expects the following format: `{owner}/{repo}@{tag}`. Here, `{o
 ```yaml
 jobs:
   my_job:
-    action: ws:path/to/file/some-action.yml
+	action: ws:path/to/file/some-action.yml
 ```
 
 **Example of the `gh:` scheme**
@@ -942,7 +942,7 @@ jobs:
 ```yaml
 jobs:
   my_job:
-    action: gh:username/repository@v1
+	action: gh:username/repository@v1
 ```
 
 **Expression contexts:** This attribute only allows expressions that don't access contexts.
@@ -956,9 +956,9 @@ jobs:
 ```yaml
 jobs:
   my_job:
-    args:
-      param1: value1          # You can pass constant
-      param2: ${{ flow.id }}  # Or some expresion value
+	args:
+	  param1: value1          # You can pass constant
+	  param2: ${{ flow.id }}  # Or some expresion value
 ```
 
 **Expression contexts:** [`flow` context](live-contexts.md#flow-context), [`env` context](live-contexts.md#env-context), [`tags` context](live-contexts.md#tags-context), [`volumes` context](live-contexts.md#volumes-context), [`images` context](live-contexts.md#images-context), [`params` context](live-contexts.md#params-context), [`multi` context](live-contexts.md#multi-context) (if [`jobs.<job-id>.multi`](./#jobs-less-than-job-id-greater-than-multi) is set).

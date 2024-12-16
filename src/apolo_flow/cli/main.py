@@ -113,7 +113,7 @@ class MainGroup(click.Group):
     type=click.Path(dir_okay=True, file_okay=False),
     required=False,
     help=(
-        "Path to a directory with .neuro folder inside, "
+        "Path to a directory with .apolo folder inside, "
         "automatic lookup is performed if not set (default)"
     ),
     default=None,

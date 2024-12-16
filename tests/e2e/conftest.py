@@ -75,7 +75,7 @@ def ws(
     project_data = f"id: {project_id}"
     if username:
         project_data += f'\nowner: "{username}"'
-    (ws_dir / ".neuro" / "project.yml").write_text(project_data)
+    (ws_dir / ".apolo" / "project.yml").write_text(project_data)
     return ws_dir
 
 

@@ -6,7 +6,7 @@ from typing import Optional
 
 
 DATETIME_FORMAT = "%Y-%m-%d_%H-%M-%S"
-LOGS_DIR = Path("~/.neuro/logs").expanduser()
+LOGS_DIR = Path("~/.apolo/logs").expanduser()
 FILE_FORMAT_PREFIX = "apolo-flow-run-"
 LOGS_ROTATION_DELAY = timedelta(days=3)
 

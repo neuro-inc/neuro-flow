@@ -5,11 +5,11 @@
 
 [comment]: # (towncrier release notes start)
 
-# Apolo Flow 24.10.0 (2024-10-23)
+# Apolo Flow 24.12.1 (2024-12-16)
 
 ### Features
 
-- Provide `flow.username` in both *live* and *batch* modes. ([#1175](https://github.com/neuro-inc/neuro-flow/issues/1175))
+- Prefer `.apolo` over `.neuro` for config files and logs. ([#1192](https://github.com/neuro-inc/neuro-flow/issues/1192))
 
 
 # Apolo Flow 24.10.0 (2024-10-23)
